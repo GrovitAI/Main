@@ -1,17 +1,21 @@
 import { Tabs } from 'expo-router';
-import {
-  ChefHat,
-  LayoutDashboard,
-  Receipt,
-  ShoppingCart,
-  Wallet,
-} from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
+import { CURRENT_ROLE } from '@/lib/pos/session-context';
+import {
+  APP_TAB_ROUTE_NAMES,
+  getInitialRouteNameForRole,
+  getTabConfigForRoute,
+  getTabsForRole,
+} from '@/lib/pos/tab-config';
 
 export default function AppTabLayout() {
+  const roleTabs = getTabsForRole(CURRENT_ROLE);
+  const initialRouteName = getInitialRouteNameForRole(CURRENT_ROLE);
+
   return (
     <Tabs
+      initialRouteName={initialRouteName}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
@@ -26,51 +30,36 @@ export default function AppTabLayout() {
         tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <LayoutDashboard color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="orders"
-        options={{
-          title: 'Orders',
-          tabBarIcon: ({ color, size }) => (
-            <ShoppingCart color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="billing"
-        options={{
-          title: 'Billing',
-          tabBarIcon: ({ color, size }) => <Receipt color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="kitchen"
-        options={{
-          title: 'Kitchen',
-          tabBarIcon: ({ color, size }) => <ChefHat color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="finance"
-        options={{
-          title: 'Finance',
-          tabBarIcon: ({ color, size }) => <Wallet color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          href: null,
-        }}
-      />
+      {APP_TAB_ROUTE_NAMES.map((routeName) => {
+        const tab = getTabConfigForRoute(routeName, roleTabs);
+
+        if (!tab) {
+          return (
+            <Tabs.Screen
+              key={routeName}
+              name={routeName}
+              options={{
+                href: null,
+              }}
+            />
+          );
+        }
+
+        const TabIcon = tab.icon;
+
+        return (
+          <Tabs.Screen
+            key={routeName}
+            name={routeName}
+            options={{
+              title: tab.label,
+              tabBarIcon: ({ color, size }) => (
+                <TabIcon color={color} size={size} />
+              ),
+            }}
+          />
+        );
+      })}
     </Tabs>
   );
 }
