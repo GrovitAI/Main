@@ -11,6 +11,8 @@ export const colors = {
   primaryMid: '#0066b2',
   /** Logo inner highlight / swoosh */
   primaryLight: '#3399ff',
+  /** Logo outer vignette — deepest navy for nav rail, dark backgrounds */
+  primaryNavy: '#002d5a',
   /** Soft sky accent for chips and secondary highlights */
   accent: '#93c5fd',
   accentSoft: '#dbeafe',
@@ -24,6 +26,8 @@ export const colors = {
   border: '#c5d9eb',
   borderSoft: '#dbeafe',
   overlay: 'rgba(0, 74, 141, 0.45)',
+  /** Luminous glow — logo center zone radiance */
+  glow: 'rgba(51, 153, 255, 0.15)',
 } as const;
 
 export const gradients = {
@@ -34,6 +38,10 @@ export const gradients = {
   /** Full-screen hero (login, splash) */
   hero: [colors.primaryDeep, colors.primaryMid, colors.primaryLight] as const,
   surface: [colors.surfaceTint, colors.background] as const,
+  /** Category nav rail — logo outer edge depth */
+  navRail: [colors.primaryNavy, colors.primaryDeep] as const,
+  /** Order strip — logo deep horizon */
+  strip: [colors.primaryDeep, colors.primaryNavy] as const,
 };
 
 export const brand = {

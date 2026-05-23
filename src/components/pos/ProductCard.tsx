@@ -1,7 +1,6 @@
 import { View, Text, Pressable } from 'react-native';
 import { Plus } from 'lucide-react-native';
 
-import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import { colors } from '@/lib/pos/brand';
 import type { Product } from '@/lib/pos/products-service';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
@@ -18,26 +17,23 @@ export function ProductCard({ product, onAdd, disabled = false }: ProductCardPro
       accessibilityRole="button"
       disabled={disabled}
       onPress={() => onAdd(product)}
-      className="m-1.5 flex-1 overflow-hidden rounded-2xl border border-border-soft bg-surface-elevated shadow-card active:opacity-90"
+      className="m-1 flex-1 overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-card active:opacity-80"
     >
-      <View className="p-4">
+      <View className="h-[3px] bg-primary-light" />
+      <View className="px-2.5 pb-2.5 pt-2">
         <Text
-          className="text-lg font-bold leading-tight text-text-primary"
+          className="text-sm font-bold leading-tight text-text-primary"
           numberOfLines={2}
         >
           {product.name}
         </Text>
-        <Text className="mt-2 text-base font-semibold text-primary-mid">
-          {formatCurrency(product.price)}
-        </Text>
-
-        <View className="mt-4 overflow-hidden rounded-2xl">
-          <BrandedGradient variant="primarySoft" className="min-h-[48px] items-center justify-center">
-            <View className="min-h-[48px] flex-row items-center justify-center gap-2 px-4">
-              <Plus color={colors.textOnPrimary} size={22} strokeWidth={2.5} />
-              <Text className="text-sm font-bold text-text-on-primary">Add</Text>
-            </View>
-          </BrandedGradient>
+        <View className="mt-1.5 flex-row items-center justify-between">
+          <Text className="text-sm font-semibold text-primary-mid">
+            {formatCurrency(product.price)}
+          </Text>
+          <View className="h-7 w-7 items-center justify-center rounded-full bg-primary-mid">
+            <Plus color={colors.textOnPrimary} size={14} strokeWidth={2.5} />
+          </View>
         </View>
       </View>
     </Pressable>

@@ -33,7 +33,7 @@ const TABLET_BREAKPOINT = 768;
 export default function PosBillingScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= TABLET_BREAKPOINT;
-  const productColumns = isTablet ? 3 : 2;
+  const productColumns = isTablet ? 4 : 2;
 
   const {
     orders,
@@ -135,6 +135,7 @@ export default function PosBillingScreen() {
   const isInitialLoading =
     (isLoadingOrders && orders.length === 0) || (catalogLoading && allProducts.length === 0);
 
+  // ─── Loading state ───
   if (isInitialLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-tint">
@@ -144,17 +145,18 @@ export default function PosBillingScreen() {
     );
   }
 
+  // ─── Error state ───
   if ((ordersError || catalogError) && orders.length === 0 && allProducts.length === 0) {
     return (
       <View className="flex-1 items-center justify-center bg-surface-tint px-6">
-        <View className="w-full max-w-md rounded-panel border border-border-soft bg-surface-elevated p-8 shadow-panel">
+        <View className="w-full max-w-md rounded-xl border border-border-soft bg-surface-elevated p-8 shadow-panel">
           <Text className="text-center text-lg font-semibold text-text-primary">
             {ordersError ?? catalogError ?? 'Something went wrong.'}
           </Text>
           <Pressable
             accessibilityRole="button"
             onPress={handleRetry}
-            className="mt-6 min-h-[48px] items-center justify-center overflow-hidden rounded-2xl bg-primary-mid px-6"
+            className="mt-6 min-h-[48px] items-center justify-center overflow-hidden rounded-xl bg-primary-mid px-6"
           >
             <Text className="font-bold text-text-on-primary">Try again</Text>
           </Pressable>
@@ -163,33 +165,28 @@ export default function PosBillingScreen() {
     );
   }
 
-  const catalogSection = (
-    <View className="min-h-0 flex-1">
-      <CategoryTabs
-        categories={categories}
-        selectedCategoryId={selectedCategoryId}
-        onSelectCategory={setSelectedCategoryId}
-      />
-
+  // ─── Product grid (used in both layouts) ───
+  const productGrid = (
+    <View className="min-h-0 flex-1 bg-surface-tint">
       {catalogLoading ? (
         <View className="flex-1 items-center justify-center py-10">
           <ActivityIndicator color={colors.primaryMid} size="large" />
         </View>
       ) : catalogError ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-center text-base text-text-secondary">{catalogError}</Text>
+          <Text className="text-center text-sm text-text-secondary">{catalogError}</Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => void loadCatalog()}
-            className="mt-4 min-h-[48px] items-center justify-center rounded-2xl border-2 border-primary-mid px-5"
+            className="mt-4 min-h-[44px] items-center justify-center rounded-xl border-2 border-primary-mid px-5"
           >
-            <Text className="font-bold text-primary-mid">Retry catalog</Text>
+            <Text className="text-xs font-bold text-primary-mid">Retry catalog</Text>
           </Pressable>
         </View>
       ) : visibleProducts.length === 0 ? (
         <View className="flex-1 items-center justify-center px-6">
-          <View className="rounded-2xl border border-dashed border-border-soft bg-surface-elevated px-6 py-8">
-            <Text className="text-center text-base text-text-secondary">
+          <View className="rounded-xl border border-dashed border-border-soft bg-surface-elevated px-6 py-8">
+            <Text className="text-center text-sm text-text-secondary">
               No products found. Add products in Settings.
             </Text>
           </View>
@@ -200,7 +197,7 @@ export default function PosBillingScreen() {
           key={productColumns}
           numColumns={productColumns}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 12, paddingBottom: 20 }}
+          contentContainerStyle={{ padding: 4, paddingBottom: 16 }}
           renderItem={({ item }) => (
             <View className="flex-1">
               <ProductCard
@@ -215,6 +212,7 @@ export default function PosBillingScreen() {
     </View>
   );
 
+  // ─── Order panel (used in both layouts) ───
   const orderPanel = (
     <OrderPanel
       order={activeOrder}
@@ -232,7 +230,8 @@ export default function PosBillingScreen() {
 
   return (
     <View className="flex-1 bg-surface-tint">
-      <View className="px-3 pb-2 pt-3 md:px-5 md:pt-4">
+      {/* ─── Order strip ─── */}
+      <View className="px-2 py-1.5">
         <OpenOrdersStrip
           orders={orders}
           activeOrderId={activeOrderId}
@@ -243,29 +242,56 @@ export default function PosBillingScreen() {
         />
       </View>
 
-      {(ordersError || catalogError) && (
-        <View className="mx-4 mb-2 rounded-2xl border border-border-soft bg-accent-soft px-4 py-2">
-          <Text className="text-center text-xs font-medium text-primary-deep">
+      {/* ─── Inline error bar ─── */}
+      {(ordersError || catalogError) ? (
+        <View className="mx-2 mb-1 rounded-lg border border-border-soft bg-accent-soft px-3 py-1.5">
+          <Text className="text-center text-[11px] font-medium text-primary-deep">
             {ordersError ?? catalogError}
           </Text>
         </View>
-      )}
+      ) : null}
 
+      {/* ─── Main workspace ─── */}
       {isTablet ? (
-        <View className="min-h-0 flex-1 flex-row gap-4 px-4 pb-4 md:px-5">
-          <View className="min-h-0 flex-1 overflow-hidden rounded-panel border border-border-soft bg-surface-tint shadow-panel">
-            {catalogSection}
+        /* ═══ TABLET: 3-column layout ═══ */
+        <View className="min-h-0 flex-1 flex-row gap-2 px-2 pb-2">
+          {/* LEFT: Category rail */}
+          <View className="w-[130px]">
+            <CategoryTabs
+              categories={categories}
+              selectedCategoryId={selectedCategoryId}
+              onSelectCategory={setSelectedCategoryId}
+              vertical
+            />
           </View>
-          <View className="h-full w-[400px] min-h-0 overflow-hidden rounded-panel border border-border-soft bg-surface-elevated shadow-panel">
+
+          {/* CENTER: Product grid */}
+          <View className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border-soft shadow-card">
+            {productGrid}
+          </View>
+
+          {/* RIGHT: Billing panel */}
+          <View className="w-[340px] min-h-0 overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-panel">
             {orderPanel}
           </View>
         </View>
       ) : (
-        <View className="min-h-0 flex-1 px-3 pb-3">
-          <View className="min-h-0 flex-[0.56] overflow-hidden rounded-panel border border-border-soft bg-surface-tint shadow-card">
-            {catalogSection}
+        /* ═══ MOBILE: Stacked layout ═══ */
+        <View className="min-h-0 flex-1 px-2 pb-2">
+          {/* Horizontal category tabs */}
+          <CategoryTabs
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+          />
+
+          {/* Product grid */}
+          <View className="min-h-0 flex-[0.56] overflow-hidden rounded-xl border border-border-soft bg-surface-tint shadow-card">
+            {productGrid}
           </View>
-          <View className="mt-3 min-h-[300px] max-h-[44%] overflow-hidden rounded-panel border border-border-soft bg-surface-elevated shadow-panel">
+
+          {/* Billing panel */}
+          <View className="mt-2 min-h-[280px] max-h-[44%] overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-panel">
             {orderPanel}
           </View>
         </View>

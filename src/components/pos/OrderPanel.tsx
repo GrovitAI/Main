@@ -50,17 +50,19 @@ export function OrderPanel({
 
   const orderTitle = order
     ? formatOrderLabel(order.order_name, `Order #${orderIndex + 1}`)
-    : 'No active order';
+    : 'New Order';
+
+  const hasItems = items.length > 0;
+  const ctaDisabled = !order || !hasItems || isMutating;
 
   return (
     <View className="flex-1 bg-surface-elevated">
-      <View className="border-b border-border-soft px-5 py-4">
-        <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
-          Current order
-        </Text>
-        <Text className="mt-1 text-2xl font-bold text-text-primary">{orderTitle}</Text>
+      {/* Header — compact single row */}
+      <View className="border-b border-border-soft px-4 py-2.5">
+        <Text className="text-base font-bold text-text-primary">{orderTitle}</Text>
       </View>
 
+      {/* Items list */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color={colors.primaryMid} size="large" />
@@ -69,107 +71,111 @@ export function OrderPanel({
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          className="flex-1 px-4"
-          contentContainerStyle={{ paddingVertical: 12, flexGrow: 1 }}
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1 }}
           ListEmptyComponent={
-            <View className="flex-1 items-center justify-center rounded-2xl border border-dashed border-border-soft bg-surface-tint px-4 py-12">
-              <Text className="text-center text-base text-text-secondary">
-                Add items from the menu
-              </Text>
+            <View className="flex-1 items-center justify-center px-3 py-4">
+              <View className="w-full rounded-xl border border-dashed border-border-soft bg-surface-tint px-4 py-8">
+                <Text className="text-center text-sm text-text-secondary">
+                  Add items from the menu
+                </Text>
+              </View>
             </View>
           }
           renderItem={({ item }) => (
-            <View className="mb-3 rounded-2xl border border-border-soft bg-surface-tint p-4">
-              <View className="flex-row items-start justify-between">
-                <View className="flex-1 pr-3">
-                  <Text className="text-lg font-bold text-text-primary">
-                    {item.product_name}
-                  </Text>
-                  <Text className="mt-1 text-sm text-text-secondary">
-                    {formatCurrency(item.price)} each
-                  </Text>
-                </View>
-                <Text className="text-lg font-bold text-primary-mid">
-                  {formatCurrency(item.qty * item.price)}
+            <View className="flex-row items-center border-b border-border-soft px-3 py-2.5">
+              {/* Name + unit price */}
+              <View className="min-w-0 flex-1 pr-2">
+                <Text className="text-sm font-semibold text-text-primary" numberOfLines={1}>
+                  {item.product_name}
+                </Text>
+                <Text className="text-[11px] text-text-secondary">
+                  {formatCurrency(item.price)} each
                 </Text>
               </View>
 
-              <View className="mt-4 flex-row items-center justify-between">
-                <View className="flex-row items-center rounded-2xl border border-border-soft bg-surface-elevated p-1">
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Decrease quantity"
-                    disabled={isMutating}
-                    onPress={() => onDecrementItem(item.id)}
-                    className="h-12 w-12 items-center justify-center rounded-xl bg-surface-tint"
-                  >
-                    <Minus color={colors.primaryDeep} size={20} />
-                  </Pressable>
-                  <Text className="mx-4 min-w-[28px] text-center text-lg font-bold text-text-primary">
-                    {item.qty}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Increase quantity"
-                    disabled={isMutating}
-                    onPress={() => onIncrementItem(item.id)}
-                    className="h-12 w-12 items-center justify-center rounded-xl bg-surface-tint"
-                  >
-                    <Plus color={colors.primaryDeep} size={20} />
-                  </Pressable>
-                </View>
-
+              {/* Qty controls */}
+              <View className="flex-row items-center rounded-lg bg-surface-tint">
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Remove item"
+                  accessibilityLabel="Decrease quantity"
                   disabled={isMutating}
-                  onPress={() => onRemoveItem(item.id)}
-                  className="h-12 w-12 items-center justify-center rounded-2xl border border-border-soft bg-surface-elevated"
+                  onPress={() => onDecrementItem(item.id)}
+                  className="h-7 w-7 items-center justify-center"
                 >
-                  <Trash2 color={colors.primaryMid} size={20} />
+                  <Minus color={colors.primaryDeep} size={14} />
+                </Pressable>
+                <Text className="mx-2 min-w-[20px] text-center text-sm font-bold text-text-primary">
+                  {item.qty}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase quantity"
+                  disabled={isMutating}
+                  onPress={() => onIncrementItem(item.id)}
+                  className="h-7 w-7 items-center justify-center"
+                >
+                  <Plus color={colors.primaryDeep} size={14} />
                 </Pressable>
               </View>
+
+              {/* Line total */}
+              <Text className="ml-3 min-w-[60px] text-right text-sm font-bold text-primary-mid">
+                {formatCurrency(item.qty * item.price)}
+              </Text>
+
+              {/* Remove */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove item"
+                disabled={isMutating}
+                onPress={() => onRemoveItem(item.id)}
+                className="ml-2 h-6 w-6 items-center justify-center"
+              >
+                <Trash2 color={colors.textSecondary} size={14} />
+              </Pressable>
             </View>
           )}
         />
       )}
 
-      <View className="border-t border-border-soft bg-surface-tint px-5 py-4">
-        <View className="flex-row justify-between py-1.5">
-          <Text className="text-sm text-text-secondary">Subtotal</Text>
-          <Text className="text-base font-semibold text-text-primary">
+      {/* Totals + CTAs */}
+      <View className="border-t border-border-soft bg-surface-tint px-4 py-3">
+        <View className="flex-row justify-between py-1">
+          <Text className="text-xs text-text-secondary">Subtotal</Text>
+          <Text className="text-sm font-semibold text-text-primary">
             {formatCurrency(subtotal)}
           </Text>
         </View>
-        <View className="flex-row justify-between py-1.5">
-          <Text className="text-sm text-text-secondary">Tax (5%)</Text>
-          <Text className="text-base font-semibold text-text-primary">
+        <View className="flex-row justify-between py-1">
+          <Text className="text-xs text-text-secondary">Tax (5%)</Text>
+          <Text className="text-sm font-semibold text-text-primary">
             {formatCurrency(tax)}
           </Text>
         </View>
-        <View className="mt-2 flex-row items-end justify-between border-t border-border-soft pt-3">
-          <Text className="text-base font-semibold text-text-secondary">Total</Text>
-          <Text className="text-3xl font-bold text-primary-mid">
+        <View className="mt-1.5 flex-row items-end justify-between border-t border-border-soft pt-2">
+          <Text className="text-sm font-bold text-text-primary">Total</Text>
+          <Text className="text-2xl font-bold text-primary-mid">
             {formatCurrency(total)}
           </Text>
         </View>
 
-        <View className="mt-4 flex-row gap-3">
+        <View className="mt-3 flex-row gap-2">
           <Pressable
             accessibilityRole="button"
-            disabled={!order || items.length === 0 || isMutating}
+            disabled={ctaDisabled}
             onPress={onSendKot}
-            className="min-h-[48px] flex-1 items-center justify-center rounded-2xl border-2 border-primary-mid bg-surface-elevated"
+            className="min-h-[44px] flex-1 items-center justify-center rounded-xl border-2 border-primary-mid bg-surface-elevated"
           >
-            <Text className="text-sm font-bold text-primary-mid">Send KOT</Text>
+            <Text className="text-xs font-bold text-primary-mid">Send KOT</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            disabled={!order || items.length === 0 || isMutating}
+            disabled={ctaDisabled}
             onPress={onSettle}
-            className="min-h-[48px] flex-1 overflow-hidden rounded-2xl"
+            className="min-h-[44px] flex-[1.6] overflow-hidden rounded-xl"
           >
-            <BrandedGradient variant="primary" className="min-h-[48px] items-center justify-center">
+            <BrandedGradient variant="primary" className="min-h-[44px] items-center justify-center">
               <Text className="text-sm font-bold text-text-on-primary">Settle</Text>
             </BrandedGradient>
           </Pressable>

@@ -1,4 +1,4 @@
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Pressable, Text, View } from 'react-native';
 import { Plus } from 'lucide-react-native';
 
 import { BrandedGradient } from '@/components/pos/BrandedGradient';
@@ -21,20 +21,36 @@ type OrderChip = {
   itemCount: number;
 };
 
+/* eslint-disable @typescript-eslint/no-require-imports */
+const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
+
+function LogoHeader() {
+  return (
+    <View className="mr-3 items-center justify-center">
+      <Image
+        source={leLabanLogo}
+        className="h-7 w-16"
+        resizeMode="contain"
+        accessibilityLabel="Le Leban logo"
+      />
+      <Text className="mt-0.5 text-[10px] font-medium text-accent">
+        Main Branch
+      </Text>
+    </View>
+  );
+}
+
 function CreateOrderButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Create new order"
       onPress={onPress}
-      className="mr-2"
+      className="ml-1"
     >
-      <BrandedGradient
-        variant="primarySoft"
-        className="h-12 w-12 items-center justify-center rounded-full border-2 border-border-soft"
-      >
-        <Plus color={colors.textOnPrimary} size={22} strokeWidth={2.5} />
-      </BrandedGradient>
+      <View className="h-8 w-8 items-center justify-center rounded-full border border-primary-light/40 bg-primary-light/30">
+        <Plus color={colors.textOnPrimary} size={16} strokeWidth={2.5} />
+      </View>
     </Pressable>
   );
 }
@@ -49,79 +65,80 @@ export function OpenOrdersStrip({
 }: OpenOrdersStripProps) {
   const chips: OrderChip[] = orders.map((order, index) => ({
     id: order.id,
-    label: formatOrderLabel(order.order_name, `Order #${index + 1}`),
+    label: formatOrderLabel(order.order_name, `#${index + 1}`),
     itemCount: itemCountByOrderId[order.id] ?? 0,
   }));
 
   if (isLoading && orders.length === 0) {
     return (
-      <View className="px-4 py-4">
-        <ActivityIndicator color={colors.primaryMid} />
-      </View>
+      <BrandedGradient variant="strip" className="min-h-[44px] flex-row items-center justify-center rounded-xl px-3 py-2">
+        <LogoHeader />
+        <ActivityIndicator color={colors.accent} size="small" />
+      </BrandedGradient>
     );
   }
 
   if (orders.length === 0) {
     return (
-      <View className="flex-row items-center rounded-panel border border-border-soft bg-surface-elevated px-5 py-4 shadow-card">
-        <Text className="flex-1 text-base text-text-secondary">
+      <BrandedGradient variant="strip" className="min-h-[44px] flex-row items-center rounded-xl px-3 py-2">
+        <LogoHeader />
+        <Text className="flex-1 text-xs text-accent">
           Tap + to create first order
         </Text>
         <CreateOrderButton onPress={onCreateOrder} />
-      </View>
+      </BrandedGradient>
     );
   }
 
   return (
-    <View className="rounded-panel border border-border-soft bg-surface-elevated px-3 py-3 shadow-card">
+    <BrandedGradient variant="strip" className="min-h-[44px] rounded-xl px-2 py-1.5">
       <FlatList
         horizontal
         data={chips}
         keyExtractor={(item) => item.id}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 8, alignItems: 'center' }}
-        ListHeaderComponent={<CreateOrderButton onPress={onCreateOrder} />}
+        contentContainerStyle={{ alignItems: 'center' }}
+        ListHeaderComponent={<LogoHeader />}
+        ListFooterComponent={<CreateOrderButton onPress={onCreateOrder} />}
         renderItem={({ item }) => {
           const isActive = item.id === activeOrderId;
-
-          if (isActive) {
-            return (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => onSelectOrder(item.id)}
-                className="mx-1"
-              >
-                <BrandedGradient
-                  variant="primary"
-                  className="min-h-[52px] min-w-[120px] items-center justify-center rounded-full px-5 py-3"
-                >
-                  <Text className="text-center text-sm font-bold text-text-on-primary">
-                    {item.label}
-                  </Text>
-                  <Text className="mt-0.5 text-center text-xs font-medium text-accent">
-                    {item.itemCount} items
-                  </Text>
-                </BrandedGradient>
-              </Pressable>
-            );
-          }
 
           return (
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectOrder(item.id)}
-              className="mx-1 min-h-[52px] min-w-[120px] justify-center rounded-full border border-border-soft bg-surface-tint px-5 py-3"
+              className="mx-1"
             >
-              <Text className="text-center text-sm font-semibold text-text-primary">
-                {item.label}
-              </Text>
-              <Text className="mt-0.5 text-center text-xs text-text-secondary">
-                {item.itemCount} items
-              </Text>
+              <View
+                className={
+                  isActive
+                    ? 'min-h-[36px] min-w-[80px] items-center justify-center rounded-lg border border-primary-light/50 bg-primary-light/25 px-3 py-1'
+                    : 'min-h-[36px] min-w-[80px] items-center justify-center rounded-lg bg-text-on-primary/10 px-3 py-1'
+                }
+              >
+                <Text
+                  className={
+                    isActive
+                      ? 'text-center text-xs font-bold text-text-on-primary'
+                      : 'text-center text-xs font-semibold text-accent'
+                  }
+                >
+                  {item.label}
+                </Text>
+                <Text
+                  className={
+                    isActive
+                      ? 'text-center text-[10px] text-accent'
+                      : 'text-center text-[10px] text-text-on-primary/60'
+                  }
+                >
+                  {item.itemCount} items
+                </Text>
+              </View>
             </Pressable>
           );
         }}
       />
-    </View>
+    </BrandedGradient>
   );
 }
