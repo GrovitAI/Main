@@ -17,17 +17,21 @@ export default function AppTabLayout() {
     <Tabs
       initialRouteName={initialRouteName}
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.primaryMid,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          minHeight: 60,
+          backgroundColor: colors.surfaceElevated,
+          borderTopColor: colors.borderSoft,
+          minHeight: 64,
+          paddingTop: 4,
         },
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.textPrimary,
-        headerTitleStyle: { fontWeight: '600' },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
+        headerStyle: {
+          backgroundColor: colors.surfaceTint,
+          borderBottomColor: colors.borderSoft,
+        },
+        headerTintColor: colors.primaryDeep,
+        headerTitleStyle: { fontWeight: '700', color: colors.textPrimary },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
       }}
     >
       {APP_TAB_ROUTE_NAMES.map((routeName) => {

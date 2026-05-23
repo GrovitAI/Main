@@ -1,5 +1,6 @@
 import { FlatList, Pressable, Text, View } from 'react-native';
 
+import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import type { Category } from '@/lib/pos/products-service';
 
 type CategoryTabsProps = {
@@ -24,30 +25,39 @@ export function CategoryTabs({
   ];
 
   return (
-    <View className="border-b border-border bg-background py-2">
+    <View className="px-4 pb-3 pt-4">
       <FlatList
         horizontal
         data={tabs}
         keyExtractor={(item) => item.id ?? 'all'}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
+        contentContainerStyle={{ gap: 10 }}
         renderItem={({ item }) => {
           const isActive = selectedCategoryId === item.id;
+
+          if (isActive) {
+            return (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onSelectCategory(item.id)}
+              >
+                <BrandedGradient
+                  variant="primary"
+                  className="min-h-[44px] items-center justify-center rounded-full px-5 py-2.5"
+                >
+                  <Text className="text-sm font-bold text-text-on-primary">{item.name}</Text>
+                </BrandedGradient>
+              </Pressable>
+            );
+          }
+
           return (
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectCategory(item.id)}
-              className={`min-h-[44px] justify-center rounded-full px-4 py-2 ${
-                isActive ? 'bg-primary' : 'border border-border bg-background'
-              }`}
+              className="min-h-[44px] justify-center rounded-full border border-border-soft bg-surface-elevated px-5 py-2.5"
             >
-              <Text
-                className={`text-sm font-semibold ${
-                  isActive ? 'text-white' : 'text-text-secondary'
-                }`}
-              >
-                {item.name}
-              </Text>
+              <Text className="text-sm font-semibold text-text-secondary">{item.name}</Text>
             </Pressable>
           );
         }}

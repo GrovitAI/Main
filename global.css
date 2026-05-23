@@ -1,3 +1,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Le Leban logo palette — web / static rendering */
+:root {
+  --leban-deep: #004a8d;
+  --leban-primary: #0066b2;
+  --leban-light: #3399ff;
+  --leban-surface: #e8f2fa;
+  --leban-text: #0f2744;
+  --leban-muted: #5b6b7c;
+}
+
+body {
+  background-color: var(--leban-surface);
+  color: var(--leban-text);
+}

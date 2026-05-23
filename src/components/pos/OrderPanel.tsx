@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Minus, Plus, Trash2 } from 'lucide-react-native';
 
+import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import { colors } from '@/lib/pos/brand';
 import type { OpenOrder, PosOrderItem } from '@/lib/pos/order-types';
 import {
@@ -48,70 +49,73 @@ export function OrderPanel({
   const total = calculateOrderTotal(subtotal, TAX_RATE);
 
   const orderTitle = order
-    ? formatOrderLabel(order.table_label, `Order #${orderIndex + 1}`)
+    ? formatOrderLabel(order.order_name, `Order #${orderIndex + 1}`)
     : 'No active order';
 
   return (
-    <View className="flex-1 bg-background">
-      <View className="border-b border-border px-4 py-3">
-        <Text className="text-lg font-bold text-text-primary">{orderTitle}</Text>
+    <View className="flex-1 bg-surface-elevated">
+      <View className="border-b border-border-soft px-5 py-4">
+        <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+          Current order
+        </Text>
+        <Text className="mt-1 text-2xl font-bold text-text-primary">{orderTitle}</Text>
       </View>
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.primaryMid} size="large" />
         </View>
       ) : (
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          className="flex-1 px-3"
-          contentContainerStyle={{ paddingVertical: 8, flexGrow: 1 }}
+          className="flex-1 px-4"
+          contentContainerStyle={{ paddingVertical: 12, flexGrow: 1 }}
           ListEmptyComponent={
-            <View className="flex-1 items-center justify-center py-10">
-              <Text className="text-center text-sm text-text-secondary">
+            <View className="flex-1 items-center justify-center rounded-2xl border border-dashed border-border-soft bg-surface-tint px-4 py-12">
+              <Text className="text-center text-base text-text-secondary">
                 Add items from the menu
               </Text>
             </View>
           }
           renderItem={({ item }) => (
-            <View className="mb-2 rounded-2xl border border-border bg-background p-3">
+            <View className="mb-3 rounded-2xl border border-border-soft bg-surface-tint p-4">
               <View className="flex-row items-start justify-between">
-                <View className="flex-1 pr-2">
-                  <Text className="text-base font-semibold text-text-primary">
+                <View className="flex-1 pr-3">
+                  <Text className="text-lg font-bold text-text-primary">
                     {item.product_name}
                   </Text>
                   <Text className="mt-1 text-sm text-text-secondary">
-                    {formatCurrency(item.unit_price)} each
+                    {formatCurrency(item.price)} each
                   </Text>
                 </View>
-                <Text className="text-base font-semibold text-text-primary">
-                  {formatCurrency(item.quantity * item.unit_price)}
+                <Text className="text-lg font-bold text-primary-mid">
+                  {formatCurrency(item.qty * item.price)}
                 </Text>
               </View>
 
-              <View className="mt-3 flex-row items-center justify-between">
-                <View className="flex-row items-center">
+              <View className="mt-4 flex-row items-center justify-between">
+                <View className="flex-row items-center rounded-2xl border border-border-soft bg-surface-elevated p-1">
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Decrease quantity"
                     disabled={isMutating}
                     onPress={() => onDecrementItem(item.id)}
-                    className="h-11 w-11 items-center justify-center rounded-xl border border-border"
+                    className="h-12 w-12 items-center justify-center rounded-xl bg-surface-tint"
                   >
-                    <Minus color={colors.textPrimary} size={18} />
+                    <Minus color={colors.primaryDeep} size={20} />
                   </Pressable>
-                  <Text className="mx-3 min-w-[24px] text-center text-base font-semibold text-text-primary">
-                    {item.quantity}
+                  <Text className="mx-4 min-w-[28px] text-center text-lg font-bold text-text-primary">
+                    {item.qty}
                   </Text>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Increase quantity"
                     disabled={isMutating}
                     onPress={() => onIncrementItem(item.id)}
-                    className="h-11 w-11 items-center justify-center rounded-xl border border-border"
+                    className="h-12 w-12 items-center justify-center rounded-xl bg-surface-tint"
                   >
-                    <Plus color={colors.textPrimary} size={18} />
+                    <Plus color={colors.primaryDeep} size={20} />
                   </Pressable>
                 </View>
 
@@ -120,9 +124,9 @@ export function OrderPanel({
                   accessibilityLabel="Remove item"
                   disabled={isMutating}
                   onPress={() => onRemoveItem(item.id)}
-                  className="h-11 w-11 items-center justify-center rounded-xl border border-border"
+                  className="h-12 w-12 items-center justify-center rounded-2xl border border-border-soft bg-surface-elevated"
                 >
-                  <Trash2 color={colors.primary} size={18} />
+                  <Trash2 color={colors.primaryMid} size={20} />
                 </Pressable>
               </View>
             </View>
@@ -130,42 +134,44 @@ export function OrderPanel({
         />
       )}
 
-      <View className="border-t border-border px-4 py-3">
-        <View className="flex-row justify-between py-1">
+      <View className="border-t border-border-soft bg-surface-tint px-5 py-4">
+        <View className="flex-row justify-between py-1.5">
           <Text className="text-sm text-text-secondary">Subtotal</Text>
-          <Text className="text-sm font-medium text-text-primary">
+          <Text className="text-base font-semibold text-text-primary">
             {formatCurrency(subtotal)}
           </Text>
         </View>
-        <View className="flex-row justify-between py-1">
+        <View className="flex-row justify-between py-1.5">
           <Text className="text-sm text-text-secondary">Tax (5%)</Text>
-          <Text className="text-sm font-medium text-text-primary">
+          <Text className="text-base font-semibold text-text-primary">
             {formatCurrency(tax)}
           </Text>
         </View>
-        <View className="mt-1 flex-row justify-between border-t border-border pt-2">
-          <Text className="text-base font-bold text-text-primary">Total</Text>
-          <Text className="text-base font-bold text-primary">
+        <View className="mt-2 flex-row items-end justify-between border-t border-border-soft pt-3">
+          <Text className="text-base font-semibold text-text-secondary">Total</Text>
+          <Text className="text-3xl font-bold text-primary-mid">
             {formatCurrency(total)}
           </Text>
         </View>
 
-        <View className="mt-3 flex-row gap-2">
+        <View className="mt-4 flex-row gap-3">
           <Pressable
             accessibilityRole="button"
             disabled={!order || items.length === 0 || isMutating}
             onPress={onSendKot}
-            className="min-h-[44px] flex-1 items-center justify-center rounded-xl border border-primary bg-background"
+            className="min-h-[48px] flex-1 items-center justify-center rounded-2xl border-2 border-primary-mid bg-surface-elevated"
           >
-            <Text className="text-sm font-semibold text-primary">Send KOT</Text>
+            <Text className="text-sm font-bold text-primary-mid">Send KOT</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             disabled={!order || items.length === 0 || isMutating}
             onPress={onSettle}
-            className="min-h-[44px] flex-1 items-center justify-center rounded-xl bg-primary"
+            className="min-h-[48px] flex-1 overflow-hidden rounded-2xl"
           >
-            <Text className="text-sm font-semibold text-white">Settle</Text>
+            <BrandedGradient variant="primary" className="min-h-[48px] items-center justify-center">
+              <Text className="text-sm font-bold text-text-on-primary">Settle</Text>
+            </BrandedGradient>
           </Pressable>
         </View>
       </View>

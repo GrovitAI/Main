@@ -29,13 +29,16 @@ All three from this single Expo codebase.
 - EAS (builds + OTA updates)
 - lucide-react-native (icons)
 
-## Design System
-- Primary: #1d4ed8 (blue)
-- Accent: #93c5fd (light blue)
+## Design System (Le Leban logo)
+- Primary / center blue: #0066b2
+- Deep edge blue: #004a8d
+- Highlight swoosh: #3399ff
+- Accent: #93c5fd
+- Surface tint: #e8f2fa
 - Background: #ffffff
-- Text primary: #111827
-- Text secondary: #6b7280
-- Border: #e5e7eb
+- Text primary: #0f2744
+- Text secondary: #5b6b7c
+- Border: #c5d9eb
 - Tablet first, mobile friendly
 - Minimum touch target: 44px
 - Rounded cards, clean minimal UI

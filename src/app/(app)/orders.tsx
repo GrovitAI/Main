@@ -94,7 +94,7 @@ export default function OrdersScreen() {
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('all');
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
   const [viewingItems, setViewingItems] = useState<
-    { name: string; quantity: number }[]
+    { name: string; qty: number }[]
   >([]);
   const [viewLoading, setViewLoading] = useState(false);
 
@@ -159,7 +159,7 @@ export default function OrdersScreen() {
       setViewingItems(
         summary.previewItems.map((item) => ({
           name: item.name,
-          quantity: item.quantity,
+          qty: item.quantity,
         })),
       );
       return;
@@ -169,7 +169,7 @@ export default function OrdersScreen() {
     setViewingItems(
       result.data.items.map((item) => ({
         name: productNameById[item.product_id] ?? 'Item',
-        quantity: item.quantity,
+        qty: item.qty,
       })),
     );
   };
@@ -326,7 +326,7 @@ export default function OrdersScreen() {
               <Text className="text-xl font-bold text-text-primary">
                 {viewingSummary
                   ? formatOrderLabel(
-                      viewingSummary.order.table_label,
+                      viewingSummary.order.order_name,
                       `Order #${viewingOrderIndex + 1}`,
                     )
                   : 'Order details'}
@@ -349,7 +349,7 @@ export default function OrdersScreen() {
                 renderItem={({ item }) => (
                   <View className="mb-2 flex-row justify-between rounded-2xl bg-surface-tint px-4 py-3">
                     <Text className="text-base font-medium text-text-primary">{item.name}</Text>
-                    <Text className="text-base font-bold text-primary-mid">×{item.quantity}</Text>
+                    <Text className="text-base font-bold text-primary-mid">×{item.qty}</Text>
                   </View>
                 )}
                 ListEmptyComponent={

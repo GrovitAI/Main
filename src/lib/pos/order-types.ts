@@ -2,23 +2,21 @@ export type OpenOrder = {
   id: string;
   tenant_id: string;
   branch_id: string;
-  table_label: string | null;
+  order_name: string;
   status: string;
-  notes: string | null;
+  created_by: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 export type OpenOrderItem = {
   id: string;
-  tenant_id: string;
-  branch_id: string;
   open_order_id: string;
   product_id: string;
-  quantity: number;
-  unit_price: number;
+  item_name: string;
+  price: number;
+  qty: number;
   notes: string | null;
-  created_at: string;
+  kot_sent: boolean;
 };
 
 export type OpenOrderWithItems = OpenOrder & {

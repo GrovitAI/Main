@@ -40,7 +40,7 @@ function createTempId(prefix: string): string {
 }
 
 function getItemCount(items: PosOrderItem[]): number {
-  return items.reduce((sum, item) => sum + item.quantity, 0);
+  return items.reduce((sum, item) => sum + item.qty, 0);
 }
 
 function enrichItems(
@@ -94,8 +94,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       orders,
       itemCountByOrderId,
       isLoadingOrders: false,
-      error: countsResult.error,
+      error: null,
     });
+
+    if (countsResult.error && typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.warn('[Grovit] Order item counts unavailable:', countsResult.error);
+    }
 
     const { activeOrderId } = get();
     if (activeOrderId && orders.some((order) => order.id === activeOrderId)) {
@@ -149,11 +153,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       id: tempOrderId,
       tenant_id: TENANT_ID,
       branch_id: BRANCH_ID,
-      table_label: tableLabel,
+      order_name: tableLabel,
       status: 'open',
-      notes: null,
+      created_by: null,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     set({
@@ -223,14 +226,13 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const tempItemId = createTempId('temp-item');
     const optimisticItem: PosOrderItem = {
       id: tempItemId,
-      tenant_id: TENANT_ID,
-      branch_id: BRANCH_ID,
       open_order_id: activeOrderId,
       product_id: product.id,
-      quantity: 1,
-      unit_price: product.price,
+      item_name: product.name,
+      qty: 1,
+      price: product.price,
       notes: null,
-      created_at: new Date().toISOString(),
+      kot_sent: false,
       product_name: product.name,
     };
 
@@ -255,8 +257,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const result = await addOrderItem({
       openOrderId: activeOrderId,
       productId: product.id,
+      itemName: product.name,
       quantity: 1,
-      unitPrice: product.price,
+      price: product.price,
     });
 
     if (result.error || !result.data) {
@@ -289,9 +292,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    const nextQuantity = target.quantity + 1;
+    const nextQuantity = target.qty + 1;
     const nextItems = snapshot.activeOrderItems.map((item) =>
-      item.id === itemId ? { ...item, quantity: nextQuantity } : item,
+      item.id === itemId ? { ...item, qty: nextQuantity } : item,
     );
 
     set({
@@ -329,14 +332,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    if (target.quantity <= 1) {
+    if (target.qty <= 1) {
       await get().removeItem(itemId);
       return;
     }
 
-    const nextQuantity = target.quantity - 1;
+    const nextQuantity = target.qty - 1;
     const nextItems = snapshot.activeOrderItems.map((item) =>
-      item.id === itemId ? { ...item, quantity: nextQuantity } : item,
+      item.id === itemId ? { ...item, qty: nextQuantity } : item,
     );
 
     set({

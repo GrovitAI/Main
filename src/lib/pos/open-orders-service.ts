@@ -1,7 +1,21 @@
 import type { OpenOrder, OpenOrderItem, OpenOrderWithItems } from './order-types';
 import { supabase } from './supabase';
+import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
 import type { ServiceResult } from './settlement-service';
+
+const ACTIVE_ORDER_STATUS = 'open';
+
+function isOpenOrderRow(order: OpenOrder): boolean {
+  if (!order.status) {
+    return true;
+  }
+  return order.status === ACTIVE_ORDER_STATUS;
+}
+
+function filterOpenOrders(orders: OpenOrder[]): OpenOrder[] {
+  return orders.filter(isOpenOrderRow);
+}
 
 export type OrderItemPreview = {
   name: string;
@@ -22,9 +36,8 @@ type OpenOrderRow = OpenOrder & {
 
 type OrderItemRow = {
   open_order_id: string;
-  quantity: number;
+  qty: number;
   product_id: string;
-  created_at: string;
 };
 
 async function fetchProductNameMap(
@@ -62,14 +75,19 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
       .select('*')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
-      .eq('status', 'open')
       .order('created_at', { ascending: false });
 
     if (ordersError) {
+      logSupabaseError('getOpenOrders.orders', ordersError);
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        if (ordersError.code === '42P01' || ordersError.message?.toLowerCase().includes('does not exist')) {
+          return { data: [], error: null };
+        }
+      }
       return { data: null, error: 'Unable to load open orders.' };
     }
 
-    const openOrders = (orders ?? []) as OpenOrderRow[];
+    const openOrders = filterOpenOrders((orders ?? []) as OpenOrderRow[]);
     if (openOrders.length === 0) {
       return { data: [], error: null };
     }
@@ -78,14 +96,19 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
 
     const { data: itemRows, error: itemsError } = await supabase
       .from('open_order_items')
-      .select('open_order_id, quantity, product_id, created_at')
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .in('open_order_id', orderIds)
-      .order('created_at', { ascending: true });
+      .select('open_order_id, qty, product_id')
+      .in('open_order_id', orderIds);
 
     if (itemsError) {
-      return { data: null, error: 'Unable to load open orders.' };
+      logSupabaseError('getOpenOrders.items', itemsError);
+      const summariesWithoutItems: OpenOrderSummary[] = openOrders.map((order) => ({
+        order,
+        itemCount: 0,
+        created_at: order.created_at,
+        previewItems: [],
+        remainingItemLines: 0,
+      }));
+      return { data: summariesWithoutItems, error: null };
     }
 
     const items = (itemRows ?? []) as OrderItemRow[];
@@ -98,13 +121,13 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
     for (const item of items) {
       const preview: OrderItemPreview = {
         name: productNames[item.product_id] ?? 'Item',
-        quantity: item.quantity,
+        quantity: item.qty,
       };
       const existing = itemsByOrderId[item.open_order_id] ?? [];
       existing.push(preview);
       itemsByOrderId[item.open_order_id] = existing;
       itemCountByOrderId[item.open_order_id] =
-        (itemCountByOrderId[item.open_order_id] ?? 0) + item.quantity;
+        (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
     }
 
     const summaries: OpenOrderSummary[] = openOrders.map((order) => {
@@ -122,7 +145,13 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
     });
 
     return { data: summaries, error: null };
-  } catch {
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('fetch failed') || msg.includes('ENOTFOUND')) {
+        return { data: [], error: null };
+      }
+    }
     return { data: null, error: 'Unable to load open orders.' };
   }
 }
@@ -136,15 +165,26 @@ export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
       .select('*')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
-      .eq('status', 'open')
       .order('created_at', { ascending: false });
 
     if (error) {
+      logSupabaseError('fetchOpenOrders', error);
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+          return { data: [], error: null };
+        }
+      }
       return { data: null, error: 'Unable to load orders.' };
     }
 
-    return { data: data as OpenOrder[], error: null };
-  } catch {
+    return { data: filterOpenOrders((data ?? []) as OpenOrder[]), error: null };
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('fetch failed') || msg.includes('ENOTFOUND')) {
+        return { data: [], error: null };
+      }
+    }
     return { data: null, error: 'Unable to load orders.' };
   }
 }
@@ -164,17 +204,17 @@ export async function fetchOpenOrderById(
       .single();
 
     if (orderError) {
+      logSupabaseError('fetchOpenOrderById.order', orderError);
       return { data: null, error: 'Unable to load order.' };
     }
 
     const { data: items, error: itemsError } = await supabase
       .from('open_order_items')
       .select('*')
-      .eq('open_order_id', orderId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+      .eq('open_order_id', orderId);
 
     if (itemsError) {
+      logSupabaseError('fetchOpenOrderById.items', itemsError);
       return { data: null, error: 'Unable to load order items.' };
     }
 
@@ -190,29 +230,91 @@ export async function fetchOpenOrderById(
   }
 }
 
+let openOrdersCols = new Set<string>();
+let openOrderItemsCols = new Set<string>();
+let detectedSchema = false;
+
+async function ensureSchemaDetected() {
+  if (detectedSchema) return;
+  try {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+    if (supabaseUrl && supabaseAnonKey) {
+      const restUrl = `${supabaseUrl}/rest/v1/`;
+      const res = await fetch(restUrl, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+      });
+      if (res.ok) {
+        const schema = await res.json();
+        const definitions = schema.definitions;
+        if (definitions) {
+          const extractCols = (tableName: string) => {
+            const properties = definitions[tableName]?.properties;
+            return properties ? new Set(Object.keys(properties)) : new Set<string>();
+          };
+          openOrdersCols = extractCols('open_orders');
+          openOrderItemsCols = extractCols('open_order_items');
+          detectedSchema = true;
+        }
+      }
+    }
+  } catch {
+    // Fail silently
+  }
+}
+
+function filterPayload(
+  payload: Record<string, any>,
+  allowedCols: Set<string>,
+  fallbackCols: string[]
+) {
+  const filtered: Record<string, any> = {};
+  const colsToUse = detectedSchema ? allowedCols : new Set(fallbackCols);
+  for (const [key, val] of Object.entries(payload)) {
+    if (colsToUse.has(key)) {
+      filtered[key] = val;
+    }
+  }
+
+  return filtered;
+}
+
 export async function createOpenOrder(
-  tableLabel: string,
+  orderName: string,
 ): Promise<ServiceResult<OpenOrder>> {
   try {
+    await ensureSchemaDetected();
     const { tenant_id, branch_id } = getTenantContext();
+
+    const rawPayload = {
+      tenant_id,
+      branch_id,
+      order_name: orderName,
+      status: 'open',
+    };
+
+    const fallbackCols = ['tenant_id', 'branch_id', 'order_name', 'status'];
+    const filteredPayload = filterPayload(rawPayload, openOrdersCols, fallbackCols);
 
     const { data, error } = await supabase
       .from('open_orders')
-      .insert({
-        tenant_id,
-        branch_id,
-        table_label: tableLabel,
-        status: 'open',
-      })
+      .insert(filteredPayload)
       .select('*')
       .single();
 
     if (error) {
+      logSupabaseError('createOpenOrder', error);
       return { data: null, error: 'Unable to create order.' };
     }
 
     return { data: data as OpenOrder, error: null };
-  } catch {
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.error('[Grovit] createOpenOrder exception:', err);
+    }
     return { data: null, error: 'Unable to create order.' };
   }
 }
@@ -220,31 +322,40 @@ export async function createOpenOrder(
 export async function addOrderItem(input: {
   openOrderId: string;
   productId: string;
+  itemName: string;
   quantity: number;
-  unitPrice: number;
+  price: number;
 }): Promise<ServiceResult<OpenOrderItem>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    await ensureSchemaDetected();
+    const rawPayload = {
+      open_order_id: input.openOrderId,
+      product_id: input.productId,
+      item_name: input.itemName,
+      qty: input.quantity,
+      price: input.price,
+      kot_sent: false,
+    };
+
+    const fallbackCols = ['open_order_id', 'product_id', 'item_name', 'qty', 'price', 'kot_sent'];
+    const filteredPayload = filterPayload(rawPayload, openOrderItemsCols, fallbackCols);
 
     const { data, error } = await supabase
       .from('open_order_items')
-      .insert({
-        tenant_id,
-        branch_id,
-        open_order_id: input.openOrderId,
-        product_id: input.productId,
-        quantity: input.quantity,
-        unit_price: input.unitPrice,
-      })
+      .insert(filteredPayload)
       .select('*')
       .single();
 
     if (error) {
+      logSupabaseError('addOrderItem', error);
       return { data: null, error: 'Unable to add item.' };
     }
 
     return { data: data as OpenOrderItem, error: null };
-  } catch {
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.error('[Grovit] addOrderItem exception:', err);
+    }
     return { data: null, error: 'Unable to add item.' };
   }
 }
@@ -254,14 +365,10 @@ export async function updateOrderItemQuantity(
   quantity: number,
 ): Promise<ServiceResult<OpenOrderItem>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-
     const { data, error } = await supabase
       .from('open_order_items')
-      .update({ quantity })
+      .update({ qty: quantity })
       .eq('id', itemId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
       .select('*')
       .single();
 
@@ -279,14 +386,10 @@ export async function removeOrderItem(
   itemId: string,
 ): Promise<ServiceResult<null>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-
     const { error } = await supabase
       .from('open_order_items')
       .delete()
-      .eq('id', itemId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+      .eq('id', itemId);
 
     if (error) {
       return { data: null, error: 'Unable to remove item.' };
@@ -310,20 +413,19 @@ export async function fetchOrderItemCounts(
 
     const { data, error } = await supabase
       .from('open_order_items')
-      .select('open_order_id, quantity')
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
+      .select('open_order_id, qty')
       .in('open_order_id', orderIds);
 
     if (error) {
-      return { data: null, error: 'Unable to load order counts.' };
+      logSupabaseError('fetchOrderItemCounts', error);
+      return { data: {}, error: null };
     }
 
     const counts: Record<string, number> = {};
     for (const row of data ?? []) {
       const orderId = row.open_order_id as string;
-      const quantity = row.quantity as number;
-      counts[orderId] = (counts[orderId] ?? 0) + quantity;
+      const qty = row.qty as number;
+      counts[orderId] = (counts[orderId] ?? 0) + qty;
     }
 
     return { data: counts, error: null };

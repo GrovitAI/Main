@@ -26,6 +26,7 @@ import {
   type Product,
 } from '@/lib/pos/products-service';
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
+import { seedDevDatabase } from '@/lib/pos/dev-seed';
 
 const TABLET_BREAKPOINT = 768;
 
@@ -72,7 +73,7 @@ export default function PosBillingScreen() {
   );
 
   const visibleProducts = useMemo(() => {
-    const activeOnly = allProducts.filter((product) => product.is_active !== false);
+    const activeOnly = allProducts.filter((product) => product.is_available !== false);
     if (!selectedCategoryId) {
       return activeOnly;
     }
@@ -111,8 +112,17 @@ export default function PosBillingScreen() {
   }, [setProductCatalog]);
 
   useEffect(() => {
-    void loadOrders();
-    void loadCatalog();
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.log('[Grovit] Running DEV seed');
+      void (async () => {
+        await seedDevDatabase();
+        void loadOrders();
+        void loadCatalog();
+      })();
+    } else {
+      void loadOrders();
+      void loadCatalog();
+    }
   }, [loadOrders, loadCatalog]);
 
   const handleRetry = () => {
@@ -127,32 +137,34 @@ export default function PosBillingScreen() {
 
   if (isInitialLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text className="mt-3 text-sm text-text-secondary">Loading POS…</Text>
+      <View className="flex-1 items-center justify-center bg-surface-tint">
+        <ActivityIndicator size="large" color={colors.primaryMid} />
+        <Text className="mt-4 text-base font-medium text-text-secondary">Loading POS…</Text>
       </View>
     );
   }
 
   if ((ordersError || catalogError) && orders.length === 0 && allProducts.length === 0) {
     return (
-      <View className="flex-1 items-center justify-center bg-background px-6">
-        <Text className="text-center text-base text-text-primary">
-          {ordersError ?? catalogError ?? 'Something went wrong.'}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleRetry}
-          className="mt-4 min-h-[44px] items-center justify-center rounded-xl bg-primary px-6"
-        >
-          <Text className="font-semibold text-white">Try again</Text>
-        </Pressable>
+      <View className="flex-1 items-center justify-center bg-surface-tint px-6">
+        <View className="w-full max-w-md rounded-panel border border-border-soft bg-surface-elevated p-8 shadow-panel">
+          <Text className="text-center text-lg font-semibold text-text-primary">
+            {ordersError ?? catalogError ?? 'Something went wrong.'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleRetry}
+            className="mt-6 min-h-[48px] items-center justify-center overflow-hidden rounded-2xl bg-primary-mid px-6"
+          >
+            <Text className="font-bold text-text-on-primary">Try again</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
   const catalogSection = (
-    <View className="flex-1 min-h-0">
+    <View className="min-h-0 flex-1">
       <CategoryTabs
         categories={categories}
         selectedCategoryId={selectedCategoryId}
@@ -160,25 +172,27 @@ export default function PosBillingScreen() {
       />
 
       {catalogLoading ? (
-        <View className="flex-1 items-center justify-center py-8">
-          <ActivityIndicator color={colors.primary} />
+        <View className="flex-1 items-center justify-center py-10">
+          <ActivityIndicator color={colors.primaryMid} size="large" />
         </View>
       ) : catalogError ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-center text-sm text-text-secondary">{catalogError}</Text>
+          <Text className="text-center text-base text-text-secondary">{catalogError}</Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => void loadCatalog()}
-            className="mt-3 min-h-[44px] items-center justify-center rounded-xl border border-primary px-4"
+            className="mt-4 min-h-[48px] items-center justify-center rounded-2xl border-2 border-primary-mid px-5"
           >
-            <Text className="font-semibold text-primary">Retry catalog</Text>
+            <Text className="font-bold text-primary-mid">Retry catalog</Text>
           </Pressable>
         </View>
       ) : visibleProducts.length === 0 ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-center text-sm text-text-secondary">
-            No products found. Add products in Settings.
-          </Text>
+          <View className="rounded-2xl border border-dashed border-border-soft bg-surface-elevated px-6 py-8">
+            <Text className="text-center text-base text-text-secondary">
+              No products found. Add products in Settings.
+            </Text>
+          </View>
         </View>
       ) : (
         <FlatList
@@ -186,7 +200,7 @@ export default function PosBillingScreen() {
           key={productColumns}
           numColumns={productColumns}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 8, paddingBottom: 16 }}
+          contentContainerStyle={{ padding: 12, paddingBottom: 20 }}
           renderItem={({ item }) => (
             <View className="flex-1">
               <ProductCard
@@ -217,33 +231,41 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View className="flex-1 bg-background">
-      <OpenOrdersStrip
-        orders={orders}
-        activeOrderId={activeOrderId}
-        itemCountByOrderId={itemCountByOrderId}
-        isLoading={isLoadingOrders}
-        onSelectOrder={(orderId) => void selectOrder(orderId)}
-        onCreateOrder={() => void createOrder()}
-      />
+    <View className="flex-1 bg-surface-tint">
+      <View className="px-3 pb-2 pt-3 md:px-5 md:pt-4">
+        <OpenOrdersStrip
+          orders={orders}
+          activeOrderId={activeOrderId}
+          itemCountByOrderId={itemCountByOrderId}
+          isLoading={isLoadingOrders}
+          onSelectOrder={(orderId) => void selectOrder(orderId)}
+          onCreateOrder={() => void createOrder()}
+        />
+      </View>
 
       {(ordersError || catalogError) && (
-        <View className="border-b border-border bg-accent/30 px-4 py-2">
-          <Text className="text-center text-xs text-text-primary">
+        <View className="mx-4 mb-2 rounded-2xl border border-border-soft bg-accent-soft px-4 py-2">
+          <Text className="text-center text-xs font-medium text-primary-deep">
             {ordersError ?? catalogError}
           </Text>
         </View>
       )}
 
       {isTablet ? (
-        <View className="min-h-0 flex-1 flex-row">
-          <View className="min-h-0 flex-1 border-r border-border">{catalogSection}</View>
-          <View className="w-[380px] min-h-0">{orderPanel}</View>
+        <View className="min-h-0 flex-1 flex-row gap-4 px-4 pb-4 md:px-5">
+          <View className="min-h-0 flex-1 overflow-hidden rounded-panel border border-border-soft bg-surface-tint shadow-panel">
+            {catalogSection}
+          </View>
+          <View className="h-full w-[400px] min-h-0 overflow-hidden rounded-panel border border-border-soft bg-surface-elevated shadow-panel">
+            {orderPanel}
+          </View>
         </View>
       ) : (
-        <View className="min-h-0 flex-1">
-          <View className="min-h-0 flex-[0.58]">{catalogSection}</View>
-          <View className="min-h-[280px] max-h-[42%] border-t border-border">
+        <View className="min-h-0 flex-1 px-3 pb-3">
+          <View className="min-h-0 flex-[0.56] overflow-hidden rounded-panel border border-border-soft bg-surface-tint shadow-card">
+            {catalogSection}
+          </View>
+          <View className="mt-3 min-h-[300px] max-h-[44%] overflow-hidden rounded-panel border border-border-soft bg-surface-elevated shadow-panel">
             {orderPanel}
           </View>
         </View>

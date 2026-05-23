@@ -22,7 +22,7 @@ export function OrderCard({
   onResumeBilling,
 }: OrderCardProps) {
   const orderName = formatOrderLabel(
-    summary.order.table_label,
+    summary.order.order_name,
     `Order #${orderIndex + 1}`,
   );
 
