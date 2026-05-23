@@ -24,3 +24,7 @@ export type OpenOrderItem = {
 export type OpenOrderWithItems = OpenOrder & {
   items: OpenOrderItem[];
 };
+
+export type PosOrderItem = OpenOrderItem & {
+  product_name: string;
+};
