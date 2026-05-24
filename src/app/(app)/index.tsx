@@ -12,7 +12,6 @@ import { Search } from 'lucide-react-native';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
-import { OpenOrdersStrip } from '@/components/pos/OpenOrdersStrip';
 import { OrderPanel } from '@/components/pos/OrderPanel';
 import { ProductCard } from '@/components/pos/ProductCard';
 import { SettlementModal } from '@/components/pos/SettlementModal';
@@ -286,22 +285,10 @@ export default function PosBillingScreen() {
 
       {/* ─── MAIN CONTENT ─── */}
       <View className="flex-1 flex-col">
-        {/* ─── Order strip + Right Header ─── */}
-        <View style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flex: 1 }}>
-            <OpenOrdersStrip
-              orders={orders}
-              activeOrderId={activeOrderId}
-              itemCountByOrderId={itemCountByOrderId}
-              isLoading={isLoadingOrders}
-              onSelectOrder={(orderId) => void selectOrder(orderId)}
-              onCreateOrder={() => void createOrder()}
-            />
-          </View>
-          
-          {/* Top Right Header area */}
-          {isTablet && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 12 }}>
+        {/* ─── Header: Time/Cashier Section only ─── */}
+        {isTablet && (
+          <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {/* Clock Area */}
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D2F67' }}>{timeStr}</Text>
@@ -322,8 +309,8 @@ export default function PosBillingScreen() {
                 </View>
               </View>
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
       {/* ─── Inline error bar ─── */}
       {(ordersError || catalogError) ? (
