@@ -30,16 +30,16 @@ function SidebarDecoration() {
 
 function SidebarLogoSection() {
   return (
-    <View style={{ paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
+    <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 28, paddingBottom: 32, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
-        style={{ height: 76, width: 115, resizeMode: 'contain', opacity: 0.96 }}
+        style={{ height: 60, width: 94, resizeMode: 'contain', opacity: 0.96 }}
         accessibilityLabel="Le Leban logo"
       />
-      <Text style={{ fontSize: 13, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
+      <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
         Main Branch
       </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
         <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
         <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
           Online
@@ -60,7 +60,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
       data={tabs}
       keyExtractor={(item) => item.id ?? 'all'}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 18, marginTop: 18, paddingBottom: 16 }}
+      contentContainerStyle={{ gap: 18, marginTop: 18, paddingHorizontal: 14, paddingBottom: 24 }}
       renderItem={({ item }) => {
         const isActive = selectedCategoryId === item.id;
 
@@ -113,7 +113,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
 
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   return (
-    <View style={{ width: 180, minWidth: 180, maxWidth: 180, borderRadius: 0, paddingHorizontal: 16, paddingVertical: 18, overflow: 'hidden' }}>
+    <View style={{ width: 180, minWidth: 180, maxWidth: 180, borderRadius: 0, overflow: 'hidden' }}>
       {/* Background */}
       <LinearGradient
         colors={['#0251b8', '#013b8c', '#012f70']}
