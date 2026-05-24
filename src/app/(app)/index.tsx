@@ -172,18 +172,18 @@ export default function PosBillingScreen() {
   const productGrid = (
     <View className="min-h-0 flex-1">
       {/* Search Bar Area */}
-      <View className="mb-3 flex-row items-center gap-2">
-        <View className="h-[38px] flex-1 flex-row items-center rounded-xl border border-border-soft bg-surface-elevated px-3 shadow-sm">
-          <Search color={colors.textSecondary} size={16} />
+      <View className="flex-row items-center" style={{ marginBottom: 18, gap: 12 }}>
+        <View style={{ height: 58, borderRadius: 22, paddingHorizontal: 22, backgroundColor: '#FFFFFF', shadowColor: '#0D264C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 2 }} className="flex-1 flex-row items-center">
+          <Search color="#9BA8BA" size={20} style={{ opacity: 0.6 }} />
           <TextInput
             placeholder="Search items..."
-            placeholderTextColor={colors.textSecondary}
-            className="ml-2 flex-1 text-[13px] text-text-primary outline-none"
+            placeholderTextColor="#9BA8BA"
+            style={{ fontSize: 16, fontWeight: '500', marginLeft: 12, flex: 1, color: '#111', outlineStyle: 'none' }}
             editable={false} // Logic placeholder
           />
         </View>
-        <View className="h-[38px] min-w-[90px] items-center justify-center rounded-xl border border-border-soft bg-surface-elevated px-3 shadow-sm">
-          <Text className="text-[13px] font-medium text-text-primary">All Items</Text>
+        <View style={{ height: 58, minWidth: 90, alignItems: 'center', justifyContent: 'center', borderRadius: 22, paddingHorizontal: 22, backgroundColor: '#FFFFFF', shadowColor: '#0D264C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 2 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: '#111' }}>All Items</Text>
         </View>
       </View>
 
@@ -216,9 +216,10 @@ export default function PosBillingScreen() {
           key={productColumns}
           numColumns={productColumns}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 16 }}
+          columnWrapperStyle={{ gap: 18 }}
+          contentContainerStyle={{ paddingBottom: 16, gap: 18 }}
           renderItem={({ item }) => (
-            <View className="flex-1">
+            <View className="flex-1" style={{ maxWidth: isTablet ? '25%' : '50%' }}>
               <ProductCard
                 product={item}
                 disabled={isMutating}
@@ -248,7 +249,7 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View className="flex-1 flex-row bg-surface-tint">
+    <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC', padding: 18, gap: 20 }}>
       {/* ─── LEFT: Category rail (Full Height) ─── */}
       {isTablet && (
         <Sidebar
@@ -261,7 +262,7 @@ export default function PosBillingScreen() {
       {/* ─── MAIN CONTENT ─── */}
       <View className="flex-1 flex-col">
         {/* ─── Order strip ─── */}
-        <View className="bg-surface-elevated px-3 py-1.5 border-b border-border-soft">
+        <View style={{ marginBottom: 18 }}>
           <OpenOrdersStrip
             orders={orders}
             activeOrderId={activeOrderId}
@@ -284,14 +285,14 @@ export default function PosBillingScreen() {
         {/* ─── Main workspace ─── */}
         {isTablet ? (
           /* ═══ TABLET: Product Grid & Billing Panel ═══ */
-          <View className="min-h-0 flex-1 flex-row gap-3 px-3 pb-3 pt-3">
+          <View className="min-h-0 flex-1 flex-row" style={{ gap: 20 }}>
             {/* CENTER: Product grid */}
-            <View className="min-h-0 flex-1 overflow-hidden">
+            <View className="min-h-0 flex-1 overflow-hidden" style={{ paddingHorizontal: 8 }}>
               {productGrid}
             </View>
 
             {/* RIGHT: Billing panel */}
-            <View className="w-[320px] min-h-0 overflow-hidden rounded-xl bg-surface-elevated shadow-panel border border-border-soft">
+            <View className="min-h-0 overflow-hidden" style={{ width: 390 }}>
               {orderPanel}
             </View>
           </View>

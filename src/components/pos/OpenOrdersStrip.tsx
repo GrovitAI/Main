@@ -1,5 +1,6 @@
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { Plus } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors } from '@/lib/pos/brand';
 import type { OpenOrder } from '@/lib/pos/order-types';
@@ -26,10 +27,10 @@ function CreateOrderButton({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Create new order"
       onPress={onPress}
-      className="ml-2 h-[36px] min-w-[70px] items-center justify-center rounded-xl border border-dashed border-primary-mid bg-surface-elevated px-3 py-1"
+      style={{ height: 58, minWidth: 100, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: '#0C63C7', backgroundColor: '#FFFFFF', paddingHorizontal: 18 }}
     >
-      <Plus color={colors.primaryMid} size={14} strokeWidth={2.5} />
-      <Text className="mt-0.5 text-[9px] font-semibold text-primary-mid">New Order</Text>
+      <Plus color="#0C63C7" size={20} strokeWidth={2.5} />
+      <Text style={{ marginTop: 2, fontSize: 13, fontWeight: '600', color: '#0C63C7' }}>New Order</Text>
     </Pressable>
   );
 }
@@ -50,16 +51,16 @@ export function OpenOrdersStrip({
 
   if (isLoading && orders.length === 0) {
     return (
-      <View className="min-h-[56px] flex-row items-center rounded-xl bg-surface-elevated px-2">
-        <ActivityIndicator color={colors.primaryMid} size="small" />
+      <View style={{ minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 }}>
+        <ActivityIndicator color="#0C63C7" size="small" />
       </View>
     );
   }
 
   return (
-    <View className="min-h-[56px] flex-row items-center rounded-xl bg-surface-elevated">
-      <View className="mr-5 justify-center">
-        <Text className="text-[9px] font-bold uppercase tracking-wider text-text-secondary">
+    <View style={{ minHeight: 58, flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ marginRight: 20, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, color: '#6B7280' }}>
           Active Orders
         </Text>
       </View>
@@ -78,29 +79,35 @@ export function OpenOrdersStrip({
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectOrder(item.id)}
-              className="mr-2"
+              style={{ marginRight: 12 }}
             >
               <View
-                className={
+                style={
                   isActive
-                    ? 'h-[36px] min-w-[80px] items-center justify-center rounded-xl bg-primary-mid px-3 shadow-sm'
-                    : 'h-[36px] min-w-[80px] items-center justify-center rounded-xl border border-border-soft bg-surface-elevated px-3'
+                    ? { height: 58, minWidth: 150, alignItems: 'center', justifyContent: 'center', borderRadius: 20, paddingHorizontal: 18, overflow: 'hidden' }
+                    : { height: 58, minWidth: 150, alignItems: 'center', justifyContent: 'center', borderRadius: 20, paddingHorizontal: 18, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 18, elevation: 2 }
                 }
               >
+                {isActive && (
+                  <LinearGradient
+                    colors={['#0C63C7', '#094F9B']}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                  />
+                )}
                 <Text
-                  className={
+                  style={
                     isActive
-                      ? 'text-[13px] font-bold text-text-on-primary'
-                      : 'text-[13px] font-bold text-text-primary'
+                      ? { fontSize: 15, fontWeight: '600', color: '#FFFFFF' }
+                      : { fontSize: 15, fontWeight: '600', color: '#111827' }
                   }
                 >
                   {item.label}
                 </Text>
                 <Text
-                  className={
+                  style={
                     isActive
-                      ? 'mt-0.5 text-[10px] font-medium text-text-on-primary/80'
-                      : 'mt-0.5 text-[10px] font-medium text-text-secondary'
+                      ? { marginTop: 2, fontSize: 12, fontWeight: '500', color: '#FFFFFF', opacity: 0.7 }
+                      : { marginTop: 2, fontSize: 12, fontWeight: '500', color: '#6B7280', opacity: 0.7 }
                   }
                 >
                   {item.itemCount} items

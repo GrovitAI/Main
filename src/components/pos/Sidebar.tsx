@@ -34,43 +34,20 @@ function getCategoryIcon(name: string, isActive: boolean) {
   return <LayoutGrid color={color} size={size} />;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// COMPONENT: SidebarDecoration
-// Abstract geometric shapes to approximate the luxury floral texture
-// ─────────────────────────────────────────────────────────────────
-function SidebarDecoration() {
-  return (
-    <View className="absolute inset-x-0 bottom-0 h-[300px] overflow-hidden opacity-20 pointer-events-none">
-      {/* Abstract overlapping curves/circles */}
-      <View className="absolute -bottom-20 -left-10 h-64 w-64 rounded-full border-[1px] border-white/40" />
-      <View className="absolute -bottom-10 -right-20 h-48 w-48 rounded-full border-[1px] border-white/30" />
-      <View className="absolute bottom-10 -left-20 h-56 w-56 rounded-full border-[2px] border-white/20" />
-      <View className="absolute bottom-32 -right-10 h-40 w-40 rounded-full border-[1px] border-white/20" />
-      <View className="absolute bottom-0 left-0 right-0 h-48 bg-white/5 rounded-tl-[100px]" />
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────
-// COMPONENT: SidebarLogoSection
-// ─────────────────────────────────────────────────────────────────
 function SidebarLogoSection() {
   return (
-    <View className="h-[160px] items-center justify-center pt-6">
-      {/* The glowing inner curve effect from the reference */}
-      <View className="absolute bottom-0 left-4 right-4 h-[1px] bg-white/20" />
+    <View style={{ paddingTop: 14, paddingBottom: 28, marginBottom: 10, alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
-        className="h-[60px] w-[100px]"
-        resizeMode="contain"
+        style={{ height: 72, width: 140, resizeMode: 'contain' }}
         accessibilityLabel="Le Leban logo"
       />
-      <Text className="mt-4 text-[12px] font-medium text-white">
+      <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.5, color: '#FFFFFF', marginTop: 10 }}>
         Main Branch
       </Text>
-      <View className="mt-1 flex-row items-center">
-        <View className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
-        <Text className="ml-1.5 text-[10px] text-white/70">
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+        <View style={{ height: 8, width: 8, borderRadius: 4, backgroundColor: '#10b981' }} />
+        <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
           Online
         </Text>
       </View>
@@ -78,9 +55,6 @@ function SidebarLogoSection() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// COMPONENT: SidebarNavigation
-// ─────────────────────────────────────────────────────────────────
 function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   const tabs: CategoryTabItem[] = [
     { id: null, name: 'All Items' },
@@ -92,7 +66,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
       data={tabs}
       keyExtractor={(item) => item.id ?? 'all'}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24, gap: 12 }}
+      contentContainerStyle={{ gap: 10, marginTop: 14, paddingBottom: 20 }}
       renderItem={({ item }) => {
         const isActive = selectedCategoryId === item.id;
 
@@ -100,40 +74,21 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
           <Pressable
             accessibilityRole="button"
             onPress={() => onSelectCategory(item.id)}
+            style={
+              isActive
+                ? { height: 68, borderRadius: 22, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.16)', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }
+                : { height: 68, borderRadius: 22, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)' }
+            }
           >
-            {isActive ? (
-              // ACTIVE CATEGORY
-              <View className="min-h-[56px] flex-row items-center overflow-hidden rounded-[20px] shadow-sm">
-                <LinearGradient
-                  colors={['#4ca4ff', '#2d85f0']}
-                  className="absolute inset-0"
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                />
-                <View className="w-10 items-center justify-center pl-2">
-                  {getCategoryIcon(item.name, true)}
-                </View>
-                <Text
-                  className="ml-2 flex-1 text-[13px] font-bold text-white shadow-sm"
-                  numberOfLines={2}
-                >
-                  {item.name}
-                </Text>
-              </View>
-            ) : (
-              // INACTIVE CATEGORY
-              <View className="min-h-[56px] flex-row items-center rounded-[20px] px-2">
-                <View className="w-10 items-center justify-center">
-                  {getCategoryIcon(item.name, false)}
-                </View>
-                <Text
-                  className="ml-2 flex-1 text-[13px] font-semibold text-white/90"
-                  numberOfLines={2}
-                >
-                  {item.name}
-                </Text>
-              </View>
-            )}
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+              {getCategoryIcon(item.name, isActive)}
+            </View>
+            <Text
+              style={{ fontSize: 16, fontWeight: '600', color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.9)', flex: 1 }}
+              numberOfLines={2}
+            >
+              {item.name}
+            </Text>
           </Pressable>
         );
       }}
@@ -141,33 +96,23 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// MAIN COMPONENT: Sidebar
-// ─────────────────────────────────────────────────────────────────
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   return (
-    <View className="flex-1 w-[140px] overflow-hidden">
-      {/* Premium Layered Background */}
+    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 28, paddingHorizontal: 18, paddingVertical: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.1, shadowRadius: 35, elevation: 5 }}>
+      {/* Background */}
       <LinearGradient
-        colors={['#003a75', '#004f9e', '#005fc0']}
-        className="absolute inset-0"
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
+        colors={['#0C63C7', '#094D9A']}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       
-      {/* Decorative Texture Overlay */}
-      <SidebarDecoration />
-
-      {/* Sections */}
-      <View className="absolute inset-0 flex-col">
-        <SidebarLogoSection />
-        <View className="flex-1">
-          <SidebarNavigation
-            categories={categories}
-            selectedCategoryId={selectedCategoryId}
-            onSelectCategory={onSelectCategory}
-          />
-        </View>
+      <SidebarLogoSection />
+      
+      <View style={{ flex: 1 }}>
+        <SidebarNavigation
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          onSelectCategory={onSelectCategory}
+        />
       </View>
     </View>
   );
