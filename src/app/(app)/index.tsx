@@ -4,9 +4,11 @@ import {
   FlatList,
   Pressable,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Search } from 'lucide-react-native';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { OpenOrdersStrip } from '@/components/pos/OpenOrdersStrip';
@@ -167,7 +169,23 @@ export default function PosBillingScreen() {
 
   // ─── Product grid (used in both layouts) ───
   const productGrid = (
-    <View className="min-h-0 flex-1 bg-surface-tint">
+    <View className="min-h-0 flex-1">
+      {/* Search Bar Area */}
+      <View className="mb-3 flex-row items-center gap-2">
+        <View className="h-[38px] flex-1 flex-row items-center rounded-xl border border-border-soft bg-surface-elevated px-3 shadow-sm">
+          <Search color={colors.textSecondary} size={16} />
+          <TextInput
+            placeholder="Search items..."
+            placeholderTextColor={colors.textSecondary}
+            className="ml-2 flex-1 text-[13px] text-text-primary outline-none"
+            editable={false} // Logic placeholder
+          />
+        </View>
+        <View className="h-[38px] min-w-[90px] items-center justify-center rounded-xl border border-border-soft bg-surface-elevated px-3 shadow-sm">
+          <Text className="text-[13px] font-medium text-text-primary">All Items</Text>
+        </View>
+      </View>
+
       {catalogLoading ? (
         <View className="flex-1 items-center justify-center py-10">
           <ActivityIndicator color={colors.primaryMid} size="large" />
@@ -197,7 +215,7 @@ export default function PosBillingScreen() {
           key={productColumns}
           numColumns={productColumns}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 4, paddingBottom: 16 }}
+          contentContainerStyle={{ paddingBottom: 16 }}
           renderItem={({ item }) => (
             <View className="flex-1">
               <ProductCard
@@ -229,18 +247,32 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View className="flex-1 bg-surface-tint">
-      {/* ─── Order strip ─── */}
-      <View className="px-2 py-1.5">
-        <OpenOrdersStrip
-          orders={orders}
-          activeOrderId={activeOrderId}
-          itemCountByOrderId={itemCountByOrderId}
-          isLoading={isLoadingOrders}
-          onSelectOrder={(orderId) => void selectOrder(orderId)}
-          onCreateOrder={() => void createOrder()}
-        />
-      </View>
+    <View className="flex-1 flex-row bg-surface-tint">
+      {/* ─── LEFT: Category rail (Full Height) ─── */}
+      {isTablet && (
+        <View className="w-[140px]">
+          <CategoryTabs
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+            vertical
+          />
+        </View>
+      )}
+
+      {/* ─── MAIN CONTENT ─── */}
+      <View className="flex-1 flex-col">
+        {/* ─── Order strip ─── */}
+        <View className="bg-surface-elevated px-3 py-1.5 border-b border-border-soft">
+          <OpenOrdersStrip
+            orders={orders}
+            activeOrderId={activeOrderId}
+            itemCountByOrderId={itemCountByOrderId}
+            isLoading={isLoadingOrders}
+            onSelectOrder={(orderId) => void selectOrder(orderId)}
+            onCreateOrder={() => void createOrder()}
+          />
+        </View>
 
       {/* ─── Inline error bar ─── */}
       {(ordersError || catalogError) ? (
@@ -251,51 +283,42 @@ export default function PosBillingScreen() {
         </View>
       ) : null}
 
-      {/* ─── Main workspace ─── */}
-      {isTablet ? (
-        /* ═══ TABLET: 3-column layout ═══ */
-        <View className="min-h-0 flex-1 flex-row gap-2 px-2 pb-2">
-          {/* LEFT: Category rail */}
-          <View className="w-[130px]">
+        {/* ─── Main workspace ─── */}
+        {isTablet ? (
+          /* ═══ TABLET: Product Grid & Billing Panel ═══ */
+          <View className="min-h-0 flex-1 flex-row gap-3 px-3 pb-3 pt-3">
+            {/* CENTER: Product grid */}
+            <View className="min-h-0 flex-1 overflow-hidden">
+              {productGrid}
+            </View>
+
+            {/* RIGHT: Billing panel */}
+            <View className="w-[320px] min-h-0 overflow-hidden rounded-xl bg-surface-elevated shadow-panel border border-border-soft">
+              {orderPanel}
+            </View>
+          </View>
+        ) : (
+          /* ═══ MOBILE: Stacked layout ═══ */
+          <View className="min-h-0 flex-1 px-2 pb-2">
+            {/* Horizontal category tabs */}
             <CategoryTabs
               categories={categories}
               selectedCategoryId={selectedCategoryId}
               onSelectCategory={setSelectedCategoryId}
-              vertical
             />
-          </View>
 
-          {/* CENTER: Product grid */}
-          <View className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border-soft shadow-card">
-            {productGrid}
-          </View>
+            {/* Product grid */}
+            <View className="min-h-0 flex-[0.56] overflow-hidden rounded-xl border border-border-soft bg-surface-tint shadow-card">
+              {productGrid}
+            </View>
 
-          {/* RIGHT: Billing panel */}
-          <View className="w-[340px] min-h-0 overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-panel">
-            {orderPanel}
+            {/* Billing panel */}
+            <View className="mt-2 min-h-[280px] max-h-[44%] overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-panel">
+              {orderPanel}
+            </View>
           </View>
-        </View>
-      ) : (
-        /* ═══ MOBILE: Stacked layout ═══ */
-        <View className="min-h-0 flex-1 px-2 pb-2">
-          {/* Horizontal category tabs */}
-          <CategoryTabs
-            categories={categories}
-            selectedCategoryId={selectedCategoryId}
-            onSelectCategory={setSelectedCategoryId}
-          />
-
-          {/* Product grid */}
-          <View className="min-h-0 flex-[0.56] overflow-hidden rounded-xl border border-border-soft bg-surface-tint shadow-card">
-            {productGrid}
-          </View>
-
-          {/* Billing panel */}
-          <View className="mt-2 min-h-[280px] max-h-[44%] overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-panel">
-            {orderPanel}
-          </View>
-        </View>
-      )}
+        )}
+      </View>
 
       <SettlementModal
         visible={settlementVisible}

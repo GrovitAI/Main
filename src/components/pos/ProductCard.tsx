@@ -17,21 +17,24 @@ export function ProductCard({ product, onAdd, disabled = false }: ProductCardPro
       accessibilityRole="button"
       disabled={disabled}
       onPress={() => onAdd(product)}
-      className="m-1 flex-1 overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-card active:opacity-80"
+      className="m-1.5 flex-1 overflow-hidden rounded-2xl border border-border-soft bg-surface-elevated shadow-card active:opacity-80 min-h-[120px]"
     >
-      <View className="h-[3px] bg-primary-light" />
-      <View className="px-2.5 pb-2.5 pt-2">
+      {/* Image Placeholder (30-35% height) */}
+      <View className="h-[36px] w-full bg-surface-tint" />
+      
+      {/* Content */}
+      <View className="flex-1 justify-between px-2.5 pb-2 pt-1.5">
         <Text
-          className="text-sm font-bold leading-tight text-text-primary"
+          className="text-[13px] font-bold leading-tight text-text-primary"
           numberOfLines={2}
         >
           {product.name}
         </Text>
-        <View className="mt-1.5 flex-row items-center justify-between">
-          <Text className="text-sm font-semibold text-primary-mid">
+        <View className="mt-1 flex-row items-end justify-between">
+          <Text className="text-[11px] font-semibold text-primary-mid">
             {formatCurrency(product.price)}
           </Text>
-          <View className="h-7 w-7 items-center justify-center rounded-full bg-primary-mid">
+          <View className="h-7 w-7 items-center justify-center rounded-full bg-primary-mid shadow-sm">
             <Plus color={colors.textOnPrimary} size={14} strokeWidth={2.5} />
           </View>
         </View>

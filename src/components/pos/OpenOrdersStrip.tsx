@@ -1,7 +1,6 @@
-import { ActivityIndicator, FlatList, Image, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 import { Plus } from 'lucide-react-native';
 
-import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import { colors } from '@/lib/pos/brand';
 import type { OpenOrder } from '@/lib/pos/order-types';
 import { formatOrderLabel } from '@/lib/pos/order-utils';
@@ -21,36 +20,16 @@ type OrderChip = {
   itemCount: number;
 };
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
-
-function LogoHeader() {
-  return (
-    <View className="mr-3 items-center justify-center">
-      <Image
-        source={leLabanLogo}
-        className="h-7 w-16"
-        resizeMode="contain"
-        accessibilityLabel="Le Leban logo"
-      />
-      <Text className="mt-0.5 text-[10px] font-medium text-accent">
-        Main Branch
-      </Text>
-    </View>
-  );
-}
-
 function CreateOrderButton({ onPress }: { onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Create new order"
       onPress={onPress}
-      className="ml-1"
+      className="ml-2 h-[36px] min-w-[70px] items-center justify-center rounded-xl border border-dashed border-primary-mid bg-surface-elevated px-3 py-1"
     >
-      <View className="h-8 w-8 items-center justify-center rounded-full border border-primary-light/40 bg-primary-light/30">
-        <Plus color={colors.textOnPrimary} size={16} strokeWidth={2.5} />
-      </View>
+      <Plus color={colors.primaryMid} size={14} strokeWidth={2.5} />
+      <Text className="mt-0.5 text-[9px] font-semibold text-primary-mid">New Order</Text>
     </Pressable>
   );
 }
@@ -65,40 +44,32 @@ export function OpenOrdersStrip({
 }: OpenOrdersStripProps) {
   const chips: OrderChip[] = orders.map((order, index) => ({
     id: order.id,
-    label: formatOrderLabel(order.order_name, `#${index + 1}`),
+    label: formatOrderLabel(order.order_name, `Order #${index + 1}`),
     itemCount: itemCountByOrderId[order.id] ?? 0,
   }));
 
   if (isLoading && orders.length === 0) {
     return (
-      <BrandedGradient variant="strip" className="min-h-[44px] flex-row items-center justify-center rounded-xl px-3 py-2">
-        <LogoHeader />
-        <ActivityIndicator color={colors.accent} size="small" />
-      </BrandedGradient>
-    );
-  }
-
-  if (orders.length === 0) {
-    return (
-      <BrandedGradient variant="strip" className="min-h-[44px] flex-row items-center rounded-xl px-3 py-2">
-        <LogoHeader />
-        <Text className="flex-1 text-xs text-accent">
-          Tap + to create first order
-        </Text>
-        <CreateOrderButton onPress={onCreateOrder} />
-      </BrandedGradient>
+      <View className="min-h-[56px] flex-row items-center rounded-xl bg-surface-elevated px-2">
+        <ActivityIndicator color={colors.primaryMid} size="small" />
+      </View>
     );
   }
 
   return (
-    <BrandedGradient variant="strip" className="min-h-[44px] rounded-xl px-2 py-1.5">
+    <View className="min-h-[56px] flex-row items-center rounded-xl bg-surface-elevated">
+      <View className="mr-5 justify-center">
+        <Text className="text-[9px] font-bold uppercase tracking-wider text-text-secondary">
+          Active Orders
+        </Text>
+      </View>
+
       <FlatList
         horizontal
         data={chips}
         keyExtractor={(item) => item.id}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ alignItems: 'center' }}
-        ListHeaderComponent={<LogoHeader />}
         ListFooterComponent={<CreateOrderButton onPress={onCreateOrder} />}
         renderItem={({ item }) => {
           const isActive = item.id === activeOrderId;
@@ -107,20 +78,20 @@ export function OpenOrdersStrip({
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectOrder(item.id)}
-              className="mx-1"
+              className="mr-2"
             >
               <View
                 className={
                   isActive
-                    ? 'min-h-[36px] min-w-[80px] items-center justify-center rounded-lg border border-primary-light/50 bg-primary-light/25 px-3 py-1'
-                    : 'min-h-[36px] min-w-[80px] items-center justify-center rounded-lg bg-text-on-primary/10 px-3 py-1'
+                    ? 'h-[36px] min-w-[80px] items-center justify-center rounded-xl bg-primary-mid px-3 shadow-sm'
+                    : 'h-[36px] min-w-[80px] items-center justify-center rounded-xl border border-border-soft bg-surface-elevated px-3'
                 }
               >
                 <Text
                   className={
                     isActive
-                      ? 'text-center text-xs font-bold text-text-on-primary'
-                      : 'text-center text-xs font-semibold text-accent'
+                      ? 'text-[13px] font-bold text-text-on-primary'
+                      : 'text-[13px] font-bold text-text-primary'
                   }
                 >
                   {item.label}
@@ -128,8 +99,8 @@ export function OpenOrdersStrip({
                 <Text
                   className={
                     isActive
-                      ? 'text-center text-[10px] text-accent'
-                      : 'text-center text-[10px] text-text-on-primary/60'
+                      ? 'mt-0.5 text-[10px] font-medium text-text-on-primary/80'
+                      : 'mt-0.5 text-[10px] font-medium text-text-secondary'
                   }
                 >
                   {item.itemCount} items
@@ -139,6 +110,6 @@ export function OpenOrdersStrip({
           );
         }}
       />
-    </BrandedGradient>
+    </View>
   );
 }
