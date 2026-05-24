@@ -21,7 +21,7 @@ const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 function getCategoryIcon(name: string, isActive: boolean) {
   const color = '#ffffff'; 
   const size = 16;
-  const opacity = isActive ? 1 : 0.92;
+  const opacity = isActive ? 0.95 : 0.8;
 
   const lowerName = name.toLowerCase();
   if (lowerName === 'all') return <LayoutGrid color={color} size={size} style={{ opacity }} />;
@@ -89,36 +89,26 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
             style={({ hovered, pressed }) => [
               {
                 borderRadius: 16,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
+                paddingHorizontal: 14,
+                height: 44,
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 10,
-                borderWidth: 1,
-                borderColor: 'transparent',
-                borderLeftWidth: 2,
-                borderLeftColor: 'transparent',
                 // Web transition
                 ...({ transition: 'all 180ms ease' } as any)
               },
               isActive && {
-                backgroundColor: 'rgba(255,255,255,0.14)',
-                borderColor: 'rgba(255,255,255,0.12)',
-                borderLeftColor: 'rgba(255,255,255,0.85)',
-                shadowColor: '#ffffff',
+                borderTopWidth: 1,
+                borderTopColor: 'rgba(255,255,255,0.10)',
+                shadowColor: '#000000',
                 shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.06,
-                shadowRadius: 20,
-                elevation: 1,
-                // Soft glassmorphism blur
-                ...({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as any)
+                shadowOpacity: 0.08,
+                shadowRadius: 12,
+                elevation: 2,
               },
               !isActive && hovered && {
                 backgroundColor: 'rgba(255,255,255,0.08)',
-                borderColor: 'rgba(255,255,255,0.06)',
                 transform: [{ translateX: 2 }],
-                // Soft glassmorphism blur
-                ...({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as any)
               },
               pressed && {
                 opacity: 0.85,
@@ -126,6 +116,12 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
               }
             ]}
           >
+            {isActive && (
+              <LinearGradient
+                colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16 }}
+              />
+            )}
             {getCategoryIcon(item.name, isActive)}
             <Text
               style={{
