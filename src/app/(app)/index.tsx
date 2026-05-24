@@ -65,6 +65,31 @@ export default function PosBillingScreen() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [settlementVisible, setSettlementVisible] = useState(false);
 
+  const [timeStr, setTimeStr] = useState('11:42 AM');
+  const [dateStr, setDateStr] = useState('20 May 2025');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      setTimeStr(`${hours}:${minutes} ${ampm}`);
+
+      const day = now.getDate();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[now.getMonth()];
+      const year = now.getFullYear();
+      setDateStr(`${day} ${month} ${year}`);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const activeOrder = useMemo(
     () => orders.find((order) => order.id === activeOrderId) ?? null,
     [orders, activeOrderId],
@@ -247,31 +272,6 @@ export default function PosBillingScreen() {
       onSettle={() => setSettlementVisible(true)}
     />
   );
-
-  const [timeStr, setTimeStr] = useState('11:42 AM');
-  const [dateStr, setDateStr] = useState('20 May 2025');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      let hours = now.getHours();
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      setTimeStr(`${hours}:${minutes} ${ampm}`);
-
-      const day = now.getDate();
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const month = months[now.getMonth()];
-      const year = now.getFullYear();
-      setDateStr(`${day} ${month} ${year}`);
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC', padding: 14, gap: 15 }}>
