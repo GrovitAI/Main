@@ -2,7 +2,6 @@ import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native
 import { Plus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { colors } from '@/lib/pos/brand';
 import type { OpenOrder } from '@/lib/pos/order-types';
 import { formatOrderLabel } from '@/lib/pos/order-utils';
 
@@ -27,10 +26,10 @@ function CreateOrderButton({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Create new order"
       onPress={onPress}
-      style={{ height: 58, minWidth: 100, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: '#0C63C7', backgroundColor: '#FFFFFF', paddingHorizontal: 18 }}
+      style={{ height: 50, minWidth: 90, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: '#0C63C7', backgroundColor: '#FFFFFF', paddingHorizontal: 12 }}
     >
-      <Plus color="#0C63C7" size={20} strokeWidth={2.5} />
-      <Text style={{ marginTop: 2, fontSize: 13, fontWeight: '600', color: '#0C63C7' }}>New Order</Text>
+      <Plus color="#0C63C7" size={16} strokeWidth={2.5} />
+      <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '600', color: '#0C63C7' }}>New Order</Text>
     </Pressable>
   );
 }
@@ -51,16 +50,16 @@ export function OpenOrdersStrip({
 
   if (isLoading && orders.length === 0) {
     return (
-      <View style={{ minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 }}>
+      <View style={{ minHeight: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6 }}>
         <ActivityIndicator color="#0C63C7" size="small" />
       </View>
     );
   }
 
   return (
-    <View style={{ minHeight: 58, flexDirection: 'row', alignItems: 'center' }}>
-      <View style={{ marginRight: 20, justifyContent: 'center' }}>
-        <Text style={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, color: '#6B7280' }}>
+    <View style={{ minHeight: 50, flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ marginRight: 14, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.8, color: '#6B7280' }}>
           Active Orders
         </Text>
       </View>
@@ -79,13 +78,13 @@ export function OpenOrdersStrip({
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectOrder(item.id)}
-              style={{ marginRight: 12 }}
+              style={{ marginRight: 8 }}
             >
               <View
                 style={
                   isActive
-                    ? { height: 58, minWidth: 150, alignItems: 'center', justifyContent: 'center', borderRadius: 20, paddingHorizontal: 18, overflow: 'hidden' }
-                    : { height: 58, minWidth: 150, alignItems: 'center', justifyContent: 'center', borderRadius: 20, paddingHorizontal: 18, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 18, elevation: 2 }
+                    ? { height: 50, minWidth: 120, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingHorizontal: 14, overflow: 'hidden' }
+                    : { height: 50, minWidth: 120, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingHorizontal: 14, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 2 }
                 }
               >
                 {isActive && (
@@ -97,8 +96,8 @@ export function OpenOrdersStrip({
                 <Text
                   style={
                     isActive
-                      ? { fontSize: 15, fontWeight: '600', color: '#FFFFFF' }
-                      : { fontSize: 15, fontWeight: '600', color: '#111827' }
+                      ? { fontSize: 13, fontWeight: '600', color: '#FFFFFF' }
+                      : { fontSize: 13, fontWeight: '600', color: '#111827' }
                   }
                 >
                   {item.label}
@@ -106,8 +105,8 @@ export function OpenOrdersStrip({
                 <Text
                   style={
                     isActive
-                      ? { marginTop: 2, fontSize: 12, fontWeight: '500', color: '#FFFFFF', opacity: 0.7 }
-                      : { marginTop: 2, fontSize: 12, fontWeight: '500', color: '#6B7280', opacity: 0.7 }
+                      ? { marginTop: 1, fontSize: 10, fontWeight: '500', color: '#FFFFFF', opacity: 0.75 }
+                      : { marginTop: 1, fontSize: 10, fontWeight: '500', color: '#6B7280', opacity: 0.75 }
                   }
                 >
                   {item.itemCount} items

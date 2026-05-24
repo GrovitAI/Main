@@ -20,7 +20,7 @@ const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 function getCategoryIcon(name: string, isActive: boolean) {
   const color = isActive ? '#ffffff' : 'rgba(255,255,255,0.9)'; 
-  const size = 20;
+  const size = 16;
 
   const lowerName = name.toLowerCase();
   if (lowerName === 'all') return <LayoutGrid color={color} size={size} />;
@@ -34,20 +34,32 @@ function getCategoryIcon(name: string, isActive: boolean) {
   return <LayoutGrid color={color} size={size} />;
 }
 
+function SidebarDecoration() {
+  return (
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
+      {/* Abstract overlapping curves/circles */}
+      <View style={{ position: 'absolute', bottom: -80, left: -40, height: 200, width: 200, borderRadius: 100, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: -40, right: -80, height: 160, width: 160, borderRadius: 80, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: 40, left: -60, height: 180, width: 180, borderRadius: 90, borderWidth: 2, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: 120, right: -40, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
+    </View>
+  );
+}
+
 function SidebarLogoSection() {
   return (
-    <View style={{ paddingTop: 14, paddingBottom: 28, marginBottom: 10, alignItems: 'center' }}>
+    <View style={{ paddingTop: 8, paddingBottom: 16, marginBottom: 6, alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
-        style={{ height: 72, width: 140, resizeMode: 'contain' }}
+        style={{ height: 52, width: 78, resizeMode: 'contain', opacity: 0.96 }}
         accessibilityLabel="Le Leban logo"
       />
-      <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.5, color: '#FFFFFF', marginTop: 10 }}>
+      <Text style={{ fontSize: 16, fontWeight: '700', letterSpacing: -0.5, color: '#FFFFFF', marginTop: 6 }}>
         Main Branch
       </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-        <View style={{ height: 8, width: 8, borderRadius: 4, backgroundColor: '#10b981' }} />
-        <Text style={{ marginLeft: 6, fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+        <View style={{ height: 6, width: 6, borderRadius: 3, backgroundColor: '#10b981' }} />
+        <Text style={{ marginLeft: 6, fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
           Online
         </Text>
       </View>
@@ -66,7 +78,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
       data={tabs}
       keyExtractor={(item) => item.id ?? 'all'}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 10, marginTop: 14, paddingBottom: 20 }}
+      contentContainerStyle={{ gap: 8, marginTop: 10, paddingBottom: 20 }}
       renderItem={({ item }) => {
         const isActive = selectedCategoryId === item.id;
 
@@ -74,21 +86,67 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
           <Pressable
             accessibilityRole="button"
             onPress={() => onSelectCategory(item.id)}
-            style={
-              isActive
-                ? { height: 68, borderRadius: 22, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.16)', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 4 }
-                : { height: 68, borderRadius: 22, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)' }
-            }
+            style={{ borderRadius: 20, overflow: 'hidden' }}
           >
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-              {getCategoryIcon(item.name, isActive)}
-            </View>
-            <Text
-              style={{ fontSize: 16, fontWeight: '600', color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.9)', flex: 1 }}
-              numberOfLines={2}
+            <View
+              style={
+                isActive
+                  ? {
+                      height: 52,
+                      borderRadius: 20,
+                      paddingHorizontal: 14,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.18)',
+                      shadowColor: '#1E88FF',
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.14,
+                      shadowRadius: 14,
+                      elevation: 3,
+                    }
+                  : {
+                      height: 52,
+                      borderRadius: 20,
+                      paddingHorizontal: 14,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: 'rgba(255,255,255,0.04)',
+                    }
+              }
             >
-              {item.name}
-            </Text>
+              {isActive && (
+                <LinearGradient
+                  colors={['#57AEFF', '#2785F2']}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                />
+              )}
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 10,
+                  opacity: 0.9,
+                }}
+              >
+                {getCategoryIcon(item.name, isActive)}
+              </View>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: '600',
+                  color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.9)',
+                  flex: 1,
+                }}
+                numberOfLines={2}
+              >
+                {item.name}
+              </Text>
+            </View>
           </Pressable>
         );
       }}
@@ -101,10 +159,13 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
     <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 28, paddingHorizontal: 18, paddingVertical: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.1, shadowRadius: 35, elevation: 5 }}>
       {/* Background */}
       <LinearGradient
-        colors={['#0C63C7', '#094D9A']}
+        colors={['#0A67C7', '#0C72D8', '#0059B8']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       
+      {/* Subtle Pattern */}
+      <SidebarDecoration />
+
       <SidebarLogoSection />
       
       <View style={{ flex: 1 }}>

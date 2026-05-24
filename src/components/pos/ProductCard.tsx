@@ -2,7 +2,6 @@ import { View, Text, Pressable, Image } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { colors } from '@/lib/pos/brand';
 import type { Product } from '@/lib/pos/products-service';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
 
@@ -21,57 +20,50 @@ export function ProductCard({ product, onAdd, disabled = false }: ProductCardPro
       style={({ pressed }) => [
         {
           flex: 1,
-          minHeight: 260,
-          borderRadius: 28,
-          padding: 18,
+          minHeight: 220,
+          borderRadius: 22,
+          padding: 12,
           backgroundColor: '#FFFFFF',
           shadowColor: '#101828',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.06,
-          shadowRadius: 24,
-          elevation: 3,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.05,
+          shadowRadius: 18,
+          elevation: 2,
         },
         pressed && {
-          transform: [{ translateY: -3 }],
-          shadowOpacity: 0.10,
-          shadowOffset: { width: 0, height: 16 },
-          shadowRadius: 32,
+          transform: [{ translateY: -2 }],
+          shadowOpacity: 0.08,
+          shadowOffset: { width: 0, height: 10 },
+          shadowRadius: 24,
         }
       ]}
     >
       <LinearGradient
         colors={['#FFFFFF', '#FBFDFF']}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 28 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 22 }}
       />
       
-      {/* Image / Image Placeholder */}
-      {product.image_url ? (
-        <Image 
-          source={{ uri: product.image_url }} 
-          style={{ height: 135, width: '100%', resizeMode: 'contain', marginBottom: 16, borderRadius: 12 }} 
-        />
-      ) : (
-        <View style={{ height: 135, width: '100%', backgroundColor: '#F5F8FC', marginBottom: 16, borderRadius: 16 }} />
-      )}
+      {/* Premium Dessert Café POS Image Placeholder Box */}
+      <View style={{ height: 90, width: '100%', backgroundColor: '#F5F8FC', marginBottom: 12, borderRadius: 12 }} />
       
       {/* Content */}
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         <Text
-          style={{ fontSize: 17, fontWeight: '700', lineHeight: 22, marginBottom: 8, color: '#111827' }}
+          style={{ fontSize: 15, fontWeight: '600', lineHeight: 18, marginBottom: 6, color: '#005FC0' }}
           numberOfLines={2}
         >
           {product.name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#0B5FB3' }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#0066CC' }}>
             {formatCurrency(product.price)}
           </Text>
-          <View style={{ width: 48, height: 48, borderRadius: 16, shadowColor: '#0B5FB3', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.24, shadowRadius: 24, elevation: 4 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 12, shadowColor: '#0066CC', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16, elevation: 3 }}>
             <LinearGradient
               colors={['#0D6CE0', '#0B59B4']}
-              style={{ width: '100%', height: '100%', borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: '100%', height: '100%', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Plus color="#FFFFFF" size={24} strokeWidth={2.5} />
+              <Plus color="#FFFFFF" size={20} strokeWidth={2.5} />
             </LinearGradient>
           </View>
         </View>
