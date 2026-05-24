@@ -11,6 +11,7 @@ import {
 import { Search } from 'lucide-react-native';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
+import { Sidebar } from '@/components/pos/Sidebar';
 import { OpenOrdersStrip } from '@/components/pos/OpenOrdersStrip';
 import { OrderPanel } from '@/components/pos/OrderPanel';
 import { ProductCard } from '@/components/pos/ProductCard';
@@ -250,14 +251,11 @@ export default function PosBillingScreen() {
     <View className="flex-1 flex-row bg-surface-tint">
       {/* ─── LEFT: Category rail (Full Height) ─── */}
       {isTablet && (
-        <View className="w-[140px]">
-          <CategoryTabs
-            categories={categories}
-            selectedCategoryId={selectedCategoryId}
-            onSelectCategory={setSelectedCategoryId}
-            vertical
-          />
-        </View>
+        <Sidebar
+          categories={categories}
+          selectedCategoryId={selectedCategoryId}
+          onSelectCategory={setSelectedCategoryId}
+        />
       )}
 
       {/* ─── MAIN CONTENT ─── */}
