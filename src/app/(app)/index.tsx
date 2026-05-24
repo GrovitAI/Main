@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Search } from 'lucide-react-native';
+import { Search, Plus } from 'lucide-react-native';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
@@ -285,10 +285,39 @@ export default function PosBillingScreen() {
 
       {/* ─── MAIN CONTENT ─── */}
       <View className="flex-1 flex-col" style={{ paddingVertical: 12, paddingRight: 12, paddingLeft: 12, gap: 12 }}>
-        {/* ─── Header: Time/Cashier Section only ─── */}
+        {/* ─── Header: Time/Cashier Section + New Order ─── */}
         {isTablet && (
           <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              {/* + New Order Button */}
+              <Pressable
+                onPress={() => void createOrder()}
+                style={({ pressed }) => [
+                  {
+                    height: 34,
+                    paddingHorizontal: 12,
+                    borderRadius: 10,
+                    backgroundColor: '#013b8c',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    shadowColor: '#013b8c',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 6,
+                    elevation: 2,
+                  },
+                  pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }
+                ]}
+              >
+                <Plus color="#FFFFFF" size={14} strokeWidth={2.5} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>New Order</Text>
+              </Pressable>
+
+              {/* Subtle Divider */}
+              <View style={{ width: 1, height: 20, backgroundColor: '#E2E8F0' }} />
+
               {/* Clock Area */}
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D2F67' }}>{timeStr}</Text>
