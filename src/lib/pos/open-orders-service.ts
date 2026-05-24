@@ -10,7 +10,7 @@ function isOpenOrderRow(order: OpenOrder): boolean {
   if (!order.status) {
     return true;
   }
-  return order.status === ACTIVE_ORDER_STATUS;
+  return order.status === 'open' || order.status === 'draft';
 }
 
 function filterOpenOrders(orders: OpenOrder[]): OpenOrder[] {
@@ -296,7 +296,20 @@ export async function createOpenOrder(
       status: 'open',
     };
 
-    const fallbackCols = ['tenant_id', 'branch_id', 'order_name', 'status'];
+    const fallbackCols = [
+      'tenant_id',
+      'branch_id',
+      'order_name',
+      'status',
+      'invoice_number',
+      'token_number',
+      'payment_method',
+      'held_at',
+      'paid_at',
+      'cancelled_at',
+      'completed_at',
+      'notes',
+    ];
     const filteredPayload = filterPayload(rawPayload, openOrdersCols, fallbackCols);
 
     const { data, error } = await supabase
