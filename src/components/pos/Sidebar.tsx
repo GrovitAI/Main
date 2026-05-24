@@ -1,4 +1,5 @@
 import { FlatList, Image, Pressable, Text, View } from 'react-native';
+import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Category } from '@/lib/pos/products-service';
@@ -16,6 +17,23 @@ type CategoryTabItem = {
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
+
+function getCategoryIcon(name: string, isActive: boolean) {
+  const color = '#ffffff'; 
+  const size = 16;
+  const opacity = isActive ? 1 : 0.92;
+
+  const lowerName = name.toLowerCase();
+  if (lowerName === 'all') return <LayoutGrid color={color} size={size} style={{ opacity }} />;
+  if (lowerName.includes('signature') || lowerName.includes('cake')) return <CakeSlice color={color} size={size} style={{ opacity }} />;
+  if (lowerName.includes('kunafa')) return <Sandwich color={color} size={size} style={{ opacity }} />;
+  if (lowerName.includes('cup') && !lowerName.includes('drink')) return <CupSoda color={color} size={size} style={{ opacity }} />;
+  if (lowerName.includes('drink') || lowerName.includes('shake')) return <GlassWater color={color} size={size} style={{ opacity }} />;
+  if (lowerName.includes('hot') || lowerName.includes('beverage')) return <Coffee color={color} size={size} style={{ opacity }} />;
+  if (lowerName.includes('add')) return <CirclePlus color={color} size={size} style={{ opacity }} />;
+  
+  return <LayoutGrid color={color} size={size} style={{ opacity }} />;
+}
 
 function SidebarDecoration() {
   return (
@@ -60,7 +78,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
       data={tabs}
       keyExtractor={(item) => item.id ?? 'all'}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 18, marginTop: 18, paddingHorizontal: 14, paddingBottom: 24 }}
+      contentContainerStyle={{ gap: 10, marginTop: 18, paddingHorizontal: 14, paddingBottom: 24 }}
       renderItem={({ item }) => {
         const isActive = selectedCategoryId === item.id;
 
@@ -68,42 +86,59 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
           <Pressable
             accessibilityRole="button"
             onPress={() => onSelectCategory(item.id)}
-            style={{ borderRadius: 0 }}
-          >
-            <View
-              style={
-                isActive
-                  ? {
-                      height: 38,
-                      borderLeftWidth: 3,
-                      borderLeftColor: 'white',
-                      paddingLeft: 12,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                    }
-                  : {
-                      height: 38,
-                      borderLeftWidth: 3,
-                      borderLeftColor: 'transparent',
-                      paddingLeft: 12,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                    }
+            style={({ hovered, pressed }) => [
+              {
+                borderRadius: 16,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                borderWidth: 1,
+                borderColor: 'transparent',
+                borderLeftWidth: 2,
+                borderLeftColor: 'transparent',
+                // Web transition
+                ...({ transition: 'all 180ms ease' } as any)
+              },
+              isActive && {
+                backgroundColor: 'rgba(255,255,255,0.14)',
+                borderColor: 'rgba(255,255,255,0.12)',
+                borderLeftColor: 'rgba(255,255,255,0.85)',
+                shadowColor: '#ffffff',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.06,
+                shadowRadius: 20,
+                elevation: 1,
+                // Soft glassmorphism blur
+                ...({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as any)
+              },
+              !isActive && hovered && {
+                backgroundColor: 'rgba(255,255,255,0.08)',
+                borderColor: 'rgba(255,255,255,0.06)',
+                transform: [{ translateX: 2 }],
+                // Soft glassmorphism blur
+                ...({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as any)
+              },
+              pressed && {
+                opacity: 0.85,
+                transform: [{ scale: 0.98 }]
               }
+            ]}
+          >
+            {getCategoryIcon(item.name, isActive)}
+            <Text
+              style={{
+                fontSize: 13,
+                lineHeight: 16,
+                fontWeight: isActive ? '600' : '500',
+                color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
+                flex: 1,
+              }}
+              numberOfLines={2}
             >
-              <Text
-                style={{
-                  fontSize: 14,
-                  lineHeight: 18,
-                  fontWeight: isActive ? '600' : '500',
-                  color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
-                  flex: 1,
-                }}
-                numberOfLines={2}
-              >
-                {item.name}
-              </Text>
-            </View>
+              {item.name}
+            </Text>
           </Pressable>
         );
       }}
