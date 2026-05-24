@@ -144,62 +144,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   },
 
   createOrder: async () => {
-    const snapshot = get();
-    const orderNumber = snapshot.orders.length + 1;
-    const tableLabel = formatPosOrderName(orderNumber);
-    const tempOrderId = createTempId('temp-order');
-
-    const optimisticOrder: OpenOrder = {
-      id: tempOrderId,
-      tenant_id: TENANT_ID,
-      branch_id: BRANCH_ID,
-      order_name: tableLabel,
-      status: 'open',
-      created_by: null,
-      created_at: new Date().toISOString(),
-    };
-
-    set({
-      orders: [optimisticOrder, ...snapshot.orders],
-      activeOrderId: tempOrderId,
-      activeOrderItems: [],
-      itemCountByOrderId: {
-        ...snapshot.itemCountByOrderId,
-        [tempOrderId]: 0,
-      },
-      isMutating: true,
-      error: null,
-    });
-
-    const result = await createOpenOrder(tableLabel);
-    if (result.error || !result.data) {
-      set({
-        orders: snapshot.orders,
-        activeOrderId: snapshot.activeOrderId,
-        activeOrderItems: snapshot.activeOrderItems,
-        itemCountByOrderId: snapshot.itemCountByOrderId,
-        isMutating: false,
-        error: result.error ?? 'Unable to create order.',
-      });
-      return;
-    }
-
-    const createdOrder = result.data;
-    set((state) => ({
-      orders: state.orders.map((order) =>
-        order.id === tempOrderId ? createdOrder : order,
-      ),
-      activeOrderId: createdOrder.id,
-      itemCountByOrderId: {
-        ...Object.fromEntries(
-          Object.entries(state.itemCountByOrderId).filter(
-            ([key]) => key !== tempOrderId,
-          ),
-        ),
-        [createdOrder.id]: 0,
-      },
-      isMutating: false,
-    }));
+    // Putting the cashier in a "Fresh Cart" state without creating a DB row immediately
+    set({ activeOrderId: null, activeOrderItems: [] });
   },
 
   addProductToActiveOrder: async (product) => {
@@ -207,11 +153,30 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     let activeOrderId = snapshot.activeOrderId;
 
     if (!activeOrderId) {
-      await get().createOrder();
-      activeOrderId = get().activeOrderId;
-      if (!activeOrderId) {
+      set({ isMutating: true, error: null });
+      const orderNumber = snapshot.orders.length + 1;
+      const tableLabel = formatPosOrderName(orderNumber);
+
+      const result = await createOpenOrder(tableLabel, 'draft');
+      if (result.error || !result.data) {
+        set({
+          isMutating: false,
+          error: result.error ?? 'Unable to create order.',
+        });
         return;
       }
+
+      const createdOrder = result.data;
+      activeOrderId = createdOrder.id;
+
+      set((state) => ({
+        orders: [createdOrder, ...state.orders],
+        activeOrderId: createdOrder.id,
+        itemCountByOrderId: {
+          ...state.itemCountByOrderId,
+          [createdOrder.id]: 0,
+        },
+      }));
     }
 
     const existingItem = get().activeOrderItems.find(

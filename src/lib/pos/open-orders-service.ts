@@ -284,6 +284,7 @@ function filterPayload(
 
 export async function createOpenOrder(
   orderName: string,
+  status: 'open' | 'draft' | string = 'draft',
 ): Promise<ServiceResult<OpenOrder>> {
   try {
     await ensureSchemaDetected();
@@ -293,7 +294,7 @@ export async function createOpenOrder(
       tenant_id,
       branch_id,
       order_name: orderName,
-      status: 'open',
+      status: status,
     };
 
     const fallbackCols = [
