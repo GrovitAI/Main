@@ -273,7 +273,7 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC', padding: 12, gap: 12 }}>
+    <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC' }}>
       {/* ─── LEFT: Category rail (Full Height) ─── */}
       {isTablet && (
         <Sidebar
@@ -284,7 +284,7 @@ export default function PosBillingScreen() {
       )}
 
       {/* ─── MAIN CONTENT ─── */}
-      <View className="flex-1 flex-col">
+      <View className="flex-1 flex-col" style={{ paddingVertical: 12, paddingRight: 12, paddingLeft: 12, gap: 12 }}>
         {/* ─── Header: Time/Cashier Section only ─── */}
         {isTablet && (
           <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>

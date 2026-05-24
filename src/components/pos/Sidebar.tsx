@@ -155,7 +155,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
 
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   return (
-    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 28, elevation: 4 }}>
+    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderTopRightRadius: 28, borderBottomRightRadius: 28, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden' }}>
       {/* Background */}
       <LinearGradient
         colors={['#0251b8', '#013b8c', '#012f70']}
