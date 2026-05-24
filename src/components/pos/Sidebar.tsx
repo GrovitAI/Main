@@ -33,7 +33,7 @@ function SidebarLogoSection() {
     <View style={{ paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
-        style={{ height: 64, width: 96, resizeMode: 'contain', opacity: 0.96 }}
+        style={{ height: 76, width: 115, resizeMode: 'contain', opacity: 0.96 }}
         accessibilityLabel="Le Leban logo"
       />
       <Text style={{ fontSize: 13, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
