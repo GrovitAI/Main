@@ -1,5 +1,4 @@
 import { FlatList, Image, Pressable, Text, View } from 'react-native';
-import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Category } from '@/lib/pos/products-service';
@@ -18,22 +17,6 @@ type CategoryTabItem = {
 /* eslint-disable @typescript-eslint/no-require-imports */
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
-function getCategoryIcon(name: string, isActive: boolean) {
-  const color = isActive ? '#ffffff' : 'rgba(255,255,255,0.9)'; 
-  const size = 14;
-
-  const lowerName = name.toLowerCase();
-  if (lowerName === 'all') return <LayoutGrid color={color} size={size} />;
-  if (lowerName.includes('signature') || lowerName.includes('cake')) return <CakeSlice color={color} size={size} />;
-  if (lowerName.includes('kunafa')) return <Sandwich color={color} size={size} />;
-  if (lowerName.includes('cup') && !lowerName.includes('drink')) return <CupSoda color={color} size={size} />;
-  if (lowerName.includes('drink') || lowerName.includes('shake')) return <GlassWater color={color} size={size} />;
-  if (lowerName.includes('hot') || lowerName.includes('beverage')) return <Coffee color={color} size={size} />;
-  if (lowerName.includes('add')) return <CirclePlus color={color} size={size} />;
-  
-  return <LayoutGrid color={color} size={size} />;
-}
-
 function SidebarDecoration() {
   return (
     <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 180, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
@@ -47,7 +30,7 @@ function SidebarDecoration() {
 
 function SidebarLogoSection() {
   return (
-    <View style={{ paddingTop: 6, paddingBottom: 12, marginBottom: 4, alignItems: 'center' }}>
+    <View style={{ paddingTop: 14, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
         style={{ height: 46, width: 68, resizeMode: 'contain', opacity: 0.96 }}
@@ -77,7 +60,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
       data={tabs}
       keyExtractor={(item) => item.id ?? 'all'}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 6, marginTop: 8, paddingBottom: 16 }}
+      contentContainerStyle={{ gap: 18, marginTop: 18, paddingBottom: 16 }}
       renderItem={({ item }) => {
         const isActive = selectedCategoryId === item.id;
 
@@ -85,60 +68,34 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
           <Pressable
             accessibilityRole="button"
             onPress={() => onSelectCategory(item.id)}
-            style={{ borderRadius: 16, overflow: 'hidden' }}
+            style={{ borderRadius: 0 }}
           >
             <View
               style={
                 isActive
                   ? {
-                      height: 46,
-                      borderRadius: 16,
-                      paddingHorizontal: 12,
+                      height: 38,
+                      borderLeftWidth: 3,
+                      borderLeftColor: 'white',
+                      paddingLeft: 14,
                       flexDirection: 'row',
                       alignItems: 'center',
-                      borderWidth: 1,
-                      borderColor: 'rgba(255,255,255,0.18)',
-                      shadowColor: '#013b8c',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.12,
-                      shadowRadius: 10,
-                      elevation: 2,
                     }
                   : {
-                      height: 46,
-                      borderRadius: 16,
-                      paddingHorizontal: 12,
+                      height: 38,
+                      borderLeftWidth: 3,
+                      borderLeftColor: 'transparent',
+                      paddingLeft: 14,
                       flexDirection: 'row',
                       alignItems: 'center',
-                      backgroundColor: 'rgba(255,255,255,0.04)',
                     }
               }
             >
-              {isActive && (
-                <LinearGradient
-                  colors={['#2E7BDA', '#013b8c']}
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-                />
-              )}
-              <View
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: 8,
-                  opacity: 0.9,
-                }}
-              >
-                {getCategoryIcon(item.name, isActive)}
-              </View>
               <Text
                 style={{
-                  fontSize: 12,
-                  fontWeight: '600',
-                  color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.9)',
+                  fontSize: 14,
+                  fontWeight: isActive ? '600' : '500',
+                  color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
                   flex: 1,
                 }}
                 numberOfLines={2}
@@ -155,7 +112,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
 
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   return (
-    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderTopRightRadius: 28, borderBottomRightRadius: 28, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden' }}>
+    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 0, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden' }}>
       {/* Background */}
       <LinearGradient
         colors={['#0251b8', '#013b8c', '#012f70']}
