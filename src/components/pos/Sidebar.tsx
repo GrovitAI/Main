@@ -20,7 +20,7 @@ const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 function getCategoryIcon(name: string, isActive: boolean) {
   const color = isActive ? '#ffffff' : 'rgba(255,255,255,0.9)'; 
-  const size = 16;
+  const size = 14;
 
   const lowerName = name.toLowerCase();
   if (lowerName === 'all') return <LayoutGrid color={color} size={size} />;
@@ -36,30 +36,29 @@ function getCategoryIcon(name: string, isActive: boolean) {
 
 function SidebarDecoration() {
   return (
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 180, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
       {/* Abstract overlapping curves/circles */}
-      <View style={{ position: 'absolute', bottom: -80, left: -40, height: 200, width: 200, borderRadius: 100, borderWidth: 1, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: -40, right: -80, height: 160, width: 160, borderRadius: 80, borderWidth: 1, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: 40, left: -60, height: 180, width: 180, borderRadius: 90, borderWidth: 2, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: 120, right: -40, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: '#ffffff' }} />
     </View>
   );
 }
 
 function SidebarLogoSection() {
   return (
-    <View style={{ paddingTop: 8, paddingBottom: 16, marginBottom: 6, alignItems: 'center' }}>
+    <View style={{ paddingTop: 6, paddingBottom: 12, marginBottom: 4, alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
-        style={{ height: 52, width: 78, resizeMode: 'contain', opacity: 0.96 }}
+        style={{ height: 46, width: 68, resizeMode: 'contain', opacity: 0.96 }}
         accessibilityLabel="Le Leban logo"
       />
-      <Text style={{ fontSize: 16, fontWeight: '700', letterSpacing: -0.5, color: '#FFFFFF', marginTop: 6 }}>
+      <Text style={{ fontSize: 14, fontWeight: '700', letterSpacing: -0.5, color: '#FFFFFF', marginTop: 4 }}>
         Main Branch
       </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-        <View style={{ height: 6, width: 6, borderRadius: 3, backgroundColor: '#10b981' }} />
-        <Text style={{ marginLeft: 6, fontSize: 11, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+        <View style={{ height: 5, width: 5, borderRadius: 2.5, backgroundColor: '#10b981' }} />
+        <Text style={{ marginLeft: 5, fontSize: 10, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
           Online
         </Text>
       </View>
@@ -78,7 +77,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
       data={tabs}
       keyExtractor={(item) => item.id ?? 'all'}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 8, marginTop: 10, paddingBottom: 20 }}
+      contentContainerStyle={{ gap: 6, marginTop: 8, paddingBottom: 16 }}
       renderItem={({ item }) => {
         const isActive = selectedCategoryId === item.id;
 
@@ -86,29 +85,29 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
           <Pressable
             accessibilityRole="button"
             onPress={() => onSelectCategory(item.id)}
-            style={{ borderRadius: 20, overflow: 'hidden' }}
+            style={{ borderRadius: 16, overflow: 'hidden' }}
           >
             <View
               style={
                 isActive
                   ? {
-                      height: 52,
-                      borderRadius: 20,
-                      paddingHorizontal: 14,
+                      height: 46,
+                      borderRadius: 16,
+                      paddingHorizontal: 12,
                       flexDirection: 'row',
                       alignItems: 'center',
                       borderWidth: 1,
                       borderColor: 'rgba(255,255,255,0.18)',
                       shadowColor: '#1E88FF',
-                      shadowOffset: { width: 0, height: 6 },
-                      shadowOpacity: 0.14,
-                      shadowRadius: 14,
-                      elevation: 3,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.12,
+                      shadowRadius: 10,
+                      elevation: 2,
                     }
                   : {
-                      height: 52,
-                      borderRadius: 20,
-                      paddingHorizontal: 14,
+                      height: 46,
+                      borderRadius: 16,
+                      paddingHorizontal: 12,
                       flexDirection: 'row',
                       alignItems: 'center',
                       backgroundColor: 'rgba(255,255,255,0.04)',
@@ -123,13 +122,13 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
               )}
               <View
                 style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  marginRight: 10,
+                  marginRight: 8,
                   opacity: 0.9,
                 }}
               >
@@ -137,7 +136,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
               </View>
               <Text
                 style={{
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: '600',
                   color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.9)',
                   flex: 1,
@@ -156,7 +155,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
 
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   return (
-    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 28, paddingHorizontal: 18, paddingVertical: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.1, shadowRadius: 35, elevation: 5 }}>
+    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 28, elevation: 4 }}>
       {/* Background */}
       <LinearGradient
         colors={['#0A67C7', '#0C72D8', '#0059B8']}

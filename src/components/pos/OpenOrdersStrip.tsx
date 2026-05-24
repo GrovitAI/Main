@@ -26,10 +26,10 @@ function CreateOrderButton({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Create new order"
       onPress={onPress}
-      style={{ height: 50, minWidth: 90, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: '#0C63C7', backgroundColor: '#FFFFFF', paddingHorizontal: 12 }}
+      style={{ height: 46, minWidth: 80, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: '#0C63C7', backgroundColor: '#FFFFFF', paddingHorizontal: 10 }}
     >
-      <Plus color="#0C63C7" size={16} strokeWidth={2.5} />
-      <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '600', color: '#0C63C7' }}>New Order</Text>
+      <Plus color="#0C63C7" size={14} strokeWidth={2.5} />
+      <Text style={{ marginTop: 1, fontSize: 10, fontWeight: '600', color: '#0C63C7' }}>New Order</Text>
     </Pressable>
   );
 }
@@ -50,16 +50,16 @@ export function OpenOrdersStrip({
 
   if (isLoading && orders.length === 0) {
     return (
-      <View style={{ minHeight: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6 }}>
+      <View style={{ minHeight: 46, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 }}>
         <ActivityIndicator color="#0C63C7" size="small" />
       </View>
     );
   }
 
   return (
-    <View style={{ minHeight: 50, flexDirection: 'row', alignItems: 'center' }}>
-      <View style={{ marginRight: 14, justifyContent: 'center' }}>
-        <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.8, color: '#6B7280' }}>
+    <View style={{ minHeight: 46, flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ marginRight: 10, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.6, color: '#6B7280' }}>
           Active Orders
         </Text>
       </View>
@@ -78,13 +78,13 @@ export function OpenOrdersStrip({
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectOrder(item.id)}
-              style={{ marginRight: 8 }}
+              style={{ marginRight: 6 }}
             >
               <View
                 style={
                   isActive
-                    ? { height: 50, minWidth: 120, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingHorizontal: 14, overflow: 'hidden' }
-                    : { height: 50, minWidth: 120, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingHorizontal: 14, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 2 }
+                    ? { height: 46, minWidth: 110, alignItems: 'center', justifyContent: 'center', borderRadius: 14, paddingHorizontal: 12, overflow: 'hidden' }
+                    : { height: 46, minWidth: 110, alignItems: 'center', justifyContent: 'center', borderRadius: 14, paddingHorizontal: 12, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1 }
                 }
               >
                 {isActive && (
@@ -96,8 +96,8 @@ export function OpenOrdersStrip({
                 <Text
                   style={
                     isActive
-                      ? { fontSize: 13, fontWeight: '600', color: '#FFFFFF' }
-                      : { fontSize: 13, fontWeight: '600', color: '#111827' }
+                      ? { fontSize: 12, fontWeight: '600', color: '#FFFFFF' }
+                      : { fontSize: 12, fontWeight: '600', color: '#111827' }
                   }
                 >
                   {item.label}
@@ -105,8 +105,8 @@ export function OpenOrdersStrip({
                 <Text
                   style={
                     isActive
-                      ? { marginTop: 1, fontSize: 10, fontWeight: '500', color: '#FFFFFF', opacity: 0.75 }
-                      : { marginTop: 1, fontSize: 10, fontWeight: '500', color: '#6B7280', opacity: 0.75 }
+                      ? { marginTop: 0.5, fontSize: 9, fontWeight: '500', color: '#FFFFFF', opacity: 0.75 }
+                      : { marginTop: 0.5, fontSize: 9, fontWeight: '500', color: '#6B7280', opacity: 0.75 }
                   }
                 >
                   {item.itemCount} items

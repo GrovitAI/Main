@@ -197,18 +197,18 @@ export default function PosBillingScreen() {
   const productGrid = (
     <View className="min-h-0 flex-1">
       {/* Search Bar Area */}
-      <View className="flex-row items-center" style={{ marginBottom: 14, gap: 9 }}>
-        <View style={{ height: 54, borderRadius: 18, paddingHorizontal: 18, backgroundColor: '#FFFFFF', shadowColor: '#0D264C', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 2 }} className="flex-1 flex-row items-center">
-          <Search color="#9BA8BA" size={18} style={{ opacity: 0.6 }} />
+      <View className="flex-row items-center" style={{ marginBottom: 12, gap: 8 }}>
+        <View style={{ height: 50, borderRadius: 16, paddingHorizontal: 16, backgroundColor: '#FFFFFF', shadowColor: '#0D264C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 }} className="flex-1 flex-row items-center">
+          <Search color="#9BA8BA" size={16} style={{ opacity: 0.6 }} />
           <TextInput
             placeholder="Search items..."
             placeholderTextColor="#9BA8BA"
-            style={{ fontSize: 14, fontWeight: '500', marginLeft: 10, flex: 1, color: '#111', outlineStyle: 'none' as any }}
+            style={{ fontSize: 13, fontWeight: '500', marginLeft: 8, flex: 1, color: '#111', outlineStyle: 'none' as any }}
             editable={false} // Logic placeholder
           />
         </View>
-        <View style={{ height: 54, minWidth: 80, alignItems: 'center', justifyContent: 'center', borderRadius: 18, paddingHorizontal: 18, backgroundColor: '#FFFFFF', shadowColor: '#0D264C', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 2 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111' }}>All Items</Text>
+        <View style={{ height: 50, minWidth: 70, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingHorizontal: 14, backgroundColor: '#FFFFFF', shadowColor: '#0D264C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#111' }}>All Items</Text>
         </View>
       </View>
 
@@ -241,8 +241,8 @@ export default function PosBillingScreen() {
           key={productColumns}
           numColumns={productColumns}
           keyExtractor={(item) => item.id}
-          columnWrapperStyle={{ gap: 14 }}
-          contentContainerStyle={{ paddingBottom: 12, gap: 14 }}
+          columnWrapperStyle={{ gap: 12 }}
+          contentContainerStyle={{ paddingBottom: 10, gap: 12 }}
           renderItem={({ item }) => (
             <View className="flex-1" style={{ maxWidth: isTablet ? '25%' : '50%' }}>
               <ProductCard
@@ -274,7 +274,7 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC', padding: 14, gap: 15 }}>
+    <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC', padding: 12, gap: 12 }}>
       {/* ─── LEFT: Category rail (Full Height) ─── */}
       {isTablet && (
         <Sidebar
@@ -287,7 +287,7 @@ export default function PosBillingScreen() {
       {/* ─── MAIN CONTENT ─── */}
       <View className="flex-1 flex-col">
         {/* ─── Order strip + Right Header ─── */}
-        <View style={{ marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
             <OpenOrdersStrip
               orders={orders}
@@ -301,24 +301,24 @@ export default function PosBillingScreen() {
           
           {/* Top Right Header area */}
           {isTablet && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 12 }}>
               {/* Clock Area */}
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D2F67' }}>{timeStr}</Text>
-                <Text style={{ fontSize: 10, fontWeight: '500', color: '#6B7280', marginTop: 1 }}>{dateStr}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D2F67' }}>{timeStr}</Text>
+                <Text style={{ fontSize: 9, fontWeight: '500', color: '#6B7280', marginTop: 1 }}>{dateStr}</Text>
               </View>
               
               {/* Subtle Divider */}
-              <View style={{ width: 1, height: 26, backgroundColor: '#E2E8F0' }} />
+              <View style={{ width: 1, height: 22, backgroundColor: '#E2E8F0' }} />
               
               {/* Cashier Area */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#0A67C7', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>AM</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#0A67C7', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#FFFFFF' }}>AM</Text>
                 </View>
                 <View style={{ alignItems: 'flex-start' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#0D2F67' }}>Cashier</Text>
-                  <Text style={{ fontSize: 9, fontWeight: '500', color: '#10b981' }}>Active</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#0D2F67' }}>Cashier</Text>
+                  <Text style={{ fontSize: 8, fontWeight: '500', color: '#10b981' }}>Active</Text>
                 </View>
               </View>
             </View>
@@ -337,9 +337,9 @@ export default function PosBillingScreen() {
         {/* ─── Main workspace ─── */}
         {isTablet ? (
           /* ═══ TABLET: Product Grid & Billing Panel ═══ */
-          <View className="min-h-0 flex-1 flex-row" style={{ gap: 15 }}>
+          <View className="min-h-0 flex-1 flex-row" style={{ gap: 12 }}>
             {/* CENTER: Product grid */}
-            <View className="min-h-0 flex-1 overflow-hidden" style={{ paddingHorizontal: 6 }}>
+            <View className="min-h-0 flex-1 overflow-hidden" style={{ paddingHorizontal: 4 }}>
               {productGrid}
             </View>
 
