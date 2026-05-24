@@ -30,18 +30,18 @@ function SidebarDecoration() {
 
 function SidebarLogoSection() {
   return (
-    <View style={{ paddingTop: 14, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
+    <View style={{ paddingTop: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
       <Image
         source={leLabanLogo}
-        style={{ height: 46, width: 68, resizeMode: 'contain', opacity: 0.96 }}
+        style={{ height: 64, width: 96, resizeMode: 'contain', opacity: 0.96 }}
         accessibilityLabel="Le Leban logo"
       />
-      <Text style={{ fontSize: 14, fontWeight: '700', letterSpacing: -0.5, color: '#FFFFFF', marginTop: 4 }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
         Main Branch
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-        <View style={{ height: 5, width: 5, borderRadius: 2.5, backgroundColor: '#10b981' }} />
-        <Text style={{ marginLeft: 5, fontSize: 10, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
+        <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
+        <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
           Online
         </Text>
       </View>
@@ -77,7 +77,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
                       height: 38,
                       borderLeftWidth: 3,
                       borderLeftColor: 'white',
-                      paddingLeft: 14,
+                      paddingLeft: 12,
                       flexDirection: 'row',
                       alignItems: 'center',
                     }
@@ -85,7 +85,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
                       height: 38,
                       borderLeftWidth: 3,
                       borderLeftColor: 'transparent',
-                      paddingLeft: 14,
+                      paddingLeft: 12,
                       flexDirection: 'row',
                       alignItems: 'center',
                     }
@@ -94,6 +94,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
               <Text
                 style={{
                   fontSize: 14,
+                  lineHeight: 18,
                   fontWeight: isActive ? '600' : '500',
                   color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
                   flex: 1,
@@ -112,7 +113,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
 
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
   return (
-    <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 0, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden' }}>
+    <View style={{ width: 180, minWidth: 180, maxWidth: 180, borderRadius: 0, paddingHorizontal: 16, paddingVertical: 18, overflow: 'hidden' }}>
       {/* Background */}
       <LinearGradient
         colors={['#0251b8', '#013b8c', '#012f70']}
