@@ -98,7 +98,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
                       alignItems: 'center',
                       borderWidth: 1,
                       borderColor: 'rgba(255,255,255,0.18)',
-                      shadowColor: '#1E88FF',
+                      shadowColor: '#013b8c',
                       shadowOffset: { width: 0, height: 4 },
                       shadowOpacity: 0.12,
                       shadowRadius: 10,
@@ -116,7 +116,7 @@ function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }:
             >
               {isActive && (
                 <LinearGradient
-                  colors={['#57AEFF', '#2785F2']}
+                  colors={['#2E7BDA', '#013b8c']}
                   style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
                 />
               )}
@@ -158,7 +158,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
     <View style={{ width: 280, minWidth: 280, maxWidth: 280, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 28, elevation: 4 }}>
       {/* Background */}
       <LinearGradient
-        colors={['#0A67C7', '#0C72D8', '#0059B8']}
+        colors={['#0251b8', '#013b8c', '#012f70']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       

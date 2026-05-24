@@ -49,7 +49,7 @@ export function ProductCard({ product, onAdd, disabled = false }: ProductCardPro
       {/* Content */}
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         <Text
-          style={{ fontSize: 13, fontWeight: '600', lineHeight: 16, marginBottom: 4, color: '#005FC0' }}
+          style={{ fontSize: 15, fontWeight: '600', lineHeight: 18, letterSpacing: -0.1, marginBottom: 4, color: '#013b8c' }}
           numberOfLines={2}
         >
           {product.name}

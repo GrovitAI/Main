@@ -86,7 +86,7 @@ export function OrderPanel({
               <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#F5F8FC', marginRight: 8 }} />
               
               <View style={{ flex: 1, marginRight: 4 }}>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
+                <Text style={{ fontSize: 13, fontWeight: '600', letterSpacing: -0.1, color: '#013b8c' }} numberOfLines={1}>
                   {item.product_name}
                 </Text>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#0B5FB3', marginTop: 1 }}>
