@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 export function SidebarBackground() {
   return (
     <LinearGradient
-      colors={['#003a75', '#004f9e', '#005fc0']}
+      colors={['#0066B8', '#0B73CC', '#0057A8']}
       className="absolute inset-0"
       start={{ x: 0.5, y: 0 }}
       end={{ x: 0.5, y: 1 }}

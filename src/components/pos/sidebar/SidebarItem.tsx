@@ -18,7 +18,7 @@ type SidebarItemProps = {
 };
 
 function getCategoryIcon(name: string, isActive: boolean) {
-  const color = isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)';
+  const color = isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
   const size = 18;
 
   const lowerName = name.toLowerCase();
@@ -75,13 +75,13 @@ export function SidebarItem({ name, isActive, onPress }: SidebarItemProps) {
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className="w-full active:opacity-90"
+      className="w-full active:opacity-95"
     >
       {isActive ? (
-        // Active: Glowing soft blue pill
-        <View className="min-h-[50px] w-full flex-row items-center overflow-hidden rounded-[14px] px-3 shadow-md shadow-blue-500/20">
+        // Active: Premium rounded pill with soft luminous blue highlight, subtle inner glow border, and soft touch shadow
+        <View className="min-h-[50px] w-full flex-row items-center overflow-hidden rounded-[14px] px-3 border border-white/20 shadow-md shadow-[#3AA6FF]/40">
           <LinearGradient
-            colors={['#4ca4ff', '#2d85f0']}
+            colors={['#3AA6FF', '#0B73CC']}
             className="absolute inset-0"
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
@@ -97,13 +97,13 @@ export function SidebarItem({ name, isActive, onPress }: SidebarItemProps) {
           </Text>
         </View>
       ) : (
-        // Inactive: Transparent background, highly readable white text (75% opacity)
+        // Inactive: Transparent background, highly readable white text (85% opacity)
         <View className="min-h-[50px] w-full flex-row items-center rounded-[14px] px-3 border border-transparent">
           <View className="mr-2.5 items-center justify-center">
             {getCategoryIcon(name, false)}
           </View>
           <Text
-            className="flex-1 text-[11.5px] font-medium text-white/75 leading-tight"
+            className="flex-1 text-[11.5px] font-semibold text-white/85 leading-tight"
             numberOfLines={2}
           >
             {name}

@@ -17,7 +17,7 @@ export function POSSidebar({
   onSelectCategory,
 }: POSSidebarProps) {
   return (
-    <View className="flex-1 w-full h-full overflow-hidden bg-[#003a75]">
+    <View className="flex-1 w-full h-full overflow-hidden bg-[#0057A8]">
       {/* 1. Branded Gradient Background */}
       <SidebarBackground />
 
@@ -28,9 +28,6 @@ export function POSSidebar({
       <View className="absolute inset-0 flex-col">
         {/* Centered logo section + online status indicator */}
         <SidebarLogoSection />
-
-        {/* Separator line */}
-        <View className="mx-3 mb-3 h-[1px] bg-white/10" />
 
         {/* Category Navigation Scrollable list */}
         <View className="flex-1">
