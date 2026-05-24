@@ -57,6 +57,7 @@ export default function AppTabLayout() {
             name={routeName}
             options={{
               title: tab.label,
+              headerShown: routeName !== 'index', // Reclaim top spacing for POS screen
               tabBarIcon: ({ color, size }) => (
                 <TabIcon color={color} size={size} />
               ),
