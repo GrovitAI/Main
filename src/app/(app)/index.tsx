@@ -66,6 +66,7 @@ export default function PosBillingScreen() {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [settlementVisible, setSettlementVisible] = useState(false);
+  const [popoverVisible, setPopoverVisible] = useState(false);
 
   const [timeStr, setTimeStr] = useState('11:42 AM');
   const [dateStr, setDateStr] = useState('20 May 2025');
@@ -323,6 +324,79 @@ export default function PosBillingScreen() {
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>New Order</Text>
               </Pressable>
 
+              {/* Held Carts Dropdown/Popover Button */}
+              {heldOrders.length > 0 && (
+                <View style={{ position: 'relative', zIndex: 100 }}>
+                  <Pressable
+                    onPress={() => setPopoverVisible(!popoverVisible)}
+                    style={({ pressed }) => [
+                      {
+                        height: 34,
+                        paddingHorizontal: 12,
+                        borderRadius: 10,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: '#E2E8F0',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        shadowColor: '#000000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.04,
+                        shadowRadius: 4,
+                        elevation: 1,
+                      },
+                      pressed && { opacity: 0.85 }
+                    ]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#013b8c' }}>
+                      Held ({heldOrders.length})
+                    </Text>
+                  </Pressable>
+                  
+                  {popoverVisible && (
+                    <View style={{ position: 'absolute', top: 40, right: 0, width: 260, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 5, zIndex: 200 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
+                        Held Orders
+                      </Text>
+                      <FlatList
+                        data={heldOrders}
+                        keyExtractor={(item) => item.id}
+                        scrollEnabled={heldOrders.length > 4}
+                        style={{ maxHeight: 220 }}
+                        renderItem={({ item }) => {
+                          const itemsCount = itemCountByOrderId[item.id] ?? 0;
+                          const elapsed = getElapsedLabel(item.created_at);
+                          return (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+                              <View style={{ flex: 1, marginRight: 8 }}>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
+                                  Draft Order
+                                </Text>
+                                <Text style={{ fontSize: 9, color: '#6B7280', marginTop: 1 }}>
+                                  {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {elapsed}
+                                </Text>
+                              </View>
+                              <Pressable
+                                accessibilityRole="button"
+                                onPress={async () => {
+                                  setPopoverVisible(false);
+                                  await selectOrder(item.id);
+                                }}
+                                style={{ height: 26, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#0D6CE0' }}>Resume</Text>
+                              </Pressable>
+                            </View>
+                          );
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* Subtle Divider */}
               <View style={{ width: 1, height: 20, backgroundColor: '#E2E8F0' }} />
 
@@ -402,4 +476,13 @@ export default function PosBillingScreen() {
       />
     </View>
   );
+}
+
+function getElapsedLabel(createdAt: string): string {
+  const createdMs = new Date(createdAt).getTime();
+  const minutes = Math.max(0, Math.floor((Date.now() - createdMs) / 60_000));
+  if (minutes < 1) {
+    return 'Just now';
+  }
+  return `${minutes}m ago`;
 }
