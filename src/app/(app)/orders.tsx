@@ -325,10 +325,12 @@ export default function OrdersScreen() {
             <View className="mb-4 flex-row items-center justify-between">
               <Text className="text-xl font-bold text-text-primary">
                 {viewingSummary
-                  ? formatOrderLabel(
-                      viewingSummary.order.order_name,
-                      `Order #${viewingOrderIndex + 1}`,
-                    )
+                  ? (viewingSummary.order.status === 'draft' || viewingSummary.order.status === 'held' || viewingSummary.order.status === 'payment_pending'
+                      ? (viewingSummary.order.status === 'held' ? 'Held Order' : 'Draft Order')
+                      : formatOrderLabel(
+                          viewingSummary.order.order_name,
+                          `Order #${viewingOrderIndex + 1}`,
+                        ))
                   : 'Order details'}
               </Text>
               <Pressable

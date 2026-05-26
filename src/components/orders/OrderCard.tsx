@@ -21,10 +21,13 @@ export function OrderCard({
   onViewOrder,
   onResumeBilling,
 }: OrderCardProps) {
-  const orderName = formatOrderLabel(
-    summary.order.order_name,
-    `Order #${orderIndex + 1}`,
-  );
+  const isTemp = summary.order.status === 'draft' || summary.order.status === 'held' || summary.order.status === 'payment_pending';
+  const orderName = isTemp
+    ? (summary.order.status === 'held' ? 'Held Order' : 'Draft Order')
+    : formatOrderLabel(
+        summary.order.order_name,
+        `Order #${orderIndex + 1}`,
+      );
 
   return (
     <View className="m-2 flex-1 rounded-panel border border-border-soft bg-surface-elevated p-4 shadow-card">

@@ -55,7 +55,9 @@ export function OrderPanel({
   const total = calculateOrderTotal(subtotal, TAX_RATE);
 
   const orderTitle = order
-    ? formatOrderLabel(order.order_name, `Order #${orderIndex + 1}`)
+    ? (order.status === 'draft' || order.status === 'held' || order.status === 'payment_pending'
+        ? (order.status === 'held' ? 'Held Order' : 'Current Cart')
+        : formatOrderLabel(order.order_name, `Order #${orderIndex + 1}`))
     : 'New Order';
 
   const hasItems = items.length > 0;
