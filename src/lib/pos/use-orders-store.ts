@@ -13,6 +13,7 @@ import {
   updateOrderItemQuantity,
   clearOpenOrderItems,
   holdOpenOrder,
+  resumeHeldOrder,
 } from './open-orders-service';
 import { BRANCH_ID, TENANT_ID } from './tenant-context';
 
@@ -111,8 +112,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    if (orders.length > 0) {
-      await get().selectOrder(orders[0].id);
+    // Only automatically select a draft/open order, NEVER a held order.
+    // This keeps the POS billing screen in "Ready for next customer" (empty state)
+    // if there are no active draft/open orders.
+    const autoSelectable = orders.find(order => order.status === 'draft' || order.status === 'open');
+    if (autoSelectable) {
+      await get().selectOrder(autoSelectable.id);
       return;
     }
 
@@ -128,9 +133,36 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
+    let order = result.data;
+    if (order.status === 'held') {
+      // Transition held order back to draft when it is explicitly selected/resumed
+      const resumeResult = await resumeHeldOrder(orderId);
+      if (resumeResult.error) {
+        set({ isLoadingActiveOrder: false, error: resumeResult.error });
+        return;
+      }
+      // Update local object status so the UI/components immediately reflect the draft status
+      order = {
+        ...order,
+        status: 'draft' as const,
+        held_at: null,
+      };
+
+      // Ensure the newly resumed draft order is synchronized in the store's orders list
+      set((state) => {
+        const exists = state.orders.some((o) => o.id === orderId);
+        const updatedOrders: OpenOrder[] = exists
+          ? state.orders.map((o) =>
+              o.id === orderId ? { ...o, status: 'draft' as const, held_at: null } : o
+            )
+          : [order as OpenOrder, ...state.orders];
+        return { orders: updatedOrders };
+      });
+    }
+
     const { productNameById } = get();
     const activeOrderItems = enrichItems(
-      result.data.items.map((item) => ({
+      order.items.map((item) => ({
         ...item,
         product_name: productNameById[item.product_id] ?? 'Item',
       })),

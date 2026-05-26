@@ -10,7 +10,7 @@ function isOpenOrderRow(order: OpenOrder): boolean {
   if (!order.status) {
     return true;
   }
-  return order.status === 'open' || order.status === 'draft';
+  return order.status === 'open' || order.status === 'draft' || order.status === 'held';
 }
 
 function filterOpenOrders(orders: OpenOrder[]): OpenOrder[] {
@@ -177,7 +177,9 @@ export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
       return { data: null, error: 'Unable to load orders.' };
     }
 
-    return { data: filterOpenOrders((data ?? []) as OpenOrder[]), error: null };
+    const allOpen = filterOpenOrders((data ?? []) as OpenOrder[]);
+    const activeBilling = allOpen.filter(order => order.status !== 'held');
+    return { data: activeBilling, error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -494,6 +496,36 @@ export async function holdOpenOrder(
       console.error('[Grovit] holdOpenOrder exception:', err);
     }
     return { data: null, error: 'Unable to hold order.' };
+  }
+}
+
+export async function resumeHeldOrder(
+  orderId: string,
+): Promise<ServiceResult<OpenOrder>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('open_orders')
+      .update({
+        status: 'draft',
+        held_at: null,
+      })
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .select('*')
+      .single();
+
+    if (error) {
+      logSupabaseError('resumeHeldOrder', error);
+      return { data: null, error: 'Unable to resume order.' };
+    }
+    return { data: data as OpenOrder, error: null };
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.error('[Grovit] resumeHeldOrder exception:', err);
+    }
+    return { data: null, error: 'Unable to resume order.' };
   }
 }
 

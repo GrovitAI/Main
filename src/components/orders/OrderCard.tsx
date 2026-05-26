@@ -30,7 +30,14 @@ export function OrderCard({
     <View className="m-2 flex-1 rounded-panel border border-border-soft bg-surface-elevated p-4 shadow-card">
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-2">
-          <Text className="text-lg font-bold text-text-primary">{orderName}</Text>
+          <View className="flex-row items-center flex-wrap gap-2">
+            <Text className="text-lg font-bold text-text-primary">{orderName}</Text>
+            {summary.order.status === 'held' && (
+              <View className="rounded bg-amber-100 border border-amber-200 px-1.5 py-0.5">
+                <Text className="text-[9px] font-bold text-amber-700 uppercase tracking-wider">HELD</Text>
+              </View>
+            )}
+          </View>
           <Text className="mt-1 text-sm text-text-secondary">{createdTimeLabel}</Text>
         </View>
         <View className="rounded-full bg-accent-soft px-3 py-1">
