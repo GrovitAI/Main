@@ -136,11 +136,14 @@ export function SettlementModal({
                 {isProcessing ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text className="text-sm font-bold text-text-on-primary">
-                    {Platform.OS === 'web'
-                      ? `Confirm Payment (${selectedMethod}) [Ctrl+Enter]`
-                      : `Confirm Payment (${selectedMethod})`}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text className="text-sm font-bold text-text-on-primary">
+                      Confirm Payment ({selectedMethod})
+                    </Text>
+                    {Platform.OS === 'web' && (
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#c5d9eb', opacity: 0.85 }}>Ctrl+Enter</Text>
+                    )}
+                  </View>
                 )}
               </LinearGradient>
             </Pressable>

@@ -163,6 +163,9 @@ export default function PosBillingScreen() {
   const [timeStr, setTimeStr] = useState('11:42 AM');
   const [dateStr, setDateStr] = useState('20 May 2025');
 
+  const isInitialLoading =
+    (isLoadingOrders && orders.length === 0) || (catalogLoading && allProducts.length === 0);
+
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -227,11 +230,18 @@ export default function PosBillingScreen() {
   }, [searchQuery]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (Platform.OS !== 'web') return;
+    if (isInitialLoading) return;
+
+    const frame = requestAnimationFrame(() => {
+      window.focus();
       searchRef.current?.focus();
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [isInitialLoading]);
 
   useEffect(() => {
     if (qtyMode) {
@@ -256,43 +266,7 @@ export default function PosBillingScreen() {
     return activeOnly.filter((product) => product.category_id === selectedCategoryId);
   }, [allProducts, selectedCategoryId, searchQuery]);
 
-  const handleSearchKeyPress = useCallback((e: any) => {
-    const key = e.nativeEvent.key;
-    if (key === 'ArrowDown') {
-      e.preventDefault?.();
-      setHighlightedIndex((prev) =>
-        visibleProducts.length > 0 ? (prev + 1) % visibleProducts.length : 0
-      );
-    } else if (key === 'ArrowUp') {
-      e.preventDefault?.();
-      setHighlightedIndex((prev) =>
-        visibleProducts.length > 0 ? (prev - 1 + visibleProducts.length) % visibleProducts.length : 0
-      );
-    } else if (key === 'Enter') {
-      e.preventDefault?.();
-      if (visibleProducts.length === 0) {
-        showToast('No item found');
-        return;
-      }
-      const product = visibleProducts[highlightedIndex];
-      if (product) {
-        // Block when inspecting a closed bill
-        if (isReadOnlyView) {
-          showToast('This bill is read-only.');
-          return;
-        }
-        // Locked check before switching to Qty Mode
-        const isUnpaid = activeOrder ? (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen') : false;
-        if (isUnpaid && !isEditingUnpaid) {
-          showToast('This bill is locked. Tap "Edit Bill" to make changes.');
-          return;
-        }
-        setSelectedProduct(product);
-        setQtyInput('1');
-        setQtyMode(true);
-      }
-    }
-  }, [visibleProducts, highlightedIndex, activeOrder, isReadOnlyView, isEditingUnpaid, showToast]);
+
 
   const handleQtySubmit = useCallback(async () => {
     const trimmed = qtyInput.trim();
@@ -704,84 +678,139 @@ export default function PosBillingScreen() {
     showToast,
   ]);
 
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
+  const handleSearchKeyPress = useCallback((e: any) => {
+    const key = e.nativeEvent.key;
+    const altKey = e.nativeEvent.altKey;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      const isTyping =
-        activeEl &&
-        (activeEl.tagName === 'INPUT' ||
-          activeEl.tagName === 'TEXTAREA' ||
-          activeEl.getAttribute('contenteditable') === 'true');
-
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        e.preventDefault();
-        
-        if (settlementVisible) {
-          setSettlementVisible(false);
-          return;
+    // Alt + N or F6: New Order
+    if ((altKey && key.toLowerCase() === 'n') || key === 'F6') {
+      e.preventDefault?.();
+      handleCreateOrderClick();
+      return;
+    }
+    // Alt + K or F2: Save / Update KOT
+    if ((altKey && key.toLowerCase() === 'k') || key === 'F2') {
+      e.preventDefault?.();
+      const isDraft = activeOrder && (activeOrder.status === 'draft' || activeOrder.status === 'open');
+      const canSaveKot = !isReadOnlyView && (isDraft || isEditingUnpaid);
+      if (canSaveKot) {
+        handleSaveKotClick();
+      }
+      return;
+    }
+    // Alt + H or F4: Hold Order
+    if ((altKey && key.toLowerCase() === 'h') || key === 'F4') {
+      e.preventDefault?.();
+      const isDraft = activeOrder && (activeOrder.status === 'draft' || activeOrder.status === 'open');
+      const hasItems = activeOrderItems.length > 0;
+      if (isDraft && hasItems && !isMutating) {
+        void confirmHoldOrder();
+      }
+      return;
+    }
+    // Alt + S or F8: Settle Bill
+    if ((altKey && key.toLowerCase() === 's') || key === 'F8') {
+      e.preventDefault?.();
+      handleSettleClick();
+      return;
+    }
+    // /: Select all text if already focused
+    if (key === '/') {
+      e.preventDefault?.();
+      if (Platform.OS === 'web') {
+        const input = searchRef.current as any;
+        if (input && typeof input.select === 'function') {
+          input.select();
         }
-        if (activeModal) {
-          setActiveModal(null);
-          setPendingAction(null);
-          return;
-        }
-        if (qtyMode) {
-          setSearchQuery('');
-          setQtyMode(false);
-          setSelectedProduct(null);
-          setQtyInput('1');
-          setTimeout(() => {
-            searchRef.current?.focus();
-          }, 50);
-          return;
-        }
-        if (searchQuery.trim() !== '') {
-          setSearchQuery('');
-          return;
-        }
-        
-        if (activeEl instanceof HTMLElement) {
-          activeEl.blur();
-        }
+      }
+      return;
+    }
+    // Escape: Universal dismiss
+    if (key === 'Escape' || key === 'Esc') {
+      e.preventDefault?.();
+      if (settlementVisible) {
+        setSettlementVisible(false);
         return;
       }
-
-      if (isTyping) {
+      if (activeModal) {
+        setActiveModal(null);
+        setPendingAction(null);
         return;
       }
-
-      if (e.key === 'F2') {
-        e.preventDefault();
-        handleCreateOrderClick();
-      } else if (e.key === 'F8') {
-        e.preventDefault();
-        handleSettleClick();
-      } else if (e.key === '/') {
-        e.preventDefault();
+      if (qtyMode) {
         setSearchQuery('');
+        setQtyMode(false);
+        setSelectedProduct(null);
+        setQtyInput('1');
         setTimeout(() => {
           searchRef.current?.focus();
-        }, 10);
+        }, 50);
+        return;
       }
-    };
+      if (searchQuery.trim() !== '') {
+        setSearchQuery('');
+        return;
+      }
+      // Blur search
+      searchRef.current?.blur();
+      return;
+    }
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    // Default search arrow navigation
+    if (key === 'ArrowDown') {
+      e.preventDefault?.();
+      setHighlightedIndex((prev) =>
+        visibleProducts.length > 0 ? (prev + 1) % visibleProducts.length : 0
+      );
+    } else if (key === 'ArrowUp') {
+      e.preventDefault?.();
+      setHighlightedIndex((prev) =>
+        visibleProducts.length > 0 ? (prev - 1 + visibleProducts.length) % visibleProducts.length : 0
+      );
+    } else if (key === 'Enter') {
+      e.preventDefault?.();
+      if (visibleProducts.length === 0) {
+        showToast('No item found');
+        return;
+      }
+      const product = visibleProducts[highlightedIndex];
+      if (product) {
+        if (isReadOnlyView) {
+          showToast('This bill is read-only.');
+          return;
+        }
+        const isUnpaid = activeOrder ? (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen') : false;
+        if (isUnpaid && !isEditingUnpaid) {
+          showToast('This bill is locked. Tap "Edit Bill" to make changes.');
+          return;
+        }
+        setSelectedProduct(product);
+        setQtyInput('1');
+        setQtyMode(true);
+      }
+    }
   }, [
+    visibleProducts,
+    highlightedIndex,
+    activeOrder,
+    isReadOnlyView,
+    isEditingUnpaid,
+    showToast,
     settlementVisible,
     activeModal,
     qtyMode,
     searchQuery,
+    isMutating,
+    activeOrderItems,
     handleCreateOrderClick,
+    handleSaveKotClick,
+    confirmHoldOrder,
     handleSettleClick,
   ]);
 
-  const isInitialLoading =
-    (isLoadingOrders && orders.length === 0) || (catalogLoading && allProducts.length === 0);
+
+
+
 
   // ─── Loading state ───
   if (isInitialLoading) {
@@ -851,6 +880,7 @@ export default function PosBillingScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <TextInput
                   ref={qtyRef}
+                  id="qty-input"
                   value={qtyInput}
                   onChangeText={setQtyInput}
                   selectTextOnFocus={true}
@@ -882,6 +912,7 @@ export default function PosBillingScreen() {
               <Search color="#9BA8BA" size={16} style={{ opacity: 0.6 }} />
               <TextInput
                 ref={searchRef}
+                id="search-input"
                 placeholder="Search items... [/]"
                 placeholderTextColor="#9BA8BA"
                 value={searchQuery}
@@ -1027,9 +1058,7 @@ export default function PosBillingScreen() {
                 <Plus color="#FFFFFF" size={14} strokeWidth={2.5} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>New Order</Text>
                 {Platform.OS === 'web' && (
-                  <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 4, paddingVertical: 1.5, borderRadius: 4, marginLeft: 2 }}>
-                    <Text style={{ fontSize: 8, fontWeight: '800', color: '#FFFFFF' }}>F2</Text>
-                  </View>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#c5d9eb', opacity: 0.8, marginLeft: 4 }}>Alt+N · F6</Text>
                 )}
               </Pressable>
  

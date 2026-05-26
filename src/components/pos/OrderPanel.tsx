@@ -302,16 +302,21 @@ export function OrderPanel({
                 colors={['#0D6CE0', '#0B58B2']}
                 style={{ height: 48, width: '100%', borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>
-                  {isMutating
-                    ? 'Settling...'
-                    : Platform.OS === 'web'
-                      ? `Settle Bill [F8] (${formatCurrency(total)})`
-                      : `Settle Bill (${formatCurrency(total)})`}
-                </Text>
+                {isMutating ? (
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Settling...</Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>
+                      Settle Bill ({formatCurrency(total)})
+                    </Text>
+                    {Platform.OS === 'web' && (
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#c5d9eb', opacity: 0.85 }}>Alt+S · F8</Text>
+                    )}
+                  </View>
+                )}
               </LinearGradient>
             </Pressable>
-
+ 
             <Pressable
               accessibilityRole="button"
               disabled={isMutating}
@@ -325,7 +330,7 @@ export function OrderPanel({
             </Pressable>
           </View>
         )}
-
+ 
         {showSaveKotButton && (
           <Pressable
             accessibilityRole="button"
@@ -341,13 +346,22 @@ export function OrderPanel({
               colors={['#0D6CE0', '#0B58B2']}
               style={{ height: 48, width: '100%', borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>
-                {isMutating ? 'Processing...' : (isEditingUnpaid ? 'Update KOT' : 'Save KOT')}
-              </Text>
+              {isMutating ? (
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Processing...</Text>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>
+                    {isEditingUnpaid ? 'Update KOT' : 'Save KOT'}
+                  </Text>
+                  {Platform.OS === 'web' && (
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#c5d9eb', opacity: 0.85 }}>Alt+K · F2</Text>
+                  )}
+                </View>
+              )}
             </LinearGradient>
           </Pressable>
         )}
-
+ 
         {/* Read-only mode — replaces all mutation CTAs */}
         {isReadOnlyView && (
           <Pressable
@@ -377,9 +391,16 @@ export function OrderPanel({
             onPress={onHoldOrder}
             style={{ flex: 1, height: 38, borderRadius: 10, backgroundColor: (!isDraft || !hasItems || isMutating) ? '#F1F5F9' : '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
           >
-            <Text style={{ fontSize: 11, fontWeight: '700', color: (!isDraft || !hasItems || isMutating) ? '#94A3B8' : '#0D6CE0' }}>
-              Hold Order
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: (!isDraft || !hasItems || isMutating) ? '#94A3B8' : '#0D6CE0' }}>
+                Hold
+              </Text>
+              {Platform.OS === 'web' && (
+                <Text style={{ fontSize: 10, fontWeight: '600', color: (!isDraft || !hasItems || isMutating) ? '#94A3B8' : '#5796E6', opacity: 0.85 }}>
+                  Alt+H · F4
+                </Text>
+              )}
+            </View>
           </Pressable>
 
           {/* Reset Cart / Discard Changes */}
