@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { ActivityIndicator, Modal, Pressable, Text, View, Platform } from 'react-native';
 import { X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -37,6 +37,24 @@ export function SettlementModal({
   };
 
   const isProcessing = isMutating || localMutating;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !visible) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (!isProcessing) {
+          e.preventDefault();
+          void handleConfirm();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [visible, isProcessing, selectedMethod]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -119,7 +137,9 @@ export function SettlementModal({
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <Text className="text-sm font-bold text-text-on-primary">
-                    Confirm Payment ({selectedMethod})
+                    {Platform.OS === 'web'
+                      ? `Confirm Payment (${selectedMethod}) [Ctrl+Enter]`
+                      : `Confirm Payment (${selectedMethod})`}
                   </Text>
                 )}
               </LinearGradient>

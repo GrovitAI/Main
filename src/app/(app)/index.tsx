@@ -9,6 +9,7 @@ import {
   View,
   StyleSheet,
   Modal,
+  Platform,
 } from 'react-native';
 import { Search, Plus } from 'lucide-react-native';
 
@@ -240,6 +241,8 @@ export default function PosBillingScreen() {
       return () => clearTimeout(timer);
     }
   }, [qtyMode]);
+
+
 
   const visibleProducts = useMemo(() => {
     const activeOnly = allProducts.filter((product) => product.is_available !== false);
@@ -701,6 +704,82 @@ export default function PosBillingScreen() {
     showToast,
   ]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isTyping =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.getAttribute('contenteditable') === 'true');
+
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        e.preventDefault();
+        
+        if (settlementVisible) {
+          setSettlementVisible(false);
+          return;
+        }
+        if (activeModal) {
+          setActiveModal(null);
+          setPendingAction(null);
+          return;
+        }
+        if (qtyMode) {
+          setSearchQuery('');
+          setQtyMode(false);
+          setSelectedProduct(null);
+          setQtyInput('1');
+          setTimeout(() => {
+            searchRef.current?.focus();
+          }, 50);
+          return;
+        }
+        if (searchQuery.trim() !== '') {
+          setSearchQuery('');
+          return;
+        }
+        
+        if (activeEl instanceof HTMLElement) {
+          activeEl.blur();
+        }
+        return;
+      }
+
+      if (isTyping) {
+        return;
+      }
+
+      if (e.key === 'F2') {
+        e.preventDefault();
+        handleCreateOrderClick();
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        handleSettleClick();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        setSearchQuery('');
+        setTimeout(() => {
+          searchRef.current?.focus();
+        }, 10);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    settlementVisible,
+    activeModal,
+    qtyMode,
+    searchQuery,
+    handleCreateOrderClick,
+    handleSettleClick,
+  ]);
+
   const isInitialLoading =
     (isLoadingOrders && orders.length === 0) || (catalogLoading && allProducts.length === 0);
 
@@ -733,6 +812,8 @@ export default function PosBillingScreen() {
       </View>
     );
   }
+
+
 
   // ─── Product grid ───
   const productGrid = (
@@ -801,7 +882,7 @@ export default function PosBillingScreen() {
               <Search color="#9BA8BA" size={16} style={{ opacity: 0.6 }} />
               <TextInput
                 ref={searchRef}
-                placeholder="Search items..."
+                placeholder="Search items... [/]"
                 placeholderTextColor="#9BA8BA"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -945,6 +1026,11 @@ export default function PosBillingScreen() {
               >
                 <Plus color="#FFFFFF" size={14} strokeWidth={2.5} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>New Order</Text>
+                {Platform.OS === 'web' && (
+                  <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 4, paddingVertical: 1.5, borderRadius: 4, marginLeft: 2 }}>
+                    <Text style={{ fontSize: 8, fontWeight: '800', color: '#FFFFFF' }}>F2</Text>
+                  </View>
+                )}
               </Pressable>
  
               {/* Held Carts Popover */}

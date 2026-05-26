@@ -303,7 +303,11 @@ export function OrderPanel({
                 style={{ height: 48, width: '100%', borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
               >
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>
-                  {isMutating ? 'Settling...' : `Settle Bill (${formatCurrency(total)})`}
+                  {isMutating
+                    ? 'Settling...'
+                    : Platform.OS === 'web'
+                      ? `Settle Bill [F8] (${formatCurrency(total)})`
+                      : `Settle Bill (${formatCurrency(total)})`}
                 </Text>
               </LinearGradient>
             </Pressable>
