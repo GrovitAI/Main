@@ -11,6 +11,7 @@ import {
   fetchOrderItemCounts,
   removeOrderItem,
   updateOrderItemQuantity,
+  clearOpenOrderItems,
 } from './open-orders-service';
 import { BRANCH_ID, TENANT_ID } from './tenant-context';
 
@@ -32,6 +33,7 @@ type OrdersState = {
   incrementItem: (itemId: string) => Promise<void>;
   decrementItem: (itemId: string) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
+  resetCart: () => Promise<void>;
   clearError: () => void;
 };
 
@@ -368,5 +370,28 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     } else {
       set({ isMutating: false });
     }
+  },
+
+  resetCart: async () => {
+    const snapshot = get();
+    const activeOrderId = snapshot.activeOrderId;
+    if (!activeOrderId) return;
+
+    set({ isMutating: true, error: null });
+
+    const result = await clearOpenOrderItems(activeOrderId);
+    if (result.error) {
+      set({ isMutating: false, error: result.error });
+      return;
+    }
+
+    set((state) => ({
+      activeOrderItems: [],
+      itemCountByOrderId: {
+        ...state.itemCountByOrderId,
+        [activeOrderId]: 0,
+      },
+      isMutating: false,
+    }));
   },
 }));

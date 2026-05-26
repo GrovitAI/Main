@@ -4,6 +4,8 @@ import {
   Pressable,
   Text,
   View,
+  Alert,
+  Platform,
 } from 'react-native';
 import { Minus, Plus, Trash2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +32,7 @@ type OrderPanelProps = {
   onRemoveItem: (itemId: string) => void;
   onSendKot: () => void;
   onSettle: () => void;
+  onResetCart: () => void;
 };
 
 export function OrderPanel({
@@ -43,6 +46,7 @@ export function OrderPanel({
   onRemoveItem,
   onSendKot,
   onSettle,
+  onResetCart,
 }: OrderPanelProps) {
   const subtotal = calculateOrderSubtotal(items);
   const tax = calculateTax(subtotal, TAX_RATE);
@@ -54,6 +58,29 @@ export function OrderPanel({
 
   const hasItems = items.length > 0;
   const ctaDisabled = !order || !hasItems || isMutating;
+  const isDraft = order ? (order.status === 'draft' || order.status === 'open') : false;
+
+  const handleResetPress = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Clear current cart?\n\nThis will remove all items from the current cart.');
+      if (confirmed) {
+        onResetCart();
+      }
+    } else {
+      Alert.alert(
+        'Clear current cart?',
+        'This will remove all items from the current cart.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear Cart',
+            style: 'destructive',
+            onPress: () => onResetCart(),
+          },
+        ]
+      );
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 18, elevation: 3 }}>
@@ -161,14 +188,23 @@ export function OrderPanel({
           </LinearGradient>
         </Pressable>
         
-        <Pressable
-          accessibilityRole="button"
-          disabled={ctaDisabled}
-          onPress={onSendKot}
-          style={{ marginTop: 10, alignItems: 'center' }}
-        >
-          <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280' }}>Send KOT</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 12 }}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={ctaDisabled}
+            onPress={onSendKot}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '600', color: ctaDisabled ? '#D1D5DB' : '#6B7280' }}>Send KOT</Text>
+          </Pressable>
+          
+          <Pressable
+            accessibilityRole="button"
+            disabled={!isDraft || !hasItems || isMutating}
+            onPress={handleResetPress}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '600', color: (!isDraft || !hasItems || isMutating) ? '#D1D5DB' : '#EF4444' }}>Reset Cart</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );

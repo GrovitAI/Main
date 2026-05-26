@@ -447,3 +447,21 @@ export async function fetchOrderItemCounts(
     return { data: null, error: 'Unable to load order counts.' };
   }
 }
+
+export async function clearOpenOrderItems(
+  orderId: string,
+): Promise<ServiceResult<null>> {
+  try {
+    const { error } = await supabase
+      .from('open_order_items')
+      .delete()
+      .eq('open_order_id', orderId);
+
+    if (error) {
+      return { data: null, error: 'Unable to clear cart.' };
+    }
+    return { data: null, error: null };
+  } catch {
+    return { data: null, error: 'Unable to clear cart.' };
+  }
+}
