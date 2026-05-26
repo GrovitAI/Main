@@ -316,7 +316,7 @@ export default function OrdersScreen() {
     <View style={{ flex: 1, backgroundColor: '#F5F8FC' }}>
       {/* ── Branded Top Header Surface ── */}
       <LinearGradient
-        colors={['#0147a5', '#013280']}
+        colors={['#024db1', '#01389e']}
         style={{
           paddingHorizontal: 16,
           paddingTop: 12,
@@ -327,7 +327,7 @@ export default function OrdersScreen() {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
               Orders Management
             </Text>
             <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
@@ -813,7 +813,7 @@ function HeaderSection({
 }) {
   return (
     <LinearGradient
-      colors={['#0147a5', '#013280']}
+      colors={['#024db1', '#01389e']}
       style={{
         paddingHorizontal: 16,
         paddingTop: 12,
@@ -824,7 +824,7 @@ function HeaderSection({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
             Orders Management
           </Text>
           <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
