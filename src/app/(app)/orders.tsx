@@ -316,7 +316,7 @@ export default function OrdersScreen() {
     <View style={{ flex: 1, backgroundColor: '#F5F8FC' }}>
       {/* ── Branded Top Header Surface ── */}
       <LinearGradient
-        colors={['#0B1E36', '#013B8C']}
+        colors={['#0147a5', '#013280']}
         style={{
           paddingHorizontal: 16,
           paddingTop: 12,
@@ -813,7 +813,7 @@ function HeaderSection({
 }) {
   return (
     <LinearGradient
-      colors={['#0B1E36', '#013B8C']}
+      colors={['#0147a5', '#013280']}
       style={{
         paddingHorizontal: 16,
         paddingTop: 12,
