@@ -96,28 +96,28 @@ export const OrderCard = memo(function OrderCard({
       onPress={onOpenBill}
       style={({ pressed, hovered }: any) => [
         {
-          margin: 3.5,
+          margin: 6.5,
           flex: 1,
           borderRadius: 12,
           backgroundColor: '#FFFFFF',
           borderWidth: 1,
-          borderColor: '#E2E8F0',
-          shadowColor: '#0F172A',
+          borderColor: statusConfig.text + '25', // status-coded border outline
+          shadowColor: statusConfig.text, // status-coded glow
           shadowOffset: { width: 0, height: 1.5 },
-          shadowOpacity: 0.02,
-          shadowRadius: 3,
-          elevation: 1,
+          shadowOpacity: 0.03,
+          shadowRadius: 3.5,
+          elevation: 2,
           overflow: 'hidden',
           height: 120,
         },
         hovered && {
-          transform: [{ translateY: -1.5 }],
-          shadowOpacity: 0.05,
-          shadowRadius: 6,
+          transform: [{ translateY: -2 }],
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
           shadowOffset: { width: 0, height: 3 },
-          elevation: 3,
-          borderColor: 'rgba(1, 59, 140, 0.25)', // subtle Le Leban active border glow
-          shadowColor: '#013B8C',
+          elevation: 4,
+          borderColor: statusConfig.text + '60', // sharp status glow
+          backgroundColor: '#FFFFFF',
         },
         pressed && {
           transform: [{ scale: 0.995 }],
@@ -129,7 +129,7 @@ export const OrderCard = memo(function OrderCard({
       <View style={{ flexDirection: 'row', height: 118, alignItems: 'stretch' }}>
         
         {/* Left Pane (Details) */}
-        <View style={{ flex: 2.2, padding: 8, justifyContent: 'space-between' }}>
+        <View style={{ flex: 3.3, padding: 10, justifyContent: 'space-between' }}>
           <View>
             <Text
               style={{ fontSize: 13, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.15 }}
@@ -138,7 +138,8 @@ export const OrderCard = memo(function OrderCard({
               {billId}
             </Text>
             
-            <View style={{ marginTop: 4 }}>
+            {/* Horizontal wrapping list of items — side-by-side with padding/spacing */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6, alignItems: 'center' }}>
               {itemCount === 0 ? (
                 <Text style={{ fontSize: 10, color: '#94A3B8', fontStyle: 'italic' }}>No items</Text>
               ) : (
@@ -146,7 +147,7 @@ export const OrderCard = memo(function OrderCard({
                   {previewItems.map((item, idx) => (
                     <Text
                       key={`${item.name}-${idx}`}
-                      style={{ fontSize: 10, fontWeight: '500', color: '#475569', lineHeight: 13 }}
+                      style={{ fontSize: 10, fontWeight: '500', color: '#475569' }}
                       numberOfLines={1}
                     >
                       <Text style={{ color: '#334155', fontWeight: '600' }}>{item.name}</Text>
@@ -154,7 +155,7 @@ export const OrderCard = memo(function OrderCard({
                     </Text>
                   ))}
                   {remainingItemLines > 0 && (
-                    <Text style={{ fontSize: 9.2, fontWeight: '700', color: '#0251B8', marginTop: 1 }}>
+                    <Text style={{ fontSize: 9.2, fontWeight: '700', color: '#0251B8' }}>
                       +{remainingItemLines} more
                     </Text>
                   )}
@@ -224,11 +225,11 @@ export const OrderCard = memo(function OrderCard({
           </View>
         </View>
 
-        {/* Thin vertical separation line */}
-        <View style={{ width: 1, backgroundColor: '#F1F5F9' }} />
+        {/* Thin vertical separation line — status tinted */}
+        <View style={{ width: 1, backgroundColor: statusConfig.text + '15' }} />
 
         {/* Right Pane (Metadata Column) */}
-        <View style={{ flex: 1, backgroundColor: '#F8FAFC', padding: 8, justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <View style={{ flex: 0.7, backgroundColor: statusConfig.bg, paddingVertical: 10, paddingHorizontal: 6, justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View style={{ alignItems: 'flex-end', gap: 3.5 }}>
             <View
               style={{

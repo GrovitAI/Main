@@ -140,7 +140,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
 
     const summaries: OpenOrderSummary[] = openOrders.map((order) => {
       const orderItems = itemsByOrderId[order.id] ?? [];
-      const previewItems = orderItems.slice(0, 2);
+      const previewItems = orderItems.slice(0, 3);
       const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
 
       return {
@@ -627,7 +627,7 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
 
     const summaries: OpenOrderSummary[] = allOrders.map((order) => {
       const orderItems = itemsByOrderId[order.id] ?? [];
-      const previewItems = orderItems.slice(0, 2);
+      const previewItems = orderItems.slice(0, 3);
       const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
 
       return {

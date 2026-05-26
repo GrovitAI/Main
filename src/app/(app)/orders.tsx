@@ -123,7 +123,8 @@ function OrdersSkeleton({ count }: { count: number }) {
 export default function OrdersScreen() {
   const { width } = useWindowDimensions();
   const listColumns = useMemo(() => {
-    if (width >= 1024) return 3;
+    if (width >= 1200) return 4;
+    if (width >= 992) return 3;
     if (width >= 768) return 2;
     return 1;
   }, [width]);
@@ -437,11 +438,11 @@ export default function OrdersScreen() {
           key={listColumns}
           numColumns={listColumns}
           keyExtractor={(item) => item.order.id}
-          contentContainerStyle={{ padding: 4, paddingBottom: 20 }}
+          contentContainerStyle={{ padding: 8, paddingBottom: 24 }}
           renderItem={({ item, index }) => {
             const isEditable = EDITABLE_STATUSES.includes(item.order.status);
             return (
-              <View style={{ flex: 1 }}>
+              <View style={{ width: `${100 / listColumns}%` }}>
                 <OrderCard
                   summary={item}
                   orderIndex={index}
