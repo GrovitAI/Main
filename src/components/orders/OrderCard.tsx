@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Eye } from 'lucide-react-native';
 
@@ -16,17 +16,17 @@ export type StatusConfig = {
 export function getStatusConfig(status: OrderStatus): StatusConfig {
   switch (status) {
     case 'held':
-      return { label: 'HELD', bg: '#FEF3C7', text: '#D97706' };
+      return { label: 'HELD', bg: '#FFFBEB', text: '#D97706' };
     case 'unpaid':
     case 'payment_pending':
-      return { label: 'UNPAID', bg: '#FFF4EC', text: '#EA580C' };
+      return { label: 'UNPAID', bg: '#FFF7ED', text: '#F97316' };
     case 'in_kitchen':
-      return { label: 'IN KITCHEN', bg: '#EFF6FF', text: '#0066b2' };
+      return { label: 'KITCHEN', bg: '#F0F9FF', text: '#0251B8' };
     case 'paid':
     case 'completed':
       return { label: status === 'completed' ? 'COMPLETED' : 'PAID', bg: '#F0FDF4', text: '#16A34A' };
     case 'cancelled':
-      return { label: 'CANCELLED', bg: '#F5F5F5', text: '#9B2C2C' };
+      return { label: 'CANCELLED', bg: '#F8FAFC', text: '#64748B' };
     case 'draft':
     case 'open':
     default:
@@ -83,6 +83,11 @@ export const OrderCard = memo(function OrderCard({
   const billId = getBillIdentifier(summary, orderIndex);
   const elapsed = getElapsedLabel(order.created_at);
   const amountStr = formatAmount(totalAmount);
+  const orderType = order.order_name || 'Takeaway';
+
+  // Manual hover and active state management to avoid nesting buttons
+  const [viewHovered, setViewHovered] = useState(false);
+  const [viewPressed, setViewPressed] = useState(false);
 
   return (
     <Pressable
@@ -91,141 +96,177 @@ export const OrderCard = memo(function OrderCard({
       onPress={onOpenBill}
       style={({ pressed, hovered }: any) => [
         {
-          margin: 4,
+          margin: 3.5,
           flex: 1,
           borderRadius: 12,
           backgroundColor: '#FFFFFF',
           borderWidth: 1,
-          borderColor: '#E8EFF6',
+          borderColor: '#E2E8F0',
           shadowColor: '#0F172A',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.04,
-          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 1.5 },
+          shadowOpacity: 0.02,
+          shadowRadius: 3,
           elevation: 1,
           overflow: 'hidden',
+          height: 120,
         },
         hovered && {
-          shadowOpacity: 0.10,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 4,
-          borderColor: '#C7D9EC',
+          transform: [{ translateY: -1.5 }],
+          shadowOpacity: 0.05,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 3,
+          borderColor: 'rgba(1, 59, 140, 0.25)', // subtle Le Leban active border glow
+          shadowColor: '#013B8C',
         },
         pressed && {
-          transform: [{ scale: 0.98 }],
-          shadowOpacity: 0.02,
+          transform: [{ scale: 0.995 }],
+          shadowOpacity: 0.01,
           elevation: 0,
         },
       ]}
     >
-      <View style={{ padding: 11, paddingBottom: 9 }}>
-
-        {/* Row 1: Bill ID — Status pill — Elapsed */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-          <Text
-            style={{ fontSize: 13, fontWeight: '700', color: '#0f2744', flex: 1, letterSpacing: -0.1 }}
-            numberOfLines={1}
-          >
-            {billId}
-          </Text>
-
-          <View
-            style={{
-              borderRadius: 5,
-              paddingHorizontal: 6,
-              paddingVertical: 2,
-              backgroundColor: statusConfig.bg,
-            }}
-          >
-            <Text style={{ fontSize: 8.5, fontWeight: '800', color: statusConfig.text, letterSpacing: 0.6 }}>
-              {statusConfig.label}
+      <View style={{ flexDirection: 'row', height: 118, alignItems: 'stretch' }}>
+        
+        {/* Left Pane (Details) */}
+        <View style={{ flex: 2.2, padding: 8, justifyContent: 'space-between' }}>
+          <View>
+            <Text
+              style={{ fontSize: 13, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.15 }}
+              numberOfLines={1}
+            >
+              {billId}
             </Text>
+            
+            <View style={{ marginTop: 4 }}>
+              {itemCount === 0 ? (
+                <Text style={{ fontSize: 10, color: '#94A3B8', fontStyle: 'italic' }}>No items</Text>
+              ) : (
+                <>
+                  {previewItems.map((item, idx) => (
+                    <Text
+                      key={`${item.name}-${idx}`}
+                      style={{ fontSize: 10, fontWeight: '500', color: '#475569', lineHeight: 13 }}
+                      numberOfLines={1}
+                    >
+                      <Text style={{ color: '#334155', fontWeight: '600' }}>{item.name}</Text>
+                      <Text style={{ color: '#64748B' }}> ×{item.quantity}</Text>
+                    </Text>
+                  ))}
+                  {remainingItemLines > 0 && (
+                    <Text style={{ fontSize: 9.2, fontWeight: '700', color: '#0251B8', marginTop: 1 }}>
+                      +{remainingItemLines} more
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
           </View>
 
-          <Text style={{ fontSize: 10.5, fontWeight: '500', color: '#B0BAC4', minWidth: 22, textAlign: 'right' }}>
-            {elapsed}
-          </Text>
-        </View>
-
-        {/* Row 2: Item preview — compact, no background box */}
-        <View style={{ marginBottom: 6 }}>
-          {itemCount === 0 ? (
-            <Text style={{ fontSize: 11.5, color: '#C4CDD6', fontStyle: 'italic' }}>No items</Text>
-          ) : (
-            <>
-              {previewItems.map((item, idx) => (
-                <Text
-                  key={`${item.name}-${idx}`}
-                  style={{ fontSize: 11.5, fontWeight: '400', color: '#4B5563', lineHeight: 16 }}
-                  numberOfLines={1}
-                >
-                  <Text style={{ color: '#374151', fontWeight: '500' }}>{item.name}</Text>
-                  <Text style={{ color: '#9CA3AF' }}> ×{item.quantity}</Text>
-                </Text>
-              ))}
-              {remainingItemLines > 0 && (
-                <Text style={{ fontSize: 10.5, fontWeight: '600', color: '#0066b2', marginTop: 1 }}>
-                  +{remainingItemLines} more
-                </Text>
-              )}
-            </>
-          )}
-        </View>
-
-        {/* Row 3: Bottom action/amount bar */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View order details"
-            onPress={(e) => {
+          {/* View ghost pill trigger */}
+          <View
+            onTouchStart={(e) => {
               e.stopPropagation();
+              setViewPressed(true);
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              setViewPressed(false);
               onViewOrder();
             }}
-            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+            {...({
+              onMouseEnter: () => setViewHovered(true),
+              onMouseLeave: () => {
+                setViewHovered(false);
+                setViewPressed(false);
+              },
+              onMouseDown: (e: any) => {
+                e.stopPropagation();
+                setViewPressed(true);
+              },
+              onMouseUp: (e: any) => {
+                e.stopPropagation();
+                if (viewPressed) {
+                  setViewPressed(false);
+                  onViewOrder();
+                }
+              },
+              onClick: (e: any) => {
+                e.stopPropagation();
+              }
+            } as any)}
+            style={[
               {
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 4,
-                paddingVertical: 3,
+                alignSelf: 'flex-start',
+                gap: 3,
+                paddingVertical: 2,
                 paddingHorizontal: 8,
-                borderRadius: 6,
-                backgroundColor: '#F8FAFC',
+                borderRadius: 99,
+                backgroundColor: '#E8F2FA',
                 borderWidth: 1,
-                borderColor: '#E2E8F0',
+                borderColor: '#C7D9EC',
+                cursor: 'pointer',
               },
-              hovered && {
-                backgroundColor: '#F1F5F9',
-                borderColor: '#CBD5E1',
+              viewHovered && {
+                backgroundColor: '#D6E4F0',
+                borderColor: '#A5C1DC',
               },
-              pressed && {
-                transform: [{ scale: 0.95 }],
-                backgroundColor: '#E2E8F0',
+              viewPressed && {
+                transform: [{ scale: 0.96 }],
+                backgroundColor: '#C2D5E6',
               }
             ]}
           >
-            <Eye size={12} color="#64748B" />
-            <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', letterSpacing: 0.2 }}>View</Text>
-          </Pressable>
-
-          {amountStr !== '' ? (
-            <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#0f2744' }}>
-              {amountStr}
-            </Text>
-          ) : (
-            <View />
-          )}
+            <Eye size={10} color="#0251B8" />
+            <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#0251B8' }}>View</Text>
+          </View>
         </View>
 
-      </View>
+        {/* Thin vertical separation line */}
+        <View style={{ width: 1, backgroundColor: '#F1F5F9' }} />
 
-      {/* Bottom accent bar — color-coded by status for instant scanning */}
-      <View
-        style={{
-          height: 2.5,
-          backgroundColor: statusConfig.text,
-          opacity: 0.18,
-        }}
-      />
+        {/* Right Pane (Metadata Column) */}
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC', padding: 8, justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <View style={{ alignItems: 'flex-end', gap: 3.5 }}>
+            <View
+              style={{
+                borderRadius: 4,
+                paddingHorizontal: 5,
+                paddingVertical: 1.5,
+                backgroundColor: statusConfig.bg,
+                borderWidth: 1,
+                borderColor: statusConfig.text + '20',
+              }}
+            >
+              <Text style={{ fontSize: 7, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}>
+                {statusConfig.label}
+              </Text>
+            </View>
+            
+            <Text style={{ fontSize: 9, fontWeight: '600', color: '#94A3B8' }}>
+              {elapsed}
+            </Text>
+          </View>
+
+          <View style={{ alignItems: 'flex-end', gap: 3 }}>
+            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#E2E8F0' }}>
+              <Text style={{ fontSize: 7.5, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.2 }} numberOfLines={1}>
+                {orderType}
+              </Text>
+            </View>
+            
+            <Text style={{ fontSize: 13, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.2 }}>
+              {amountStr || '—'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Right Edge Status indicator bar */}
+        <View style={{ width: 3, backgroundColor: statusConfig.text }} />
+
+      </View>
     </Pressable>
   );
 });

@@ -122,8 +122,11 @@ function OrdersSkeleton({ count }: { count: number }) {
 
 export default function OrdersScreen() {
   const { width } = useWindowDimensions();
-  const isTablet = width >= TABLET_BREAKPOINT;
-  const listColumns = isTablet ? 2 : 1;
+  const listColumns = useMemo(() => {
+    if (width >= 1024) return 3;
+    if (width >= 768) return 2;
+    return 1;
+  }, [width]);
 
   const selectOrder = useOrdersStore((state) => state.selectOrder);
 
@@ -311,15 +314,23 @@ export default function OrdersScreen() {
   // ─── Main render ──────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: '#F5F8FC' }}>
-      {/* ── Header ── */}
-      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10 }}>
-        {/* Title row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+      {/* ── Branded Top Header Surface ── */}
+      <LinearGradient
+        colors={['#0B1E36', '#013B8C']}
+        style={{
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: 10,
+          height: 76,
+          justifyContent: 'center',
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 19, fontWeight: '800', color: '#0f2744', letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 }}>
               Orders Management
             </Text>
-            <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280', marginTop: 1 }}>
+            <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
               {headerSubtext}
             </Text>
           </View>
@@ -327,29 +338,44 @@ export default function OrdersScreen() {
             accessibilityRole="button"
             accessibilityLabel="Refresh orders"
             onPress={handleRefresh}
-            style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#EEF2F7', backgroundColor: '#F8FAFC' }}
+            style={({ pressed }: any) => [
+              {
+                width: 32,
+                height: 32,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                backgroundColor: 'rgba(255,255,255,0.12)',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.08)',
+              },
+              pressed && { opacity: 0.8 },
+            ]}
           >
             {isRefreshing
-              ? <ActivityIndicator color={colors.primaryMid} size="small" />
-              : <RefreshCw color={colors.primaryMid} size={20} />
+              ? <ActivityIndicator color="#FFFFFF" size="small" />
+              : <RefreshCw color="#FFFFFF" size={14} />
             }
           </Pressable>
         </View>
+      </LinearGradient>
 
+      {/* ── Control Bar (Search + Filters) ── */}
+      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 16, paddingVertical: 6 }}>
         {/* Search bar */}
-        <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: '#EEF2F7', paddingHorizontal: 10, height: 38 }}>
-          <Search color="#B0BAC4" size={14} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 32 }}>
+          <Search color="#94A3B8" size={13} />
           <TextInput
             placeholder="Search orders..."
-            placeholderTextColor="#B0BAC4"
+            placeholderTextColor="#94A3B8"
             value={searchInputValue}
             onChangeText={handleSearchChange}
-            style={{ flex: 1, fontSize: 12.5, fontWeight: '500', color: '#111827', marginLeft: 8, outlineStyle: 'none' } as any}
+            style={{ flex: 1, fontSize: 12, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' } as any}
             returnKeyType="search"
           />
           {searchInputValue.length > 0 && (
             <Pressable accessibilityRole="button" onPress={clearSearch} style={{ padding: 4 }}>
-              <X color="#B0BAC4" size={14} />
+              <X color="#94A3B8" size={13} />
             </Pressable>
           )}
         </View>
@@ -359,15 +385,15 @@ export default function OrdersScreen() {
           horizontal
           data={[
             { id: 'active'    as OrderFilter, label: 'Active',    count: kpi.active,    color: '#0066b2', bg: '#E8F2FA' },
-            { id: 'unpaid'    as OrderFilter, label: 'Unpaid',    count: kpi.unpaid,    color: '#EA580C', bg: '#FFF4EC' },
+            { id: 'unpaid'    as OrderFilter, label: 'Unpaid',    count: kpi.unpaid,    color: '#F97316', bg: '#FFF4EC' },
             { id: 'held'      as OrderFilter, label: 'Held',      count: kpi.held,      color: '#D97706', bg: '#FEF3C7' },
             { id: 'paid'      as OrderFilter, label: 'Paid',      count: kpi.paid,      color: '#16A34A', bg: '#F0FDF4' },
-            { id: 'cancelled' as OrderFilter, label: 'Cancelled', count: kpi.cancelled, color: '#9B2C2C', bg: '#F5F5F5' },
+            { id: 'cancelled' as OrderFilter, label: 'Cancelled', count: kpi.cancelled, color: '#64748B', bg: '#F1F5F9' },
             { id: 'all'       as OrderFilter, label: 'All',       count: kpi.all,       color: '#64748B', bg: '#F1F5F9' },
           ]}
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 6 }}
           contentContainerStyle={{ gap: 6 }}
           renderItem={({ item }) => (
             <FilterPill
@@ -786,28 +812,49 @@ function HeaderSection({
   isRefreshing: boolean;
 }) {
   return (
-    <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 }}>
+    <LinearGradient
+      colors={['#0B1E36', '#013B8C']}
+      style={{
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 10,
+        height: 76,
+        justifyContent: 'center',
+      }}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f2744', letterSpacing: -0.5 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 }}>
             Orders Management
           </Text>
-          <Text style={{ fontSize: 13, fontWeight: '500', color: '#6B7280', marginTop: 2 }}>
+          <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
             {subtext}
           </Text>
         </View>
         <Pressable
           accessibilityRole="button"
           onPress={onRefresh}
-          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#EEF2F7', backgroundColor: '#F8FAFC' }}
+          style={({ pressed }: any) => [
+            {
+              width: 32,
+              height: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 8,
+              backgroundColor: 'rgba(255,255,255,0.12)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.08)',
+            },
+            pressed && { opacity: 0.8 },
+          ]}
         >
           {isRefreshing
-            ? <ActivityIndicator color={colors.primaryMid} size="small" />
-            : <RefreshCw color={colors.primaryMid} size={20} />
+            ? <ActivityIndicator color="#FFFFFF" size="small" />
+            : <RefreshCw color="#FFFFFF" size={14} />
           }
         </Pressable>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -828,16 +875,23 @@ function FilterPill({
 }) {
   if (isActive) {
     return (
-      <Pressable accessibilityRole="button" onPress={onPress} style={{ overflow: 'hidden', borderRadius: 99, height: 28 }}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }: any) => [
+          { overflow: 'hidden', borderRadius: 99, height: 26 },
+          pressed && { transform: [{ scale: 0.97 }] }
+        ]}
+      >
         <LinearGradient
-          colors={['#0D6CE0', '#004a8d']}
+          colors={['#0251B8', '#013B8C']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={{ height: 28, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 5 }}
+          style={{ height: 26, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 4 }}
         >
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>{label}</Text>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 99, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-            <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
+          <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#FFFFFF' }}>{label}</Text>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 99, minWidth: 15, height: 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
+            <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
           </View>
         </LinearGradient>
       </Pressable>
@@ -848,14 +902,25 @@ function FilterPill({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [
-        { height: 28, paddingHorizontal: 11, borderRadius: 99, backgroundColor: bg, flexDirection: 'row', alignItems: 'center', gap: 5 },
-        pressed && { opacity: 0.75 },
+      style={({ pressed, hovered }: any) => [
+        {
+          height: 26,
+          paddingHorizontal: 10,
+          borderRadius: 99,
+          backgroundColor: bg,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          borderWidth: 1,
+          borderColor: 'rgba(0,0,0,0.03)',
+        },
+        hovered && { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' },
+        pressed && { transform: [{ scale: 0.97 }] },
       ]}
     >
-      <Text style={{ fontSize: 11, fontWeight: '600', color }}>{label}</Text>
-      <View style={{ backgroundColor: color, borderRadius: 99, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
-        <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
+      <Text style={{ fontSize: 10.5, fontWeight: '600', color }}>{label}</Text>
+      <View style={{ backgroundColor: color, borderRadius: 99, minWidth: 15, height: 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
+        <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
       </View>
     </Pressable>
   );
