@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
   View,
   Platform,
+  StyleSheet,
 } from 'react-native';
 import { Search, Plus } from 'lucide-react-native';
 
@@ -284,6 +285,14 @@ export default function PosBillingScreen() {
 
   return (
     <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC' }}>
+      {/* ─── Transparent full-screen overlay to detect clicks/taps outside ─── */}
+      {popoverVisible && (
+        <Pressable
+          style={[StyleSheet.absoluteFill, { zIndex: 9998, backgroundColor: 'transparent' }]}
+          onPress={() => setPopoverVisible(false)}
+        />
+      )}
+
       {/* ─── LEFT: Category rail (Full Height) ─── */}
       {isTablet && (
         <Sidebar
@@ -300,7 +309,10 @@ export default function PosBillingScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 9999, overflow: 'visible' }}>
               {/* + New Order Button */}
               <Pressable
-                onPress={() => void createOrder()}
+                onPress={() => {
+                  setPopoverVisible(false);
+                  void createOrder();
+                }}
                 style={({ pressed }) => [
                   {
                     height: 34,
@@ -323,7 +335,7 @@ export default function PosBillingScreen() {
                 <Plus color="#FFFFFF" size={14} strokeWidth={2.5} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>New Order</Text>
               </Pressable>
-
+ 
               {/* Held Carts Dropdown/Popover Button */}
               {heldOrders.length > 0 && (
                 <View style={{ position: 'relative', zIndex: 9999, overflow: 'visible' }}>
@@ -357,15 +369,6 @@ export default function PosBillingScreen() {
                   
                   {popoverVisible && (
                     <>
-                      {/* Transparent full-screen overlay to detect clicks/taps outside */}
-                      <Pressable
-                        onPress={() => setPopoverVisible(false)}
-                        style={Platform.OS === 'web'
-                          ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998, backgroundColor: 'transparent' }
-                          : { position: 'absolute', top: -1000, left: -1000, right: 1000, bottom: 1000, zIndex: 9998, backgroundColor: 'transparent' }
-                        }
-                      />
-                      
                       {/* Popover Card */}
                       <View style={{ position: 'absolute', top: 40, right: 0, width: 260, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 20, zIndex: 9999 }} pointerEvents="auto">
                         <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
