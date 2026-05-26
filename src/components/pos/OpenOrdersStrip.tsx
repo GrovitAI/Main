@@ -44,9 +44,12 @@ export function OpenOrdersStrip({
 }: OpenOrdersStripProps) {
   const chips: OrderChip[] = orders.map((order, index) => ({
     id: order.id,
-    label: (order.status === 'draft' || order.status === 'held' || order.status === 'payment_pending')
-      ? (order.status === 'held' ? 'Held Order' : 'Current Cart')
-      : formatOrderLabel(order.order_name, `Order #${index + 1}`),
+    label: (order.status === 'unpaid' || order.status === 'in_kitchen')
+      ? 'Unpaid Bill'
+      : ((order.status === 'draft' || order.status === 'held')
+          ? (order.status === 'held' ? 'Held Order' : 'Current Cart')
+          : formatOrderLabel(order.order_name, `Order #${index + 1}`)
+        ),
     itemCount: itemCountByOrderId[order.id] ?? 0,
   }));
 

@@ -15,7 +15,9 @@ import {
   holdOpenOrder,
   resumeHeldOrder,
 } from './open-orders-service';
-import { BRANCH_ID, TENANT_ID } from './tenant-context';
+import { BRANCH_ID, TENANT_ID, getTenantContext } from './tenant-context';
+import { supabase } from './supabase';
+import { logSupabaseError } from './supabase-debug';
 
 type OrdersState = {
   orders: OpenOrder[];
@@ -27,17 +29,25 @@ type OrdersState = {
   isLoadingOrders: boolean;
   isLoadingActiveOrder: boolean;
   isMutating: boolean;
+  isEditingUnpaid: boolean;
+  hasUnsavedChanges: boolean;
+  isReadOnlyView: boolean;
   error: string | null;
   loadOrders: () => Promise<void>;
   setProductCatalog: (products: Product[]) => void;
-  selectOrder: (orderId: string) => Promise<void>;
+  selectOrder: (orderId: string) => Promise<boolean>;
   createOrder: () => Promise<void>;
-  addProductToActiveOrder: (product: Product) => Promise<void>;
+  addProductToActiveOrder: (product: Product, quantity?: number) => Promise<void>;
   incrementItem: (itemId: string) => Promise<void>;
   decrementItem: (itemId: string) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   resetCart: () => Promise<void>;
   holdOrder: () => Promise<void>;
+  saveKot: () => Promise<boolean>;
+  settleBill: () => Promise<boolean>;
+  cancelOrder: () => Promise<void>;
+  enterEditMode: () => void;
+  discardChanges: () => Promise<void>;
   clearError: () => void;
 };
 
@@ -69,6 +79,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   isLoadingOrders: false,
   isLoadingActiveOrder: false,
   isMutating: false,
+  isEditingUnpaid: false,
+  hasUnsavedChanges: false,
+  isReadOnlyView: false,
   error: null,
 
   clearError: () => set({ error: null }),
@@ -94,7 +107,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     const allOrders = ordersResult.data ?? [];
-    const orders = allOrders.filter((order) => order.status !== 'held');
+    const orders = allOrders; // Unified store memory retains held/unpaid/kitchen
     const heldOrders = allOrders.filter((order) => order.status === 'held');
     const countsResult = await fetchOrderItemCounts(allOrders.map((order) => order.id));
     const itemCountByOrderId = countsResult.data ?? {};
@@ -117,9 +130,6 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    // Only automatically select a draft/open order, NEVER a held order.
-    // This keeps the POS billing screen in "Ready for next customer" (empty state)
-    // if there are no active draft/open orders.
     const autoSelectable = orders.find(order => order.status === 'draft' || order.status === 'open');
     if (autoSelectable) {
       await get().selectOrder(autoSelectable.id);
@@ -130,30 +140,41 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   },
 
   selectOrder: async (orderId) => {
-    set({ activeOrderId: orderId, isLoadingActiveOrder: true, error: null });
+    set({ isLoadingActiveOrder: true, error: null });
     const result = await fetchOpenOrderById(orderId);
 
     if (result.error || !result.data) {
-      set({ isLoadingActiveOrder: false, error: result.error ?? 'Unable to load order.' });
-      return;
+      set({
+        isLoadingActiveOrder: false,
+        error: 'Could not open order. Please try again.',
+      });
+      return false;
     }
 
     let order = result.data;
-    if (order.status === 'held') {
-      // Transition held order back to draft when it is explicitly selected/resumed
+
+    // Determine if this is a read-only inspection (closed order)
+    const isReadOnly =
+      order.status === 'cancelled' ||
+      order.status === 'completed' ||
+      order.status === 'paid';
+
+    // Only transition held → draft for editable orders
+    if (!isReadOnly && order.status === 'held') {
       const resumeResult = await resumeHeldOrder(orderId);
       if (resumeResult.error) {
-        set({ isLoadingActiveOrder: false, error: resumeResult.error });
-        return;
+        set({
+          isLoadingActiveOrder: false,
+          error: 'Could not open order. Please try again.',
+        });
+        return false;
       }
-      // Update local object status so the UI/components immediately reflect the draft status
       order = {
         ...order,
         status: 'draft' as const,
         held_at: null,
       };
 
-      // Ensure the newly resumed draft order is synchronized in the store's orders list
       set((state) => {
         const exists = state.orders.some((o) => o.id === orderId);
         const updatedOrders: OpenOrder[] = exists
@@ -178,21 +199,49 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     );
 
     set({
+      activeOrderId: orderId,
       activeOrderItems,
       isLoadingActiveOrder: false,
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isReadOnlyView: isReadOnly,
       itemCountByOrderId: {
         ...get().itemCountByOrderId,
         [orderId]: getItemCount(activeOrderItems),
       },
     });
+    return true;
   },
 
   createOrder: async () => {
-    // Putting the cashier in a "Fresh Cart" state without creating a DB row immediately
-    set({ activeOrderId: null, activeOrderItems: [] });
+    const { activeOrderId, activeOrderItems, orders } = get();
+    if (activeOrderId) {
+      const activeOrder = orders.find((o) => o.id === activeOrderId);
+      if (
+        activeOrder &&
+        (activeOrder.status === 'draft' || activeOrder.status === 'open') &&
+        activeOrderItems.length === 0
+      ) {
+        // Reuse current empty draft to prevent blank cart spam
+        return;
+      }
+    }
+    set({
+      activeOrderId: null,
+      activeOrderItems: [],
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isReadOnlyView: false,
+    });
   },
 
-  addProductToActiveOrder: async (product) => {
+  addProductToActiveOrder: async (product, quantity = 1) => {
+    const activeOrder = get().orders.find((o) => o.id === get().activeOrderId);
+    const status = activeOrder?.status ?? 'draft';
+    const isEditingUnpaid = get().isEditingUnpaid;
+    const canEdit = status === 'draft' || status === 'open' || isEditingUnpaid;
+    if (!canEdit) return;
+
     const snapshot = get();
     let activeOrderId = snapshot.activeOrderId;
 
@@ -228,7 +277,45 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     );
 
     if (existingItem) {
-      await get().incrementItem(existingItem.id);
+      const nextQuantity = existingItem.qty + quantity;
+      const targetItemId = existingItem.id;
+
+      const nextItems = snapshot.activeOrderItems.map((item) =>
+        item.id === targetItemId ? { ...item, qty: nextQuantity } : item,
+      );
+
+      set({
+        activeOrderItems: nextItems,
+        itemCountByOrderId: {
+          ...snapshot.itemCountByOrderId,
+          [activeOrderId]: getItemCount(nextItems),
+        },
+        isMutating: true,
+        error: null,
+      });
+
+      if (targetItemId.startsWith('temp-item')) {
+        set((state) => ({
+          isMutating: false,
+          hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+        }));
+        return;
+      }
+
+      const result = await updateOrderItemQuantity(targetItemId, nextQuantity);
+      if (result.error) {
+        set({
+          activeOrderItems: snapshot.activeOrderItems,
+          itemCountByOrderId: snapshot.itemCountByOrderId,
+          isMutating: false,
+          error: result.error,
+        });
+      } else {
+        set((state) => ({
+          isMutating: false,
+          hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+        }));
+      }
       return;
     }
 
@@ -238,7 +325,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       open_order_id: activeOrderId,
       product_id: product.id,
       item_name: product.name,
-      qty: 1,
+      qty: quantity,
       price: product.price,
       notes: null,
       kot_sent: false,
@@ -267,7 +354,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       openOrderId: activeOrderId,
       productId: product.id,
       itemName: product.name,
-      quantity: 1,
+      quantity: quantity,
       price: product.price,
     });
 
@@ -290,11 +377,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       activeOrderItems: state.activeOrderItems.map((item) =>
         item.id === tempItemId ? savedItem : item,
       ),
+      hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
       isMutating: false,
     }));
   },
 
   incrementItem: async (itemId) => {
+    const activeOrder = get().orders.find((o) => o.id === get().activeOrderId);
+    const status = activeOrder?.status ?? 'draft';
+    const isEditingUnpaid = get().isEditingUnpaid;
+    const canEdit = status === 'draft' || status === 'open' || isEditingUnpaid;
+    if (!canEdit) return;
+
     const snapshot = get();
     const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
     if (!target || !snapshot.activeOrderId) {
@@ -317,7 +411,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     });
 
     if (itemId.startsWith('temp-item')) {
-      set({ isMutating: false });
+      set((state) => ({
+        isMutating: false,
+        hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      }));
       return;
     }
 
@@ -330,11 +427,20 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         error: result.error,
       });
     } else {
-      set({ isMutating: false });
+      set((state) => ({
+        isMutating: false,
+        hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      }));
     }
   },
 
   decrementItem: async (itemId) => {
+    const activeOrder = get().orders.find((o) => o.id === get().activeOrderId);
+    const status = activeOrder?.status ?? 'draft';
+    const isEditingUnpaid = get().isEditingUnpaid;
+    const canEdit = status === 'draft' || status === 'open' || isEditingUnpaid;
+    if (!canEdit) return;
+
     const snapshot = get();
     const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
     if (!target || !snapshot.activeOrderId) {
@@ -362,7 +468,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     });
 
     if (itemId.startsWith('temp-item')) {
-      set({ isMutating: false });
+      set((state) => ({
+        isMutating: false,
+        hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      }));
       return;
     }
 
@@ -375,11 +484,20 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         error: result.error,
       });
     } else {
-      set({ isMutating: false });
+      set((state) => ({
+        isMutating: false,
+        hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      }));
     }
   },
 
   removeItem: async (itemId) => {
+    const activeOrder = get().orders.find((o) => o.id === get().activeOrderId);
+    const status = activeOrder?.status ?? 'draft';
+    const isEditingUnpaid = get().isEditingUnpaid;
+    const canEdit = status === 'draft' || status === 'open' || isEditingUnpaid;
+    if (!canEdit) return;
+
     const snapshot = get();
     if (!snapshot.activeOrderId) {
       return;
@@ -397,7 +515,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     });
 
     if (itemId.startsWith('temp-item')) {
-      set({ isMutating: false });
+      set((state) => ({
+        isMutating: false,
+        hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      }));
       return;
     }
 
@@ -410,11 +531,20 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         error: result.error,
       });
     } else {
-      set({ isMutating: false });
+      set((state) => ({
+        isMutating: false,
+        hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      }));
     }
   },
 
   resetCart: async () => {
+    const activeOrder = get().orders.find((o) => o.id === get().activeOrderId);
+    const status = activeOrder?.status ?? 'draft';
+    const isEditingUnpaid = get().isEditingUnpaid;
+    const canEdit = status === 'draft' || status === 'open' || isEditingUnpaid;
+    if (!canEdit) return;
+
     const snapshot = get();
     const activeOrderId = snapshot.activeOrderId;
     if (!activeOrderId) return;
@@ -433,6 +563,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         ...state.itemCountByOrderId,
         [activeOrderId]: 0,
       },
+      hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
       isMutating: false,
     }));
   },
@@ -442,48 +573,213 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const activeOrderId = snapshot.activeOrderId;
     if (!activeOrderId) return;
 
-    const heldAt = new Date().toISOString();
+    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
+    if (!activeOrder || (activeOrder.status !== 'draft' && activeOrder.status !== 'open')) {
+      return;
+    }
 
-    // 1. Optimistically update: status = 'held', held_at = timestamp
-    // and instantly set to empty state (activeOrderId = null, activeOrderItems = [])
-    // to return the cashier to 'Ready for next customer' instantly.
-    set((state) => {
-      const heldOrder = state.orders.find((order) => order.id === activeOrderId);
-      const updatedHeldOrders = heldOrder
-        ? [{ ...heldOrder, status: 'held' as const, held_at: heldAt }, ...state.heldOrders]
-        : state.heldOrders;
-      return {
-        orders: state.orders.map((order) =>
-          order.id === activeOrderId
-            ? { ...order, status: 'held', held_at: heldAt }
-            : order
-        ),
-        heldOrders: updatedHeldOrders,
-        activeOrderId: null,
-        activeOrderItems: [],
-        isMutating: true,
-        error: null,
-      };
-    });
+    set({ isMutating: true, error: null });
+
+    const heldAt = new Date().toISOString();
 
     const result = await holdOpenOrder(activeOrderId, heldAt);
     if (result.error) {
-      // Revert state on database failure
       set({
-        orders: snapshot.orders,
-        heldOrders: snapshot.heldOrders,
-        activeOrderId: snapshot.activeOrderId,
-        activeOrderItems: snapshot.activeOrderItems,
         isMutating: false,
-        error: result.error,
+        error: 'Connection issue. Please check internet and try again.',
       });
       return;
     }
 
-    // Success: Keep the empty active state, and filter out the held order from the main orders list.
     set((state) => ({
-      orders: state.orders.filter((order) => order.id !== activeOrderId),
+      orders: state.orders.map((order) =>
+        order.id === activeOrderId
+          ? { ...order, status: 'held' as const, held_at: heldAt }
+          : order
+      ),
+      heldOrders: [
+        { ...activeOrder, status: 'held' as const, held_at: heldAt },
+        ...state.heldOrders.filter((o) => o.id !== activeOrderId),
+      ],
+      activeOrderId: null,
+      activeOrderItems: [],
       isMutating: false,
     }));
+  },
+
+  saveKot: async () => {
+    const snapshot = get();
+    const activeOrderId = snapshot.activeOrderId;
+    if (!activeOrderId) return false;
+
+    if (snapshot.activeOrderItems.length === 0) {
+      set({ error: 'Cannot save KOT for an empty cart.' });
+      return false;
+    }
+
+    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
+    if (!activeOrder) {
+      set({ error: 'Connection issue. Please check internet and try again.' });
+      return false;
+    }
+
+    set({ isMutating: true, error: null });
+
+    if (activeOrder.status === 'unpaid') {
+      set({
+        isEditingUnpaid: false,
+        hasUnsavedChanges: false,
+        isMutating: false,
+      });
+      return true;
+    }
+
+    const { tenant_id, branch_id } = getTenantContext();
+    const { error } = await supabase
+      .from('open_orders')
+      .update({ status: 'unpaid' })
+      .eq('id', activeOrderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+
+    if (error) {
+      logSupabaseError('saveKot', error);
+      set({
+        isMutating: false,
+        error: 'Connection issue. Please check internet and try again.',
+      });
+      return false;
+    }
+
+    set((state) => ({
+      orders: state.orders.map((o) =>
+        o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
+      ),
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isMutating: false,
+    }));
+    return true;
+  },
+
+  settleBill: async () => {
+    const snapshot = get();
+    const activeOrderId = snapshot.activeOrderId;
+    if (!activeOrderId) return false;
+
+    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
+    if (!activeOrder) {
+      set({ error: 'Connection issue. Please check internet and try again.' });
+      return false;
+    }
+
+    if (activeOrder.status === 'paid') {
+      set({ error: 'Bill already settled.' });
+      return false;
+    }
+
+    set({ isMutating: true, error: null });
+
+    const { tenant_id, branch_id } = getTenantContext();
+    const paidAt = new Date().toISOString();
+    const { error } = await supabase
+      .from('open_orders')
+      .update({
+        status: 'paid',
+        paid_at: paidAt,
+      })
+      .eq('id', activeOrderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+
+    if (error) {
+      logSupabaseError('settleBill', error);
+      set({
+        isMutating: false,
+        error: 'Connection issue. Please check internet and try again.',
+      });
+      return false;
+    }
+
+    set((state) => ({
+      orders: state.orders.filter((o) => o.id !== activeOrderId),
+      activeOrderId: null,
+      activeOrderItems: [],
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isMutating: false,
+    }));
+    return true;
+  },
+
+  cancelOrder: async () => {
+    const snapshot = get();
+    const activeOrderId = snapshot.activeOrderId;
+    if (!activeOrderId) return;
+
+    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
+    if (!activeOrder) {
+      set({ error: 'Connection issue. Please check internet and try again.' });
+      return;
+    }
+
+    const allowed = ['draft', 'held', 'unpaid', 'open'].includes(activeOrder.status);
+    if (!allowed) {
+      set({ error: 'This order status cannot be cancelled.' });
+      return;
+    }
+
+    set({ isMutating: true, error: null });
+
+    const cancelledAt = new Date().toISOString();
+    const { tenant_id, branch_id } = getTenantContext();
+    const { error } = await supabase
+      .from('open_orders')
+      .update({
+        status: 'cancelled',
+        cancelled_at: cancelledAt,
+      })
+      .eq('id', activeOrderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+
+    if (error) {
+      logSupabaseError('cancelOrder', error);
+      set({
+        isMutating: false,
+        error: 'Connection issue. Please check internet and try again.',
+      });
+      return;
+    }
+
+    set((state) => ({
+      orders: state.orders.filter((o) => o.id !== activeOrderId),
+      heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
+      activeOrderId: null,
+      activeOrderItems: [],
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isMutating: false,
+    }));
+  },
+
+  enterEditMode: () => {
+    set({
+      isEditingUnpaid: true,
+      hasUnsavedChanges: false,
+    });
+  },
+
+  discardChanges: async () => {
+    const activeOrderId = get().activeOrderId;
+    if (!activeOrderId) return;
+
+    set({ isMutating: true, error: null });
+    await get().selectOrder(activeOrderId);
+    set({
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isMutating: false,
+    });
   },
 }));

@@ -1,12 +1,13 @@
 export type OrderStatus =
-  | 'open'
   | 'draft'
   | 'held'
+  | 'unpaid'
+  | 'in_kitchen'
   | 'payment_pending'
   | 'paid'
-  | 'in_kitchen'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'open'; // Retained for backward compatibility
 
 export type OpenOrder = {
   id: string;
@@ -26,6 +27,11 @@ export type OpenOrder = {
   cancelled_at?: string | null;
   completed_at?: string | null;
   notes?: string | null;
+
+  // Numbering readiness fields (Phase 1A.5)
+  kot_number?: string | null;
+  bill_number?: string | null;
+  internal_order_number?: string | null;
 };
 
 export type OpenOrderItem = {

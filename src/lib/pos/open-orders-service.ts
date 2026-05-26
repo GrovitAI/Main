@@ -10,7 +10,13 @@ function isOpenOrderRow(order: OpenOrder): boolean {
   if (!order.status) {
     return true;
   }
-  return order.status === 'open' || order.status === 'draft' || order.status === 'held';
+  return (
+    order.status === 'open' ||
+    order.status === 'draft' ||
+    order.status === 'held' ||
+    order.status === 'unpaid' ||
+    order.status === 'in_kitchen'
+  );
 }
 
 function filterOpenOrders(orders: OpenOrder[]): OpenOrder[] {
@@ -28,6 +34,7 @@ export type OpenOrderSummary = {
   created_at: string;
   previewItems: OrderItemPreview[];
   remainingItemLines: number;
+  totalAmount: number;
 };
 
 type OpenOrderRow = OpenOrder & {
@@ -107,6 +114,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
         created_at: order.created_at,
         previewItems: [],
         remainingItemLines: 0,
+        totalAmount: 0,
       }));
       return { data: summariesWithoutItems, error: null };
     }
@@ -141,6 +149,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
         created_at: order.created_at,
         previewItems,
         remainingItemLines,
+        totalAmount: 0, // getOpenOrders does not fetch prices
       };
     });
 
@@ -526,6 +535,149 @@ export async function resumeHeldOrder(
       console.error('[Grovit] resumeHeldOrder exception:', err);
     }
     return { data: null, error: 'Unable to resume order.' };
+  }
+}
+
+/**
+ * Fetches ALL orders for today (all statuses) for the Orders Management tab.
+ * Includes item prices so totalAmount can be computed per order.
+ * Scoped to today only for performance.
+ */
+export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+
+    // Compute today's start in ISO format (local midnight → UTC)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartISO = todayStart.toISOString();
+
+    const { data: orders, error: ordersError } = await supabase
+      .from('open_orders')
+      .select('*')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .gte('created_at', todayStartISO)
+      .order('created_at', { ascending: false });
+
+    if (ordersError) {
+      logSupabaseError('getAllOrders.orders', ordersError);
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        if (ordersError.code === '42P01' || ordersError.message?.toLowerCase().includes('does not exist')) {
+          return { data: [], error: null };
+        }
+      }
+      return { data: null, error: 'Unable to load orders.' };
+    }
+
+    const allOrders = (orders ?? []) as OpenOrder[];
+    if (allOrders.length === 0) {
+      return { data: [], error: null };
+    }
+
+    const orderIds = allOrders.map((o) => o.id);
+
+    const { data: itemRows, error: itemsError } = await supabase
+      .from('open_order_items')
+      .select('open_order_id, qty, product_id, price')
+      .in('open_order_id', orderIds);
+
+    if (itemsError) {
+      logSupabaseError('getAllOrders.items', itemsError);
+      // Return orders without item detail
+      return {
+        data: allOrders.map((order) => ({
+          order,
+          itemCount: 0,
+          created_at: order.created_at,
+          previewItems: [],
+          remainingItemLines: 0,
+          totalAmount: 0,
+        })),
+        error: null,
+      };
+    }
+
+    type AllOrderItemRow = {
+      open_order_id: string;
+      qty: number;
+      product_id: string;
+      price: number;
+    };
+
+    const items = (itemRows ?? []) as AllOrderItemRow[];
+    const productIds = [...new Set(items.map((item) => item.product_id))];
+    const productNames = await fetchProductNameMap(productIds);
+
+    const itemsByOrderId: Record<string, OrderItemPreview[]> = {};
+    const itemCountByOrderId: Record<string, number> = {};
+    const totalAmountByOrderId: Record<string, number> = {};
+
+    for (const item of items) {
+      const preview: OrderItemPreview = {
+        name: productNames[item.product_id] ?? 'Item',
+        quantity: item.qty,
+      };
+      const existing = itemsByOrderId[item.open_order_id] ?? [];
+      existing.push(preview);
+      itemsByOrderId[item.open_order_id] = existing;
+      itemCountByOrderId[item.open_order_id] = (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
+      totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + item.qty * (item.price ?? 0);
+    }
+
+    const summaries: OpenOrderSummary[] = allOrders.map((order) => {
+      const orderItems = itemsByOrderId[order.id] ?? [];
+      const previewItems = orderItems.slice(0, 2);
+      const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
+
+      return {
+        order,
+        itemCount: itemCountByOrderId[order.id] ?? 0,
+        created_at: order.created_at,
+        previewItems,
+        remainingItemLines,
+        totalAmount: totalAmountByOrderId[order.id] ?? 0,
+      };
+    });
+
+    return { data: summaries, error: null };
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('fetch failed') || msg.includes('ENOTFOUND')) {
+        return { data: [], error: null };
+      }
+    }
+    return { data: null, error: 'Unable to load orders.' };
+  }
+}
+
+export async function settleOrderById(orderId: string): Promise<ServiceResult<OpenOrder>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const paidAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('open_orders')
+      .update({
+        status: 'paid',
+        paid_at: paidAt,
+      })
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .select('*')
+      .single();
+
+    if (error) {
+      logSupabaseError('settleOrderById', error);
+      return { data: null, error: 'Unable to settle order.' };
+    }
+    return { data: data as OpenOrder, error: null };
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.error('[Grovit] settleOrderById exception:', err);
+    }
+    return { data: null, error: 'Unable to settle order.' };
   }
 }
 

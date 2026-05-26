@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,9 +10,15 @@ type ProductCardProps = {
   product: Product;
   onAdd: (product: Product) => void;
   disabled?: boolean;
+  highlighted?: boolean;
 };
 
-export function ProductCard({ product, onAdd, disabled = false }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({
+  product,
+  onAdd,
+  disabled = false,
+  highlighted = false,
+}: ProductCardProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -24,11 +31,13 @@ export function ProductCard({ product, onAdd, disabled = false }: ProductCardPro
           borderRadius: 18,
           padding: 10,
           backgroundColor: '#FFFFFF',
-          shadowColor: '#101828',
+          shadowColor: highlighted ? '#0066b2' : '#101828',
           shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.04,
-          shadowRadius: 12,
-          elevation: 1,
+          shadowOpacity: highlighted ? 0.2 : 0.04,
+          shadowRadius: highlighted ? 16 : 12,
+          elevation: highlighted ? 3 : 1,
+          borderWidth: highlighted ? 3 : 0,
+          borderColor: highlighted ? '#0066b2' : 'transparent',
         },
         pressed && {
           transform: [{ translateY: -1.5 }],
@@ -70,4 +79,4 @@ export function ProductCard({ product, onAdd, disabled = false }: ProductCardPro
       </View>
     </Pressable>
   );
-}
+});

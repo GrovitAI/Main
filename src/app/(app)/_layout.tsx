@@ -57,7 +57,7 @@ export default function AppTabLayout() {
             name={routeName}
             options={{
               title: tab.label,
-              headerShown: routeName !== 'index', // Reclaim top spacing for POS screen
+              headerShown: routeName !== 'index' && routeName !== 'orders', // Reclaim top spacing for POS + Orders screens
               tabBarIcon: ({ color, size }) => (
                 <TabIcon color={color} size={size} />
               ),
