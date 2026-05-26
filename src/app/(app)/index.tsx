@@ -63,16 +63,70 @@ type ConfirmModalProps = {
 };
 
 function CustomConfirmModal({ visible, title, description, buttons, onClose }: ConfirmModalProps) {
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  // Reset highlight when modal opens or buttons change
+  useEffect(() => {
+    if (visible) {
+      setHighlightedIndex(0);
+    }
+  }, [visible, buttons.length]);
+
+  // Scoped keyboard listener — only active while modal is visible
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !visible || buttons.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const len = buttons.length;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev + 1) % len);
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev - 1 + len) % len);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        const btn = buttons[highlightedIndex];
+        if (btn) {
+          void btn.onPress();
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [visible, buttons, highlightedIndex, onClose]);
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0, 45, 90, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <View style={{ width: '100%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: '#0f2744', marginBottom: 8 }}>{title}</Text>
           <Text style={{ fontSize: 13, fontWeight: '500', color: '#5b6b7c', lineHeight: 18, marginBottom: 24 }}>{description}</Text>
+          {Platform.OS === 'web' && buttons.length > 1 && (
+            <Text style={{ fontSize: 10, fontWeight: '500', color: '#94A3B8', marginBottom: 10, textAlign: 'center' }}>
+              Use ← → or Tab to navigate · Enter to confirm · Esc to close
+            </Text>
+          )}
           <View style={{ gap: 8 }}>
             {buttons.map((btn, index) => {
               const isPrimary = btn.variant === 'primary';
               const isDanger = btn.variant === 'danger';
+              const isHighlighted = index === highlightedIndex;
               
               let bgColor = '#FFFFFF';
               let textColor = '#0066b2';
@@ -92,13 +146,58 @@ function CustomConfirmModal({ visible, title, description, buttons, onClose }: C
                 textColor = '#475569';
                 borderWidth = 0;
               }
+
+              // Premium highlight overrides
+              let highlightStyle = {};
+              if (isHighlighted && Platform.OS === 'web') {
+                if (isPrimary) {
+                  highlightStyle = {
+                    borderWidth: 2,
+                    borderColor: '#80B3FF',
+                    shadowColor: '#0066b2',
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 12,
+                    elevation: 6,
+                    transform: [{ scale: 1.02 }],
+                  };
+                } else if (isDanger) {
+                  highlightStyle = {
+                    borderWidth: 2,
+                    borderColor: '#FCA5A5',
+                    shadowColor: '#EF4444',
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 12,
+                    elevation: 6,
+                    transform: [{ scale: 1.02 }],
+                  };
+                } else {
+                  // secondary / default
+                  highlightStyle = {
+                    borderWidth: 2,
+                    borderColor: '#0066b2',
+                    backgroundColor: '#E8F2FA',
+                    shadowColor: '#0066b2',
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 10,
+                    elevation: 4,
+                    transform: [{ scale: 1.02 }],
+                  };
+                }
+              }
               
               return (
                 <Pressable
                   key={index}
                   accessibilityRole="button"
                   onPress={btn.onPress}
-                  style={{ height: 46, borderRadius: 14, backgroundColor: bgColor, alignItems: 'center', justifyContent: 'center', borderWidth: borderWidth, borderColor: borderColor }}
+                  onHoverIn={() => setHighlightedIndex(index)}
+                  style={[
+                    { height: 46, borderRadius: 14, backgroundColor: bgColor, alignItems: 'center', justifyContent: 'center', borderWidth: borderWidth, borderColor: borderColor },
+                    highlightStyle,
+                  ]}
                 >
                   <Text style={{ fontSize: 13, fontWeight: '700', color: textColor }}>{btn.text}</Text>
                 </Pressable>
@@ -154,6 +253,7 @@ export default function PosBillingScreen() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [settlementVisible, setSettlementVisible] = useState(false);
   const [popoverVisible, setPopoverVisible] = useState(false);
+  const [heldHighlightedIndex, setHeldHighlightedIndex] = useState(0);
 
   // Guard Modals & Safeguard States
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -682,6 +782,38 @@ export default function PosBillingScreen() {
     const key = e.nativeEvent.key;
     const altKey = e.nativeEvent.altKey;
 
+    // ── Held orders popover keyboard interception ──
+    if (popoverVisible && heldOrdersFiltered.length > 0) {
+      if (key === 'ArrowDown' || key === 'ArrowRight' || (key === 'Tab' && !e.nativeEvent.shiftKey)) {
+        e.preventDefault?.();
+        setHeldHighlightedIndex((prev) => (prev + 1) % heldOrdersFiltered.length);
+        return;
+      }
+      if (key === 'ArrowUp' || key === 'ArrowLeft' || (key === 'Tab' && e.nativeEvent.shiftKey)) {
+        e.preventDefault?.();
+        setHeldHighlightedIndex((prev) => (prev - 1 + heldOrdersFiltered.length) % heldOrdersFiltered.length);
+        return;
+      }
+      if (key === 'Enter') {
+        e.preventDefault?.();
+        const order = heldOrdersFiltered[heldHighlightedIndex];
+        if (order) {
+          setPopoverVisible(false);
+          setHeldHighlightedIndex(0);
+          handleSelectOrderClick(order.id);
+        }
+        return;
+      }
+      if (key === 'Escape' || key === 'Esc') {
+        e.preventDefault?.();
+        setPopoverVisible(false);
+        setHeldHighlightedIndex(0);
+        return;
+      }
+      // Block all other keys while popover is navigating
+      return;
+    }
+
     // Alt + N or F6: New Order
     if ((altKey && key.toLowerCase() === 'n') || key === 'F6') {
       e.preventDefault?.();
@@ -806,6 +938,10 @@ export default function PosBillingScreen() {
     handleSaveKotClick,
     confirmHoldOrder,
     handleSettleClick,
+    popoverVisible,
+    heldOrdersFiltered,
+    heldHighlightedIndex,
+    handleSelectOrderClick,
   ]);
 
 
@@ -1067,7 +1203,10 @@ export default function PosBillingScreen() {
                 <View style={{ position: 'relative', zIndex: 9999 }}>
                   <Pressable
                     disabled={isMutating}
-                    onPress={() => setPopoverVisible(!popoverVisible)}
+                    onPress={() => {
+                      setPopoverVisible(!popoverVisible);
+                      setHeldHighlightedIndex(0);
+                    }}
                     style={({ pressed }) => [
                       {
                         height: 34,
@@ -1104,11 +1243,27 @@ export default function PosBillingScreen() {
                         keyExtractor={(item) => item.id}
                         scrollEnabled={heldOrdersFiltered.length > 4}
                         style={{ maxHeight: 220 }}
-                        renderItem={({ item }) => {
+                        renderItem={({ item, index: rowIndex }) => {
                           const itemsCount = itemCountByOrderId[item.id] ?? 0;
                           const elapsed = getElapsedLabel(item.created_at);
+                          const isRowHighlighted = rowIndex === heldHighlightedIndex && Platform.OS === 'web';
                           return (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+                            <View
+                              style={[
+                                { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: '#F9FAFB', borderRadius: 8 },
+                                isRowHighlighted && {
+                                  backgroundColor: '#E8F2FA',
+                                  borderColor: '#0066b2',
+                                  borderWidth: 1,
+                                  borderBottomColor: '#0066b2',
+                                  shadowColor: '#0066b2',
+                                  shadowOffset: { width: 0, height: 0 },
+                                  shadowOpacity: 0.12,
+                                  shadowRadius: 6,
+                                  elevation: 2,
+                                },
+                              ]}
+                            >
                               <View style={{ flex: 1, marginRight: 8 }}>
                                 <Text style={{ fontSize: 11, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
                                   Draft Order
@@ -1121,11 +1276,12 @@ export default function PosBillingScreen() {
                                 accessibilityRole="button"
                                 onPress={() => {
                                   setPopoverVisible(false);
+                                  setHeldHighlightedIndex(0);
                                   handleSelectOrderClick(item.id);
                                 }}
-                                style={{ height: 26, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ height: 26, paddingHorizontal: 10, borderRadius: 6, backgroundColor: isRowHighlighted ? '#0066b2' : '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
                               >
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#0D6CE0' }}>Resume</Text>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: isRowHighlighted ? '#FFFFFF' : '#0D6CE0' }}>Resume</Text>
                               </Pressable>
                             </View>
                           );

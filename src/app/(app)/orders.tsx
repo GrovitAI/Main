@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   Text,
   TextInput,
@@ -143,10 +144,11 @@ export default function OrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Detail modal state ──────────────────────────────────────────────────────
+  // ── Detail modal state ──────────────────────────────────────────────────────────────────
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
   const [viewingItems, setViewingItems] = useState<{ name: string; qty: number }[]>([]);
   const [viewLoading, setViewLoading] = useState(false);
+  const [modalFooterIndex, setModalFooterIndex] = useState(0);
 
   // ── Settlement state ────────────────────────────────────────────────────────
   const [settlingOrder, setSettlingOrder] = useState<OpenOrderSummary | null>(null);
@@ -259,12 +261,69 @@ export default function OrdersScreen() {
   const closeViewModal = useCallback(() => {
     setViewingOrderId(null);
     setViewingItems([]);
+    setModalFooterIndex(0);
   }, []);
 
   const viewingSummary = useMemo(
     () => summaries.find((s) => s.order.id === viewingOrderId),
     [summaries, viewingOrderId],
   );
+
+  // ── Modal footer keyboard navigation ────────────────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !viewingOrderId || !viewingSummary) return;
+
+    const status = viewingSummary.order.status;
+    const isUnpaidOrActive = status === 'draft' || status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
+    const isHeld = status === 'held';
+    const buttonCount = (isUnpaidOrActive || isHeld) ? 2 : 1;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault();
+        setModalFooterIndex((prev) => (prev + 1) % buttonCount);
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+        e.preventDefault();
+        setModalFooterIndex((prev) => (prev - 1 + buttonCount) % buttonCount);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isUnpaidOrActive) {
+          if (modalFooterIndex === 0) {
+            closeViewModal();
+            void handleOpenBill(viewingOrderId);
+          } else {
+            setSettlingOrder(viewingSummary);
+          }
+        } else if (isHeld) {
+          if (modalFooterIndex === 0) {
+            closeViewModal();
+          } else {
+            closeViewModal();
+            void handleOpenBill(viewingOrderId);
+          }
+        } else {
+          closeViewModal();
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeViewModal();
+        return;
+      }
+    };
+
+    setModalFooterIndex(0);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [viewingOrderId, viewingSummary, modalFooterIndex, closeViewModal, handleOpenBill]);
 
   const createdTime = useMemo(() => {
     if (!viewingSummary) return '';
@@ -637,6 +696,7 @@ export default function OrdersScreen() {
                         closeViewModal();
                         void handleOpenBill(viewingOrderId);
                       }}
+                      onHoverIn={() => setModalFooterIndex(0)}
                       style={({ pressed, hovered }: any) => [
                         {
                           flex: 1,
@@ -650,9 +710,19 @@ export default function OrdersScreen() {
                         },
                         hovered && { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' },
                         pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 0 && Platform.OS === 'web' && {
+                          borderColor: '#0066b2',
+                          backgroundColor: '#E8F2FA',
+                          shadowColor: '#0066b2',
+                          shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 10,
+                          elevation: 4,
+                          transform: [{ scale: 1.02 }],
+                        },
                       ]}
                     >
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#64748B' }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: modalFooterIndex === 0 ? '#0066b2' : '#64748B' }}>
                         Open in POS
                       </Text>
                     </Pressable>
@@ -663,9 +733,20 @@ export default function OrdersScreen() {
                       onPress={() => {
                         setSettlingOrder(viewingSummary);
                       }}
+                      onHoverIn={() => setModalFooterIndex(1)}
                       style={({ pressed }: any) => [
                         { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 1 && Platform.OS === 'web' && {
+                          borderWidth: 2,
+                          borderColor: '#4ADE80',
+                          shadowColor: '#16a34a',
+                          shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.25,
+                          shadowRadius: 12,
+                          elevation: 6,
+                          transform: [{ scale: 1.02 }],
+                        },
                       ]}
                     >
                       <LinearGradient
@@ -688,6 +769,7 @@ export default function OrdersScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="Close"
                       onPress={closeViewModal}
+                      onHoverIn={() => setModalFooterIndex(0)}
                       style={({ pressed, hovered }: any) => [
                         {
                           flex: 1,
@@ -701,9 +783,19 @@ export default function OrdersScreen() {
                         },
                         hovered && { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' },
                         pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 0 && Platform.OS === 'web' && {
+                          borderColor: '#0066b2',
+                          backgroundColor: '#E8F2FA',
+                          shadowColor: '#0066b2',
+                          shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 10,
+                          elevation: 4,
+                          transform: [{ scale: 1.02 }],
+                        },
                       ]}
                     >
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#64748B' }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: modalFooterIndex === 0 ? '#0066b2' : '#64748B' }}>
                         Close
                       </Text>
                     </Pressable>
@@ -715,9 +807,20 @@ export default function OrdersScreen() {
                         closeViewModal();
                         void handleOpenBill(viewingOrderId);
                       }}
+                      onHoverIn={() => setModalFooterIndex(1)}
                       style={({ pressed }: any) => [
                         { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 1 && Platform.OS === 'web' && {
+                          borderWidth: 2,
+                          borderColor: '#80B3FF',
+                          shadowColor: '#0066b2',
+                          shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.25,
+                          shadowRadius: 12,
+                          elevation: 6,
+                          transform: [{ scale: 1.02 }],
+                        },
                       ]}
                     >
                       <LinearGradient
@@ -753,9 +856,19 @@ export default function OrdersScreen() {
                       },
                       hovered && { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' },
                       pressed && { transform: [{ scale: 0.98 }] },
+                      modalFooterIndex === 0 && Platform.OS === 'web' && {
+                        borderColor: '#0066b2',
+                        backgroundColor: '#E8F2FA',
+                        shadowColor: '#0066b2',
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: 0.15,
+                        shadowRadius: 10,
+                        elevation: 4,
+                        transform: [{ scale: 1.02 }],
+                      },
                     ]}
                   >
-                    <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#64748B' }}>
+                    <Text style={{ fontSize: 12.5, fontWeight: '700', color: modalFooterIndex === 0 ? '#0066b2' : '#64748B' }}>
                       Close
                     </Text>
                   </Pressable>
