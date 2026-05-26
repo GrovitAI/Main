@@ -7,6 +7,7 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  Platform,
 } from 'react-native';
 import { Search, Plus } from 'lucide-react-native';
 
@@ -294,10 +295,9 @@ export default function PosBillingScreen() {
 
       {/* ─── MAIN CONTENT ─── */}
       <View className="flex-1 flex-col" style={{ paddingVertical: 12, paddingRight: 12, paddingLeft: 12, gap: 12 }}>
-        {/* ─── Header: Time/Cashier Section + New Order ─── */}
         {isTablet && (
-          <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', zIndex: 9999, elevation: 10, overflow: 'visible' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 9999, overflow: 'visible' }}>
               {/* + New Order Button */}
               <Pressable
                 onPress={() => void createOrder()}
@@ -326,7 +326,7 @@ export default function PosBillingScreen() {
 
               {/* Held Carts Dropdown/Popover Button */}
               {heldOrders.length > 0 && (
-                <View style={{ position: 'relative', zIndex: 100 }}>
+                <View style={{ position: 'relative', zIndex: 9999, overflow: 'visible' }}>
                   <Pressable
                     onPress={() => setPopoverVisible(!popoverVisible)}
                     style={({ pressed }) => [
@@ -356,43 +356,55 @@ export default function PosBillingScreen() {
                   </Pressable>
                   
                   {popoverVisible && (
-                    <View style={{ position: 'absolute', top: 40, right: 0, width: 260, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 5, zIndex: 200 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
-                        Held Orders
-                      </Text>
-                      <FlatList
-                        data={heldOrders}
-                        keyExtractor={(item) => item.id}
-                        scrollEnabled={heldOrders.length > 4}
-                        style={{ maxHeight: 220 }}
-                        renderItem={({ item }) => {
-                          const itemsCount = itemCountByOrderId[item.id] ?? 0;
-                          const elapsed = getElapsedLabel(item.created_at);
-                          return (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
-                              <View style={{ flex: 1, marginRight: 8 }}>
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
-                                  Draft Order
-                                </Text>
-                                <Text style={{ fontSize: 9, color: '#6B7280', marginTop: 1 }}>
-                                  {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {elapsed}
-                                </Text>
-                              </View>
-                              <Pressable
-                                accessibilityRole="button"
-                                onPress={async () => {
-                                  setPopoverVisible(false);
-                                  await selectOrder(item.id);
-                                }}
-                                style={{ height: 26, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
-                              >
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#0D6CE0' }}>Resume</Text>
-                              </Pressable>
-                            </View>
-                          );
-                        }}
+                    <>
+                      {/* Transparent full-screen overlay to detect clicks/taps outside */}
+                      <Pressable
+                        onPress={() => setPopoverVisible(false)}
+                        style={Platform.OS === 'web'
+                          ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998, backgroundColor: 'transparent' }
+                          : { position: 'absolute', top: -1000, left: -1000, right: 1000, bottom: 1000, zIndex: 9998, backgroundColor: 'transparent' }
+                        }
                       />
-                    </View>
+                      
+                      {/* Popover Card */}
+                      <View style={{ position: 'absolute', top: 40, right: 0, width: 260, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 20, zIndex: 9999 }} pointerEvents="auto">
+                        <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
+                          Held Orders
+                        </Text>
+                        <FlatList
+                          data={heldOrders}
+                          keyExtractor={(item) => item.id}
+                          scrollEnabled={heldOrders.length > 4}
+                          style={{ maxHeight: 220 }}
+                          renderItem={({ item }) => {
+                            const itemsCount = itemCountByOrderId[item.id] ?? 0;
+                            const elapsed = getElapsedLabel(item.created_at);
+                            return (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+                                <View style={{ flex: 1, marginRight: 8 }}>
+                                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
+                                    Draft Order
+                                  </Text>
+                                  <Text style={{ fontSize: 9, color: '#6B7280', marginTop: 1 }}>
+                                    {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {elapsed}
+                                  </Text>
+                                </View>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  onPress={async () => {
+                                    setPopoverVisible(false);
+                                    await selectOrder(item.id);
+                                  }}
+                                  style={{ height: 26, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#0D6CE0' }}>Resume</Text>
+                                </Pressable>
+                              </View>
+                            );
+                          }}
+                        />
+                      </View>
+                    </>
                   )}
                 </View>
               )}
