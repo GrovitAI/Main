@@ -101,14 +101,14 @@ export const OrderCard = memo(function OrderCard({
           borderRadius: 12,
           backgroundColor: '#FFFFFF',
           borderWidth: 1,
-          borderColor: statusConfig.text + '25', // status-coded border outline
-          shadowColor: statusConfig.text, // status-coded glow
+          borderColor: statusConfig.text + '25', // elegant status-coded border outline
+          shadowColor: statusConfig.text, // status-coded soft glow shadow
           shadowOffset: { width: 0, height: 1.5 },
           shadowOpacity: 0.03,
           shadowRadius: 3.5,
           elevation: 2,
           overflow: 'hidden',
-          height: 120,
+          height: 160, // locked uniform height matching design
         },
         hovered && {
           transform: [{ translateY: -2 }],
@@ -116,8 +116,7 @@ export const OrderCard = memo(function OrderCard({
           shadowRadius: 8,
           shadowOffset: { width: 0, height: 3 },
           elevation: 4,
-          borderColor: statusConfig.text + '60', // sharp status glow
-          backgroundColor: '#FFFFFF',
+          borderColor: statusConfig.text + '60', // sharp status-coded glow
         },
         pressed && {
           transform: [{ scale: 0.995 }],
@@ -126,45 +125,101 @@ export const OrderCard = memo(function OrderCard({
         },
       ]}
     >
-      <View style={{ flexDirection: 'row', height: 118, alignItems: 'stretch' }}>
+      <View style={{ flex: 1, justifyContent: 'space-between' }}>
         
-        {/* Left Pane (Details) */}
-        <View style={{ flex: 3.3, padding: 10, justifyContent: 'space-between' }}>
-          <View>
-            <Text
-              style={{ fontSize: 13, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.15 }}
-              numberOfLines={1}
-            >
-              {billId}
-            </Text>
-            
-            {/* Horizontal wrapping list of items — side-by-side with padding/spacing */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6, alignItems: 'center' }}>
-              {itemCount === 0 ? (
-                <Text style={{ fontSize: 10, color: '#94A3B8', fontStyle: 'italic' }}>No items</Text>
-              ) : (
-                <>
-                  {previewItems.map((item, idx) => (
-                    <Text
-                      key={`${item.name}-${idx}`}
-                      style={{ fontSize: 10, fontWeight: '500', color: '#475569' }}
-                      numberOfLines={1}
-                    >
-                      <Text style={{ color: '#334155', fontWeight: '600' }}>{item.name}</Text>
-                      <Text style={{ color: '#64748B' }}> ×{item.quantity}</Text>
-                    </Text>
-                  ))}
-                  {remainingItemLines > 0 && (
-                    <Text style={{ fontSize: 9.2, fontWeight: '700', color: '#0251B8' }}>
-                      +{remainingItemLines} more
-                    </Text>
-                  )}
-                </>
-              )}
+        {/* Header Section (White background) */}
+        <View style={{ padding: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+          {/* Header Row: ID/subtext left, status/elapsed right */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, paddingRight: 6 }}>
+              <Text
+                style={{ fontSize: 13.5, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.15 }}
+                numberOfLines={1}
+              >
+                {billId}
+              </Text>
+              <Text
+                style={{ fontSize: 10.5, fontWeight: '600', color: '#64748B', marginTop: 1.5 }}
+                numberOfLines={1}
+              >
+                {order.status === 'held' ? 'Held Order' : `Order #${orderIndex + 1}`}
+              </Text>
+            </View>
+
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text
+                style={{ fontSize: 11, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}
+                numberOfLines={1}
+              >
+                {statusConfig.label}
+              </Text>
+              <Text
+                style={{ fontSize: 10, fontWeight: '600', color: '#64748B', marginTop: 2 }}
+                numberOfLines={1}
+              >
+                {elapsed}
+              </Text>
             </View>
           </View>
+        </View>
 
-          {/* View ghost pill trigger */}
+        {/* Items Section: Vertical list layout with Name left and Qty right */}
+        <View style={{ padding: 12, flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'flex-start' }}>
+          {itemCount === 0 ? (
+            <Text style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 4 }}>No items</Text>
+          ) : (
+            <View style={{ gap: 4 }}>
+              {previewItems.slice(0, 3).map((item, idx) => (
+                <View key={`${item.name}-${idx}`} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text
+                    style={{ fontSize: 11, fontWeight: '500', color: '#475569', flex: 1, marginRight: 8 }}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>
+                    ×{item.quantity}
+                  </Text>
+                </View>
+              ))}
+              
+              {remainingItemLines > 0 && (
+                <Text
+                  onTouchStart={(e: any) => {
+                    e.stopPropagation();
+                  }}
+                  onTouchEnd={(e: any) => {
+                    e.stopPropagation();
+                    onViewOrder();
+                  }}
+                  {...({
+                    onClick: (e: any) => {
+                      e.stopPropagation();
+                      onViewOrder();
+                    }
+                  } as any)}
+                  style={{ fontSize: 10.5, fontWeight: '700', color: '#0251B8', marginTop: 2, cursor: 'pointer', textDecorationLine: 'underline' }}
+                >
+                  +{remainingItemLines} more items
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Footer Banner (Soft light-blue background) */}
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#F0F7FF',
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderTopWidth: 1,
+          borderTopColor: '#E2E8F0',
+        }}>
+          
+          {/* Bigger, clean View button in the footer */}
           <View
             onTouchStart={(e) => {
               e.stopPropagation();
@@ -200,11 +255,10 @@ export const OrderCard = memo(function OrderCard({
               {
                 flexDirection: 'row',
                 alignItems: 'center',
-                alignSelf: 'flex-start',
                 gap: 3,
-                paddingVertical: 2,
-                paddingHorizontal: 8,
-                borderRadius: 99,
+                paddingVertical: 3.5,
+                paddingHorizontal: 8.5,
+                borderRadius: 6,
                 backgroundColor: '#E8F2FA',
                 borderWidth: 1,
                 borderColor: '#C7D9EC',
@@ -223,49 +277,16 @@ export const OrderCard = memo(function OrderCard({
             <Eye size={10} color="#0251B8" />
             <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#0251B8' }}>View</Text>
           </View>
-        </View>
 
-        {/* Thin vertical separation line — status tinted */}
-        <View style={{ width: 1, backgroundColor: statusConfig.text + '15' }} />
-
-        {/* Right Pane (Metadata Column) */}
-        <View style={{ flex: 0.7, backgroundColor: statusConfig.bg, paddingVertical: 10, paddingHorizontal: 6, justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <View style={{ alignItems: 'flex-end', gap: 3.5 }}>
-            <View
-              style={{
-                borderRadius: 4,
-                paddingHorizontal: 5,
-                paddingVertical: 1.5,
-                backgroundColor: statusConfig.bg,
-                borderWidth: 1,
-                borderColor: statusConfig.text + '20',
-              }}
-            >
-              <Text style={{ fontSize: 7, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}>
-                {statusConfig.label}
-              </Text>
-            </View>
-            
-            <Text style={{ fontSize: 9, fontWeight: '600', color: '#94A3B8' }}>
-              {elapsed}
-            </Text>
-          </View>
-
-          <View style={{ alignItems: 'flex-end', gap: 3 }}>
-            <View style={{ backgroundColor: '#FFFFFF', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#E2E8F0' }}>
-              <Text style={{ fontSize: 7.5, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.2 }} numberOfLines={1}>
-                {orderType}
-              </Text>
-            </View>
-            
-            <Text style={{ fontSize: 13, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.2 }}>
+          {/* Total Label and Amount side-by-side on the right */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569' }}>Total</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#0251B8', letterSpacing: -0.2 }}>
               {amountStr || '—'}
             </Text>
           </View>
+          
         </View>
-
-        {/* Right Edge Status indicator bar */}
-        <View style={{ width: 3, backgroundColor: statusConfig.text }} />
 
       </View>
     </Pressable>
