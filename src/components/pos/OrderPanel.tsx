@@ -34,6 +34,9 @@ type OrderPanelProps = {
   onSettle: () => void;
   onResetCart: () => void;
   onHoldOrder: () => void;
+  heldOrders: OpenOrder[];
+  itemCountByOrderId: Record<string, number>;
+  onResumeOrder: (orderId: string) => void;
 };
 
 export function OrderPanel({
@@ -49,6 +52,9 @@ export function OrderPanel({
   onSettle,
   onResetCart,
   onHoldOrder,
+  heldOrders,
+  itemCountByOrderId,
+  onResumeOrder,
 }: OrderPanelProps) {
   const subtotal = calculateOrderSubtotal(items);
   const tax = calculateTax(subtotal, TAX_RATE);
@@ -106,10 +112,49 @@ export function OrderPanel({
           style={{ flex: 1, marginTop: 2 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
-              <Text style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>
-                Add items to this order
-              </Text>
+            <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 10 }}>
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Text style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>
+                  Add items to this order
+                </Text>
+              </View>
+              
+              {heldOrders && heldOrders.length > 0 && (
+                <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#EEF2F7', paddingTop: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
+                    Held Carts ({heldOrders.length})
+                  </Text>
+                  
+                  <FlatList
+                    data={heldOrders}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => {
+                      const itemsCount = itemCountByOrderId[item.id] ?? 0;
+                      const elapsed = getElapsedLabel(item.created_at);
+                      return (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+                          <View>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
+                              Draft Order
+                            </Text>
+                            <Text style={{ fontSize: 10, color: '#6B7280', marginTop: 1 }}>
+                              {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {elapsed}
+                            </Text>
+                          </View>
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => onResumeOrder(item.id)}
+                            style={{ height: 28, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#0D6CE0' }}>Resume</Text>
+                          </Pressable>
+                        </View>
+                      );
+                    }}
+                  />
+                </View>
+              )}
             </View>
           }
           renderItem={({ item }) => (
@@ -220,4 +265,13 @@ export function OrderPanel({
       </View>
     </View>
   );
+}
+
+function getElapsedLabel(createdAt: string): string {
+  const createdMs = new Date(createdAt).getTime();
+  const minutes = Math.max(0, Math.floor((Date.now() - createdMs) / 60_000));
+  if (minutes < 1) {
+    return 'Just now';
+  }
+  return `${minutes}m ago`;
 }

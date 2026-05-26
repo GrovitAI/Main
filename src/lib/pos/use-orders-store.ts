@@ -19,6 +19,7 @@ import { BRANCH_ID, TENANT_ID } from './tenant-context';
 
 type OrdersState = {
   orders: OpenOrder[];
+  heldOrders: OpenOrder[];
   activeOrderId: string | null;
   activeOrderItems: PosOrderItem[];
   itemCountByOrderId: Record<string, number>;
@@ -60,6 +61,7 @@ function enrichItems(
 
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
+  heldOrders: [],
   activeOrderId: null,
   activeOrderItems: [],
   itemCountByOrderId: {},
@@ -91,12 +93,15 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    const orders = ordersResult.data ?? [];
-    const countsResult = await fetchOrderItemCounts(orders.map((order) => order.id));
+    const allOrders = ordersResult.data ?? [];
+    const orders = allOrders.filter((order) => order.status !== 'held');
+    const heldOrders = allOrders.filter((order) => order.status === 'held');
+    const countsResult = await fetchOrderItemCounts(allOrders.map((order) => order.id));
     const itemCountByOrderId = countsResult.data ?? {};
 
     set({
       orders,
+      heldOrders,
       itemCountByOrderId,
       isLoadingOrders: false,
       error: null,
@@ -156,7 +161,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
               o.id === orderId ? { ...o, status: 'draft' as const, held_at: null } : o
             )
           : [order as OpenOrder, ...state.orders];
-        return { orders: updatedOrders };
+        return {
+          orders: updatedOrders,
+          heldOrders: state.heldOrders.filter((o) => o.id !== orderId),
+        };
       });
     }
 
@@ -439,23 +447,31 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // 1. Optimistically update: status = 'held', held_at = timestamp
     // and instantly set to empty state (activeOrderId = null, activeOrderItems = [])
     // to return the cashier to 'Ready for next customer' instantly.
-    set((state) => ({
-      orders: state.orders.map((order) =>
-        order.id === activeOrderId
-          ? { ...order, status: 'held', held_at: heldAt }
-          : order
-      ),
-      activeOrderId: null,
-      activeOrderItems: [],
-      isMutating: true,
-      error: null,
-    }));
+    set((state) => {
+      const heldOrder = state.orders.find((order) => order.id === activeOrderId);
+      const updatedHeldOrders = heldOrder
+        ? [{ ...heldOrder, status: 'held' as const, held_at: heldAt }, ...state.heldOrders]
+        : state.heldOrders;
+      return {
+        orders: state.orders.map((order) =>
+          order.id === activeOrderId
+            ? { ...order, status: 'held', held_at: heldAt }
+            : order
+        ),
+        heldOrders: updatedHeldOrders,
+        activeOrderId: null,
+        activeOrderItems: [],
+        isMutating: true,
+        error: null,
+      };
+    });
 
     const result = await holdOpenOrder(activeOrderId, heldAt);
     if (result.error) {
       // Revert state on database failure
       set({
         orders: snapshot.orders,
+        heldOrders: snapshot.heldOrders,
         activeOrderId: snapshot.activeOrderId,
         activeOrderItems: snapshot.activeOrderItems,
         isMutating: false,

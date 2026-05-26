@@ -39,6 +39,7 @@ export default function PosBillingScreen() {
 
   const {
     orders,
+    heldOrders,
     activeOrderId,
     activeOrderItems,
     itemCountByOrderId,
@@ -273,6 +274,9 @@ export default function PosBillingScreen() {
       onSettle={() => setSettlementVisible(true)}
       onResetCart={() => void resetCart()}
       onHoldOrder={() => void holdOrder()}
+      heldOrders={heldOrders}
+      itemCountByOrderId={itemCountByOrderId}
+      onResumeOrder={(orderId) => void selectOrder(orderId)}
     />
   );
 
