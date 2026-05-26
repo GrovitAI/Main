@@ -12,6 +12,7 @@ import {
   removeOrderItem,
   updateOrderItemQuantity,
   clearOpenOrderItems,
+  holdOpenOrder,
 } from './open-orders-service';
 import { BRANCH_ID, TENANT_ID } from './tenant-context';
 
@@ -34,6 +35,7 @@ type OrdersState = {
   decrementItem: (itemId: string) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   resetCart: () => Promise<void>;
+  holdOrder: () => Promise<void>;
   clearError: () => void;
 };
 
@@ -391,6 +393,48 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         ...state.itemCountByOrderId,
         [activeOrderId]: 0,
       },
+      isMutating: false,
+    }));
+  },
+
+  holdOrder: async () => {
+    const snapshot = get();
+    const activeOrderId = snapshot.activeOrderId;
+    if (!activeOrderId) return;
+
+    const heldAt = new Date().toISOString();
+
+    // 1. Optimistically update: status = 'held', held_at = timestamp
+    // and instantly set to empty state (activeOrderId = null, activeOrderItems = [])
+    // to return the cashier to 'Ready for next customer' instantly.
+    set((state) => ({
+      orders: state.orders.map((order) =>
+        order.id === activeOrderId
+          ? { ...order, status: 'held', held_at: heldAt }
+          : order
+      ),
+      activeOrderId: null,
+      activeOrderItems: [],
+      isMutating: true,
+      error: null,
+    }));
+
+    const result = await holdOpenOrder(activeOrderId, heldAt);
+    if (result.error) {
+      // Revert state on database failure
+      set({
+        orders: snapshot.orders,
+        activeOrderId: snapshot.activeOrderId,
+        activeOrderItems: snapshot.activeOrderItems,
+        isMutating: false,
+        error: result.error,
+      });
+      return;
+    }
+
+    // Success: Keep the empty active state, and filter out the held order from the main orders list.
+    set((state) => ({
+      orders: state.orders.filter((order) => order.id !== activeOrderId),
       isMutating: false,
     }));
   },

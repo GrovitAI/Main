@@ -33,6 +33,7 @@ type OrderPanelProps = {
   onSendKot: () => void;
   onSettle: () => void;
   onResetCart: () => void;
+  onHoldOrder: () => void;
 };
 
 export function OrderPanel({
@@ -47,6 +48,7 @@ export function OrderPanel({
   onSendKot,
   onSettle,
   onResetCart,
+  onHoldOrder,
 }: OrderPanelProps) {
   const subtotal = calculateOrderSubtotal(items);
   const tax = calculateTax(subtotal, TAX_RATE);
@@ -195,6 +197,14 @@ export function OrderPanel({
             onPress={onSendKot}
           >
             <Text style={{ fontSize: 12, fontWeight: '600', color: ctaDisabled ? '#D1D5DB' : '#6B7280' }}>Send KOT</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={!order || order.status !== 'draft' || !hasItems || isMutating}
+            onPress={onHoldOrder}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '600', color: (!order || order.status !== 'draft' || !hasItems || isMutating) ? '#D1D5DB' : '#0D6CE0' }}>Hold Order</Text>
           </Pressable>
           
           <Pressable

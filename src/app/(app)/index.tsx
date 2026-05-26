@@ -55,6 +55,7 @@ export default function PosBillingScreen() {
     decrementItem,
     removeItem,
     resetCart,
+    holdOrder,
     clearError,
   } = useOrdersStore();
 
@@ -271,6 +272,7 @@ export default function PosBillingScreen() {
       onSendKot={() => undefined}
       onSettle={() => setSettlementVisible(true)}
       onResetCart={() => void resetCart()}
+      onHoldOrder={() => void holdOrder()}
     />
   );
 

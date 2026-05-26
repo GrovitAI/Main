@@ -465,3 +465,35 @@ export async function clearOpenOrderItems(
     return { data: null, error: 'Unable to clear cart.' };
   }
 }
+
+export async function holdOpenOrder(
+  orderId: string,
+  heldAt: string,
+): Promise<ServiceResult<OpenOrder>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('open_orders')
+      .update({
+        status: 'held',
+        held_at: heldAt,
+      })
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .select('*')
+      .single();
+
+    if (error) {
+      logSupabaseError('holdOpenOrder', error);
+      return { data: null, error: 'Unable to hold order.' };
+    }
+    return { data: data as OpenOrder, error: null };
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.error('[Grovit] holdOpenOrder exception:', err);
+    }
+    return { data: null, error: 'Unable to hold order.' };
+  }
+}
+
