@@ -1,6 +1,6 @@
 import { Tabs, router, useSegments, usePathname } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing } from 'react-native';
 
 import { colors } from '@/lib/pos/brand';
 import { CURRENT_ROLE } from '@/lib/pos/session-context';
@@ -55,6 +55,197 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   analytics: '/analytics',
   billing: '/billing',
 };
+
+function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
+  const activeTabNames = APP_TAB_ROUTE_NAMES.filter(name =>
+    roleTabs.some((tab: any) => tab.name === name)
+  );
+
+  const activeTabName = state.routes[state.index]?.name;
+
+  // Dictionary to store tab button layouts
+  const [tabLayouts, setTabLayouts] = useState<Record<string, { x: number; width: number }>>({});
+
+  // Animated values for horizontal sliding and width morphing
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const widthAnim = useRef(new Animated.Value(0)).current;
+  const hasInitialPosition = useRef(false);
+
+  // Trigger smooth layout animations on active tab index switch
+  useEffect(() => {
+    LayoutAnimation.configureNext({
+      duration: 250,
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+      update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+      },
+    });
+  }, [state.index]);
+
+  // Animate the highlighter elements smoothly and continuously
+  useEffect(() => {
+    const layout = tabLayouts[activeTabName];
+    if (layout) {
+      if (!hasInitialPosition.current) {
+        // Set initial positions instantly without delay on first load
+        slideAnim.setValue(layout.x);
+        widthAnim.setValue(layout.width);
+        hasInitialPosition.current = true;
+      } else {
+        // Snappy, organic cubic-bezier curve similar to modern device UI physics
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: layout.x,
+            duration: 280,
+            easing: Easing.bezier(0.16, 1, 0.3, 1), // easeOutExpo feel
+            useNativeDriver: false,
+          }),
+          Animated.timing(widthAnim, {
+            toValue: layout.width,
+            duration: 280,
+            easing: Easing.bezier(0.16, 1, 0.3, 1),
+            useNativeDriver: false,
+          }),
+        ]).start();
+      }
+    }
+  }, [activeTabName, tabLayouts]);
+
+  return (
+    <View style={{
+      flexDirection: 'row',
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#EEF2F6',
+      height: 72,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      shadowColor: '#0D264C',
+      shadowOffset: { width: 0, height: -3 },
+      shadowOpacity: 0.05,
+      shadowRadius: 14,
+      elevation: 12,
+      position: 'relative',
+    }}>
+      {/* Sliding Highlight Backdrop Pill */}
+      {tabLayouts[activeTabName] && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            left: slideAnim,
+            width: widthAnim,
+            height: 48,
+            borderRadius: 12,
+            backgroundColor: 'rgba(0, 102, 178, 0.08)',
+            shadowColor: colors.primaryMid,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 2,
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {/* Sliding Top Glowing Highlighter Line */}
+      {tabLayouts[activeTabName] && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: slideAnim,
+            width: widthAnim,
+            height: 4,
+            backgroundColor: colors.primary,
+            borderBottomLeftRadius: 4,
+            borderBottomRightRadius: 4,
+            shadowColor: colors.primary,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.35,
+            shadowRadius: 5,
+            elevation: 4,
+            zIndex: 2,
+          }}
+        />
+      )}
+
+      {activeTabNames.map((tabName) => {
+        const route = state.routes.find((r: any) => r.name === tabName);
+        if (!route) return null;
+
+        const { options } = descriptors[route.key];
+        const isFocused = state.routes[state.index].name === tabName;
+        const tabConfig = roleTabs.find((t: any) => t.name === tabName);
+        if (!tabConfig) return null;
+
+        const TabIcon = tabConfig.icon;
+        const label = tabConfig.label;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name, route.params);
+          }
+        };
+
+        return (
+          <Pressable
+            key={tabName}
+            onPress={onPress}
+            onLayout={(event) => {
+              const { x, width } = event.nativeEvent.layout;
+              setTabLayouts((prev) => {
+                if (prev[tabName]?.x === x && prev[tabName]?.width === width) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  [tabName]: { x, width },
+                };
+              });
+            }}
+            style={({ hovered, pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+              borderRadius: 12,
+              backgroundColor: hovered ? 'rgba(2, 81, 184, 0.03)' : 'transparent',
+              transform: [{ scale: pressed ? 0.95 : (hovered ? 1.03 : 1) }],
+              zIndex: 3,
+              ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+            } as any)}
+          >
+            <TabIcon
+              color={isFocused ? colors.primaryMid : '#7C8BA1'}
+              size={isFocused ? 21 : 19}
+              style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
+            />
+            <Text style={{
+              color: isFocused ? colors.primaryMid : '#7C8BA1',
+              fontWeight: isFocused ? '800' : '600',
+              fontSize: isFocused ? 13.5 : 12.5,
+              marginLeft: isFocused ? 10 : 8,
+              letterSpacing: isFocused ? 0.2 : 0,
+            }}>
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function AppTabLayout() {
   const roleTabs = getTabsForRole(CURRENT_ROLE);
@@ -142,22 +333,14 @@ export default function AppTabLayout() {
   return (
     <Tabs
       initialRouteName={initialRouteName}
+      tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} />}
       screenOptions={{
-        tabBarActiveTintColor: colors.primaryMid,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.surfaceElevated,
-          borderTopColor: colors.borderSoft,
-          minHeight: 64,
-          paddingTop: 4,
-        },
         headerStyle: {
           backgroundColor: colors.surfaceTint,
           borderBottomColor: colors.borderSoft,
         },
         headerTintColor: colors.primaryDeep,
         headerTitleStyle: { fontWeight: '700', color: colors.textPrimary },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
       }}
     >
       {APP_TAB_ROUTE_NAMES.map((routeName) => {
