@@ -50,23 +50,11 @@ function formatAmount(amount: number): string {
   return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
-// ─── Bill identifier ──────────────────────────────────────────────────────────
-
 export function getBillIdentifier(summary: OpenOrderSummary, orderIndex: number): string {
-  const { order, kotNumbers } = summary;
-  if (order.status === 'paid' || order.status === 'completed') {
-    return order.bill_number ? `Bill #${order.bill_number.replace('BILL-', '')}` : `Bill #${orderIndex + 1}`;
-  }
+  const { order } = summary;
   if (order.status === 'draft') return 'Working Draft';
   if (order.status === 'held') return 'Held Order';
-
-  if (kotNumbers && kotNumbers.length > 0) {
-    const kotsStr = kotNumbers.map(n => `#${n}`).join(' · ');
-    return `KOT ${kotsStr}`;
-  }
-
-  if (order.token_number) return `Token #${order.token_number}`;
-  return `Order #${orderIndex + 1}`;
+  return order.order_name || `Order #${orderIndex + 1}`;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -93,6 +81,9 @@ export const OrderCard = memo(function OrderCard({
   const elapsed = getElapsedLabel(order.created_at);
   const amountStr = formatAmount(totalAmount);
   const orderType = order.order_name || 'Takeaway';
+  
+  const ticketsCount = kotNumbers?.length ?? 0;
+  const ticketsText = ticketsCount === 1 ? '1 kitchen ticket' : `${ticketsCount} kitchen tickets`;
 
   // Manual hover and active state management to avoid nesting buttons
   const [viewHovered, setViewHovered] = useState(false);
@@ -154,12 +145,13 @@ export const OrderCard = memo(function OrderCard({
                 {order.status === 'draft'
                   ? 'Current Cart'
                   : order.status === 'held'
-                    ? (order.order_name || 'Takeaway')
+                    ? (order.notes || 'Takeaway')
                     : (order.status === 'paid' || order.status === 'completed')
-                      ? (kotNumbers && kotNumbers.length > 0
-                        ? `KOT ${kotNumbers.map(n => `#${n}`).join(' · ')}`
-                        : `Order #${orderIndex + 1}`)
-                      : (order.order_name || 'Takeaway')
+                      ? (order.bill_number
+                        ? `Bill #${order.bill_number.replace('BILL-', '')}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
+                        : 'Bill settled'
+                      )
+                      : `${order.notes || 'Takeaway'}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
                 }
               </Text>
             </View>

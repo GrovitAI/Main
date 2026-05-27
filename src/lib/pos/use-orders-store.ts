@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { OpenOrder, PosOrderItem } from './order-types';
+import type { OpenOrder, PosOrderItem, KotTicket } from './order-types';
 import { formatPosOrderName } from './order-utils';
 import type { Product } from './products-service';
 import {
@@ -18,6 +18,8 @@ import {
   createKot,
   bootstrapSequenceRegistry,
   getNextBillNumber,
+  getNextOrderNumber,
+  getNextKotNumber,
 } from './open-orders-service';
 import { BRANCH_ID, TENANT_ID, getTenantContext } from './tenant-context';
 import { supabase } from './supabase';
@@ -30,6 +32,7 @@ type OrdersState = {
   activeOrderItems: PosOrderItem[];
   itemCountByOrderId: Record<string, number>;
   kotNumbersByOrderId: Record<string, number[]>;
+  kotsByOrderId: Record<string, KotTicket[]>;
   productNameById: Record<string, string>;
   isLoadingOrders: boolean;
   isLoadingActiveOrder: boolean;
@@ -84,6 +87,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   activeOrderItems: [],
   itemCountByOrderId: {},
   kotNumbersByOrderId: {},
+  kotsByOrderId: {},
   productNameById: {},
   isLoadingOrders: false,
   isLoadingActiveOrder: false,
@@ -125,12 +129,19 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // Bootstrapping sequence registry from loaded orders and their KOTs
     let highestKotVal = 0;
     let highestBillVal = 0;
+    let highestOrderVal = 0;
 
     for (const order of allOrders) {
       if (order.bill_number) {
         const num = parseInt(order.bill_number.replace(/\D/g, ''), 10);
         if (!isNaN(num)) {
           highestBillVal = Math.max(highestBillVal, num);
+        }
+      }
+      if (order.order_name) {
+        const num = parseInt(order.order_name.replace(/\D/g, ''), 10);
+        if (!isNaN(num)) {
+          highestOrderVal = Math.max(highestOrderVal, num);
         }
       }
     }
@@ -151,13 +162,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     // Bootstrap local sequences registry dynamically
-    bootstrapSequenceRegistry(highestKotVal, highestBillVal);
+    bootstrapSequenceRegistry(highestKotVal, highestBillVal, highestOrderVal);
 
     set({
       orders,
       heldOrders,
       itemCountByOrderId,
       kotNumbersByOrderId,
+      kotsByOrderId: startKotsMap,
       isLoadingOrders: false,
       error: null,
     });
@@ -299,6 +311,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           ...state.kotNumbersByOrderId,
           [orderId]: kotNumbers,
         },
+        kotsByOrderId: {
+          ...state.kotsByOrderId,
+          [orderId]: orderKots,
+        },
         isLoadingActiveOrder: false,
         isEditingUnpaid: false,
         hasUnsavedChanges: false,
@@ -352,8 +368,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     if (!activeOrderId) {
       set({ isMutating: true, error: null });
-      const orderNumber = snapshot.orders.length + 1;
-      const tableLabel = formatPosOrderName(orderNumber);
+      const tableLabel = 'Draft Order';
 
       const result = await createOpenOrder(tableLabel, 'draft');
       if (result.error || !result.data) {
@@ -740,13 +755,20 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return false;
     }
 
-    set({ isMutating: true, error: null });
+    console.time('saveKot');
+    const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
+    const nextKotNumber = getNextKotNumber();
 
-    // Retrieve all existing KotTickets associated with the activeOrderId
-    const kotsResult = await fetchKotsForOrders([activeOrderId]);
-    const existingTickets = (kotsResult.data ?? {})[activeOrderId] ?? [];
+    let nextOrderNum = 0;
+    let nextOrderName = activeOrder.order_name;
+    if (wasDraft) {
+      nextOrderNum = getNextOrderNumber();
+      nextOrderName = `Order #${nextOrderNum}`;
+    }
 
-    // Calculate cumulative quantity of each product already sent in previous KOTs
+    // Retrieve KOTs from Zustand local cache
+    const existingTickets = snapshot.kotsByOrderId[activeOrderId] ?? [];
+
     const alreadySentQty: Record<string, number> = {};
     for (const ticket of existingTickets) {
       const ticketItems = ticket.kot_items ?? [];
@@ -755,7 +777,6 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }
     }
 
-    // Compare current cart items and apply negative protection
     const itemsToSend: { name: string; quantity: number }[] = [];
     for (const cartItem of snapshot.activeOrderItems) {
       const itemName = cartItem.product_name || cartItem.item_name;
@@ -769,82 +790,119 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }
     }
 
-    // Diff Detection: Block KOT if no changes
     if (itemsToSend.length === 0) {
-      set({
-        isMutating: false,
-        error: 'No changes since last KOT.',
-      });
+      set({ error: 'No changes since last KOT.' });
+      console.timeEnd('saveKot');
       return false;
     }
 
-    // Dispatch KOT Ticket
-    const createResult = await createKot(activeOrderId, itemsToSend);
-    if (createResult.error || !createResult.data) {
-      set({
-        isMutating: false,
-        error: createResult.error ?? 'Unable to save kitchen ticket.',
-      });
-      return false;
+    // Construct optimistic mock KOT ticket
+    const mockTicket: KotTicket = {
+      id: `kot-uuid-optimistic-${Date.now()}`,
+      tenant_id: activeOrder.tenant_id,
+      branch_id: activeOrder.branch_id,
+      open_order_id: activeOrderId,
+      kot_number: nextKotNumber,
+      status: 'pending',
+      printed_at: null,
+      created_at: new Date().toISOString(),
+      kot_items: itemsToSend.map((item, idx) => ({
+        id: `kot-item-uuid-optimistic-${idx}-${Date.now()}`,
+        kot_id: `kot-uuid-optimistic-${Date.now()}`,
+        item_name: item.name,
+        qty: item.quantity,
+        notes: null,
+      })),
+    };
+
+    const nextKotNumbers = [...(snapshot.kotNumbersByOrderId[activeOrderId] ?? []), nextKotNumber];
+    const nextKots = [...(snapshot.kotsByOrderId[activeOrderId] ?? []), mockTicket];
+    
+    // OPTIMISTIC UPDATE: transition status, order name, and clear cart instantly
+    set((state) => ({
+      orders: state.orders.map((o) =>
+        o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
+      ),
+      activeOrderId: null,
+      activeOrderItems: [],
+      isWorkspaceEmpty: true,
+      isEditingUnpaid: false,
+      hasUnsavedChanges: false,
+      isMutating: false,
+      kotNumbersByOrderId: {
+        ...state.kotNumbersByOrderId,
+        [activeOrderId]: nextKotNumbers,
+      },
+      kotsByOrderId: {
+        ...state.kotsByOrderId,
+        [activeOrderId]: nextKots,
+      },
+    }));
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
     }
 
-    const newTicket = createResult.data;
-    const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
+    // Background Database Persistence
+    (async () => {
+      try {
+        const createResult = await createKot(activeOrderId, itemsToSend);
+        if (createResult.error || !createResult.data) {
+          throw new Error(createResult.error ?? 'Database KOT insert failed');
+        }
 
-    const { tenant_id, branch_id } = getTenantContext();
-    const { error } = await supabase
-      .from('open_orders')
-      .update({ status: 'unpaid' })
-      .eq('id', activeOrderId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+        const { tenant_id, branch_id } = getTenantContext();
+        const updatePayload: any = { status: 'unpaid' };
+        if (wasDraft) {
+          updatePayload.order_name = nextOrderName;
+        }
 
-    if (error) {
-      logSupabaseError('saveKot', error);
-      set({
-        isMutating: false,
-        error: 'Connection issue. Please check internet and try again.',
-      });
-      return false;
-    }
+        const { error: orderError } = await supabase
+          .from('open_orders')
+          .update(updatePayload)
+          .eq('id', activeOrderId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
 
-    const existingKotNumbers = snapshot.kotNumbersByOrderId[activeOrderId] ?? [];
-    const nextKotNumbers = [...existingKotNumbers, newTicket.kot_number];
+        if (orderError) {
+          throw orderError;
+        }
 
-    if (wasDraft) {
-      console.log('[useOrdersStore] saveKot: draft order transitioned to unpaid. Resetting cart to empty draft workspace.');
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.removeItem('grovit_active_order_id');
+        // Replace mock optimistic ticket with final confirmed database ticket
+        const dbTicket = createResult.data;
+        set((state) => {
+          const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
+          const cleanedKots = currentKots.map((k) =>
+            k.id.includes('optimistic') ? dbTicket : k
+          );
+          return {
+            kotsByOrderId: {
+              ...state.kotsByOrderId,
+              [activeOrderId]: cleanedKots,
+            },
+          };
+        });
+
+        console.log('[useOrdersStore] Background saveKot success!');
+      } catch (dbErr) {
+        console.error('[useOrdersStore] Background saveKot failed, rolling back:', dbErr);
+        // Rollback
+        set({
+          orders: snapshot.orders,
+          activeOrderId: snapshot.activeOrderId,
+          activeOrderItems: snapshot.activeOrderItems,
+          isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
+          isEditingUnpaid: snapshot.isEditingUnpaid,
+          hasUnsavedChanges: snapshot.hasUnsavedChanges,
+          kotNumbersByOrderId: snapshot.kotNumbersByOrderId,
+          kotsByOrderId: snapshot.kotsByOrderId,
+          error: 'Connection issue. KOT was not saved. Please check internet and try again.',
+        });
+      } finally {
+        console.timeEnd('saveKot');
       }
-      set((state) => ({
-        orders: state.orders.map((o) =>
-          o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
-        ),
-        kotNumbersByOrderId: {
-          ...state.kotNumbersByOrderId,
-          [activeOrderId]: nextKotNumbers,
-        },
-        activeOrderId: null,
-        activeOrderItems: [],
-        isWorkspaceEmpty: true,
-        isEditingUnpaid: false,
-        hasUnsavedChanges: false,
-        isMutating: false,
-      }));
-    } else {
-      set((state) => ({
-        orders: state.orders.map((o) =>
-          o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
-        ),
-        kotNumbersByOrderId: {
-          ...state.kotNumbersByOrderId,
-          [activeOrderId]: nextKotNumbers,
-        },
-        isEditingUnpaid: false,
-        hasUnsavedChanges: false,
-        isMutating: false,
-      }));
-    }
+    })();
+
     return true;
   },
 
@@ -853,46 +911,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const activeOrderId = snapshot.activeOrderId;
     if (!activeOrderId) return false;
 
-    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
-    if (!activeOrder) {
-      set({ error: 'Connection issue. Please check internet and try again.' });
-      return false;
-    }
-
-    if (activeOrder.status === 'paid') {
-      set({ error: 'Bill already settled.' });
-      return false;
-    }
-
+    console.time('settleBill');
     set({ isMutating: true, error: null });
 
     const { tenant_id, branch_id } = getTenantContext();
     const paidAt = new Date().toISOString();
     const generatedBillNumber = getNextBillNumber();
-    const { error } = await supabase
-      .from('open_orders')
-      .update({
-        status: 'paid',
-        paid_at: paidAt,
-        bill_number: generatedBillNumber,
-      })
-      .eq('id', activeOrderId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
 
-    if (error) {
-      logSupabaseError('settleBill', error);
-      set({
-        isMutating: false,
-        error: 'Connection issue. Please check internet and try again.',
-      });
-      return false;
-    }
-
-    console.log('[useOrdersStore] settleBill: settled order', activeOrderId);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.removeItem('grovit_active_order_id');
-    }
+    // OPTIMISTIC UPDATE: remove settled order and reset cart immediately
     set((state) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
       activeOrderId: null,
@@ -902,6 +928,46 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       hasUnsavedChanges: false,
       isMutating: false,
     }));
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
+    }
+
+    // Background Database Persistence
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from('open_orders')
+          .update({
+            status: 'paid',
+            paid_at: paidAt,
+            bill_number: generatedBillNumber,
+          })
+          .eq('id', activeOrderId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
+
+        if (error) {
+          throw error;
+        }
+        console.log('[useOrdersStore] Background settleBill success!');
+      } catch (dbErr) {
+        console.error('[useOrdersStore] Background settleBill failed, rolling back:', dbErr);
+        // Rollback
+        set({
+          orders: snapshot.orders,
+          activeOrderId: snapshot.activeOrderId,
+          activeOrderItems: snapshot.activeOrderItems,
+          isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
+          isEditingUnpaid: snapshot.isEditingUnpaid,
+          hasUnsavedChanges: snapshot.hasUnsavedChanges,
+          error: 'Connection issue. Bill was not settled. Please check internet and try again.',
+        });
+      } finally {
+        console.timeEnd('settleBill');
+      }
+    })();
+
     return true;
   },
 
@@ -924,31 +990,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     set({ isMutating: true, error: null });
 
-    const cancelledAt = new Date().toISOString();
-    const { tenant_id, branch_id } = getTenantContext();
-    const { error } = await supabase
-      .from('open_orders')
-      .update({
-        status: 'cancelled',
-        cancelled_at: cancelledAt,
-      })
-      .eq('id', activeOrderId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
-
-    if (error) {
-      logSupabaseError('cancelOrder', error);
-      set({
-        isMutating: false,
-        error: 'Connection issue. Please check internet and try again.',
-      });
-      return;
-    }
-
-    console.log('[useOrdersStore] cancelOrder: cancelled order', activeOrderId);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.removeItem('grovit_active_order_id');
-    }
+    // OPTIMISTIC UPDATE: filter out immediately
     set((state) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
       heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
@@ -959,6 +1001,46 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       hasUnsavedChanges: false,
       isMutating: false,
     }));
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
+    }
+
+    const cancelledAt = new Date().toISOString();
+    const { tenant_id, branch_id } = getTenantContext();
+
+    // Background Database Persistence
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from('open_orders')
+          .update({
+            status: 'cancelled',
+            cancelled_at: cancelledAt,
+          })
+          .eq('id', activeOrderId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
+
+        if (error) {
+          throw error;
+        }
+        console.log('[useOrdersStore] Background cancelOrder success!');
+      } catch (dbErr) {
+        console.error('[useOrdersStore] Background cancelOrder failed, rolling back:', dbErr);
+        // Rollback
+        set({
+          orders: snapshot.orders,
+          heldOrders: snapshot.heldOrders,
+          activeOrderId: snapshot.activeOrderId,
+          activeOrderItems: snapshot.activeOrderItems,
+          isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
+          isEditingUnpaid: snapshot.isEditingUnpaid,
+          hasUnsavedChanges: snapshot.hasUnsavedChanges,
+          error: 'Connection issue. Order was not cancelled. Please try again.',
+        });
+      }
+    })();
   },
 
   enterEditMode: () => {

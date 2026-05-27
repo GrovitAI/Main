@@ -79,12 +79,14 @@ async function fetchProductNameMap(
 export type LocalSequences = {
   kot_sequence: number;
   bill_sequence: number;
+  order_sequence: number;
 };
 
 let localKotTickets: KotTicket[] = [];
 let localSequences: LocalSequences = {
   kot_sequence: 0,
   bill_sequence: 0,
+  order_sequence: 0,
 };
 
 if (typeof window !== 'undefined' && window.localStorage) {
@@ -96,6 +98,10 @@ if (typeof window !== 'undefined' && window.localStorage) {
     const cachedSeqs = window.localStorage.getItem('grovit_local_sequences');
     if (cachedSeqs) {
       localSequences = JSON.parse(cachedSeqs);
+      // Clean up fallback missing fields if any
+      if (typeof localSequences.order_sequence === 'undefined') {
+        localSequences.order_sequence = 0;
+      }
     }
   } catch (err) {
     console.warn('[Grovit] Error loading cached fallback states:', err);
@@ -116,9 +122,10 @@ function saveLocalSequences() {
 
 // ─── Monotonic Sequence Generators ──────────────────────────────────────────────
 
-export function bootstrapSequenceRegistry(highestKot: number, highestBill: number): void {
+export function bootstrapSequenceRegistry(highestKot: number, highestBill: number, highestOrder: number): void {
   localSequences.kot_sequence = Math.max(localSequences.kot_sequence, highestKot);
   localSequences.bill_sequence = Math.max(localSequences.bill_sequence, highestBill);
+  localSequences.order_sequence = Math.max(localSequences.order_sequence, highestOrder);
   saveLocalSequences();
   console.log('[Grovit SequenceRegistry] Bootstrapped:', localSequences);
 }
@@ -127,6 +134,12 @@ export function getNextKotNumber(): number {
   localSequences.kot_sequence += 1;
   saveLocalSequences();
   return localSequences.kot_sequence;
+}
+
+export function getNextOrderNumber(): number {
+  localSequences.order_sequence += 1;
+  saveLocalSequences();
+  return localSequences.order_sequence;
 }
 
 export function getNextBillNumber(): string {

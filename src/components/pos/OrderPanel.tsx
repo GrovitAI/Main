@@ -89,13 +89,13 @@ export function OrderPanel({
 
   const orderTitle = order
     ? (readOnlyTitle ??
-        (isUnpaid
-          ? 'Unpaid Bill'
+        ((order.status === 'unpaid' || order.status === 'in_kitchen')
+          ? (order.order_name || 'Unpaid Bill')
           : (order.status === 'held'
               ? 'Held Order'
               : (order.status === 'draft' || order.status === 'open'
                   ? 'Current Cart'
-                  : formatOrderLabel(order.order_name, `Order #${orderIndex + 1}`)
+                  : formatOrderLabel(order.order_name, 'Order')
                 )
             )
         )
