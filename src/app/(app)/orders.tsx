@@ -101,15 +101,15 @@ function computeKpi(summaries: OpenOrderSummary[]): KpiCounts {
 
 function OrdersSkeleton({ count }: { count: number }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 6 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 10 }}>
       {Array.from({ length: count }, (_, i) => (
         <View
           key={i}
           style={{
-            margin: 6,
+            margin: 8,
             flex: 1,
             minWidth: '44%',
-            height: 160,
+            height: 176,
             borderRadius: 16,
             backgroundColor: '#EEF2F7',
           }}
@@ -390,19 +390,19 @@ export default function OrdersScreen() {
       <LinearGradient
         colors={['#024db1', '#01389e']}
         style={{
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 10,
-          height: 76,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 14,
+          height: 84,
           justifyContent: 'center',
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
               Orders Management
             </Text>
-            <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
+            <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
               {headerSubtext}
             </Text>
           </View>
@@ -412,8 +412,8 @@ export default function OrdersScreen() {
             onPress={handleRefresh}
             style={({ pressed }: any) => [
               {
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 8,
@@ -426,17 +426,17 @@ export default function OrdersScreen() {
           >
             {isRefreshing
               ? <ActivityIndicator color="#FFFFFF" size="small" />
-              : <RefreshCw color="#FFFFFF" size={14} />
+              : <RefreshCw color="#FFFFFF" size={16} />
             }
           </Pressable>
         </View>
       </LinearGradient>
 
       {/* ── Control Bar (Search + Filters) ── */}
-      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 16, paddingVertical: 6 }}>
+      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 20, paddingVertical: 8 }}>
         {/* Search bar */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 32 }}>
-          <Search color="#94A3B8" size={13} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 36 }}>
+          <Search color="#94A3B8" size={15} />
           <TextInput
             ref={searchInputRef}
             id="orders-search-input"
@@ -444,12 +444,12 @@ export default function OrdersScreen() {
             placeholderTextColor="#94A3B8"
             value={searchInputValue}
             onChangeText={handleSearchChange}
-            style={{ flex: 1, fontSize: 12, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' } as any}
+            style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' } as any}
             returnKeyType="search"
           />
           {searchInputValue.length > 0 && (
             <Pressable accessibilityRole="button" onPress={clearSearch} style={{ padding: 4 }}>
-              <X color="#94A3B8" size={13} />
+              <X color="#94A3B8" size={15} />
             </Pressable>
           )}
         </View>
@@ -468,7 +468,7 @@ export default function OrdersScreen() {
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
           style={{ marginTop: 6 }}
-          contentContainerStyle={{ gap: 6 }}
+          contentContainerStyle={{ gap: 8 }}
           renderItem={({ item }) => (
             <FilterPill
               label={item.label}
@@ -484,7 +484,7 @@ export default function OrdersScreen() {
 
       {/* ── Inline error banner ── */}
       {error && (
-        <View style={{ marginHorizontal: 16, marginTop: 10, backgroundColor: '#FFF7EC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#FED7AA' }}>
+        <View style={{ marginHorizontal: 20, marginTop: 10, backgroundColor: '#FFF7EC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#FED7AA' }}>
           <Text style={{ fontSize: 12, fontWeight: '500', color: '#C2410C', textAlign: 'center' }}>{error}</Text>
         </View>
       )}
@@ -511,7 +511,7 @@ export default function OrdersScreen() {
           key={listColumns}
           numColumns={listColumns}
           keyExtractor={(item) => item.order.id}
-          contentContainerStyle={{ padding: 8, paddingBottom: 24 }}
+          contentContainerStyle={{ padding: 10, paddingBottom: 28 }}
           renderItem={({ item, index }) => {
             const isEditable = EDITABLE_STATUSES.includes(item.order.status);
             return (
@@ -943,19 +943,19 @@ function HeaderSection({
     <LinearGradient
       colors={['#024db1', '#01389e']}
       style={{
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 10,
-        height: 76,
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 14,
+        height: 84,
         justifyContent: 'center',
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
             Orders Management
           </Text>
-          <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
+          <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
             {subtext}
           </Text>
         </View>
@@ -964,8 +964,8 @@ function HeaderSection({
           onPress={onRefresh}
           style={({ pressed }: any) => [
             {
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 8,
@@ -978,7 +978,7 @@ function HeaderSection({
         >
           {isRefreshing
             ? <ActivityIndicator color="#FFFFFF" size="small" />
-            : <RefreshCw color="#FFFFFF" size={14} />
+            : <RefreshCw color="#FFFFFF" size={16} />
           }
         </Pressable>
       </View>
@@ -1007,7 +1007,7 @@ function FilterPill({
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }: any) => [
-          { overflow: 'hidden', borderRadius: 99, height: 26 },
+          { overflow: 'hidden', borderRadius: 99, height: 30 },
           pressed && { transform: [{ scale: 0.97 }] }
         ]}
       >
@@ -1015,11 +1015,11 @@ function FilterPill({
           colors={['#0251B8', '#013B8C']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
-          style={{ height: 26, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          style={{ height: 30, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}
         >
-          <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#FFFFFF' }}>{label}</Text>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 99, minWidth: 15, height: 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
-            <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
+          <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#FFFFFF' }}>{label}</Text>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 99, minWidth: 17, height: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
           </View>
         </LinearGradient>
       </Pressable>
@@ -1032,8 +1032,8 @@ function FilterPill({
       onPress={onPress}
       style={({ pressed, hovered }: any) => [
         {
-          height: 26,
-          paddingHorizontal: 10,
+          height: 30,
+          paddingHorizontal: 12,
           borderRadius: 99,
           backgroundColor: bg,
           flexDirection: 'row',
@@ -1046,9 +1046,9 @@ function FilterPill({
         pressed && { transform: [{ scale: 0.97 }] },
       ]}
     >
-      <Text style={{ fontSize: 10.5, fontWeight: '600', color }}>{label}</Text>
-      <View style={{ backgroundColor: color, borderRadius: 99, minWidth: 15, height: 15, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
-        <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
+      <Text style={{ fontSize: 11.5, fontWeight: '600', color }}>{label}</Text>
+      <View style={{ backgroundColor: color, borderRadius: 99, minWidth: 17, height: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF' }}>{count}</Text>
       </View>
     </Pressable>
   );

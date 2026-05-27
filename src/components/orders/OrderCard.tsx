@@ -96,7 +96,7 @@ export const OrderCard = memo(function OrderCard({
       onPress={onOpenBill}
       style={({ pressed, hovered }: any) => [
         {
-          margin: 6.5,
+          margin: 8,
           flex: 1,
           borderRadius: 12,
           backgroundColor: '#FFFFFF',
@@ -108,7 +108,7 @@ export const OrderCard = memo(function OrderCard({
           shadowRadius: 3.5,
           elevation: 2,
           overflow: 'hidden',
-          height: 160, // locked uniform height matching design
+          height: 176, // locked uniform height matching design
         },
         hovered && {
           transform: [{ translateY: -2 }],
@@ -128,18 +128,18 @@ export const OrderCard = memo(function OrderCard({
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         
         {/* Header Section (White background) */}
-        <View style={{ padding: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+        <View style={{ padding: 14, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
           {/* Header Row: ID/subtext left, status/elapsed right */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <View style={{ flex: 1, paddingRight: 6 }}>
               <Text
-                style={{ fontSize: 13.5, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.15 }}
+                style={{ fontSize: 15, fontWeight: '800', color: '#0B1E36', letterSpacing: -0.15 }}
                 numberOfLines={1}
               >
                 {billId}
               </Text>
               <Text
-                style={{ fontSize: 10.5, fontWeight: '600', color: '#64748B', marginTop: 1.5 }}
+                style={{ fontSize: 11.5, fontWeight: '600', color: '#64748B', marginTop: 1.5 }}
                 numberOfLines={1}
               >
                 {order.status === 'held' ? 'Held Order' : `Order #${orderIndex + 1}`}
@@ -148,13 +148,13 @@ export const OrderCard = memo(function OrderCard({
 
             <View style={{ alignItems: 'flex-end' }}>
               <Text
-                style={{ fontSize: 11, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}
+                style={{ fontSize: 12, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}
                 numberOfLines={1}
               >
                 {statusConfig.label}
               </Text>
               <Text
-                style={{ fontSize: 10, fontWeight: '600', color: '#64748B', marginTop: 2 }}
+                style={{ fontSize: 11, fontWeight: '600', color: '#64748B', marginTop: 2 }}
                 numberOfLines={1}
               >
                 {elapsed}
@@ -164,20 +164,20 @@ export const OrderCard = memo(function OrderCard({
         </View>
 
         {/* Items Section: Vertical list layout with Name left and Qty right */}
-        <View style={{ padding: 12, flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'flex-start' }}>
+        <View style={{ paddingHorizontal: 14, paddingVertical: 8, flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'flex-start' }}>
           {itemCount === 0 ? (
             <Text style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 4 }}>No items</Text>
           ) : (
-            <View style={{ gap: 4 }}>
+            <View style={{ gap: 4.5 }}>
               {previewItems.slice(0, 3).map((item, idx) => (
                 <View key={`${item.name}-${idx}`} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text
-                    style={{ fontSize: 11, fontWeight: '500', color: '#475569', flex: 1, marginRight: 8 }}
+                    style={{ fontSize: 12, fontWeight: '500', color: '#475569', flex: 1, marginRight: 8 }}
                     numberOfLines={1}
                   >
                     {item.name}
                   </Text>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#1E293B' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>
                     ×{item.quantity}
                   </Text>
                 </View>
@@ -194,11 +194,11 @@ export const OrderCard = memo(function OrderCard({
                   }}
                   {...({
                     onClick: (e: any) => {
-                      e.stopPropagation();
-                      onViewOrder();
+                       e.stopPropagation();
+                       onViewOrder();
                     }
                   } as any)}
-                  style={{ fontSize: 10.5, fontWeight: '700', color: '#0251B8', marginTop: 2, cursor: 'pointer', textDecorationLine: 'underline' }}
+                  style={{ fontSize: 11.5, fontWeight: '700', color: '#0251B8', marginTop: 3, cursor: 'pointer', textDecorationLine: 'underline' }}
                 >
                   +{remainingItemLines} more items
                 </Text>
@@ -213,8 +213,8 @@ export const OrderCard = memo(function OrderCard({
           justifyContent: 'space-between',
           alignItems: 'center',
           backgroundColor: '#F0F7FF',
-          paddingVertical: 8,
-          paddingHorizontal: 12,
+          paddingVertical: 9,
+          paddingHorizontal: 14,
           borderTopWidth: 1,
           borderTopColor: '#E2E8F0',
         }}>
