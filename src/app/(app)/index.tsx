@@ -352,6 +352,14 @@ export default function PosBillingScreen() {
     }
   }, [qtyMode]);
 
+  // Blur search input when confirmation modal opens so its window listener becomes keyboard owner
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (activeModal) {
+      searchRef.current?.blur();
+    }
+  }, [activeModal]);
+
 
 
   const visibleProducts = useMemo(() => {
@@ -781,6 +789,11 @@ export default function PosBillingScreen() {
   const handleSearchKeyPress = useCallback((e: any) => {
     const key = e.nativeEvent.key;
     const altKey = e.nativeEvent.altKey;
+
+    // ── Modal overlays active — settlement & confirmation modals own their own focus ──
+    if (settlementVisible || activeModal) {
+      return;
+    }
 
     // ── Held orders popover keyboard interception ──
     if (popoverVisible && heldOrdersFiltered.length > 0) {
@@ -1362,6 +1375,7 @@ export default function PosBillingScreen() {
           onClose={() => {
             setActiveModal(null);
             setPendingAction(null);
+            setTimeout(() => searchRef.current?.focus(), 50);
           }}
         />
       )}
@@ -1370,7 +1384,10 @@ export default function PosBillingScreen() {
       <SettlementModal
         visible={settlementVisible}
         total={orderTotal}
-        onClose={() => setSettlementVisible(false)}
+        onClose={() => {
+          setSettlementVisible(false);
+          setTimeout(() => searchRef.current?.focus(), 50);
+        }}
         onConfirm={confirmSettlement}
         isMutating={isMutating}
       />

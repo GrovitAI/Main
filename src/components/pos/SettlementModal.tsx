@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ActivityIndicator, Modal, Pressable, Text, View, Platform } from 'react-native';
 import { X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +29,10 @@ export function SettlementModal({
 }: SettlementModalProps) {
   const [selectedMethod, setSelectedMethod] = useState<'Cash' | 'UPI' | 'Card'>('Cash');
   const [localMutating, setLocalMutating] = useState(false);
-  const [focusIndex, setFocusIndex] = useState(4); // Default highlight on Confirm
+  const [focusIndex, setFocusIndex] = useState(4);
+
+  // Keyboard owner — a plain <div> (View), NOT TextInput. Avoids Enter/submit/blur quirks.
+  const keyboardOwnerRef = useRef<View>(null);
 
   const handleConfirm = useCallback(async () => {
     setLocalMutating(true);
@@ -42,94 +45,155 @@ export function SettlementModal({
 
   const isProcessing = isMutating || localMutating;
 
-  // Reset focus when modal opens
+  // Claim keyboard focus on the hidden div
+  const claimFocus = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    const node = keyboardOwnerRef.current as unknown as HTMLElement | null;
+    if (!node) return;
+    node.focus();
+  }, []);
+
+  // Reset state when modal opens
   useEffect(() => {
     if (visible) {
-      setFocusIndex(4); // Default to Confirm button
+      setFocusIndex(4);
+      setSelectedMethod('Cash');
     }
   }, [visible]);
 
-  // Scoped keyboard listener — only active while settlement modal is visible
+  // Attach native keydown listener + make div focusable + claim focus
   useEffect(() => {
-    if (Platform.OS !== 'web' || !visible) return;
+    if (!visible || Platform.OS !== 'web') return;
+
+    const node = keyboardOwnerRef.current as unknown as HTMLElement | null;
+    if (!node) return;
+
+    // Make the div focusable and invisible to screen readers
+    node.tabIndex = 0;
+    node.style.outline = 'none';
+    node.setAttribute('aria-hidden', 'true');
+
+    // Use a mutable ref to always read latest state inside the listener
+    let currentFocusIndex = focusIndex;
+    let currentSelectedMethod = selectedMethod;
+    let currentIsProcessing = isProcessing;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Enter: instant confirm from anywhere
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (!isProcessing) {
-          e.preventDefault();
+      const key = e.key;
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Ctrl/Cmd + Enter: instant confirm
+      if ((e.ctrlKey || e.metaKey) && key === 'Enter') {
+        if (!currentIsProcessing) {
           void handleConfirm();
         }
         return;
       }
 
-      // Arrow navigation
-      if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
-        e.preventDefault();
-        setFocusIndex((prev) => (prev + 1) % TOTAL_ITEMS);
-        return;
-      }
-      if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
-        e.preventDefault();
-        setFocusIndex((prev) => (prev - 1 + TOTAL_ITEMS) % TOTAL_ITEMS);
-        return;
-      }
-      // Up/Down: jump between payment row (0-2) and action row (3-4)
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
+      // Arrow / Tab navigation
+      if (key === 'ArrowRight' || (key === 'Tab' && !e.shiftKey)) {
         setFocusIndex((prev) => {
-          if (prev <= 2) return 4; // payment → confirm
-          return prev; // already on actions
+          const next = (prev + 1) % TOTAL_ITEMS;
+          currentFocusIndex = next;
+          return next;
         });
         return;
       }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
+      if (key === 'ArrowLeft' || (key === 'Tab' && e.shiftKey)) {
+        setFocusIndex((prev) => {
+          const next = (prev - 1 + TOTAL_ITEMS) % TOTAL_ITEMS;
+          currentFocusIndex = next;
+          return next;
+        });
+        return;
+      }
+      if (key === 'ArrowDown') {
+        setFocusIndex((prev) => {
+          if (prev <= 2) {
+            currentFocusIndex = 4;
+            return 4;
+          }
+          return prev;
+        });
+        return;
+      }
+      if (key === 'ArrowUp') {
         setFocusIndex((prev) => {
           if (prev >= 3) {
-            // action → payment method (go to currently selected method)
-            const idx = PAYMENT_OPTIONS.indexOf(selectedMethod);
-            return idx >= 0 ? idx : 0;
+            const idx = PAYMENT_OPTIONS.indexOf(currentSelectedMethod);
+            const next = idx >= 0 ? idx : 0;
+            currentFocusIndex = next;
+            return next;
           }
-          return prev; // already on payment
+          return prev;
         });
         return;
       }
 
       // Enter: activate focused element
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
-        if (isProcessing) return;
-        if (focusIndex <= 2) {
-          // Select a payment method
-          setSelectedMethod(PAYMENT_OPTIONS[focusIndex]);
-        } else if (focusIndex === 3) {
+      if (key === 'Enter') {
+        if (currentIsProcessing) return;
+        if (currentFocusIndex <= 2) {
+          const method = PAYMENT_OPTIONS[currentFocusIndex];
+          currentSelectedMethod = method;
+          setSelectedMethod(method);
+        } else if (currentFocusIndex === 3) {
           onClose();
-        } else if (focusIndex === 4) {
+        } else if (currentFocusIndex === 4) {
           void handleConfirm();
         }
         return;
       }
 
       // Escape: close
-      if (e.key === 'Escape') {
-        e.preventDefault();
+      if (key === 'Escape') {
         onClose();
         return;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    node.addEventListener('keydown', handleKeyDown);
+
+    // Initial focus claim after modal mount
+    const timer = setTimeout(() => {
+      node.focus();
+    }, 120);
+
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      node.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
     };
   }, [visible, isProcessing, selectedMethod, focusIndex, onClose, handleConfirm]);
+
+  // Persistent focus guard — reclaim focus after any state-driven re-render
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'web') return;
+    requestAnimationFrame(() => {
+      claimFocus();
+    });
+  }, [visible, focusIndex, selectedMethod, claimFocus]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-primary-deep/40">
         <View className="rounded-t-panel border-t border-border-soft bg-surface-elevated px-6 pb-10 pt-5 shadow-panel">
+
+          {/* Hidden keyboard owner — plain div, NOT TextInput */}
+          {Platform.OS === 'web' && (
+            <View
+              ref={keyboardOwnerRef}
+              style={{
+                position: 'absolute',
+                width: 1,
+                height: 1,
+                opacity: 0,
+                top: 0,
+                left: 0,
+              }}
+            />
+          )}
+
           <View className="mb-5 flex-row items-center justify-between">
             <View>
               <Text className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
@@ -141,7 +205,7 @@ export function SettlementModal({
               accessibilityRole="button"
               accessibilityLabel="Close settlement"
               disabled={isProcessing}
-              onPress={onClose}
+              onPress={() => { onClose(); }}
               className="h-12 w-12 items-center justify-center rounded-2xl border border-border-soft bg-surface-tint"
             >
               <X color={colors.primaryDeep} size={22} />
@@ -172,6 +236,7 @@ export function SettlementModal({
                   onPress={() => {
                     setSelectedMethod(option);
                     setFocusIndex(idx);
+                    claimFocus();
                   }}
                   onHoverIn={() => setFocusIndex(idx)}
                   className="min-h-[44px] items-center justify-center rounded-full border border-border-soft px-5 py-2"
@@ -207,7 +272,7 @@ export function SettlementModal({
             <Pressable
               accessibilityRole="button"
               disabled={isProcessing}
-              onPress={onClose}
+              onPress={() => { onClose(); }}
               onHoverIn={() => setFocusIndex(3)}
               className="min-h-[48px] flex-1 items-center justify-center rounded-2xl border-2 border-primary-mid bg-surface-elevated"
               style={[

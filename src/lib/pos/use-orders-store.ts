@@ -72,7 +72,9 @@ function enrichItems(
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
   heldOrders: [],
-  activeOrderId: null,
+  activeOrderId: (typeof window !== 'undefined' && window.localStorage)
+    ? window.localStorage.getItem('grovit_active_order_id')
+    : null,
   activeOrderItems: [],
   itemCountByOrderId: {},
   productNameById: {},
@@ -125,17 +127,21 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     const { activeOrderId } = get();
+    console.log('[useOrdersStore] loadOrders: activeOrderId in state/storage is', activeOrderId);
     if (activeOrderId && orders.some((order) => order.id === activeOrderId)) {
+      console.log('[useOrdersStore] loadOrders: restoring active order', activeOrderId);
       await get().selectOrder(activeOrderId);
       return;
     }
 
-    const autoSelectable = orders.find(order => order.status === 'draft' || order.status === 'open');
-    if (autoSelectable) {
-      await get().selectOrder(autoSelectable.id);
-      return;
+    if (activeOrderId) {
+      console.log('[useOrdersStore] loadOrders: activeOrderId', activeOrderId, 'not found in loaded orders. Clearing active session.');
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('grovit_active_order_id');
+      }
     }
 
+    console.log('[useOrdersStore] loadOrders: Starting with clean/empty cart.');
     set({ activeOrderId: null, activeOrderItems: [] });
   },
 
@@ -198,6 +204,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       productNameById,
     );
 
+    console.log('[useOrdersStore] selectOrder: selected order', orderId);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('grovit_active_order_id', orderId);
+    }
     set({
       activeOrderId: orderId,
       activeOrderItems,
@@ -225,6 +235,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         // Reuse current empty draft to prevent blank cart spam
         return;
       }
+    }
+    console.log('[useOrdersStore] createOrder: starting fresh empty draft (clearing activeOrderId)');
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
     }
     set({
       activeOrderId: null,
@@ -262,6 +276,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       const createdOrder = result.data;
       activeOrderId = createdOrder.id;
 
+      console.log('[useOrdersStore] addProductToActiveOrder: created new draft order in DB', createdOrder.id);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('grovit_active_order_id', createdOrder.id);
+      }
       set((state) => ({
         orders: [createdOrder, ...state.orders],
         activeOrderId: createdOrder.id,
@@ -591,6 +609,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
+    console.log('[useOrdersStore] holdOrder: held order', activeOrderId);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
+    }
     set((state) => ({
       orders: state.orders.map((order) =>
         order.id === activeOrderId
@@ -701,6 +723,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return false;
     }
 
+    console.log('[useOrdersStore] settleBill: settled order', activeOrderId);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
+    }
     set((state) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
       activeOrderId: null,
@@ -752,6 +778,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
+    console.log('[useOrdersStore] cancelOrder: cancelled order', activeOrderId);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem('grovit_active_order_id');
+    }
     set((state) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
       heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
