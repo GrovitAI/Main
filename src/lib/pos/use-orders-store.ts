@@ -32,6 +32,7 @@ type OrdersState = {
   isEditingUnpaid: boolean;
   hasUnsavedChanges: boolean;
   isReadOnlyView: boolean;
+  isWorkspaceEmpty: boolean;
   error: string | null;
   loadOrders: () => Promise<void>;
   setProductCatalog: (products: Product[]) => void;
@@ -84,6 +85,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   isEditingUnpaid: false,
   hasUnsavedChanges: false,
   isReadOnlyView: false,
+  isWorkspaceEmpty: true,
   error: null,
 
   clearError: () => set({ error: null }),
@@ -126,23 +128,55 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       console.warn('[Grovit] Order item counts unavailable:', countsResult.error);
     }
 
-    const { activeOrderId } = get();
-    console.log('[useOrdersStore] loadOrders: activeOrderId in state/storage is', activeOrderId);
-    if (activeOrderId && orders.some((order) => order.id === activeOrderId)) {
-      console.log('[useOrdersStore] loadOrders: restoring active order', activeOrderId);
-      await get().selectOrder(activeOrderId);
-      return;
-    }
+    // Restore or check working draft ID
+    const storedActiveOrderId = (typeof window !== 'undefined' && window.localStorage)
+      ? window.localStorage.getItem('grovit_active_order_id')
+      : null;
 
-    if (activeOrderId) {
-      console.log('[useOrdersStore] loadOrders: activeOrderId', activeOrderId, 'not found in loaded orders. Clearing active session.');
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.removeItem('grovit_active_order_id');
+    let draftToUse: OpenOrder | null = null;
+    const { tenant_id, branch_id } = getTenantContext();
+
+    if (storedActiveOrderId) {
+      console.log('[useOrdersStore] loadOrders: restoring active order from localStorage', storedActiveOrderId);
+      // Dual-tab stale session guard
+      const { data: orderData } = await fetchOpenOrderById(storedActiveOrderId);
+      if (orderData && orderData.status === 'draft') {
+        draftToUse = orderData;
+        console.log('[useOrdersStore] loadOrders: stored active order is valid draft');
+      } else {
+        console.log('[useOrdersStore] loadOrders: stored order is stale (paid/cancelled/not draft). Clearing localStorage.');
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem('grovit_active_order_id');
+        }
       }
     }
 
+    // If no valid draft was restored from localStorage, search for ANY existing draft in the DB
+    if (!draftToUse) {
+      console.log('[useOrdersStore] loadOrders: no valid localStorage draft. Querying DB for existing draft...');
+      const { data: dbDrafts } = await supabase
+        .from('open_orders')
+        .select('*')
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id)
+        .eq('status', 'draft')
+        .order('created_at', { ascending: false });
+
+      if (dbDrafts && dbDrafts.length > 0) {
+        draftToUse = dbDrafts[0] as OpenOrder;
+        console.log('[useOrdersStore] loadOrders: recovered existing DB draft', draftToUse.id);
+      }
+    }
+
+    // Enforce selection of the draft order if found
+    if (draftToUse) {
+      console.log('[useOrdersStore] loadOrders: selecting recovered/restored draft order', draftToUse.id);
+      await get().selectOrder(draftToUse.id);
+      return;
+    }
+
     console.log('[useOrdersStore] loadOrders: Starting with clean/empty cart.');
-    set({ activeOrderId: null, activeOrderItems: [] });
+    set({ activeOrderId: null, activeOrderItems: [], isWorkspaceEmpty: true });
   },
 
   selectOrder: async (orderId) => {
@@ -208,17 +242,25 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem('grovit_active_order_id', orderId);
     }
-    set({
-      activeOrderId: orderId,
-      activeOrderItems,
-      isLoadingActiveOrder: false,
-      isEditingUnpaid: false,
-      hasUnsavedChanges: false,
-      isReadOnlyView: isReadOnly,
-      itemCountByOrderId: {
-        ...get().itemCountByOrderId,
-        [orderId]: getItemCount(activeOrderItems),
-      },
+    set((state) => {
+      const exists = state.orders.some((o) => o.id === orderId);
+      const updatedOrders = exists
+        ? state.orders.map((o) => o.id === orderId ? order : o)
+        : [order as OpenOrder, ...state.orders];
+      return {
+        orders: updatedOrders,
+        activeOrderId: orderId,
+        activeOrderItems,
+        isLoadingActiveOrder: false,
+        isEditingUnpaid: false,
+        hasUnsavedChanges: false,
+        isReadOnlyView: isReadOnly,
+        isWorkspaceEmpty: false,
+        itemCountByOrderId: {
+          ...state.itemCountByOrderId,
+          [orderId]: getItemCount(activeOrderItems),
+        },
+      };
     });
     return true;
   },
@@ -243,6 +285,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     set({
       activeOrderId: null,
       activeOrderItems: [],
+      isWorkspaceEmpty: true,
       isEditingUnpaid: false,
       hasUnsavedChanges: false,
       isReadOnlyView: false,
@@ -283,6 +326,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       set((state) => ({
         orders: [createdOrder, ...state.orders],
         activeOrderId: createdOrder.id,
+        isWorkspaceEmpty: false,
         itemCountByOrderId: {
           ...state.itemCountByOrderId,
           [createdOrder.id]: 0,
@@ -396,6 +440,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         item.id === tempItemId ? savedItem : item,
       ),
       hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      isWorkspaceEmpty: false,
       isMutating: false,
     }));
   },
@@ -582,6 +627,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         [activeOrderId]: 0,
       },
       hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+      isWorkspaceEmpty: true,
       isMutating: false,
     }));
   },
@@ -625,6 +671,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       ],
       activeOrderId: null,
       activeOrderItems: [],
+      isWorkspaceEmpty: true,
       isMutating: false,
     }));
   },
@@ -656,6 +703,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return true;
     }
 
+    const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
+
     const { tenant_id, branch_id } = getTenantContext();
     const { error } = await supabase
       .from('open_orders')
@@ -673,14 +722,32 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return false;
     }
 
-    set((state) => ({
-      orders: state.orders.map((o) =>
-        o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
-      ),
-      isEditingUnpaid: false,
-      hasUnsavedChanges: false,
-      isMutating: false,
-    }));
+    if (wasDraft) {
+      console.log('[useOrdersStore] saveKot: draft order transitioned to unpaid. Resetting cart to empty draft workspace.');
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('grovit_active_order_id');
+      }
+      set((state) => ({
+        orders: state.orders.map((o) =>
+          o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
+        ),
+        activeOrderId: null,
+        activeOrderItems: [],
+        isWorkspaceEmpty: true,
+        isEditingUnpaid: false,
+        hasUnsavedChanges: false,
+        isMutating: false,
+      }));
+    } else {
+      set((state) => ({
+        orders: state.orders.map((o) =>
+          o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
+        ),
+        isEditingUnpaid: false,
+        hasUnsavedChanges: false,
+        isMutating: false,
+      }));
+    }
     return true;
   },
 
@@ -731,6 +798,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
       activeOrderId: null,
       activeOrderItems: [],
+      isWorkspaceEmpty: true,
       isEditingUnpaid: false,
       hasUnsavedChanges: false,
       isMutating: false,
@@ -787,6 +855,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
       activeOrderId: null,
       activeOrderItems: [],
+      isWorkspaceEmpty: true,
       isEditingUnpaid: false,
       hasUnsavedChanges: false,
       isMutating: false,

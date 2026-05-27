@@ -54,6 +54,7 @@ function formatAmount(amount: number): string {
 
 export function getBillIdentifier(summary: OpenOrderSummary, orderIndex: number): string {
   const { order } = summary;
+  if (order.status === 'draft') return 'Working Draft';
   if (order.bill_number) return `Bill #${order.bill_number}`;
   if (order.kot_number) return `KOT #${order.kot_number}`;
   if (order.token_number) return `Token #${order.token_number}`;
@@ -142,24 +143,26 @@ export const OrderCard = memo(function OrderCard({
                 style={{ fontSize: 11.5, fontWeight: '600', color: '#64748B', marginTop: 1.5 }}
                 numberOfLines={1}
               >
-                {order.status === 'held' ? 'Held Order' : `Order #${orderIndex + 1}`}
+                {order.status === 'draft' ? 'Anonymous Cart' : (order.status === 'held' ? 'Held Order' : `Order #${orderIndex + 1}`)}
               </Text>
             </View>
 
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text
-                style={{ fontSize: 12, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}
-                numberOfLines={1}
-              >
-                {statusConfig.label}
-              </Text>
-              <Text
-                style={{ fontSize: 11, fontWeight: '600', color: '#64748B', marginTop: 2 }}
-                numberOfLines={1}
-              >
-                {elapsed}
-              </Text>
-            </View>
+            {order.status !== 'draft' && (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text
+                  style={{ fontSize: 12, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}
+                  numberOfLines={1}
+                >
+                  {statusConfig.label}
+                </Text>
+                <Text
+                  style={{ fontSize: 11, fontWeight: '600', color: '#64748B', marginTop: 2 }}
+                  numberOfLines={1}
+                >
+                  {elapsed}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

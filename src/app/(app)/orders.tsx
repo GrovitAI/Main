@@ -42,11 +42,11 @@ const SEARCH_DEBOUNCE_MS = 200;
 
 // ─── Filter types ─────────────────────────────────────────────────────────────
 
-type OrderFilter = 'active' | 'held' | 'unpaid' | 'paid' | 'cancelled' | 'all';
+type OrderFilter = 'active' | 'held' | 'unpaid' | 'paid' | 'cancelled' | 'draft' | 'all';
 
 
 const EDITABLE_STATUSES: OrderStatus[] = ['draft', 'open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
-const ACTIVE_STATUSES: OrderStatus[] = ['draft', 'open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
+const ACTIVE_STATUSES: OrderStatus[] = ['open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
 
 function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
@@ -55,6 +55,7 @@ function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
     case 'unpaid':    return status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
     case 'paid':      return status === 'paid' || status === 'completed';
     case 'cancelled': return status === 'cancelled';
+    case 'draft':     return status === 'draft';
     case 'all':       return true;
   }
 }
@@ -81,11 +82,12 @@ type KpiCounts = {
   held: number;
   paid: number;
   cancelled: number;
+  draft: number;
   all: number;
 };
 
 function computeKpi(summaries: OpenOrderSummary[]): KpiCounts {
-  let active = 0, unpaid = 0, held = 0, paid = 0, cancelled = 0;
+  let active = 0, unpaid = 0, held = 0, paid = 0, cancelled = 0, draft = 0;
   for (const s of summaries) {
     const st = s.order.status;
     if (ACTIVE_STATUSES.includes(st)) active++;
@@ -93,8 +95,9 @@ function computeKpi(summaries: OpenOrderSummary[]): KpiCounts {
     if (st === 'held') held++;
     if (st === 'paid' || st === 'completed') paid++;
     if (st === 'cancelled') cancelled++;
+    if (st === 'draft') draft++;
   }
-  return { active, unpaid, held, paid, cancelled, all: summaries.length };
+  return { active, unpaid, held, paid, cancelled, draft, all: summaries.length };
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -463,6 +466,7 @@ export default function OrdersScreen() {
             { id: 'held'      as OrderFilter, label: 'Held',      count: kpi.held,      color: '#D97706', bg: '#FEF3C7' },
             { id: 'paid'      as OrderFilter, label: 'Paid',      count: kpi.paid,      color: '#16A34A', bg: '#F0FDF4' },
             { id: 'cancelled' as OrderFilter, label: 'Cancelled', count: kpi.cancelled, color: '#64748B', bg: '#F1F5F9' },
+            { id: 'draft'     as OrderFilter, label: 'Draft',     count: kpi.draft,     color: '#475569', bg: '#F1F5F9' },
             { id: 'all'       as OrderFilter, label: 'All',       count: kpi.all,       color: '#64748B', bg: '#F1F5F9' },
           ]}
           keyExtractor={(item) => item.id}

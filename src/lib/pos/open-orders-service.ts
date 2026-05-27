@@ -116,7 +116,8 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
         remainingItemLines: 0,
         totalAmount: 0,
       }));
-      return { data: summariesWithoutItems, error: null };
+      const filtered = summariesWithoutItems.filter((s) => s.order.status !== 'draft');
+      return { data: filtered, error: null };
     }
 
     const items = (itemRows ?? []) as OrderItemRow[];
@@ -153,7 +154,14 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
       };
     });
 
-    return { data: summaries, error: null };
+    const filteredSummaries = summaries.filter((summary) => {
+      if (summary.order.status === 'draft' && summary.itemCount === 0) {
+        return false;
+      }
+      return true;
+    });
+
+    return { data: filteredSummaries, error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -187,7 +195,7 @@ export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
     }
 
     const allOpen = filterOpenOrders((data ?? []) as OpenOrder[]);
-    const activeBilling = allOpen.filter(order => order.status !== 'held');
+    const activeBilling = allOpen.filter(order => order.status !== 'held' && order.status !== 'draft');
     return { data: activeBilling, error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
@@ -640,7 +648,14 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
       };
     });
 
-    return { data: summaries, error: null };
+    const filteredSummaries = summaries.filter((summary) => {
+      if (summary.order.status === 'draft' && summary.itemCount === 0) {
+        return false;
+      }
+      return true;
+    });
+
+    return { data: filteredSummaries, error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       const msg = err instanceof Error ? err.message : String(err);
