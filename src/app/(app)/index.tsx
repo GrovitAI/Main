@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Search, Plus } from 'lucide-react-native';
+import { useNavigation } from 'expo-router';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
@@ -324,6 +325,16 @@ export default function PosBillingScreen() {
 
   const searchRef = useRef<TextInput>(null);
   const qtyRef = useRef<TextInput>(null);
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setTimeout(() => {
+        searchRef.current?.focus();
+      }, 50);
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     setHighlightedIndex(0);

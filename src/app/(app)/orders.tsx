@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { RefreshCw, Search, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -154,6 +154,18 @@ export default function OrdersScreen() {
   const [settlingOrder, setSettlingOrder] = useState<OpenOrderSummary | null>(null);
   const [isSettlingMutating, setIsSettlingMutating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const navigation = useNavigation();
+  const searchInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -426,6 +438,8 @@ export default function OrdersScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 32 }}>
           <Search color="#94A3B8" size={13} />
           <TextInput
+            ref={searchInputRef}
+            id="orders-search-input"
             placeholder="Search orders..."
             placeholderTextColor="#94A3B8"
             value={searchInputValue}
