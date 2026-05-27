@@ -14,6 +14,10 @@ import {
   clearOpenOrderItems,
   holdOpenOrder,
   resumeHeldOrder,
+  fetchKotTicketsForOrders,
+  createKotTicket,
+  bootstrapSequenceRegistry,
+  getNextBillNumber,
 } from './open-orders-service';
 import { BRANCH_ID, TENANT_ID, getTenantContext } from './tenant-context';
 import { supabase } from './supabase';
@@ -25,6 +29,7 @@ type OrdersState = {
   activeOrderId: string | null;
   activeOrderItems: PosOrderItem[];
   itemCountByOrderId: Record<string, number>;
+  kotNumbersByOrderId: Record<string, string[]>;
   productNameById: Record<string, string>;
   isLoadingOrders: boolean;
   isLoadingActiveOrder: boolean;
@@ -78,6 +83,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     : null,
   activeOrderItems: [],
   itemCountByOrderId: {},
+  kotNumbersByOrderId: {},
   productNameById: {},
   isLoadingOrders: false,
   isLoadingActiveOrder: false,
@@ -116,10 +122,45 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const countsResult = await fetchOrderItemCounts(allOrders.map((order) => order.id));
     const itemCountByOrderId = countsResult.data ?? {};
 
+    // Bootstrapping sequence registry from loaded orders and their KOTs
+    let highestKotVal = 0;
+    let highestBillVal = 0;
+
+    for (const order of allOrders) {
+      if (order.bill_number) {
+        const num = parseInt(order.bill_number.replace(/\D/g, ''), 10);
+        if (!isNaN(num)) {
+          highestBillVal = Math.max(highestBillVal, num);
+        }
+      }
+    }
+
+    // Load KOT tickets for all open orders once on startup to extract the highest KOT number
+    const startOrderIds = allOrders.map((o) => o.id);
+    const startKotsResult = await fetchKotTicketsForOrders(startOrderIds);
+    const startKotsMap = startKotsResult.data ?? {};
+    const kotNumbersByOrderId: Record<string, string[]> = {};
+
+    for (const [orderId, tickets] of Object.entries(startKotsMap)) {
+      const numsList: string[] = [];
+      for (const t of tickets) {
+        numsList.push(t.kot_number);
+        const num = parseInt(t.kot_number.replace(/\D/g, ''), 10);
+        if (!isNaN(num)) {
+          highestKotVal = Math.max(highestKotVal, num);
+        }
+      }
+      kotNumbersByOrderId[orderId] = numsList;
+    }
+
+    // Bootstrap local sequences registry dynamically
+    bootstrapSequenceRegistry(highestKotVal, highestBillVal);
+
     set({
       orders,
       heldOrders,
       itemCountByOrderId,
+      kotNumbersByOrderId,
       isLoadingOrders: false,
       error: null,
     });
@@ -242,6 +283,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem('grovit_active_order_id', orderId);
     }
+
+    // Fetch KOT numbers for the selected order dynamically
+    const kotResult = await fetchKotTicketsForOrders([orderId]);
+    const orderKots = (kotResult.data ?? {})[orderId] ?? [];
+    const kotNumbers = orderKots.map(k => k.kot_number);
+
     set((state) => {
       const exists = state.orders.some((o) => o.id === orderId);
       const updatedOrders = exists
@@ -251,6 +298,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         orders: updatedOrders,
         activeOrderId: orderId,
         activeOrderItems,
+        kotNumbersByOrderId: {
+          ...state.kotNumbersByOrderId,
+          [orderId]: kotNumbers,
+        },
         isLoadingActiveOrder: false,
         isEditingUnpaid: false,
         hasUnsavedChanges: false,
@@ -694,15 +745,57 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     set({ isMutating: true, error: null });
 
-    if (activeOrder.status === 'unpaid') {
-      set({
-        isEditingUnpaid: false,
-        hasUnsavedChanges: false,
-        isMutating: false,
-      });
-      return true;
+    // Retrieve all existing KotTickets associated with the activeOrderId
+    const kotsResult = await fetchKotTicketsForOrders([activeOrderId]);
+    const existingTickets = (kotsResult.data ?? {})[activeOrderId] ?? [];
+
+    // Calculate cumulative quantity of each product already sent in previous KOTs
+    const alreadySentQty: Record<string, number> = {};
+    for (const ticket of existingTickets) {
+      try {
+        const parsedItems = JSON.parse(ticket.items_snapshot) as { product_id: string; name: string; quantity: number }[];
+        for (const item of parsedItems) {
+          alreadySentQty[item.product_id] = (alreadySentQty[item.product_id] ?? 0) + item.quantity;
+        }
+      } catch (err) {
+        console.warn('[Grovit] Error parsing items snapshot:', err);
+      }
     }
 
+    // Compare current cart items and apply negative protection
+    const itemsToSend: { product_id: string; name: string; quantity: number }[] = [];
+    for (const cartItem of snapshot.activeOrderItems) {
+      const previouslySent = alreadySentQty[cartItem.product_id] ?? 0;
+      const unsentQty = Math.max(0, cartItem.qty - previouslySent);
+      if (unsentQty > 0) {
+        itemsToSend.push({
+          product_id: cartItem.product_id,
+          name: cartItem.product_name || cartItem.item_name,
+          quantity: unsentQty,
+        });
+      }
+    }
+
+    // Diff Detection: Block KOT if no changes
+    if (itemsToSend.length === 0) {
+      set({
+        isMutating: false,
+        error: 'No changes since last KOT.',
+      });
+      return false;
+    }
+
+    // Dispatch KOT Ticket
+    const createResult = await createKotTicket(activeOrderId, itemsToSend);
+    if (createResult.error || !createResult.data) {
+      set({
+        isMutating: false,
+        error: createResult.error ?? 'Unable to save kitchen ticket.',
+      });
+      return false;
+    }
+
+    const newTicket = createResult.data;
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
 
     const { tenant_id, branch_id } = getTenantContext();
@@ -722,6 +815,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return false;
     }
 
+    const existingKotNumbers = snapshot.kotNumbersByOrderId[activeOrderId] ?? [];
+    const nextKotNumbers = [...existingKotNumbers, newTicket.kot_number];
+
     if (wasDraft) {
       console.log('[useOrdersStore] saveKot: draft order transitioned to unpaid. Resetting cart to empty draft workspace.');
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -731,6 +827,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         orders: state.orders.map((o) =>
           o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
         ),
+        kotNumbersByOrderId: {
+          ...state.kotNumbersByOrderId,
+          [activeOrderId]: nextKotNumbers,
+        },
         activeOrderId: null,
         activeOrderItems: [],
         isWorkspaceEmpty: true,
@@ -743,6 +843,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         orders: state.orders.map((o) =>
           o.id === activeOrderId ? { ...o, status: 'unpaid' as const } : o
         ),
+        kotNumbersByOrderId: {
+          ...state.kotNumbersByOrderId,
+          [activeOrderId]: nextKotNumbers,
+        },
         isEditingUnpaid: false,
         hasUnsavedChanges: false,
         isMutating: false,
@@ -771,11 +875,13 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const { tenant_id, branch_id } = getTenantContext();
     const paidAt = new Date().toISOString();
+    const generatedBillNumber = getNextBillNumber();
     const { error } = await supabase
       .from('open_orders')
       .update({
         status: 'paid',
         paid_at: paidAt,
+        bill_number: generatedBillNumber,
       })
       .eq('id', activeOrderId)
       .eq('tenant_id', tenant_id)

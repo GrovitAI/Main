@@ -53,10 +53,18 @@ function formatAmount(amount: number): string {
 // ─── Bill identifier ──────────────────────────────────────────────────────────
 
 export function getBillIdentifier(summary: OpenOrderSummary, orderIndex: number): string {
-  const { order } = summary;
+  const { order, kotNumbers } = summary;
+  if (order.status === 'paid' || order.status === 'completed') {
+    return order.bill_number ? `Bill #${order.bill_number.replace('BILL-', '')}` : `Bill #${orderIndex + 1}`;
+  }
   if (order.status === 'draft') return 'Working Draft';
-  if (order.bill_number) return `Bill #${order.bill_number}`;
-  if (order.kot_number) return `KOT #${order.kot_number}`;
+  if (order.status === 'held') return 'Held Order';
+
+  if (kotNumbers && kotNumbers.length > 0) {
+    const kotsStr = kotNumbers.map(n => n.replace('KOT-', '#')).join(' · ');
+    return `KOT ${kotsStr}`;
+  }
+
   if (order.token_number) return `Token #${order.token_number}`;
   return `Order #${orderIndex + 1}`;
 }
@@ -79,7 +87,7 @@ export const OrderCard = memo(function OrderCard({
   onOpenBill,
   onViewOrder,
 }: OrderCardProps) {
-  const { order, previewItems, remainingItemLines, itemCount, totalAmount } = summary;
+  const { order, previewItems, remainingItemLines, itemCount, totalAmount, kotNumbers } = summary;
   const statusConfig = getStatusConfig(order.status);
   const billId = getBillIdentifier(summary, orderIndex);
   const elapsed = getElapsedLabel(order.created_at);
@@ -143,11 +151,20 @@ export const OrderCard = memo(function OrderCard({
                 style={{ fontSize: 11.5, fontWeight: '600', color: '#64748B', marginTop: 1.5 }}
                 numberOfLines={1}
               >
-                {order.status === 'draft' ? 'Anonymous Cart' : (order.status === 'held' ? 'Held Order' : `Order #${orderIndex + 1}`)}
+                {order.status === 'draft'
+                  ? 'Current Cart'
+                  : order.status === 'held'
+                    ? (order.order_name || 'Takeaway')
+                    : (order.status === 'paid' || order.status === 'completed')
+                      ? (kotNumbers && kotNumbers.length > 0
+                        ? `KOT ${kotNumbers.map(n => n.replace('KOT-', '#')).join(' · ')}`
+                        : `Order #${orderIndex + 1}`)
+                      : (order.order_name || 'Takeaway')
+                }
               </Text>
             </View>
 
-            {order.status !== 'draft' && (
+            {order.status !== 'draft' && order.status !== 'held' && (
               <View style={{ alignItems: 'flex-end' }}>
                 <Text
                   style={{ fontSize: 12, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}

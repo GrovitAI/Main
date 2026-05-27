@@ -29,9 +29,16 @@ export type OpenOrder = {
   notes?: string | null;
 
   // Numbering readiness fields (Phase 1A.5)
-  kot_number?: string | null;
-  bill_number?: string | null;
+  bill_number?: string | null;  // Finalized sequentially only upon successful settlement
   internal_order_number?: string | null;
+};
+
+export type KotTicket = {
+  id: string;
+  order_id: string;
+  kot_number: string;
+  created_at: string;
+  items_snapshot: string; // JSON string of { name: string; quantity: number }[]
 };
 
 export type OpenOrderItem = {

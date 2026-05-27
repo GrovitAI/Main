@@ -1,4 +1,4 @@
-import type { OpenOrder, OpenOrderItem, OpenOrderWithItems } from './order-types';
+import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket } from './order-types';
 import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
@@ -35,6 +35,7 @@ export type OpenOrderSummary = {
   previewItems: OrderItemPreview[];
   remainingItemLines: number;
   totalAmount: number;
+  kotNumbers?: string[];
 };
 
 type OpenOrderRow = OpenOrder & {
@@ -71,6 +72,176 @@ async function fetchProductNameMap(
     nameMap[row.id as string] = row.name as string;
   }
   return nameMap;
+}
+
+// ─── KOT & Sequence Local Fallback Persistence ──────────────────────────────────
+
+export type LocalSequences = {
+  kot_sequence: number;
+  bill_sequence: number;
+};
+
+let localKotTickets: KotTicket[] = [];
+let localSequences: LocalSequences = {
+  kot_sequence: 0,
+  bill_sequence: 0,
+};
+
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    const cachedKots = window.localStorage.getItem('grovit_local_kot_tickets');
+    if (cachedKots) {
+      localKotTickets = JSON.parse(cachedKots);
+    }
+    const cachedSeqs = window.localStorage.getItem('grovit_local_sequences');
+    if (cachedSeqs) {
+      localSequences = JSON.parse(cachedSeqs);
+    }
+  } catch (err) {
+    console.warn('[Grovit] Error loading cached fallback states:', err);
+  }
+}
+
+function saveLocalKotTickets() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('grovit_local_kot_tickets', JSON.stringify(localKotTickets));
+  }
+}
+
+function saveLocalSequences() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem('grovit_local_sequences', JSON.stringify(localSequences));
+  }
+}
+
+// ─── Monotonic Sequence Generators ──────────────────────────────────────────────
+
+export function bootstrapSequenceRegistry(highestKot: number, highestBill: number): void {
+  localSequences.kot_sequence = Math.max(localSequences.kot_sequence, highestKot);
+  localSequences.bill_sequence = Math.max(localSequences.bill_sequence, highestBill);
+  saveLocalSequences();
+  console.log('[Grovit SequenceRegistry] Bootstrapped:', localSequences);
+}
+
+export function getNextKotNumber(): string {
+  localSequences.kot_sequence += 1;
+  saveLocalSequences();
+  const padded = String(localSequences.kot_sequence).padStart(3, '0');
+  return `KOT-${padded}`;
+}
+
+export function getNextBillNumber(): string {
+  localSequences.bill_sequence += 1;
+  saveLocalSequences();
+  const padded = String(localSequences.bill_sequence).padStart(4, '0');
+  return `BILL-${padded}`;
+}
+
+// ─── KOT Tickets Service API ───────────────────────────────────────────────────
+
+export async function fetchKotTicketsForOrders(
+  orderIds: string[],
+): Promise<ServiceResult<Record<string, KotTicket[]>>> {
+  try {
+    if (orderIds.length === 0) {
+      return { data: {}, error: null };
+    }
+
+    // Try Supabase first
+    const { data, error } = await supabase
+      .from('kot_tickets')
+      .select('*')
+      .in('order_id', orderIds)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+        const map: Record<string, KotTicket[]> = {};
+        for (const ticket of localKotTickets) {
+          if (orderIds.includes(ticket.order_id)) {
+            const list = map[ticket.order_id] ?? [];
+            list.push(ticket);
+            map[ticket.order_id] = list;
+          }
+        }
+        return { data: map, error: null };
+      }
+      logSupabaseError('fetchKotTicketsForOrders', error);
+      return { data: null, error: 'Unable to load kitchen tickets.' };
+    }
+
+    const map: Record<string, KotTicket[]> = {};
+    for (const row of data ?? []) {
+      const ticket = row as KotTicket;
+      const list = map[ticket.order_id] ?? [];
+      list.push(ticket);
+      map[ticket.order_id] = list;
+    }
+
+    return { data: map, error: null };
+  } catch (err) {
+    const map: Record<string, KotTicket[]> = {};
+    for (const ticket of localKotTickets) {
+      if (orderIds.includes(ticket.order_id)) {
+        const list = map[ticket.order_id] ?? [];
+        list.push(ticket);
+        map[ticket.order_id] = list;
+      }
+    }
+    return { data: map, error: null };
+  }
+}
+
+export async function createKotTicket(
+  orderId: string,
+  items: { name: string; quantity: number }[],
+): Promise<ServiceResult<KotTicket>> {
+  try {
+    const nextNumber = getNextKotNumber();
+    const newTicket: KotTicket = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      order_id: orderId,
+      kot_number: nextNumber,
+      created_at: new Date().toISOString(),
+      items_snapshot: JSON.stringify(items),
+    };
+
+    const { data, error } = await supabase
+      .from('kot_tickets')
+      .insert({
+        id: newTicket.id,
+        order_id: newTicket.order_id,
+        kot_number: newTicket.kot_number,
+        created_at: newTicket.created_at,
+        items_snapshot: newTicket.items_snapshot,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+        localKotTickets.push(newTicket);
+        saveLocalKotTickets();
+        return { data: newTicket, error: null };
+      }
+      logSupabaseError('createKotTicket', error);
+      return { data: null, error: 'Unable to save kitchen ticket.' };
+    }
+
+    return { data: data as KotTicket, error: null };
+  } catch {
+    const nextNumber = getNextKotNumber();
+    const newTicket: KotTicket = {
+      id: `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      order_id: orderId,
+      kot_number: nextNumber,
+      created_at: new Date().toISOString(),
+      items_snapshot: JSON.stringify(items),
+    };
+    localKotTickets.push(newTicket);
+    saveLocalKotTickets();
+    return { data: newTicket, error: null };
+  }
 }
 
 export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>> {
@@ -139,10 +310,15 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
         (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
     }
 
+    const kotResult = await fetchKotTicketsForOrders(orderIds);
+    const kotsMap = kotResult.data ?? {};
+
     const summaries: OpenOrderSummary[] = openOrders.map((order) => {
       const orderItems = itemsByOrderId[order.id] ?? [];
       const previewItems = orderItems.slice(0, 3);
       const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
+      const orderKots = kotsMap[order.id] ?? [];
+      const kotNumbers = orderKots.map(k => k.kot_number);
 
       return {
         order,
@@ -151,6 +327,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
         previewItems,
         remainingItemLines,
         totalAmount: 0, // getOpenOrders does not fetch prices
+        kotNumbers,
       };
     });
 
@@ -633,10 +810,15 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
       totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + item.qty * (item.price ?? 0);
     }
 
+    const kotResult = await fetchKotTicketsForOrders(orderIds);
+    const kotsMap = kotResult.data ?? {};
+
     const summaries: OpenOrderSummary[] = allOrders.map((order) => {
       const orderItems = itemsByOrderId[order.id] ?? [];
       const previewItems = orderItems.slice(0, 3);
       const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
+      const orderKots = kotsMap[order.id] ?? [];
+      const kotNumbers = orderKots.map(k => k.kot_number);
 
       return {
         order,
@@ -645,6 +827,7 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
         previewItems,
         remainingItemLines,
         totalAmount: totalAmountByOrderId[order.id] ?? 0,
+        kotNumbers,
       };
     });
 
@@ -671,11 +854,14 @@ export async function settleOrderById(orderId: string): Promise<ServiceResult<Op
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const paidAt = new Date().toISOString();
+    const generatedBillNumber = getNextBillNumber();
+
     const { data, error } = await supabase
       .from('open_orders')
       .update({
         status: 'paid',
         paid_at: paidAt,
+        bill_number: generatedBillNumber,
       })
       .eq('id', orderId)
       .eq('tenant_id', tenant_id)

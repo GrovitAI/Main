@@ -63,11 +63,11 @@ function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
 function matchesSearch(summary: OpenOrderSummary, query: string): boolean {
   if (!query) return true;
   const q = query.toLowerCase().trim();
-  const { order, previewItems } = summary;
+  const { order, previewItems, kotNumbers } = summary;
 
   if (order.id.toLowerCase().includes(q)) return true;
   if (order.bill_number && String(order.bill_number).toLowerCase().includes(q)) return true;
-  if (order.kot_number && String(order.kot_number).toLowerCase().includes(q)) return true;
+  if (kotNumbers && kotNumbers.some((num) => num.toLowerCase().includes(q))) return true;
   if (order.token_number && String(order.token_number).toLowerCase().includes(q)) return true;
   if (order.order_name && order.order_name.toLowerCase().includes(q)) return true;
   if (previewItems.some((item) => item.name.toLowerCase().includes(q))) return true;
