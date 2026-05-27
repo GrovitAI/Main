@@ -33,12 +33,24 @@ export type OpenOrder = {
   internal_order_number?: string | null;
 };
 
+export type KotTicketItem = {
+  id: string;
+  kot_id: string;
+  item_name: string;
+  qty: number;
+  notes: string | null;
+};
+
 export type KotTicket = {
   id: string;
-  order_id: string;
-  kot_number: string;
+  tenant_id: string;
+  branch_id: string;
+  open_order_id: string;
+  kot_number: number;
+  status: string;
+  printed_at: string | null;
   created_at: string;
-  items_snapshot: string; // JSON string of { name: string; quantity: number }[]
+  kot_items?: KotTicketItem[];
 };
 
 export type OpenOrderItem = {

@@ -1,4 +1,4 @@
-import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket } from './order-types';
+import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket, KotTicketItem } from './order-types';
 import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
@@ -35,7 +35,7 @@ export type OpenOrderSummary = {
   previewItems: OrderItemPreview[];
   remainingItemLines: number;
   totalAmount: number;
-  kotNumbers?: string[];
+  kotNumbers?: number[];
 };
 
 type OpenOrderRow = OpenOrder & {
@@ -123,11 +123,10 @@ export function bootstrapSequenceRegistry(highestKot: number, highestBill: numbe
   console.log('[Grovit SequenceRegistry] Bootstrapped:', localSequences);
 }
 
-export function getNextKotNumber(): string {
+export function getNextKotNumber(): number {
   localSequences.kot_sequence += 1;
   saveLocalSequences();
-  const padded = String(localSequences.kot_sequence).padStart(3, '0');
-  return `KOT-${padded}`;
+  return localSequences.kot_sequence;
 }
 
 export function getNextBillNumber(): string {
@@ -137,9 +136,9 @@ export function getNextBillNumber(): string {
   return `BILL-${padded}`;
 }
 
-// ─── KOT Tickets Service API ───────────────────────────────────────────────────
+// ─── KOT Service API ───────────────────────────────────────────────────────────
 
-export async function fetchKotTicketsForOrders(
+export async function fetchKotsForOrders(
   orderIds: string[],
 ): Promise<ServiceResult<Record<string, KotTicket[]>>> {
   try {
@@ -147,96 +146,149 @@ export async function fetchKotTicketsForOrders(
       return { data: {}, error: null };
     }
 
+    const { tenant_id, branch_id } = getTenantContext();
+
     // Try Supabase first
     const { data, error } = await supabase
-      .from('kot_tickets')
-      .select('*')
-      .in('order_id', orderIds)
+      .from('kots')
+      .select('*, kot_items(*)')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .in('open_order_id', orderIds)
       .order('created_at', { ascending: true });
 
     if (error) {
       if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
         const map: Record<string, KotTicket[]> = {};
         for (const ticket of localKotTickets) {
-          if (orderIds.includes(ticket.order_id)) {
-            const list = map[ticket.order_id] ?? [];
+          if (orderIds.includes(ticket.open_order_id)) {
+            const list = map[ticket.open_order_id] ?? [];
             list.push(ticket);
-            map[ticket.order_id] = list;
+            map[ticket.open_order_id] = list;
           }
         }
         return { data: map, error: null };
       }
-      logSupabaseError('fetchKotTicketsForOrders', error);
+      logSupabaseError('fetchKotsForOrders', error);
       return { data: null, error: 'Unable to load kitchen tickets.' };
     }
 
     const map: Record<string, KotTicket[]> = {};
     for (const row of data ?? []) {
       const ticket = row as KotTicket;
-      const list = map[ticket.order_id] ?? [];
+      const list = map[ticket.open_order_id] ?? [];
       list.push(ticket);
-      map[ticket.order_id] = list;
+      map[ticket.open_order_id] = list;
     }
 
     return { data: map, error: null };
   } catch (err) {
     const map: Record<string, KotTicket[]> = {};
     for (const ticket of localKotTickets) {
-      if (orderIds.includes(ticket.order_id)) {
-        const list = map[ticket.order_id] ?? [];
+      if (orderIds.includes(ticket.open_order_id)) {
+        const list = map[ticket.open_order_id] ?? [];
         list.push(ticket);
-        map[ticket.order_id] = list;
+        map[ticket.open_order_id] = list;
       }
     }
     return { data: map, error: null };
   }
 }
 
-export async function createKotTicket(
+export async function createKot(
   orderId: string,
-  items: { name: string; quantity: number }[],
+  items: { name: string; quantity: number; notes?: string | null }[],
 ): Promise<ServiceResult<KotTicket>> {
   try {
+    const { tenant_id, branch_id } = getTenantContext();
     const nextNumber = getNextKotNumber();
-    const newTicket: KotTicket = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      order_id: orderId,
-      kot_number: nextNumber,
-      created_at: new Date().toISOString(),
-      items_snapshot: JSON.stringify(items),
-    };
 
-    const { data, error } = await supabase
-      .from('kot_tickets')
+    // 1. Insert KOT master row
+    const { data: kotData, error: kotError } = await supabase
+      .from('kots')
       .insert({
-        id: newTicket.id,
-        order_id: newTicket.order_id,
-        kot_number: newTicket.kot_number,
-        created_at: newTicket.created_at,
-        items_snapshot: newTicket.items_snapshot,
+        tenant_id,
+        branch_id,
+        open_order_id: orderId,
+        kot_number: nextNumber,
+        status: 'pending',
       })
       .select('*')
       .single();
 
-    if (error) {
-      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
+    if (kotError) {
+      if (kotError.code === '42P01' || kotError.message?.toLowerCase().includes('does not exist')) {
+        const kotUuid = `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const newTicket: KotTicket = {
+          id: kotUuid,
+          tenant_id,
+          branch_id,
+          open_order_id: orderId,
+          kot_number: nextNumber,
+          status: 'pending',
+          printed_at: null,
+          created_at: new Date().toISOString(),
+          kot_items: items.map((item) => ({
+            id: `kot-item-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            kot_id: kotUuid,
+            item_name: item.name,
+            qty: item.quantity,
+            notes: item.notes || null,
+          })),
+        };
         localKotTickets.push(newTicket);
         saveLocalKotTickets();
         return { data: newTicket, error: null };
       }
-      logSupabaseError('createKotTicket', error);
+      logSupabaseError('createKot.kots', kotError);
       return { data: null, error: 'Unable to save kitchen ticket.' };
     }
 
-    return { data: data as KotTicket, error: null };
-  } catch {
+    const createdKot = kotData as KotTicket;
+    const kotId = createdKot.id;
+
+    // 2. Insert KOT items rows
+    const itemsToInsert = items.map((item) => ({
+      kot_id: kotId,
+      item_name: item.name,
+      qty: item.quantity,
+      notes: item.notes || null,
+    }));
+
+    const { data: itemsData, error: itemsError } = await supabase
+      .from('kot_items')
+      .insert(itemsToInsert)
+      .select('*');
+
+    if (itemsError) {
+      logSupabaseError('createKot.kot_items', itemsError);
+      // Clean up KOT master row if items insert failed
+      await supabase.from('kots').delete().eq('id', kotId);
+      return { data: null, error: 'Unable to save kitchen ticket items.' };
+    }
+
+    createdKot.kot_items = itemsData as KotTicketItem[];
+    return { data: createdKot, error: null };
+  } catch (err) {
+    const { tenant_id, branch_id } = getTenantContext();
     const nextNumber = getNextKotNumber();
+    const kotUuid = `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const newTicket: KotTicket = {
-      id: `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      order_id: orderId,
+      id: kotUuid,
+      tenant_id,
+      branch_id,
+      open_order_id: orderId,
       kot_number: nextNumber,
+      status: 'pending',
+      printed_at: null,
       created_at: new Date().toISOString(),
-      items_snapshot: JSON.stringify(items),
+      kot_items: items.map((item) => ({
+        id: `kot-item-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        kot_id: kotUuid,
+        item_name: item.name,
+        qty: item.quantity,
+        notes: item.notes || null,
+      })),
     };
     localKotTickets.push(newTicket);
     saveLocalKotTickets();
@@ -310,7 +362,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
         (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
     }
 
-    const kotResult = await fetchKotTicketsForOrders(orderIds);
+    const kotResult = await fetchKotsForOrders(orderIds);
     const kotsMap = kotResult.data ?? {};
 
     const summaries: OpenOrderSummary[] = openOrders.map((order) => {
@@ -810,7 +862,7 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
       totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + item.qty * (item.price ?? 0);
     }
 
-    const kotResult = await fetchKotTicketsForOrders(orderIds);
+    const kotResult = await fetchKotsForOrders(orderIds);
     const kotsMap = kotResult.data ?? {};
 
     const summaries: OpenOrderSummary[] = allOrders.map((order) => {

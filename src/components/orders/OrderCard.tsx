@@ -61,7 +61,7 @@ export function getBillIdentifier(summary: OpenOrderSummary, orderIndex: number)
   if (order.status === 'held') return 'Held Order';
 
   if (kotNumbers && kotNumbers.length > 0) {
-    const kotsStr = kotNumbers.map(n => n.replace('KOT-', '#')).join(' · ');
+    const kotsStr = kotNumbers.map(n => `#${n}`).join(' · ');
     return `KOT ${kotsStr}`;
   }
 
@@ -157,7 +157,7 @@ export const OrderCard = memo(function OrderCard({
                     ? (order.order_name || 'Takeaway')
                     : (order.status === 'paid' || order.status === 'completed')
                       ? (kotNumbers && kotNumbers.length > 0
-                        ? `KOT ${kotNumbers.map(n => n.replace('KOT-', '#')).join(' · ')}`
+                        ? `KOT ${kotNumbers.map(n => `#${n}`).join(' · ')}`
                         : `Order #${orderIndex + 1}`)
                       : (order.order_name || 'Takeaway')
                 }

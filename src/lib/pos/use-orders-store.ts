@@ -14,8 +14,8 @@ import {
   clearOpenOrderItems,
   holdOpenOrder,
   resumeHeldOrder,
-  fetchKotTicketsForOrders,
-  createKotTicket,
+  fetchKotsForOrders,
+  createKot,
   bootstrapSequenceRegistry,
   getNextBillNumber,
 } from './open-orders-service';
@@ -29,7 +29,7 @@ type OrdersState = {
   activeOrderId: string | null;
   activeOrderItems: PosOrderItem[];
   itemCountByOrderId: Record<string, number>;
-  kotNumbersByOrderId: Record<string, string[]>;
+  kotNumbersByOrderId: Record<string, number[]>;
   productNameById: Record<string, string>;
   isLoadingOrders: boolean;
   isLoadingActiveOrder: boolean;
@@ -137,18 +137,15 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     // Load KOT tickets for all open orders once on startup to extract the highest KOT number
     const startOrderIds = allOrders.map((o) => o.id);
-    const startKotsResult = await fetchKotTicketsForOrders(startOrderIds);
+    const startKotsResult = await fetchKotsForOrders(startOrderIds);
     const startKotsMap = startKotsResult.data ?? {};
-    const kotNumbersByOrderId: Record<string, string[]> = {};
+    const kotNumbersByOrderId: Record<string, number[]> = {};
 
     for (const [orderId, tickets] of Object.entries(startKotsMap)) {
-      const numsList: string[] = [];
+      const numsList: number[] = [];
       for (const t of tickets) {
         numsList.push(t.kot_number);
-        const num = parseInt(t.kot_number.replace(/\D/g, ''), 10);
-        if (!isNaN(num)) {
-          highestKotVal = Math.max(highestKotVal, num);
-        }
+        highestKotVal = Math.max(highestKotVal, t.kot_number);
       }
       kotNumbersByOrderId[orderId] = numsList;
     }
@@ -285,7 +282,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     // Fetch KOT numbers for the selected order dynamically
-    const kotResult = await fetchKotTicketsForOrders([orderId]);
+    const kotResult = await fetchKotsForOrders([orderId]);
     const orderKots = (kotResult.data ?? {})[orderId] ?? [];
     const kotNumbers = orderKots.map(k => k.kot_number);
 
@@ -746,31 +743,27 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     set({ isMutating: true, error: null });
 
     // Retrieve all existing KotTickets associated with the activeOrderId
-    const kotsResult = await fetchKotTicketsForOrders([activeOrderId]);
+    const kotsResult = await fetchKotsForOrders([activeOrderId]);
     const existingTickets = (kotsResult.data ?? {})[activeOrderId] ?? [];
 
     // Calculate cumulative quantity of each product already sent in previous KOTs
     const alreadySentQty: Record<string, number> = {};
     for (const ticket of existingTickets) {
-      try {
-        const parsedItems = JSON.parse(ticket.items_snapshot) as { product_id: string; name: string; quantity: number }[];
-        for (const item of parsedItems) {
-          alreadySentQty[item.product_id] = (alreadySentQty[item.product_id] ?? 0) + item.quantity;
-        }
-      } catch (err) {
-        console.warn('[Grovit] Error parsing items snapshot:', err);
+      const ticketItems = ticket.kot_items ?? [];
+      for (const item of ticketItems) {
+        alreadySentQty[item.item_name] = (alreadySentQty[item.item_name] ?? 0) + item.qty;
       }
     }
 
     // Compare current cart items and apply negative protection
-    const itemsToSend: { product_id: string; name: string; quantity: number }[] = [];
+    const itemsToSend: { name: string; quantity: number }[] = [];
     for (const cartItem of snapshot.activeOrderItems) {
-      const previouslySent = alreadySentQty[cartItem.product_id] ?? 0;
+      const itemName = cartItem.product_name || cartItem.item_name;
+      const previouslySent = alreadySentQty[itemName] ?? 0;
       const unsentQty = Math.max(0, cartItem.qty - previouslySent);
       if (unsentQty > 0) {
         itemsToSend.push({
-          product_id: cartItem.product_id,
-          name: cartItem.product_name || cartItem.item_name,
+          name: itemName,
           quantity: unsentQty,
         });
       }
@@ -786,7 +779,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     // Dispatch KOT Ticket
-    const createResult = await createKotTicket(activeOrderId, itemsToSend);
+    const createResult = await createKot(activeOrderId, itemsToSend);
     if (createResult.error || !createResult.data) {
       set({
         isMutating: false,

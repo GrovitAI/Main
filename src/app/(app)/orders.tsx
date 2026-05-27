@@ -67,7 +67,7 @@ function matchesSearch(summary: OpenOrderSummary, query: string): boolean {
 
   if (order.id.toLowerCase().includes(q)) return true;
   if (order.bill_number && String(order.bill_number).toLowerCase().includes(q)) return true;
-  if (kotNumbers && kotNumbers.some((num) => num.toLowerCase().includes(q))) return true;
+  if (kotNumbers && kotNumbers.some((num) => String(num).toLowerCase().includes(q))) return true;
   if (order.token_number && String(order.token_number).toLowerCase().includes(q)) return true;
   if (order.order_name && order.order_name.toLowerCase().includes(q)) return true;
   if (previewItems.some((item) => item.name.toLowerCase().includes(q))) return true;
