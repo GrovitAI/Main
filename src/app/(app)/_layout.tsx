@@ -45,6 +45,17 @@ function getCurrentTabNameNormalized(segments: string[], pathname: string): AppT
   return 'index';
 }
 
+const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
+  index: '/',
+  orders: '/orders',
+  kitchen: '/kitchen',
+  finance: '/finance',
+  settings: '/settings',
+  dashboard: '/dashboard',
+  analytics: '/analytics',
+  billing: '/billing',
+};
+
 export default function AppTabLayout() {
   const roleTabs = getTabsForRole(CURRENT_ROLE);
   const initialRouteName = getInitialRouteNameForRole(CURRENT_ROLE);
@@ -117,11 +128,9 @@ export default function AppTabLayout() {
       }
 
       const targetTabName = activeTabNames[nextIndex];
-      const targetTabConfig = roleTabs.find(tab => tab.name === targetTabName);
-      if (targetTabConfig) {
-        console.log('[AppTabLayout] Navigating to tab:', targetTabName, 'via shortcut');
-        router.push(targetTabConfig.href as any);
-      }
+      const targetTabPath = TAB_ROUTE_MAP[targetTabName];
+      console.log('[AppTabLayout] Navigating to tab:', targetTabName, 'via path:', targetTabPath);
+      router.push(targetTabPath as any);
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown, true);
