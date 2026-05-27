@@ -151,22 +151,21 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
         />
       )}
 
-      {/* Sliding Top Glowing Highlighter Line */}
+      {/* Sliding Left Glowing Highlighter Line */}
       {tabLayouts[activeTabName] && (
         <Animated.View
           style={{
             position: 'absolute',
-            top: 0,
             left: slideAnim,
-            width: widthAnim,
-            height: 4,
+            top: 16,
+            width: 4,
+            height: 40,
             backgroundColor: colors.primary,
-            borderBottomLeftRadius: 4,
-            borderBottomRightRadius: 4,
+            borderRadius: 999,
             shadowColor: colors.primary,
-            shadowOffset: { width: 0, height: 2 },
+            shadowOffset: { width: -2, height: 0 },
             shadowOpacity: 0.35,
-            shadowRadius: 5,
+            shadowRadius: 4,
             elevation: 4,
             zIndex: 2,
           }}
