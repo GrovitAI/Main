@@ -176,14 +176,14 @@ export function MenuManagement() {
     };
 
     if (Platform.OS === 'web') {
-      const confirmWeb = window.confirm(`Archive "${product.name}"? It will be removed from POS billing and lists.`);
+      const confirmWeb = window.confirm(`Archive “${product.name}”?\n\nThis product will disappear from POS\nbut remain in sales history.`);
       if (confirmWeb) {
         executeArchive();
       }
     } else {
       Alert.alert(
-        'Archive Product?',
-        `Are you sure you want to archive "${product.name}"? This will hide it from the POS cashier panel and menu list.`,
+        `Archive “${product.name}”?`,
+        `This product will disappear from POS\nbut remain in sales history.`,
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Archive', style: 'destructive', onPress: executeArchive },

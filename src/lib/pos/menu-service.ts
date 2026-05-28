@@ -47,7 +47,6 @@ export async function toggleProductAvailability(
       .from('products')
       .update({
         is_available: nextStatus,
-        updated_at: new Date().toISOString(),
       })
       .eq('id', productId)
       .eq('tenant_id', tenant_id)
@@ -82,7 +81,6 @@ export async function addProduct(
       category_id: input.category_id,
       is_available: input.is_available,
       is_active: true,
-      updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
@@ -116,7 +114,6 @@ export async function updateProduct(
       price: Number(input.price),
       category_id: input.category_id,
       is_available: input.is_available,
-      updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
@@ -149,7 +146,6 @@ export async function archiveProduct(productId: string): Promise<ServiceResult<v
       .from('products')
       .update({
         is_active: false,
-        updated_at: new Date().toISOString(),
       })
       .eq('id', productId)
       .eq('tenant_id', tenant_id)

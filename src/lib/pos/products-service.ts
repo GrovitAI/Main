@@ -66,6 +66,7 @@ export async function getProducts(
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
       .eq('is_active', true)
+      .eq('is_available', true)
       .order('name', { ascending: true });
 
     if (categoryId) {
