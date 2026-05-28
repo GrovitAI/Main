@@ -518,24 +518,29 @@ export function MenuManagement() {
               const colorSchema = getCategoryColorSchema(item.category_id ?? '');
               const isInlineEditingPrice = inlinePriceId === item.id;
 
+              const isAvailable = item.is_available ?? false;
+              const containerClass = isAvailable 
+                ? 'bg-white border-l-[4px] border-l-emerald-500 border-t border-r border-b border-slate-100 shadow-xs' 
+                : 'bg-slate-50/80 border-l-[4px] border-l-amber-400 border-t border-r border-b border-slate-200/60 opacity-95';
+
               return (
-                <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2.5 bg-slate-50/60 border border-slate-100 rounded-xl hover:bg-slate-100/50 transition-all">
+                <View className={`flex-1 flex-row items-center justify-between p-3 mb-2.5 rounded-xl transition-all ${containerClass}`}>
                   
                   {/* Left Side Details */}
                   <View className="flex-1 mr-3">
                     <View className="flex-row items-center gap-1.5 flex-wrap">
-                      <Text className="font-bold text-text-primary text-sm select-all">{item.name}</Text>
+                      <Text className={`font-bold text-sm select-all ${isAvailable ? 'text-text-primary' : 'text-text-secondary/80'}`}>{item.name}</Text>
                       {category && (
-                        <View className={`px-1.5 py-0.5 rounded border ${colorSchema.bg}`}>
+                        <View className={`px-1.5 py-0.5 rounded-full border text-[9px] font-black tracking-wide ${colorSchema.bg}`}>
                           <Text className={`text-[9px] font-black tracking-wide ${colorSchema.text}`}>{category.name}</Text>
                         </View>
                       )}
                     </View>
 
                     {/* Compact Interactive Price Row */}
-                    <View className="flex-row items-center gap-2 mt-1 flex-wrap">
+                    <View className="flex-row items-center gap-2 mt-1.5 flex-wrap">
                       {isInlineEditingPrice ? (
-                        <View className="flex-row items-center gap-1 bg-white border border-border rounded-lg px-1.5" style={{ height: 26 }}>
+                        <View className="flex-row items-center gap-1 bg-white border border-primary/30 rounded-lg px-1.5" style={{ height: 26 }}>
                           <Text className="text-text-secondary text-[10px] font-extrabold">₹</Text>
                           <TextInput
                             value={inlinePriceValue}
@@ -564,17 +569,23 @@ export function MenuManagement() {
                             setInlinePriceId(item.id);
                             setInlinePriceValue(String(item.price));
                           }}
-                          className="flex-row items-center gap-0.5 bg-white border border-borderSoft px-2 py-0.5 rounded-lg hover:bg-slate-100"
+                          className={`flex-row items-center gap-1 border px-2.5 py-0.5 rounded-lg transition-all ${
+                            isAvailable 
+                              ? 'bg-primary/5 border-primary/10 active:bg-primary/10' 
+                              : 'bg-slate-100 border-slate-200'
+                          }`}
                         >
-                          <Text className="text-[10px] text-text-secondary font-medium">Price:</Text>
-                          <Text className="text-primary font-black text-[10px] font-mono">₹{item.price}</Text>
+                          <Text className="text-[10px] text-text-secondary font-bold">₹{item.price}</Text>
                           <Text className="text-[9px] text-primaryLight font-bold underline ml-0.5">Edit</Text>
                         </Pressable>
                       )}
 
-                      <Text className={`text-[9px] font-black tracking-wider uppercase ${item.is_available ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        {item.is_available ? 'ON' : 'OFF'}
-                      </Text>
+                      <View className={`px-2 py-0.5 rounded flex-row items-center gap-1 ${isAvailable ? 'bg-emerald-50' : 'bg-amber-50'}`}>
+                        <View className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                        <Text className={`text-[8px] font-black tracking-wider uppercase ${isAvailable ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {isAvailable ? 'ON' : 'OFF'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
@@ -582,19 +593,21 @@ export function MenuManagement() {
                   <View className="flex-row items-center gap-1.5">
                     
                     {/* Small touch target switch container (touch responsive minimum sizes) */}
-                    <View className="flex-row items-center gap-1 bg-white border border-border px-2 rounded-lg" style={{ height: 34 }}>
+                    <View className={`flex-row items-center gap-1 border px-1.5 rounded-lg transition-all ${
+                      isAvailable ? 'bg-emerald-50/20 border-emerald-100' : 'bg-slate-100/60 border-slate-200'
+                    }`} style={{ height: 34 }}>
                       <Switch
-                        value={item.is_available ?? false}
+                        value={isAvailable}
                         onValueChange={() => handleToggleAvailability(item)}
                         trackColor={{ false: '#cbd5e1', true: colors.accent }}
-                        thumbColor={item.is_available ? colors.primary : '#f4f3f4'}
+                        thumbColor={isAvailable ? colors.primary : '#f4f3f4'}
                         style={{ transform: [{ scale: 0.65 }] }}
                       />
                     </View>
 
                     {/* Compact Modal Edit button */}
                     <Pressable
-                      className="w-[34px] h-[34px] bg-white border border-border rounded-lg active:bg-slate-100 items-center justify-center shadow-xs"
+                      className="w-[34px] h-[34px] bg-slate-50 border border-slate-200 active:bg-slate-100 rounded-lg items-center justify-center shadow-xs"
                       onPress={() => handleOpenEdit(item)}
                     >
                       <Edit2 size={12} color={colors.textPrimary} />
