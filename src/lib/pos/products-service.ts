@@ -18,6 +18,7 @@ export type Product = {
   name: string;
   price: number;
   is_available: boolean | null;
+  is_active: boolean;
 };
 
 export async function getCategories(): Promise<ServiceResult<Category[]>> {
@@ -64,6 +65,7 @@ export async function getProducts(
       .select('*')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
+      .eq('is_active', true)
       .order('name', { ascending: true });
 
     if (categoryId) {
