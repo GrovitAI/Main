@@ -663,7 +663,7 @@ export default function SettingsScreen() {
           </View>
         </>
       ) : (
-        <MenuManagement />
+        <MenuManagement onBack={() => setActiveTab('printers')} />
       )}
     </View>
   );

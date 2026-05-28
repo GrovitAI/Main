@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions } from 'react-native';
-import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ShieldAlert, Sparkles, Layers, SlidersHorizontal } from 'lucide-react-native';
+import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
@@ -21,10 +21,15 @@ const initialFormInput: ProductFormInput = {
 };
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'status-on' | 'status-off';
+type AvailabilityFilter = 'all' | 'available' | 'unavailable';
 
-export function MenuManagement() {
+type MenuManagementProps = {
+  onBack?: () => void;
+};
+
+export function MenuManagement({ onBack }: MenuManagementProps) {
   const { width } = useWindowDimensions();
-  const isWide = width >= 800; // Optimal desktop/tablet grid layout breakpoint
+  const isWide = width >= 1024; // Align columns based on wide desktop viewport
 
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -35,14 +40,22 @@ export function MenuManagement() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Search & Sorting state
+  // Search, Availability, & Sorting states
   const [searchQuery, setSearchQuery] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('name-asc');
+  
+  // Dropdown visibility states
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showAvailabilityDropdown, setShowAvailabilityDropdown] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
-
-  // Inline Quick Price Editing state
+  
+  // Inline Price Quick Edit states
   const [inlinePriceId, setInlinePriceId] = useState<string | null>(null);
   const [inlinePriceValue, setInlinePriceValue] = useState('');
+
+  // Three-dot Ellipsis active menus state
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   // Form Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,6 +98,7 @@ export function MenuManagement() {
   // One-click availability toggle with optimistic update & rollback
   const handleToggleAvailability = async (product: MenuProduct) => {
     const nextStatus = !product.is_available;
+    setActiveMenuId(null);
     
     // Optimistic UI Update
     setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_available: nextStatus } : p));
@@ -95,48 +109,6 @@ export function MenuManagement() {
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_available: product.is_available } : p));
       Alert.alert('Operation Failed', 'Unable to toggle product availability in database.');
     }
-  };
-
-  // Mass Toggle Category Availability Action (ON/OFF)
-  const handleMassToggleCategory = async (targetStatus: boolean) => {
-    const targetCategoryName = selectedCategoryId === 'all' 
-      ? 'All Products' 
-      : categories.find(c => c.id === selectedCategoryId)?.name ?? 'Selected';
-    
-    const triggerMassToggle = async () => {
-      setLoading(true);
-      
-      const categoryProducts = products.filter(p => {
-        if (selectedCategoryId === 'all') return true;
-        return p.category_id === selectedCategoryId;
-      });
-
-      try {
-        const updatePromises = categoryProducts.map(p => 
-          toggleProductAvailability(p.id, targetStatus)
-        );
-        
-        await Promise.all(updatePromises);
-        await loadData();
-        
-        setSuccess(`Set ${targetStatus ? 'ON' : 'OFF'} for all products in ${targetCategoryName}.`);
-        setTimeout(() => setSuccess(null), 3000);
-      } catch {
-        Alert.alert('Mass Action Failed', 'Some products failed to update.');
-        await loadData();
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    Alert.alert(
-      `Turn ${targetStatus ? 'ON' : 'OFF'} Category?`,
-      `Are you sure you want to set all active items in "${targetCategoryName}" as ${targetStatus ? 'Available' : 'Sold Out'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Proceed', style: 'default', onPress: triggerMassToggle }
-      ]
-    );
   };
 
   // Inline Quick Price Save
@@ -180,6 +152,7 @@ export function MenuManagement() {
 
   // Open Form for Editing
   const handleOpenEdit = (product: MenuProduct) => {
+    setActiveMenuId(null);
     setFormInput({
       id: product.id,
       name: product.name,
@@ -246,6 +219,7 @@ export function MenuManagement() {
 
   // Soft Delete / Archive with touch-safe warning
   const handleArchive = (product: MenuProduct) => {
+    setActiveMenuId(null);
     const executeArchive = async () => {
       setLoading(true);
       const res = await archiveProduct(product.id);
@@ -274,6 +248,27 @@ export function MenuManagement() {
     }
   };
 
+  // Helper for rendering high-quality category icons on visual thumbnails
+  const renderProductImage = (catId: string) => {
+    const defaultColor = 'bg-slate-100 border-slate-200';
+    if (!catId) return <View className={`w-12 h-12 rounded-xl justify-center items-center mr-3 border ${defaultColor}`}><Tag size={16} color={colors.textSecondary} /></View>;
+
+    const index = catId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4;
+    const icons = [
+      { bg: 'bg-emerald-50 border-emerald-100', icon: <Coffee size={18} color="#059669" /> },
+      { bg: 'bg-rose-50 border-rose-100', icon: <Sparkles size={18} color="#e11d48" /> },
+      { bg: 'bg-amber-50 border-amber-100', icon: <Layers size={18} color="#d97706" /> },
+      { bg: 'bg-violet-50 border-violet-100', icon: <Tag size={18} color="#7c3aed" /> },
+    ];
+
+    const schema = icons[index] ?? { bg: defaultColor, icon: <Tag size={18} color={colors.textSecondary} /> };
+    return (
+      <View className={`w-12 h-12 rounded-xl justify-center items-center mr-3 border ${schema.bg}`}>
+        {schema.icon}
+      </View>
+    );
+  };
+
   // Dynamic Category color-coding maps
   const getCategoryColorSchema = (catId: string) => {
     const defaultSchema = { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700' };
@@ -293,9 +288,21 @@ export function MenuManagement() {
   // Filter & Sort Logic
   const filteredAndSortedProducts = products
     .filter(p => {
+      // 1. Category selector pill filter
       const matchesCategory = selectedCategoryId === 'all' || p.category_id === selectedCategoryId;
+      
+      // 2. Search keyword filter
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-      return matchesCategory && matchesSearch;
+      
+      // 3. Availability Filter
+      let matchesAvailability = true;
+      if (availabilityFilter === 'available') {
+        matchesAvailability = p.is_available === true;
+      } else if (availabilityFilter === 'unavailable') {
+        matchesAvailability = p.is_available !== true;
+      }
+
+      return matchesCategory && matchesSearch && matchesAvailability;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -319,54 +326,102 @@ export function MenuManagement() {
   const totalCount = products.length;
   const activeCount = products.filter(p => p.is_available).length;
   const soldOutCount = totalCount - activeCount;
+  const categoryCount = categories.length;
 
   return (
-    <View className="flex-1 bg-white border border-border rounded-2xl p-4 shadow-sm">
-        
-        {/* 🏷️ Header with Integrated Compact Analytics Chips (Extremely Space Efficient!) */}
-        <View className="flex-row items-center justify-between border-b border-slate-100 pb-3 mb-3 flex-wrap gap-2">
-          <View className="flex-row items-center gap-2.5 flex-wrap">
-            <Layers size={18} color={colors.primary} />
-            <Text className="text-base font-black text-text-primary">Menu Catalog</Text>
-            
-            {/* Ultra-compact horizontal summary badges */}
-            <View className="flex-row gap-1.5 flex-wrap items-center">
-              <View className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md flex-row items-center gap-1">
-                <Text className="text-[10px] text-text-secondary font-bold">Total:</Text>
-                <Text className="text-[10px] text-text-primary font-black font-mono">{totalCount}</Text>
-              </View>
-
-              <View className="bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md flex-row items-center gap-1">
-                <Text className="text-[10px] text-emerald-600 font-bold">Active:</Text>
-                <Text className="text-[10px] text-emerald-700 font-black font-mono">{activeCount}</Text>
-              </View>
-
-              <View className="bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md flex-row items-center gap-1">
-                <Text className="text-[10px] text-amber-600 font-bold">Sold Out:</Text>
-                <Text className="text-[10px] text-amber-700 font-black font-mono">{soldOutCount}</Text>
-              </View>
-            </View>
+    <View className="flex-1 bg-surface-tint p-2 rounded-2xl">
+      
+      {/* 🚀 Header Area with Back button & "+ Add New Item" */}
+      <View className="flex-row items-center justify-between pb-4 mb-4 flex-wrap gap-2">
+        <View className="flex-row items-center gap-3">
+          {onBack && (
+            <Pressable
+              onPress={onBack}
+              className="w-10 h-10 bg-white border border-slate-200 rounded-xl items-center justify-center active:bg-slate-100 shadow-xs"
+              style={{ width: 40, height: 40 }}
+            >
+              <ArrowLeft size={16} color={colors.textPrimary} />
+            </Pressable>
+          )}
+          <View>
+            <Text className="text-xl font-black text-text-primary tracking-tight">Menu Management</Text>
+            <Text className="text-xs text-text-secondary mt-0.5">Manage your menu items, categories and availability</Text>
           </View>
-
-          <Pressable
-            className="flex-row items-center gap-1.5 px-4 py-2 rounded-xl bg-primary active:opacity-90 shadow-sm"
-            style={{ height: 36 }}
-            onPress={handleOpenAdd}
-          >
-            <Plus size={14} color="white" />
-            <Text className="text-white font-bold text-xs">Add Product</Text>
-          </Pressable>
         </View>
 
-        {/* 🔍 Space-Saving Compact Search & Filter Toolbar */}
-        <View className="flex-col md:flex-row gap-2 mb-3 items-stretch md:items-center">
+        <Pressable
+          className="flex-row items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary active:opacity-90 shadow-sm"
+          style={{ height: 42 }}
+          onPress={handleOpenAdd}
+        >
+          <Plus size={16} color="white" />
+          <Text className="text-white font-extrabold text-sm">Add New Item</Text>
+        </Pressable>
+      </View>
+
+      {/* 📊 4 Analytics Metrics Row */}
+      <View className="flex-row gap-4 mb-5 flex-wrap">
+        {/* Card 1: Total Items */}
+        <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
+          <View className="p-3 bg-blue-50/50 border border-blue-100 rounded-2xl">
+            <Coffee size={20} color={colors.primary} />
+          </View>
+          <View>
+            <Text className="text-text-secondary font-semibold text-xs">Total Items</Text>
+            <Text className="text-2xl font-black text-text-primary font-mono leading-none mt-1">{totalCount}</Text>
+            <Text className="text-[10px] text-text-secondary mt-1 font-medium">All menu items</Text>
+          </View>
+        </View>
+
+        {/* Card 2: Available */}
+        <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
+          <View className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-2xl">
+            <Check size={20} color="#10b981" />
+          </View>
+          <View>
+            <Text className="text-text-secondary font-semibold text-xs">Available</Text>
+            <Text className="text-2xl font-black text-emerald-600 font-mono leading-none mt-1">{activeCount}</Text>
+            <Text className="text-[10px] text-text-secondary mt-1 font-medium">Currently available</Text>
+          </View>
+        </View>
+
+        {/* Card 3: Unavailable */}
+        <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
+          <View className="p-3 bg-amber-50/50 border border-amber-100 rounded-2xl">
+            <EyeOff size={20} color="#f59e0b" />
+          </View>
+          <View>
+            <Text className="text-text-secondary font-semibold text-xs">Unavailable</Text>
+            <Text className="text-2xl font-black text-amber-500 font-mono leading-none mt-1">{soldOutCount}</Text>
+            <Text className="text-[10px] text-text-secondary mt-1 font-medium">Currently hidden</Text>
+          </View>
+        </View>
+
+        {/* Card 4: Categories */}
+        <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
+          <View className="p-3 bg-purple-50/50 border border-purple-100 rounded-2xl">
+            <Layers size={20} color="#8b5cf6" />
+          </View>
+          <View>
+            <Text className="text-text-secondary font-semibold text-xs">Categories</Text>
+            <Text className="text-2xl font-black text-purple-600 font-mono leading-none mt-1">{categoryCount}</Text>
+            <Text className="text-[10px] text-text-secondary mt-1 font-medium">Menu categories</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 🍽️ Main Catalog Board */}
+      <View className="flex-1 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+        
+        {/* 🔍 Wide Search & Dropdown Filters Bar */}
+        <View className="flex-col lg:flex-row gap-3 mb-4 items-stretch lg:items-center">
           {/* Search Box */}
-          <View className="flex-1 flex-row items-center bg-slate-50 border border-border rounded-xl px-2.5" style={{ height: 38 }}>
-            <Search size={14} color={colors.textSecondary} className="mr-1.5" />
+          <View className="flex-1 flex-row items-center bg-slate-50 border border-slate-200 rounded-xl px-3" style={{ height: 42 }}>
+            <Search size={14} color={colors.textSecondary} className="mr-2" />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search catalog..."
+              placeholder="Search menu items..."
               placeholderTextColor="#94a3b8"
               className="flex-1 text-text-primary text-xs font-semibold h-full"
             />
@@ -377,105 +432,186 @@ export function MenuManagement() {
             )}
           </View>
 
-          {/* Quick Sort Selector */}
-          <View className="flex-row gap-1.5 relative">
-            <Pressable
-              onPress={() => setShowSortDropdown(!showSortDropdown)}
-              className="flex-row items-center gap-1.5 px-3 rounded-xl border border-border bg-slate-50 active:bg-slate-100"
-              style={{ height: 38 }}
-            >
-              <ArrowUpDown size={12} color={colors.textSecondary} />
-              <Text className="text-text-primary text-[11px] font-bold">
-                Sort: {
-                  sortBy === 'name-asc' ? 'A-Z' :
-                  sortBy === 'name-desc' ? 'Z-A' :
-                  sortBy === 'price-asc' ? 'Price: Low' :
-                  sortBy === 'price-desc' ? 'Price: High' :
-                  sortBy === 'status-on' ? 'ON first' : 'OFF first'
-                }
-              </Text>
-            </Pressable>
+          {/* Filters dropdown triggers */}
+          <View className="flex-row gap-2 flex-wrap items-center">
+            {/* Category Dropdown */}
+            <View className="relative">
+              <Pressable
+                onPress={() => {
+                  setShowCategoryDropdown(!showCategoryDropdown);
+                  setShowAvailabilityDropdown(false);
+                  setShowSortDropdown(false);
+                }}
+                className="flex-row items-center justify-between gap-3 px-3 rounded-xl border border-slate-200 bg-white active:bg-slate-50"
+                style={{ height: 42, minWidth: 150 }}
+              >
+                <Text className="text-text-primary text-xs font-bold">
+                  {selectedCategoryId === 'all' ? 'All Categories' : categories.find(c => c.id === selectedCategoryId)?.name ?? 'Categories'}
+                </Text>
+                <ChevronDown size={14} color={colors.textSecondary} />
+              </Pressable>
 
-            {/* Dropdown Menu */}
-            {showSortDropdown && (
-              <View className="absolute right-0 top-10 z-50 bg-white border border-border shadow-lg rounded-xl p-1.5 w-[160px]">
-                {[
-                  { value: 'name-asc', label: 'Name: A to Z' },
-                  { value: 'name-desc', label: 'Name: Z to A' },
-                  { value: 'price-asc', label: 'Price: Low to High' },
-                  { value: 'price-desc', label: 'Price: High to Low' },
-                  { value: 'status-on', label: 'Available First' },
-                  { value: 'status-off', label: 'Sold Out First' },
-                ].map((opt) => {
-                  const isSelected = sortBy === opt.value;
-                  return (
+              {showCategoryDropdown && (
+                <View className="absolute right-0 top-12 z-50 bg-white border border-slate-200 shadow-lg rounded-xl p-1.5 w-[180px]">
+                  <Pressable
+                    onPress={() => {
+                      setSelectedCategoryId('all');
+                      setShowCategoryDropdown(false);
+                    }}
+                    className={`p-2 rounded-lg ${selectedCategoryId === 'all' ? 'bg-slate-100' : 'active:bg-slate-50'}`}
+                  >
+                    <Text className={`text-xs font-semibold ${selectedCategoryId === 'all' ? 'text-primary font-bold' : 'text-text-primary'}`}>
+                      All Categories
+                    </Text>
+                  </Pressable>
+                  {categories.map((cat) => (
+                    <Pressable
+                      key={cat.id}
+                      onPress={() => {
+                        setSelectedCategoryId(cat.id);
+                        setShowCategoryDropdown(false);
+                      }}
+                      className={`p-2 rounded-lg ${selectedCategoryId === cat.id ? 'bg-slate-100' : 'active:bg-slate-50'}`}
+                    >
+                      <Text className={`text-xs font-semibold ${selectedCategoryId === cat.id ? 'text-primary font-bold' : 'text-text-primary'}`}>
+                        {cat.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Availability Dropdown */}
+            <View className="relative">
+              <Pressable
+                onPress={() => {
+                  setShowAvailabilityDropdown(!showAvailabilityDropdown);
+                  setShowCategoryDropdown(false);
+                  setShowSortDropdown(false);
+                }}
+                className="flex-row items-center justify-between gap-3 px-3 rounded-xl border border-slate-200 bg-white active:bg-slate-50"
+                style={{ height: 42, minWidth: 150 }}
+              >
+                <Text className="text-text-primary text-xs font-bold">
+                  Availability: {availabilityFilter === 'all' ? 'All' : availabilityFilter === 'available' ? 'Available' : 'Unavailable'}
+                </Text>
+                <ChevronDown size={14} color={colors.textSecondary} />
+              </Pressable>
+
+              {showAvailabilityDropdown && (
+                <View className="absolute right-0 top-12 z-50 bg-white border border-slate-200 shadow-lg rounded-xl p-1.5 w-[180px]">
+                  {[
+                    { value: 'all', label: 'Availability: All' },
+                    { value: 'available', label: 'Availability: Available' },
+                    { value: 'unavailable', label: 'Availability: Unavailable' },
+                  ].map((opt) => (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => {
+                        setAvailabilityFilter(opt.value as AvailabilityFilter);
+                        setShowAvailabilityDropdown(false);
+                      }}
+                      className={`p-2 rounded-lg ${availabilityFilter === opt.value ? 'bg-slate-100' : 'active:bg-slate-50'}`}
+                    >
+                      <Text className={`text-xs font-semibold ${availabilityFilter === opt.value ? 'text-primary font-bold' : 'text-text-primary'}`}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Sort Dropdown */}
+            <View className="relative">
+              <Pressable
+                onPress={() => {
+                  setShowSortDropdown(!showSortDropdown);
+                  setShowCategoryDropdown(false);
+                  setShowAvailabilityDropdown(false);
+                }}
+                className="flex-row items-center justify-between gap-3 px-3 rounded-xl border border-slate-200 bg-white active:bg-slate-50"
+                style={{ height: 42, minWidth: 130 }}
+              >
+                <View className="flex-row items-center gap-1.5">
+                  <ArrowUpDown size={12} color={colors.textSecondary} />
+                  <Text className="text-text-primary text-xs font-bold">
+                    Sort: {
+                      sortBy === 'name-asc' ? 'A-Z' :
+                      sortBy === 'name-desc' ? 'Z-A' :
+                      sortBy === 'price-asc' ? 'Price: Low' : 'Price: High'
+                    }
+                  </Text>
+                </View>
+                <ChevronDown size={14} color={colors.textSecondary} />
+              </Pressable>
+
+              {showSortDropdown && (
+                <View className="absolute right-0 top-12 z-50 bg-white border border-slate-200 shadow-lg rounded-xl p-1.5 w-[160px]">
+                  {[
+                    { value: 'name-asc', label: 'Sort: A -> Z' },
+                    { value: 'name-desc', label: 'Sort: Z -> A' },
+                    { value: 'price-asc', label: 'Price: Low -> High' },
+                    { value: 'price-desc', label: 'Price: High -> Low' },
+                  ].map((opt) => (
                     <Pressable
                       key={opt.value}
                       onPress={() => {
                         setSortBy(opt.value as SortOption);
                         setShowSortDropdown(false);
                       }}
-                      className={`p-1.5 rounded-lg ${isSelected ? 'bg-slate-100' : 'active:bg-slate-50'}`}
+                      className={`p-2 rounded-lg ${sortBy === opt.value ? 'bg-slate-100' : 'active:bg-slate-50'}`}
                     >
-                      <Text className={`text-[11px] font-semibold ${isSelected ? 'text-primary font-bold' : 'text-text-primary'}`}>
+                      <Text className={`text-xs font-semibold ${sortBy === opt.value ? 'text-primary font-bold' : 'text-text-primary'}`}>
                         {opt.label}
                       </Text>
                     </Pressable>
-                  );
-                })}
-              </View>
-            )}
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
-        {/* 🏷️ Tight Horizontal Categories Selector Navigation */}
-        <View className="flex-row items-center justify-between mb-3 border-b border-slate-100 pb-2.5 flex-wrap gap-2">
-          <View className="flex-1 mr-2">
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={[{ id: 'all', name: 'All Products' }, ...categories]}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ gap: 6 }}
-              renderItem={({ item }) => {
-                const isSelected = selectedCategoryId === item.id;
-                return (
-                  <Pressable
-                    onPress={() => setSelectedCategoryId(item.id)}
-                    className={`px-3 py-1.5 rounded-lg border transition-all ${
-                      isSelected ? 'bg-primary border-primary' : 'bg-slate-50 border-border active:bg-slate-100'
-                    }`}
-                    style={{ minHeight: 30, justifyContent: 'center' }}
-                  >
-                    <Text className={`font-bold text-[11px] ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
-                      {item.name}
+        {/* 🏷️ Dynamic Category Tab Pills with Gray Pill Count Indicators (Directly from reference design!) */}
+        <View className="mb-4 border-b border-slate-100 pb-3">
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={[{ id: 'all', name: 'All Items' }, ...categories]}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ gap: 8 }}
+            renderItem={({ item }) => {
+              const isSelected = selectedCategoryId === item.id;
+              
+              // Calculate dynamic counts per category pill
+              const count = item.id === 'all'
+                ? products.length
+                : products.filter(p => p.category_id === item.id).length;
+
+              return (
+                <Pressable
+                  onPress={() => setSelectedCategoryId(item.id)}
+                  className={`px-4 py-2.5 rounded-full border flex-row items-center gap-2 transition-all ${
+                    isSelected ? 'bg-primary border-primary shadow-xs' : 'bg-slate-50 border-slate-200 active:bg-slate-100'
+                  }`}
+                  style={{ minHeight: 38 }}
+                >
+                  <Text className={`font-bold text-xs ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
+                    {item.name}
+                  </Text>
+                  
+                  {/* Dynamic counts indicator pill */}
+                  <View className={`px-2 py-0.5 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-200/60'}`}>
+                    <Text className={`text-[10px] font-black font-mono ${isSelected ? 'text-primary' : 'text-text-secondary'}`}>
+                      {count}
                     </Text>
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
-
-          {/* Quick Mass Actions */}
-          <View className="flex-row gap-1.5">
-            <Pressable
-              onPress={() => handleMassToggleCategory(true)}
-              className="bg-emerald-50 border border-emerald-100 px-2.5 rounded-lg active:bg-emerald-100 flex-row items-center gap-1"
-              style={{ height: 30 }}
-            >
-              <Sparkles size={11} color="#059669" />
-              <Text className="text-emerald-700 font-bold text-[10px]">All ON</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleMassToggleCategory(false)}
-              className="bg-amber-50 border border-amber-100 px-2.5 rounded-lg active:bg-amber-100 flex-row items-center gap-1"
-              style={{ height: 30 }}
-            >
-              <ShieldAlert size={11} color="#d97706" />
-              <Text className="text-amber-700 font-bold text-[10px]">All OFF</Text>
-            </Pressable>
-          </View>
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
         </View>
 
         {success && (
@@ -485,7 +621,7 @@ export function MenuManagement() {
           </View>
         )}
 
-        {/* 🍽️ High-Density Responsive Product Grid Board (Dual Columns on Desktop POS) */}
+        {/* 🍽️ Two-Column High-Density Product Grid Board (Replicated exactly!) */}
         {loading ? (
           <View className="flex-1 items-center justify-center py-20">
             <ActivityIndicator size="large" color={colors.primary} />
@@ -501,14 +637,14 @@ export function MenuManagement() {
             <Plus size={36} color={colors.textSecondary} className="opacity-40" />
             <Text className="text-text-primary font-bold text-sm mt-3 text-center">No Products Discovered</Text>
             <Text className="text-text-secondary text-xs text-center mt-1 px-6">
-              No active products match category or search filters.
+              No products found matching filters.
             </Text>
           </View>
         ) : (
           <FlatList
-            key={isWide ? 'grid-layout-2col' : 'list-layout-1col'}
+            key={isWide ? 'catalog-grid-2col' : 'catalog-list-1col'}
             numColumns={isWide ? 2 : 1}
-            columnWrapperStyle={isWide ? { gap: 10 } : undefined}
+            columnWrapperStyle={isWide ? { gap: 16 } : undefined}
             data={filteredAndSortedProducts}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
@@ -516,39 +652,44 @@ export function MenuManagement() {
               const category = categories.find(c => c.id === item.category_id);
               const colorSchema = getCategoryColorSchema(item.category_id ?? '');
               const isInlineEditingPrice = inlinePriceId === item.id;
-
               const isAvailable = item.is_available ?? false;
-              const containerClass = isAvailable 
-                ? 'bg-white border-l-[4px] border-l-emerald-500 border-t border-r border-b border-slate-100 shadow-xs' 
-                : 'bg-slate-50/80 border-l-[4px] border-l-amber-400 border-t border-r border-b border-slate-200/60 opacity-95';
+              
+              // Ellipsis action menu popup toggler
+              const isMenuOpen = activeMenuId === item.id;
 
               return (
-                <View className={`flex-1 flex-row items-center justify-between p-2.5 mb-2 rounded-xl transition-all ${containerClass}`} style={{ minHeight: 62 }}>
+                <View className="flex-1 flex-row items-center justify-between p-3.5 mb-3 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 76 }}>
                   
-                  {/* Column 1: Identity Info (Left) */}
-                  <View className="flex-1 mr-3 flex-col justify-center">
-                    <View className="flex-row items-center gap-1.5 flex-wrap">
-                      <Text className={`font-extrabold text-sm select-all ${isAvailable ? 'text-text-primary' : 'text-text-secondary/80'}`}>{item.name}</Text>
-                      {category && (
-                        <View className={`px-1.5 py-0.5 rounded-full border text-[8px] font-black tracking-wide ${colorSchema.bg}`}>
-                          <Text className={`text-[8px] font-black tracking-wide ${colorSchema.text}`}>{category.name}</Text>
-                        </View>
-                      )}
-                    </View>
+                  {/* Left Column: Icon Thumbnail, Name, Category pill & Available Dot */}
+                  <View className="flex-1 mr-3 flex-row items-center">
+                    
+                    {/* Visual Rounded Category Icon Thumbnail */}
+                    {renderProductImage(item.category_id ?? '')}
 
-                    {/* Small Status Indicator dot & label */}
-                    <View className="flex-row items-center gap-1.5 mt-1">
-                      <View className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-                      <Text className={`text-[9px] font-extrabold uppercase ${isAvailable ? 'text-emerald-600' : 'text-amber-500'}`}>
-                        {isAvailable ? 'Available' : 'Sold Out'}
-                      </Text>
+                    <View className="flex-1 flex-col justify-center">
+                      <View className="flex-row items-center gap-2 flex-wrap">
+                        <Text className="font-bold text-sm text-text-primary select-all">{item.name}</Text>
+                        {category && (
+                          <View className={`px-2 py-0.5 rounded-full border text-[8px] font-black tracking-wide ${colorSchema.bg}`}>
+                            <Text className={`text-[8px] font-black tracking-wide ${colorSchema.text}`}>{category.name}</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Dot Availability Indicator */}
+                      <View className="flex-row items-center gap-1.5 mt-1">
+                        <View className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        <Text className={`text-[9px] font-extrabold uppercase ${isAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {isAvailable ? 'Available' : 'Unavailable'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
-                  {/* Column 2: Sleek Interactive Price Box (Center) */}
+                  {/* Center Column: Price Tag Badge (Clickable for inline pricing edits!) */}
                   <View className="w-24 items-end justify-center mr-3">
                     {isInlineEditingPrice ? (
-                      <View className="flex-row items-center gap-1 bg-white border border-primary/40 rounded-lg px-1.5" style={{ height: 32 }}>
+                      <View className="flex-row items-center gap-1 bg-white border border-primary/40 rounded-xl px-1.5" style={{ height: 32 }}>
                         <Text className="text-text-secondary text-[10px] font-bold">₹</Text>
                         <TextInput
                           value={inlinePriceValue}
@@ -577,46 +718,61 @@ export function MenuManagement() {
                           setInlinePriceId(item.id);
                           setInlinePriceValue(String(item.price));
                         }}
-                        className={`flex-row items-center justify-center border px-3 py-1 rounded-lg w-full transition-all ${
-                          isAvailable 
-                            ? 'bg-primary/5 border-primary/10 hover:bg-primary/10 active:bg-primary/20' 
-                            : 'bg-slate-100 border-slate-200'
-                        }`}
-                        style={{ height: 32 }}
+                        className="active:bg-slate-50 px-2 py-1 rounded-xl transition-all"
+                        style={{ height: 32, justifyContent: 'center' }}
                       >
-                        <Text className={`text-xs font-black font-mono ${isAvailable ? 'text-primary' : 'text-text-secondary'}`}>₹{item.price}</Text>
-                        <Text className="text-[8px] text-primaryLight font-bold ml-1 font-sans underline">Edit</Text>
+                        <Text className="text-primary font-black text-sm font-mono">₹{item.price}</Text>
                       </Pressable>
                     )}
                   </View>
 
-                  {/* Column 3: High Density Actions Grid (Right) */}
-                  <View className="flex-row items-center gap-2">
+                  {/* Right Column: High Density Compact Icon Buttons */}
+                  <View className="flex-row items-center gap-1.5 z-10">
                     
-                    {/* Small Switch without extra border containers (very clean!) */}
-                    <Switch
-                      value={isAvailable}
-                      onValueChange={() => handleToggleAvailability(item)}
-                      trackColor={{ false: '#cbd5e1', true: colors.accent }}
-                      thumbColor={isAvailable ? colors.primary : '#f4f3f4'}
-                      style={{ transform: [{ scale: 0.7 }] }}
-                    />
-
-                    {/* Compact Modal Edit button */}
+                    {/* Pencil Edit button */}
                     <Pressable
-                      className="w-[34px] h-[34px] bg-slate-50 border border-slate-200 active:bg-slate-100 rounded-lg items-center justify-center shadow-xs"
+                      className="w-9 h-9 bg-white border border-slate-200 active:bg-slate-50 rounded-xl items-center justify-center shadow-xs"
                       onPress={() => handleOpenEdit(item)}
                     >
-                      <Edit2 size={12} color={colors.textPrimary} />
+                      <Edit2 size={13} color={colors.textSecondary} />
                     </Pressable>
 
-                    {/* Destructive Soft-Delete Archive */}
-                    <Pressable
-                      className="w-[34px] h-[34px] bg-rose-50 border border-rose-100 rounded-lg active:bg-rose-100 items-center justify-center shadow-xs"
-                      onPress={() => handleArchive(item)}
-                    >
-                      <Archive size={12} color="#e11d48" />
-                    </Pressable>
+                    {/* Ellipsis Vertical options activator */}
+                    <View className="relative">
+                      <Pressable
+                        className="w-9 h-9 bg-white border border-slate-200 active:bg-slate-50 rounded-xl items-center justify-center shadow-xs"
+                        onPress={() => {
+                          setActiveMenuId(isMenuOpen ? null : item.id);
+                        }}
+                      >
+                        <MoreVertical size={14} color={colors.textSecondary} />
+                      </Pressable>
+
+                      {/* Mini contextual popup dropdown menu */}
+                      {isMenuOpen && (
+                        <View className="absolute right-0 top-10 bg-white border border-slate-200 shadow-xl rounded-2xl p-1.5 w-[180px] z-50">
+                          <Pressable
+                            onPress={() => handleToggleAvailability(item)}
+                            className="p-2.5 rounded-xl active:bg-slate-50 flex-row items-center gap-2"
+                          >
+                            <Check size={12} color={isAvailable ? '#f59e0b' : '#10b981'} />
+                            <Text className="text-[11px] font-bold text-text-primary">
+                              {isAvailable ? 'Mark as Out of Stock' : 'Mark as Available'}
+                            </Text>
+                          </Pressable>
+                          
+                          <Pressable
+                            onPress={() => handleArchive(item)}
+                            className="p-2.5 rounded-xl active:bg-rose-50 flex-row items-center gap-2 border-t border-slate-100"
+                          >
+                            <Archive size={12} color="#dc2626" />
+                            <Text className="text-[11px] font-bold text-red-600">
+                              Archive Product
+                            </Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
                   </View>
 
                 </View>
@@ -738,6 +894,7 @@ export function MenuManagement() {
           </View>
         )}
 
+      </View>
     </View>
   );
 }
