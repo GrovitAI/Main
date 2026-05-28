@@ -273,8 +273,128 @@ export async function seedDevDatabase(): Promise<void> {
       }
     }
 
+    // 4. Seed transaction history (bills, bill_items, settlements) for the past 7 days
+    const { data: existingBills, error: billsCheckError } = await supabase
+      .from('bills')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .eq('branch_id', BRANCH_ID)
+      .limit(1);
+
+    if (!billsCheckError && (!existingBills || existingBills.length === 0)) {
+      console.log('[Grovit] Seeding mock analytics bills...');
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, name, price')
+        .eq('tenant_id', TENANT_ID)
+        .eq('branch_id', BRANCH_ID);
+
+      if (products && products.length > 0) {
+        const billsData = [];
+        const paymentTypes = ['upi', 'cash', 'card'];
+        
+        // Generate mock bills for the past 7 days (including today)
+        for (let d = 0; d <= 7; d++) {
+          const numBills = Math.floor(Math.random() * 4) + 4; // 4 to 7 bills per day
+          for (let b = 0; b < numBills; b++) {
+            // Determine date & time
+            // Distribute hours: mostly lunch (12-14) and dinner (19-22), some other times
+            let hour = 12 + Math.floor(Math.random() * 3); // lunch
+            if (Math.random() > 0.4) {
+              hour = 18 + Math.floor(Math.random() * 5); // dinner
+            } else if (Math.random() > 0.7) {
+              hour = 9 + Math.floor(Math.random() * 3); // breakfast/morning
+            }
+            
+            const minute = Math.floor(Math.random() * 60);
+            const date = new Date();
+            date.setDate(date.getDate() - d);
+            date.setHours(hour, minute, 0, 0);
+            
+            const timestamp = date.toISOString();
+            
+            // Random status (mostly paid, a few cancelled)
+            const isCancelled = d > 0 && Math.random() < 0.08; // 8% chance of cancellation
+            const status = isCancelled ? 'cancelled' : 'paid';
+
+            // Pick 1 to 4 random items
+            const numItems = Math.floor(Math.random() * 3) + 1;
+            const items = [];
+            let subtotal = 0;
+            
+            for (let i = 0; i < numItems; i++) {
+              const prod = products[Math.floor(Math.random() * products.length)];
+              const qty = Math.floor(Math.random() * 2) + 1;
+              const itemPrice = prod.price;
+              subtotal += itemPrice * qty;
+              items.push({
+                product_id: prod.id,
+                item_name: prod.name,
+                price: itemPrice,
+                qty
+              });
+            }
+            
+            const tax_amount = Math.round(subtotal * 0.05 * 100) / 100; // 5% tax
+            const total_amount = subtotal + tax_amount;
+            
+            billsData.push({
+              tenant_id: TENANT_ID,
+              branch_id: BRANCH_ID,
+              total_amount,
+              subtotal,
+              tax_amount,
+              discount_amount: 0,
+              status,
+              created_at: timestamp,
+              settled_at: status === 'paid' ? timestamp : null,
+              created_by: 'Owner',
+              _items: items,
+              _payment_type: paymentTypes[Math.floor(Math.random() * paymentTypes.length)]
+            });
+          }
+        }
+        
+        // Insert bills and their dependent items & settlements
+        for (const billRaw of billsData) {
+          const { _items, _payment_type, ...billPayload } = billRaw;
+          const { data: newBill, error: billErr } = await supabase
+            .from('bills')
+            .insert(billPayload)
+            .select()
+            .single();
+            
+          if (!billErr && newBill) {
+            // Insert bill items
+            const itemsPayload = _items.map((item: any) => ({
+              bill_id: newBill.id,
+              product_id: item.product_id,
+              item_name: item.item_name,
+              price: item.price,
+              qty: item.qty
+            }));
+            await supabase.from('bill_items').insert(itemsPayload);
+            
+            // Insert settlement if paid
+            if (newBill.status === 'paid') {
+              await supabase.from('settlements').insert({
+                tenant_id: TENANT_ID,
+                branch_id: BRANCH_ID,
+                bill_id: newBill.id,
+                amount: newBill.total_amount,
+                payment_type: _payment_type,
+                created_at: newBill.created_at
+              });
+            }
+          }
+        }
+        console.log('[Grovit] Mock bills, items, and settlements seeded successfully.');
+      }
+    }
+
     console.log('[Grovit] Le Leban DEV seed complete');
   } catch {
     // Fail silently in dev seed catch to avoid breaking startup
   }
 }
+
