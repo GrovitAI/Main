@@ -264,32 +264,39 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-surface-tint p-6">
-      {/* Segmented Top Tab Switcher */}
-      <View className="flex-row border border-border bg-white p-1 rounded-2xl mb-6 max-w-md shadow-sm">
-        <Pressable
-          onPress={() => setActiveTab('printers')}
-          className={`flex-1 items-center justify-center py-2.5 rounded-xl transition-all ${
-            activeTab === 'printers' ? 'bg-primary' : 'bg-transparent active:bg-slate-50'
-          }`}
-          style={{ height: 40 }}
-        >
-          <Text className={`font-bold text-xs ${activeTab === 'printers' ? 'text-white' : 'text-text-secondary'}`}>
-            Printer Configurations
-          </Text>
-        </Pressable>
+    <View className="flex-1 bg-surface-tint p-3">
+      {/* Slim Inline Unified Switcher Bar */}
+      <View className="flex-row items-center justify-between bg-white border border-border p-2.5 rounded-2xl mb-3 shadow-xs flex-wrap gap-2">
+        <View className="flex-row items-center gap-2">
+          <Settings size={18} color={colors.primaryDeep} />
+          <Text className="text-base font-black text-text-primary">System Settings</Text>
+        </View>
 
-        <Pressable
-          onPress={() => setActiveTab('menu')}
-          className={`flex-1 items-center justify-center py-2.5 rounded-xl transition-all ${
-            activeTab === 'menu' ? 'bg-primary' : 'bg-transparent active:bg-slate-50'
-          }`}
-          style={{ height: 40 }}
-        >
-          <Text className={`font-bold text-xs ${activeTab === 'menu' ? 'text-white' : 'text-text-secondary'}`}>
-            Menu Management
-          </Text>
-        </Pressable>
+        <View className="flex-row border border-border bg-slate-50 p-0.5 rounded-xl" style={{ height: 34, width: 340 }}>
+          <Pressable
+            onPress={() => setActiveTab('printers')}
+            className={`flex-1 items-center justify-center rounded-lg transition-all ${
+              activeTab === 'printers' ? 'bg-primary' : 'bg-transparent active:bg-slate-100'
+            }`}
+            style={{ height: 30 }}
+          >
+            <Text className={`font-extrabold text-[11px] ${activeTab === 'printers' ? 'text-white' : 'text-text-secondary'}`}>
+              Printer Configuration
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setActiveTab('menu')}
+            className={`flex-1 items-center justify-center rounded-lg transition-all ${
+              activeTab === 'menu' ? 'bg-primary' : 'bg-transparent active:bg-slate-100'
+            }`}
+            style={{ height: 30 }}
+          >
+            <Text className={`font-extrabold text-[11px] ${activeTab === 'menu' ? 'text-white' : 'text-text-secondary'}`}>
+              Menu Catalog Manager
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {activeTab === 'printers' ? (
