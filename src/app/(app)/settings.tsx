@@ -258,12 +258,10 @@ export default function SettingsScreen() {
       setSuccessMsg('Printer connected successfully');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes('qz') || msg.toLowerCase().includes('websocket') || msg.toLowerCase().includes('offline')) {
-        setFormError('Please start QZ Tray');
-      } else if (msg.toLowerCase().includes('no epson') || msg.toLowerCase().includes('driver') || msg.toLowerCase().includes('spooler')) {
-        setFormError('No Epson printer match found in local OS printers.');
+      if (msg.toLowerCase().includes('offline') || msg.toLowerCase().includes('agent') || msg.toLowerCase().includes('service offline')) {
+        setFormError('Printer service offline. Please start Grovit Print Agent.');
       } else {
-        setFormError(`Could not reach printer at ${formState.ip_address ?? 'LAN'}:${formState.port ?? 9100}`);
+        setFormError(msg);
       }
     } finally {
       setTesting(false);
@@ -298,7 +296,7 @@ export default function SettingsScreen() {
         return (
           <View className="flex-row items-center gap-2 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
             <View className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-            <Text className="text-rose-700 text-xs font-bold">QZ Offline</Text>
+            <Text className="text-rose-700 text-xs font-bold">Agent Offline</Text>
           </View>
         );
       case 'checking':

@@ -1,38 +1,6 @@
 import { Platform, Alert } from 'react-native';
-import qz from 'qz-tray';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
-
-if (typeof window !== 'undefined') {
-  (window as any).qz = qz;
-}
-
-let qzConnectionPromise: Promise<void> | null = null;
-
-/**
- * Ensures a WebSocket connection is active with the local QZ Tray software.
- * Uses a singleton promise to prevent connection socket collision and permission prompt spam.
- */
-export async function ensureQZConnection(): Promise<void> {
-  if (Platform.OS !== 'web' || !qz) {
-    throw new Error('Please start QZ Tray');
-  }
-
-  if (qz.websocket.isActive()) {
-    return;
-  }
-
-  if (!qzConnectionPromise) {
-    qzConnectionPromise = qz.websocket
-      .connect({
-        retries: 0,
-      })
-      .finally(() => {
-        qzConnectionPromise = null;
-      });
-  }
-
-  await qzConnectionPromise;
-}
+import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 
 /**
  * Pure JavaScript helper to verify TCP port reachability from browser/client environment.
@@ -61,41 +29,24 @@ async function testTcpPort(ip: string, port: number, timeoutMs = 2000): Promise<
  * Diagnoses printer connectivity with granular statuses:
  * - 'connected': TCP is open, compatibles found, and active.
  * - 'unreachable': TCP handshake failed on port 9100.
- * - 'missing': TCP open but no compatible Epson spooler matches.
- * - 'offline': QZ application is not running.
+ * - 'missing': Not used, kept for compatibility.
+ * - 'offline': Grovit Print Agent application is not running.
  */
 export async function diagnosePrinterConnection(
   printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>
 ): Promise<'connected' | 'unreachable' | 'offline' | 'missing'> {
-  try {
-    await ensureQZConnection();
-  } catch {
+  const agentOnline = await checkAgentHealth();
+  if (!agentOnline) {
     return 'offline';
   }
 
-  // 1. Verify TCP Reachability
+  // Verify TCP Reachability
   if (printer.connection === 'network' && printer.ip_address) {
     const tcpSuccess = await testTcpPort(printer.ip_address, printer.port ?? 9100);
     if (!tcpSuccess) {
       console.warn(`[Printer] TCP socket check failed for ${printer.ip_address}:${printer.port}`);
       return 'unreachable';
     }
-  }
-
-  // 2. Query QZ Printers List for compatible drivers
-  try {
-    const printersList = await qz.printers.find();
-    const matchedPrinter = printersList.find((p: string) => {
-      const upper = p.toUpperCase();
-      return upper.includes('EPSON') || upper.includes('TM-T82') || upper.includes('RECEIPT');
-    });
-
-    if (!matchedPrinter && !printer.os_printer_name) {
-      return 'missing';
-    }
-  } catch (err) {
-    console.error('[Printer] Driver search failed:', err);
-    return 'missing';
   }
 
   return 'connected';
@@ -123,115 +74,93 @@ function getLineWidth(paperWidth: string): number {
 }
 
 /**
- * Core raw printing method via QZ Tray using OS Spooler name (Windows Spooler).
+ * Core raw printing method via Grovit Print Agent.
  */
 async function printRawToPrinter(printer: Printer, lines: string[]): Promise<void> {
-  // 1. Ensure QZ connection
-  try {
-    await ensureQZConnection();
-  } catch (err) {
-    const errorMsg = 'Printer service offline. Please start QZ Tray.';
-    console.error('[Printer] Offline error:', errorMsg);
-    Alert.alert('Printer Offline', errorMsg);
-    return;
-  }
-
-  const rawData = [
-    '\x1B@', // Reset printer
-    ...lines,
-    '\n\n\n\n', // Feed paper
-    '\x1Bi\x01', // ESC/POS Paper Cut
-  ];
-
-  // Resolve target Windows Spooler name
-  const targetPrinterName = printer.os_printer_name || printer.name;
-  if (!targetPrinterName) {
-    console.error('[Printer] Printing failed: No compatible Windows printer name specified.');
-    Alert.alert('Printing Failed', 'No compatible printer name has been detected or configured.');
-    return;
-  }
+  const ip = printer.ip_address || '127.0.0.1';
+  const port = printer.port ?? 9100;
 
   try {
-    console.log('[Printer] TCP Print Config', {
-      ip: printer.ip_address,
-      port: printer.port
+    const escPosString = [
+      '\x1B@', // Reset printer
+      ...lines,
+      '\n\n\n\n', // Feed paper
+      '\x1Bi\x01', // ESC/POS Paper Cut
+    ].join('');
+
+    console.log('[Printer] Direct network print via Grovit Print Agent', { ip, port });
+    await sendPrintJob({
+      ip,
+      port,
+      type: 'raw',
+      content: escPosString
     });
-
-    console.log(`[Printer] Direct OS Spooler print to "${targetPrinterName}"`);
-    const config = qz.configs.create(targetPrinterName);
-
-    console.log('[Printer] Sending ESC/POS print job');
-    await qz.print(config, rawData);
     console.log('[Printer] Print success');
-  } catch (error) {
-    console.error('[Printer] TCP print failed', error);
-    Alert.alert(
-      'Printing Failed',
-      `Could not print to OS Spooler "${targetPrinterName}". Verify printer settings and QZ status.`
-    );
+  } catch (err: any) {
+    console.error('[Printer] Print failed:', err);
+    
+    // Check if agent is unavailable (network fetch failed)
+    const isAgentOffline = err.message === 'Print agent unavailable' || err.name === 'TypeError' || err.message?.toLowerCase().includes('fetch');
+    if (isAgentOffline) {
+      const errorMsg = 'Printer service offline. Please start Grovit Print Agent.';
+      Alert.alert('Printer Offline', errorMsg);
+    } else {
+      const errorMsg = `Could not reach printer\n${ip}:${port}`;
+      Alert.alert('Printer Unreachable', errorMsg);
+    }
   }
 }
 
 export const printerService = {
   /**
    * Triggers a test print configuration. 
-   * Discovers available OS spoolers, selects the best Epson match, and prints.
-   * Returns the matched spooler name.
+   * Sends small receipt directly via print agent.
    */
   testPrinter: async (printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>): Promise<string> => {
-    // Ensure QZ connection
-    await ensureQZConnection();
+    const ip = printer.ip_address || '';
+    const port = printer.port ?? 9100;
 
-    // 1. Verify TCP Reachability
-    if (printer.connection === 'network' && printer.ip_address) {
-      const tcpSuccess = await testTcpPort(printer.ip_address, printer.port ?? 9100);
-      if (!tcpSuccess) {
-        throw new Error(`Could not reach printer at ${printer.ip_address}:${printer.port ?? 9100}`);
-      }
+    if (!ip) {
+      throw new Error('No IP address configured for printer.');
     }
 
-    // 2. Query QZ spoolers
-    const printersList = await qz.printers.find();
-    console.log('[Printer] Discovered OS printers:', printersList);
-
-    // 3. Find compatible Epson match
-    const matchedPrinter = printersList.find((p: string) => {
-      const upper = p.toUpperCase();
-      return upper.includes('EPSON') || upper.includes('TM-T82') || upper.includes('RECEIPT');
-    });
-
-    if (!matchedPrinter) {
-      throw new Error('No Epson printer match found in local OS printers.');
+    // 1. Verify agent health
+    const agentOnline = await checkAgentHealth();
+    if (!agentOnline) {
+      throw new Error('Printer service offline. Please start Grovit Print Agent.');
     }
 
-    console.log('[Printer] Best Epson match selected:', matchedPrinter);
+    // 2. Verify TCP Reachability
+    const tcpSuccess = await testTcpPort(ip, port);
+    if (!tcpSuccess) {
+      throw new Error(`Could not reach printer\n${ip}:${port}`);
+    }
 
-    console.log('[Printer] TCP Print Config', {
-      ip: printer.ip_address,
-      port: printer.port
-    });
+    console.log('[Printer] Sending ESC/POS test receipt via Print Agent to:', { ip, port });
 
-    console.log('[Printer] Sending ESC/POS test receipt');
-
-    const config = qz.configs.create(matchedPrinter);
-
-    await qz.print(config, [
+    const testReceipt = [
       '\x1B@',                  // initialize
       '\x1Ba\x01',              // center
-      'GROVIT POS\n',
-      'Printer Test\n\n',
+      'GROVIT POS\n\n',
+      'Printer Connected \u2713\n\n',
       '\x1Ba\x00',              // left
-      'Printer Connected Successfully\n\n',
-      `IP: ${printer.ip_address}\n`,
-      `Port: ${printer.port}\n`,
-      `OS Spooler: ${matchedPrinter}\n`,
-      new Date().toLocaleString(),
+      'IP:\n',
+      `${ip}\n\n`,
+      'Port:\n',
+      `${port}\n`,
       '\n\n\n',
       '\x1Bi\x01'               // cut
-    ]);
+    ].join('');
+
+    await sendPrintJob({
+      ip,
+      port,
+      type: 'raw',
+      content: testReceipt
+    });
 
     console.log('[Printer] Print success');
-    return matchedPrinter;
+    return 'Network Printer';
   },
 
   /**
