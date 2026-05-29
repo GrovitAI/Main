@@ -334,12 +334,7 @@ export default function AppTabLayout() {
       initialRouteName={initialRouteName}
       tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} />}
       screenOptions={{
-        headerStyle: {
-          backgroundColor: colors.surfaceTint,
-          borderBottomColor: colors.borderSoft,
-        },
-        headerTintColor: colors.primaryDeep,
-        headerTitleStyle: { fontWeight: '700', color: colors.textPrimary },
+        headerShown: false,
       }}
     >
       {APP_TAB_ROUTE_NAMES.map((routeName) => {
@@ -365,7 +360,7 @@ export default function AppTabLayout() {
             name={routeName}
             options={{
               title: tab.label,
-              headerShown: routeName !== 'index' && routeName !== 'orders', // Reclaim top spacing for POS + Orders screens
+              headerShown: false,
               tabBarIcon: ({ color, size }) => (
                 <TabIcon color={color} size={size} />
               ),
