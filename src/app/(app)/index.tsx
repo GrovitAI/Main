@@ -681,7 +681,7 @@ export default function PosBillingScreen() {
     setSettlementVisible(true);
   }, [isMutating, activeOrder, showToast]);
 
-  const confirmSettlement = useCallback(async () => {
+  const confirmSettlement = useCallback(async (paymentType: string = 'cash') => {
     // 1. Capture order details before settleBill wipes the active cart state
     const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
     const invoiceNumber = null;
@@ -693,7 +693,7 @@ export default function PosBillingScreen() {
     const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
 
     // 2. Perform DB write
-    const success = await settleBill();
+    const success = await settleBill(paymentType);
     
     // 3. Printing asynchronously after successful save
     if (success) {

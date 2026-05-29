@@ -20,14 +20,21 @@ import {
   getNextBillNumber,
   getNextOrderNumber,
   getNextKotNumber,
+  getAllOrders,
+  settleOrderById,
+  repairMissingBills,
+  type OpenOrderSummary,
+  type OrderItemPreview,
 } from './open-orders-service';
 import { BRANCH_ID, TENANT_ID, getTenantContext } from './tenant-context';
 import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
+import { printerService } from './printer-service';
 
 type OrdersState = {
   orders: OpenOrder[];
   heldOrders: OpenOrder[];
+  summaries: OpenOrderSummary[];
   activeOrderId: string | null;
   activeOrderItems: PosOrderItem[];
   itemCountByOrderId: Record<string, number>;
@@ -43,6 +50,7 @@ type OrdersState = {
   isWorkspaceEmpty: boolean;
   error: string | null;
   loadOrders: () => Promise<void>;
+  loadSummaries: (silent?: boolean) => Promise<void>;
   setProductCatalog: (products: Product[]) => void;
   selectOrder: (orderId: string) => Promise<boolean>;
   createOrder: () => Promise<void>;
@@ -53,7 +61,8 @@ type OrdersState = {
   resetCart: () => Promise<void>;
   holdOrder: () => Promise<void>;
   saveKot: () => Promise<boolean>;
-  settleBill: () => Promise<boolean>;
+  saveAndPrint: () => Promise<boolean>;
+  settleBill: (paymentType?: string) => Promise<boolean>;
   cancelOrder: () => Promise<void>;
   enterEditMode: () => void;
   discardChanges: () => Promise<void>;
@@ -81,6 +90,7 @@ function enrichItems(
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
   heldOrders: [],
+  summaries: [],
   activeOrderId: (typeof window !== 'undefined' && window.localStorage)
     ? window.localStorage.getItem('grovit_active_order_id')
     : null,
@@ -126,14 +136,17 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const countsResult = await fetchOrderItemCounts(allOrders.map((order) => order.id));
     const itemCountByOrderId = countsResult.data ?? {};
 
+    // Background execution: Repair missing bills for paid orders in background
+    void repairMissingBills();
+
     // Bootstrapping sequence registry from loaded orders and their KOTs
     let highestKotVal = 0;
     let highestBillVal = 0;
     let highestOrderVal = 0;
 
     for (const order of allOrders) {
-      if (order.bill_number) {
-        const num = parseInt(order.bill_number.replace(/\D/g, ''), 10);
+      if (order.invoice_number) {
+        const num = parseInt(order.invoice_number.replace(/\D/g, ''), 10);
         if (!isNaN(num)) {
           highestBillVal = Math.max(highestBillVal, num);
         }
@@ -164,9 +177,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // Bootstrap local sequences registry dynamically
     bootstrapSequenceRegistry(highestKotVal, highestBillVal, highestOrderVal);
 
+    // Fetch and populate summaries on startup
+    const summariesResult = await getAllOrders();
+    const summaries = summariesResult.data ?? [];
+
     set({
       orders,
       heldOrders,
+      summaries,
       itemCountByOrderId,
       kotNumbersByOrderId,
       kotsByOrderId: startKotsMap,
@@ -227,6 +245,48 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     console.log('[useOrdersStore] loadOrders: Starting with clean/empty cart.');
     set({ activeOrderId: null, activeOrderItems: [], isWorkspaceEmpty: true });
+  },
+
+  loadSummaries: async (silent = false) => {
+    if (!silent) set({ isLoadingOrders: true, error: null });
+    const result = await getAllOrders();
+    if (result.error) {
+      set({ error: result.error, isLoadingOrders: false });
+    } else {
+      const dbSummaries = result.data ?? [];
+      set((state) => {
+        // Merge dbSummaries into state.summaries.
+        // If a local summary has status 'unpaid', 'held', 'cancelled', or 'paid'
+        // and the incoming dbSummary has a less progressed status (e.g. 'draft'),
+        // we keep the local summary to preserve our optimistic state during background write sync.
+        const merged = dbSummaries.map((dbSum) => {
+          const localSum = state.summaries.find((s) => s.order.id === dbSum.order.id);
+          if (localSum) {
+            const dbStatus = dbSum.order.status;
+            const localStatus = localSum.order.status;
+            if (
+              (localStatus === 'unpaid' && dbStatus === 'draft') ||
+              (localStatus === 'held' && dbStatus === 'draft') ||
+              (localStatus === 'paid' && dbStatus !== 'paid') ||
+              (localStatus === 'cancelled' && dbStatus !== 'cancelled')
+            ) {
+              return localSum;
+            }
+          }
+          return dbSum;
+        });
+
+        // Also preserve any newly created optimistic orders that might not be in the DB yet at all!
+        const missingFromDb = state.summaries.filter(
+          (localSum) => !dbSummaries.some((dbSum) => dbSum.order.id === localSum.order.id)
+        );
+
+        return {
+          summaries: [...missingFromDb, ...merged],
+          isLoadingOrders: false,
+        };
+      });
+    }
   },
 
   selectOrder: async (orderId) => {
@@ -316,7 +376,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           [orderId]: orderKots,
         },
         isLoadingActiveOrder: false,
-        isEditingUnpaid: false,
+        isEditingUnpaid: !isReadOnly && (order.status === 'unpaid' || order.status === 'in_kitchen'),
         hasUnsavedChanges: false,
         isReadOnlyView: isReadOnly,
         isWorkspaceEmpty: false,
@@ -398,7 +458,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     const existingItem = get().activeOrderItems.find(
-      (item) => item.product_id === product.id,
+      (item) => item.product_id === product.id && item.kot_sent === false,
     );
 
     if (existingItem) {
@@ -517,7 +577,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const snapshot = get();
     const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
-    if (!target || !snapshot.activeOrderId) {
+    if (!target || !snapshot.activeOrderId || target.kot_sent) {
       return;
     }
 
@@ -569,7 +629,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const snapshot = get();
     const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
-    if (!target || !snapshot.activeOrderId) {
+    if (!target || !snapshot.activeOrderId || target.kot_sent) {
       return;
     }
 
@@ -625,7 +685,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     if (!canEdit) return;
 
     const snapshot = get();
-    if (!snapshot.activeOrderId) {
+    const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
+    if (!target || !snapshot.activeOrderId || target.kot_sent) {
       return;
     }
 
@@ -722,40 +783,76 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.removeItem('grovit_active_order_id');
     }
-    set((state) => ({
-      orders: state.orders.map((order) =>
-        order.id === activeOrderId
-          ? { ...order, status: 'held' as const, held_at: heldAt }
-          : order
-      ),
-      heldOrders: [
-        { ...activeOrder, status: 'held' as const, held_at: heldAt },
-        ...state.heldOrders.filter((o) => o.id !== activeOrderId),
-      ],
-      activeOrderId: null,
-      activeOrderItems: [],
-      isWorkspaceEmpty: true,
-      isMutating: false,
-    }));
+    set((state) => {
+      const orderItems = state.activeOrderItems;
+      const totalAmount = orderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+      const itemCount = orderItems.reduce((sum, item) => sum + item.qty, 0);
+      const previewItems = orderItems.slice(0, 3).map((item) => ({
+        name: item.product_name || item.item_name || 'Item',
+        quantity: item.qty,
+      }));
+      const remainingItemLines = Math.max(0, orderItems.length - 3);
+
+      const optimisticSummary: OpenOrderSummary = {
+        order: { ...activeOrder, status: 'held' as const, held_at: heldAt },
+        itemCount,
+        created_at: activeOrder.created_at || new Date().toISOString(),
+        previewItems,
+        remainingItemLines,
+        totalAmount,
+        kotNumbers: state.kotNumbersByOrderId[activeOrderId] ?? [],
+      };
+
+      const existsInSummaries = state.summaries.some((s) => s.order.id === activeOrderId);
+      const nextSummaries = existsInSummaries
+        ? state.summaries.map((s) => (s.order.id === activeOrderId ? optimisticSummary : s))
+        : [optimisticSummary, ...state.summaries];
+
+      return {
+        orders: state.orders.map((order) =>
+          order.id === activeOrderId
+            ? { ...order, status: 'held' as const, held_at: heldAt }
+            : order
+        ),
+        heldOrders: [
+          { ...activeOrder, status: 'held' as const, held_at: heldAt },
+          ...state.heldOrders.filter((o) => o.id !== activeOrderId),
+        ],
+        summaries: nextSummaries,
+        activeOrderId: null,
+        activeOrderItems: [],
+        isWorkspaceEmpty: true,
+        isMutating: false,
+      };
+    });
   },
 
   saveKot: async () => {
+    console.time('saveKot_total');
+    console.time('saveKot_ui');
     const snapshot = get();
     const activeOrderId = snapshot.activeOrderId;
-    if (!activeOrderId) return false;
+    if (!activeOrderId) {
+      console.timeEnd('saveKot_ui');
+      console.timeEnd('saveKot_total');
+      return false;
+    }
 
     if (snapshot.activeOrderItems.length === 0) {
       set({ error: 'Cannot save KOT for an empty cart.' });
+      console.timeEnd('saveKot_ui');
+      console.timeEnd('saveKot_total');
       return false;
     }
 
     const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
     if (!activeOrder) {
       set({ error: 'Connection issue. Please check internet and try again.' });
+      console.timeEnd('saveKot_ui');
+      console.timeEnd('saveKot_total');
       return false;
     }
 
-    console.time('saveKot');
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
     const nextKotNumber = getNextKotNumber();
 
@@ -766,35 +863,22 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       nextOrderName = `Order #${nextOrderNum}`;
     }
 
-    // Retrieve KOTs from Zustand local cache
-    const existingTickets = snapshot.kotsByOrderId[activeOrderId] ?? [];
+    const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
 
-    const alreadySentQty: Record<string, number> = {};
-    for (const ticket of existingTickets) {
-      const ticketItems = ticket.kot_items ?? [];
-      for (const item of ticketItems) {
-        alreadySentQty[item.item_name] = (alreadySentQty[item.item_name] ?? 0) + item.qty;
-      }
-    }
-
-    const itemsToSend: { name: string; quantity: number }[] = [];
-    for (const cartItem of snapshot.activeOrderItems) {
-      const itemName = cartItem.product_name || cartItem.item_name;
-      const previouslySent = alreadySentQty[itemName] ?? 0;
-      const unsentQty = Math.max(0, cartItem.qty - previouslySent);
-      if (unsentQty > 0) {
-        itemsToSend.push({
-          name: itemName,
-          quantity: unsentQty,
-        });
-      }
-    }
-
-    if (itemsToSend.length === 0) {
+    if (unsentItems.length === 0) {
       set({ error: 'No changes since last KOT.' });
-      console.timeEnd('saveKot');
+      console.timeEnd('saveKot_ui');
+      console.timeEnd('saveKot_total');
       return false;
     }
+
+    const itemsToSend: { name: string; quantity: number }[] = unsentItems.map((item) => ({
+      name: item.product_name || item.item_name,
+      quantity: item.qty,
+    }));
+
+    // Sim print KOT
+    printerService.printKot(nextKotNumber, itemsToSend);
 
     // Construct optimistic mock KOT ticket
     const mockTicket: KotTicket = {
@@ -817,12 +901,49 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const nextKotNumbers = [...(snapshot.kotNumbersByOrderId[activeOrderId] ?? []), nextKotNumber];
     const nextKots = [...(snapshot.kotsByOrderId[activeOrderId] ?? []), mockTicket];
+
+    // Build optimistic OpenOrderSummary (merging duplicate products for clean bill presentation)
+    const orderItems = snapshot.activeOrderItems;
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+    const itemCount = orderItems.reduce((sum, item) => sum + item.qty, 0);
     
-    // OPTIMISTIC UPDATE: transition status, order name, and clear cart instantly
+    const mergedPreviewsMap: Record<string, number> = {};
+    for (const item of orderItems) {
+      const name = item.product_name || item.item_name || 'Item';
+      mergedPreviewsMap[name] = (mergedPreviewsMap[name] ?? 0) + item.qty;
+    }
+    const mergedPreviews = Object.entries(mergedPreviewsMap).map(([name, quantity]) => ({
+      name,
+      quantity,
+    }));
+    const previewItems = mergedPreviews.slice(0, 3);
+    const remainingItemLines = Math.max(0, mergedPreviews.length - 3);
+
+    const optimisticSummary: OpenOrderSummary = {
+      order: {
+        ...activeOrder,
+        status: 'unpaid' as const,
+        order_name: nextOrderName,
+      },
+      itemCount,
+      created_at: activeOrder.created_at || new Date().toISOString(),
+      previewItems,
+      remainingItemLines,
+      totalAmount,
+      kotNumbers: nextKotNumbers,
+    };
+
+    const existsInSummaries = snapshot.summaries.some((s) => s.order.id === activeOrderId);
+    const nextSummaries = existsInSummaries
+      ? snapshot.summaries.map((s) => (s.order.id === activeOrderId ? optimisticSummary : s))
+      : [optimisticSummary, ...snapshot.summaries];
+    
+    // OPTIMISTIC UPDATE: transition status, order name, summaries, and clear cart instantly
     set((state) => ({
       orders: state.orders.map((o) =>
         o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
       ),
+      summaries: nextSummaries,
       activeOrderId: null,
       activeOrderItems: [],
       isWorkspaceEmpty: true,
@@ -843,12 +964,25 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       window.localStorage.removeItem('grovit_active_order_id');
     }
 
-    // Background Database Persistence
+    console.timeEnd('saveKot_ui');
+
+    // Background Database Persistence (Quiet and non-blocking)
+    console.time('saveKot_db');
     (async () => {
       try {
         const createResult = await createKot(activeOrderId, itemsToSend);
         if (createResult.error || !createResult.data) {
           throw new Error(createResult.error ?? 'Database KOT insert failed');
+        }
+
+        const unsentItemIds = unsentItems.map((item) => item.id);
+        const { error: itemsUpdateError } = await supabase
+          .from('open_order_items')
+          .update({ kot_sent: true })
+          .in('id', unsentItemIds);
+
+        if (itemsUpdateError) {
+          throw itemsUpdateError;
         }
 
         const { tenant_id, branch_id } = getTenantContext();
@@ -886,9 +1020,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         console.log('[useOrdersStore] Background saveKot success!');
       } catch (dbErr) {
         console.error('[useOrdersStore] Background saveKot failed, rolling back:', dbErr);
-        // Rollback
+        // Rollback both states perfectly
         set({
           orders: snapshot.orders,
+          summaries: snapshot.summaries,
           activeOrderId: snapshot.activeOrderId,
           activeOrderItems: snapshot.activeOrderItems,
           isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
@@ -899,14 +1034,246 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           error: 'Connection issue. KOT was not saved. Please check internet and try again.',
         });
       } finally {
-        console.timeEnd('saveKot');
+        console.timeEnd('saveKot_db');
+        console.timeEnd('saveKot_total');
       }
     })();
 
     return true;
   },
 
-  settleBill: async () => {
+  saveAndPrint: async () => {
+    const snapshot = get();
+    const activeOrderId = snapshot.activeOrderId;
+    if (!activeOrderId) {
+      return false;
+    }
+
+    if (snapshot.activeOrderItems.length === 0) {
+      set({ error: 'Cannot Save & Print for an empty cart.' });
+      return false;
+    }
+
+    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
+    if (!activeOrder) {
+      set({ error: 'Connection issue. Please check internet and try again.' });
+      return false;
+    }
+
+    const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
+    const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
+
+    let nextOrderName = activeOrder.order_name;
+    let nextOrderNum = 0;
+    
+    // Scenario 2: No unsent items and already unpaid -> Simply print provisional bill and exit (No DB write)
+    if (unsentItems.length === 0 && activeOrder.status === 'unpaid') {
+      const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+      printerService.printBill(
+        activeOrder.order_name,
+        activeOrder.invoice_number,
+        snapshot.activeOrderItems,
+        totalAmount,
+        false // provisional bill
+      );
+      return true;
+    }
+
+    // Assign Order number if transitioning from draft/open to operational unpaid order
+    if (wasDraft) {
+      nextOrderNum = getNextOrderNumber();
+      nextOrderName = `Order #${nextOrderNum}`;
+    }
+
+    // Let's handle KOT if there are unsent items
+    let nextKotNumber = 0;
+    let itemsToSend: { name: string; quantity: number }[] = [];
+    let mockTicket: KotTicket | null = null;
+    let nextKotNumbers = snapshot.kotNumbersByOrderId[activeOrderId] ?? [];
+    let nextKots = snapshot.kotsByOrderId[activeOrderId] ?? [];
+
+    if (unsentItems.length > 0) {
+      nextKotNumber = getNextKotNumber();
+      itemsToSend = unsentItems.map((item) => ({
+        name: item.product_name || item.item_name,
+        quantity: item.qty,
+      }));
+
+      // Sim print KOT
+      printerService.printKot(nextKotNumber, itemsToSend);
+
+      // Construct optimistic mock KOT ticket
+      mockTicket = {
+        id: `kot-uuid-optimistic-${Date.now()}`,
+        tenant_id: activeOrder.tenant_id,
+        branch_id: activeOrder.branch_id,
+        open_order_id: activeOrderId,
+        kot_number: nextKotNumber,
+        status: 'pending',
+        printed_at: null,
+        created_at: new Date().toISOString(),
+        kot_items: itemsToSend.map((item, idx) => ({
+          id: `kot-item-uuid-optimistic-${idx}-${Date.now()}`,
+          kot_id: `kot-uuid-optimistic-${Date.now()}`,
+          item_name: item.name,
+          qty: item.quantity,
+          notes: null,
+        })),
+      };
+
+      nextKotNumbers = [...nextKotNumbers, nextKotNumber];
+      nextKots = [...nextKots, mockTicket];
+    }
+
+    // Prepare billing items (all of them since F3 prints everything provisional)
+    const orderItems = snapshot.activeOrderItems;
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+    const itemCount = orderItems.reduce((sum, item) => sum + item.qty, 0);
+
+    // Sim print provisional bill
+    printerService.printBill(
+      nextOrderName,
+      activeOrder.invoice_number,
+      orderItems,
+      totalAmount,
+      false // provisional
+    );
+
+    // Optimistically transition cart items to kot_sent: true
+    const updatedOrderItems = orderItems.map((item) => ({
+      ...item,
+      kot_sent: true,
+    }));
+
+    // Build optimistic OpenOrderSummary
+    const mergedPreviewsMap: Record<string, number> = {};
+    for (const item of updatedOrderItems) {
+      const name = item.product_name || item.item_name || 'Item';
+      mergedPreviewsMap[name] = (mergedPreviewsMap[name] ?? 0) + item.qty;
+    }
+    const mergedPreviews = Object.entries(mergedPreviewsMap).map(([name, quantity]) => ({
+      name,
+      quantity,
+    }));
+    const previewItems = mergedPreviews.slice(0, 3);
+    const remainingItemLines = Math.max(0, mergedPreviews.length - 3);
+
+    const optimisticSummary: OpenOrderSummary = {
+      order: {
+        ...activeOrder,
+        status: 'unpaid' as const,
+        order_name: nextOrderName,
+      },
+      itemCount,
+      created_at: activeOrder.created_at || new Date().toISOString(),
+      previewItems,
+      remainingItemLines,
+      totalAmount,
+      kotNumbers: nextKotNumbers,
+    };
+
+    const existsInSummaries = snapshot.summaries.some((s) => s.order.id === activeOrderId);
+    const nextSummaries = existsInSummaries
+      ? snapshot.summaries.map((s) => (s.order.id === activeOrderId ? optimisticSummary : s))
+      : [optimisticSummary, ...snapshot.summaries];
+
+    // OPTIMISTIC UPDATE: transition status, update items inside cart to kot_sent: true, DO NOT CLEAR CART OR SPAWN DRAFT!
+    set((state) => ({
+      orders: state.orders.map((o) =>
+        o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
+      ),
+      summaries: nextSummaries,
+      activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
+      isWorkspaceEmpty: false,
+      isEditingUnpaid: true, // Keep open editing unpaid
+      hasUnsavedChanges: false,
+      isMutating: false,
+      kotNumbersByOrderId: {
+        ...state.kotNumbersByOrderId,
+        [activeOrderId]: nextKotNumbers,
+      },
+      kotsByOrderId: {
+        ...state.kotsByOrderId,
+        [activeOrderId]: nextKots,
+      },
+    }));
+
+    // Background Database Persistence
+    (async () => {
+      try {
+        if (unsentItems.length > 0) {
+          const createResult = await createKot(activeOrderId, itemsToSend);
+          if (createResult.error || !createResult.data) {
+            throw new Error(createResult.error ?? 'Database KOT insert failed');
+          }
+
+          const unsentItemIds = unsentItems.map((item) => item.id);
+          const { error: itemsUpdateError } = await supabase
+            .from('open_order_items')
+            .update({ kot_sent: true })
+            .in('id', unsentItemIds);
+
+          if (itemsUpdateError) {
+            throw itemsUpdateError;
+          }
+
+          // Replace mock optimistic ticket with final confirmed database ticket
+          const dbTicket = createResult.data;
+          set((state) => {
+            const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
+            const cleanedKots = currentKots.map((k) =>
+              k.id.includes('optimistic') ? dbTicket : k
+            );
+            return {
+              kotsByOrderId: {
+                ...state.kotsByOrderId,
+                [activeOrderId]: cleanedKots,
+              },
+            };
+          });
+        }
+
+        // Only do DB write to order status / order name if transitioning from draft/open status
+        if (wasDraft) {
+          const { tenant_id, branch_id } = getTenantContext();
+          const { error: orderError } = await supabase
+            .from('open_orders')
+            .update({
+              status: 'unpaid',
+              order_name: nextOrderName,
+            })
+            .eq('id', activeOrderId)
+            .eq('tenant_id', tenant_id)
+            .eq('branch_id', branch_id);
+
+          if (orderError) {
+            throw orderError;
+          }
+        }
+
+        console.log('[useOrdersStore] Background saveAndPrint success!');
+      } catch (dbErr) {
+        console.error('[useOrdersStore] Background saveAndPrint failed, rolling back:', dbErr);
+        // Rollback states
+        set({
+          orders: snapshot.orders,
+          summaries: snapshot.summaries,
+          activeOrderId: snapshot.activeOrderId,
+          activeOrderItems: snapshot.activeOrderItems,
+          isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
+          isEditingUnpaid: snapshot.isEditingUnpaid,
+          hasUnsavedChanges: snapshot.hasUnsavedChanges,
+          kotNumbersByOrderId: snapshot.kotNumbersByOrderId,
+          kotsByOrderId: snapshot.kotsByOrderId,
+          error: 'Connection issue. Changes were not saved. Please check internet and try again.',
+        });
+      }
+    })();
+
+    return true;
+  },
+
+  settleBill: async (paymentType = 'cash') => {
     const snapshot = get();
     const activeOrderId = snapshot.activeOrderId;
     if (!activeOrderId) return false;
@@ -916,11 +1283,37 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const { tenant_id, branch_id } = getTenantContext();
     const paidAt = new Date().toISOString();
-    const generatedBillNumber = getNextBillNumber();
+    const generatedInvoiceNumber = getNextBillNumber();
 
-    // OPTIMISTIC UPDATE: remove settled order and reset cart immediately
+    // Print Final Bill (F8 Settlement)
+    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
+    const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
+    const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+
+    printerService.printBill(
+      orderName,
+      generatedInvoiceNumber,
+      snapshot.activeOrderItems,
+      totalAmount,
+      true // isFinal = true
+    );
+
+    // OPTIMISTIC UPDATE: remove settled order, update summaries, and reset cart immediately
     set((state) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
+      summaries: state.summaries.map((s) =>
+        s.order.id === activeOrderId
+          ? {
+              ...s,
+              order: {
+                ...s.order,
+                status: 'paid' as const,
+                paid_at: paidAt,
+                invoice_number: generatedInvoiceNumber,
+              },
+            }
+          : s
+      ),
       activeOrderId: null,
       activeOrderItems: [],
       isWorkspaceEmpty: true,
@@ -936,26 +1329,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // Background Database Persistence
     (async () => {
       try {
-        const { error } = await supabase
-          .from('open_orders')
-          .update({
-            status: 'paid',
-            paid_at: paidAt,
-            bill_number: generatedBillNumber,
-          })
-          .eq('id', activeOrderId)
-          .eq('tenant_id', tenant_id)
-          .eq('branch_id', branch_id);
+        const { error } = await settleOrderById(activeOrderId, paymentType);
 
         if (error) {
-          throw error;
+          throw new Error(error);
         }
         console.log('[useOrdersStore] Background settleBill success!');
-      } catch (dbErr) {
+      } catch (dbErr: any) {
         console.error('[useOrdersStore] Background settleBill failed, rolling back:', dbErr);
         // Rollback
         set({
           orders: snapshot.orders,
+          summaries: snapshot.summaries,
           activeOrderId: snapshot.activeOrderId,
           activeOrderItems: snapshot.activeOrderItems,
           isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
@@ -990,10 +1375,24 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     set({ isMutating: true, error: null });
 
-    // OPTIMISTIC UPDATE: filter out immediately
+    const cancelledAt = new Date().toISOString();
+
+    // OPTIMISTIC UPDATE: filter out from active/held list and set summary as cancelled immediately
     set((state) => ({
       orders: state.orders.filter((o) => o.id !== activeOrderId),
       heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
+      summaries: state.summaries.map((s) =>
+        s.order.id === activeOrderId
+          ? {
+              ...s,
+              order: {
+                ...s.order,
+                status: 'cancelled' as const,
+                cancelled_at: cancelledAt,
+              },
+            }
+          : s
+      ),
       activeOrderId: null,
       activeOrderItems: [],
       isWorkspaceEmpty: true,
@@ -1006,7 +1405,6 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       window.localStorage.removeItem('grovit_active_order_id');
     }
 
-    const cancelledAt = new Date().toISOString();
     const { tenant_id, branch_id } = getTenantContext();
 
     // Background Database Persistence
@@ -1032,6 +1430,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         set({
           orders: snapshot.orders,
           heldOrders: snapshot.heldOrders,
+          summaries: snapshot.summaries,
           activeOrderId: snapshot.activeOrderId,
           activeOrderItems: snapshot.activeOrderItems,
           isWorkspaceEmpty: snapshot.isWorkspaceEmpty,

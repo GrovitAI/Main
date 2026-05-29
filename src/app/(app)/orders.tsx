@@ -901,7 +901,7 @@ export default function OrdersScreen() {
           visible={settlingOrder !== null}
           total={settlingOrder.totalAmount}
           onClose={() => setSettlingOrder(null)}
-          onConfirm={async () => {
+          onConfirm={async (paymentMethod) => {
             if (!settlingOrder) return false;
             setIsSettlingMutating(true);
             
@@ -917,7 +917,7 @@ export default function OrdersScreen() {
             }
 
             // 2. Perform DB write
-            const result = await settleOrderById(settlingOrder.order.id);
+            const result = await settleOrderById(settlingOrder.order.id, paymentMethod);
             setIsSettlingMutating(false);
 
             if (result.error) {

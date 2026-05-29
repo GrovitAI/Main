@@ -11,7 +11,7 @@ type SettlementModalProps = {
   visible: boolean;
   total: number;
   onClose: () => void;
-  onConfirm: () => Promise<boolean>;
+  onConfirm: (paymentMethod: string) => Promise<boolean>;
   isMutating?: boolean;
 };
 
@@ -36,7 +36,7 @@ export function SettlementModal({
 
   const handleConfirm = useCallback(async () => {
     setLocalMutating(true);
-    const success = await onConfirm();
+    const success = await onConfirm(selectedMethod.toLowerCase());
     setLocalMutating(false);
     if (success) {
       onClose();

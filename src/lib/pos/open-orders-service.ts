@@ -146,8 +146,11 @@ export function getNextBillNumber(): string {
   localSequences.bill_sequence += 1;
   saveLocalSequences();
   const padded = String(localSequences.bill_sequence).padStart(4, '0');
-  return `BILL-${padded}`;
+  return `INV-${padded}`;
 }
+
+/** Alias for semantic clarity — generates the next invoice number */
+export const getNextInvoiceNumber = getNextBillNumber;
 
 // ─── KOT Service API ───────────────────────────────────────────────────────────
 
@@ -864,12 +867,17 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
     const totalAmountByOrderId: Record<string, number> = {};
 
     for (const item of items) {
-      const preview: OrderItemPreview = {
-        name: productNames[item.product_id] ?? 'Item',
-        quantity: item.qty,
-      };
+      const name = productNames[item.product_id] ?? 'Item';
       const existing = itemsByOrderId[item.open_order_id] ?? [];
-      existing.push(preview);
+      const duplicate = existing.find((p) => p.name === name);
+      if (duplicate) {
+        duplicate.quantity += item.qty;
+      } else {
+        existing.push({
+          name,
+          quantity: item.qty,
+        });
+      }
       itemsByOrderId[item.open_order_id] = existing;
       itemCountByOrderId[item.open_order_id] = (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
       totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + item.qty * (item.price ?? 0);
@@ -915,18 +923,141 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
   }
 }
 
-export async function settleOrderById(orderId: string): Promise<ServiceResult<OpenOrder>> {
+export async function settleOrderById(
+  orderId: string,
+  paymentType: string = 'cash',
+  createdBy: string = 'Cashier'
+): Promise<ServiceResult<OpenOrder>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
-    const paidAt = new Date().toISOString();
-    const generatedBillNumber = getNextBillNumber();
 
-    const { data, error } = await supabase
+    // 1. Fetch open_order details
+    const { data: order, error: orderErr } = await supabase
+      .from('open_orders')
+      .select('*')
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .single();
+
+    if (orderErr || !order) {
+      logSupabaseError('settleOrderById.fetchOrder', orderErr);
+      return { data: null, error: 'Order not found.' };
+    }
+
+    // 2. Fetch open_order_items to copy
+    const { data: orderItems, error: itemsErr } = await supabase
+      .from('open_order_items')
+      .select('*')
+      .eq('open_order_id', orderId);
+
+    if (itemsErr || !orderItems) {
+      logSupabaseError('settleOrderById.fetchItems', itemsErr);
+      return { data: null, error: 'Order items not found.' };
+    }
+
+    const subtotal = orderItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
+    const tax_amount = 0;
+    const discount_amount = 0;
+    const total_amount = subtotal;
+
+    // 3. Create or reuse existing bill
+    const { data: existingBill } = await supabase
+      .from('bills')
+      .select('*')
+      .eq('open_order_id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .maybeSingle();
+
+    let bill = existingBill;
+
+    if (!bill) {
+      const { data: newBill, error: billErr } = await supabase
+        .from('bills')
+        .insert({
+          tenant_id,
+          branch_id,
+          open_order_id: orderId,
+          subtotal,
+          tax_amount,
+          discount_amount,
+          total_amount,
+          status: 'paid',
+          settled_at: new Date().toISOString(),
+          created_by: createdBy,
+        })
+        .select()
+        .single();
+
+      if (billErr || !newBill) {
+        logSupabaseError('settleOrderById.createBill', billErr);
+        return { data: null, error: 'Unable to create bill.' };
+      }
+      bill = newBill;
+    }
+
+    // 4. Copy order items -> bill_items (prevent duplicates)
+    const { data: existingBillItems } = await supabase
+      .from('bill_items')
+      .select('id')
+      .eq('bill_id', bill.id)
+      .limit(1);
+
+    if (!existingBillItems || existingBillItems.length === 0) {
+      const billItemsPayload = orderItems.map((item) => ({
+        bill_id: bill.id,
+        product_id: item.product_id,
+        item_name: item.item_name || 'Item',
+        qty: item.qty,
+        price: item.price,
+      }));
+
+      const { error: billItemsErr } = await supabase
+        .from('bill_items')
+        .insert(billItemsPayload);
+
+      if (billItemsErr) {
+        logSupabaseError('settleOrderById.createBillItems', billItemsErr);
+        return { data: null, error: 'Unable to create bill items.' };
+      }
+    }
+
+    // 5. Create settlement record
+    const { data: existingSettlement } = await supabase
+      .from('settlements')
+      .select('id')
+      .eq('bill_id', bill.id)
+      .limit(1);
+
+    if (!existingSettlement || existingSettlement.length === 0) {
+      const { error: settlementErr } = await supabase
+        .from('settlements')
+        .insert({
+          bill_id: bill.id,
+          tenant_id,
+          branch_id,
+          payment_type: paymentType.toLowerCase(),
+          amount: total_amount,
+        });
+
+      if (settlementErr) {
+        logSupabaseError('settleOrderById.createSettlement', settlementErr);
+      }
+    }
+
+    // 6. Mark open order as paid
+    const paidAt = new Date().toISOString();
+    const generatedInvoiceNumber = getNextBillNumber();
+
+    const { data: updatedOrder, error: updateErr } = await supabase
       .from('open_orders')
       .update({
         status: 'paid',
         paid_at: paidAt,
-        bill_number: generatedBillNumber,
+        completed_at: paidAt,
+        invoice_number: generatedInvoiceNumber,
+        payment_method: paymentType,
       })
       .eq('id', orderId)
       .eq('tenant_id', tenant_id)
@@ -934,16 +1065,106 @@ export async function settleOrderById(orderId: string): Promise<ServiceResult<Op
       .select('*')
       .single();
 
-    if (error) {
-      logSupabaseError('settleOrderById', error);
-      return { data: null, error: 'Unable to settle order.' };
+    if (updateErr) {
+      logSupabaseError('settleOrderById.updateOrder', updateErr);
+      return { data: null, error: 'Unable to mark order as paid.' };
     }
-    return { data: data as OpenOrder, error: null };
+
+    return { data: updatedOrder as OpenOrder, error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.error('[Grovit] settleOrderById exception:', err);
     }
     return { data: null, error: 'Unable to settle order.' };
+  }
+}
+
+/**
+ * Historical helper to backfill missing bills, bill_items, and settlements
+ * from paid open orders that don't have matching transaction history rows.
+ */
+export async function repairMissingBills(): Promise<void> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+
+    // 1. Fetch all paid open orders
+    const { data: paidOrders, error: ordersErr } = await supabase
+      .from('open_orders')
+      .select('id, order_name, payment_method, created_at, created_by')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .eq('status', 'paid');
+
+    if (ordersErr || !paidOrders) return;
+
+    for (const order of paidOrders) {
+      // Check if bill already exists
+      const { data: bill } = await supabase
+        .from('bills')
+        .select('id')
+        .eq('open_order_id', order.id)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id)
+        .maybeSingle();
+
+      if (!bill) {
+        console.log(`[Grovit] Repairing missing bill for order: ${order.order_name} (${order.id})`);
+        
+        // Fetch order items
+        const { data: orderItems } = await supabase
+          .from('open_order_items')
+          .select('*')
+          .eq('open_order_id', order.id);
+
+        if (orderItems && orderItems.length > 0) {
+          const subtotal = orderItems.reduce((sum, item) => sum + (item.qty * (item.price || 0)), 0);
+          
+          // Create bill
+          const { data: newBill, error: billErr } = await supabase
+            .from('bills')
+            .insert({
+              tenant_id,
+              branch_id,
+              open_order_id: order.id,
+              subtotal,
+              tax_amount: 0,
+              discount_amount: 0,
+              total_amount: subtotal,
+              status: 'paid',
+              settled_at: order.created_at, // Preserves historical timeline
+              created_by: order.created_by || 'System',
+            })
+            .select()
+            .single();
+
+          if (!billErr && newBill) {
+            // Copy items to bill_items
+            const billItemsPayload = orderItems.map((item) => ({
+              bill_id: newBill.id,
+              product_id: item.product_id,
+              item_name: item.item_name || 'Item',
+              qty: item.qty,
+              price: item.price,
+            }));
+            await supabase.from('bill_items').insert(billItemsPayload);
+
+            // Create settlement
+            const pType = order.payment_method ? order.payment_method.toLowerCase() : 'cash';
+            await supabase.from('settlements').insert({
+              bill_id: newBill.id,
+              tenant_id,
+              branch_id,
+              payment_type: pType,
+              amount: subtotal,
+            });
+            
+            console.log(`[Grovit] Successfully repaired bill for order: ${order.order_name}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Grovit] repairMissingBills exception caught:', err);
   }
 }
 
