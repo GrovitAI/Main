@@ -5,6 +5,7 @@ import { colors } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, diagnosePrinterConnection } from '@/lib/printer/printer-service';
 import { MenuManagement } from '@/components/settings/MenuManagement';
+import { isPrintAgentRunning, getPrinters } from '@/services/printService';
 
 type PrinterFormState = Omit<Printer, 'id' | 'tenant_id' | 'branch_id'> & { id?: string };
 
@@ -41,6 +42,53 @@ export default function SettingsScreen() {
   // Live connection status indicator state
   const [connStatus, setConnStatus] = useState<'connected' | 'unreachable' | 'offline' | 'missing' | 'checking'>('checking');
 
+  // Local Print Agent Integration state
+  const [localPrinters, setLocalPrinters] = useState<string[]>([]);
+  const [selectedLocalPrinter, setSelectedLocalPrinter] = useState<string>('');
+  const [agentOnline, setAgentOnline] = useState<boolean | null>(null);
+  const [checkingAgent, setCheckingAgent] = useState<boolean>(false);
+
+  const getLocalBillingPrinter = () => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem('billingPrinter') || '';
+    }
+    return '';
+  };
+
+  const setLocalBillingPrinter = (printerName: string) => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('billingPrinter', printerName);
+    }
+  };
+
+  const checkLocalPrintAgent = async () => {
+    setCheckingAgent(true);
+    try {
+      const isRunning = await isPrintAgentRunning();
+      setAgentOnline(isRunning);
+      if (isRunning) {
+        const list = await getPrinters();
+        setLocalPrinters(list);
+        
+        const saved = getLocalBillingPrinter();
+        if (saved && list.includes(saved)) {
+          setSelectedLocalPrinter(saved);
+        } else if (list.length > 0) {
+          setSelectedLocalPrinter(list[0]);
+          setLocalBillingPrinter(list[0]);
+        }
+      } else {
+        setLocalPrinters([]);
+      }
+    } catch (err) {
+      console.error('[Settings] Failed to check print agent:', err);
+      setAgentOnline(false);
+      setLocalPrinters([]);
+    } finally {
+      setCheckingAgent(false);
+    }
+  };
+
   // Load configured printers
   const loadPrinters = async () => {
     setLoading(true);
@@ -59,6 +107,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadPrinters();
+    checkLocalPrintAgent();
   }, []);
 
   // Async connectivity checking
@@ -328,6 +377,86 @@ export default function SettingsScreen() {
             
             {/* Left Side: Printers list */}
             <View className={`bg-white rounded-2xl p-5 border border-border shadow-sm ${Platform.OS === 'web' ? 'w-1/3' : 'w-full'}`}>
+              
+              {/* Grovit Local Print Agent Card */}
+              <View className="mb-6 p-4 bg-[#e8f2fa] rounded-2xl border border-[#c5d9eb]">
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-xs font-bold text-text-primary">Local Print Agent</Text>
+                  <View className="flex-row items-center gap-1.5">
+                    <View className={`w-2 h-2 rounded-full ${agentOnline === true ? 'bg-green-500' : agentOnline === false ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                    <Text className="text-[10px] font-black text-text-secondary uppercase">
+                      {agentOnline === true ? 'Online' : agentOnline === false ? 'Offline' : 'Checking'}
+                    </Text>
+                  </View>
+                </View>
+
+                {agentOnline === true ? (
+                  <View>
+                    <Text className="text-[11px] text-text-secondary mb-2 font-medium">Select thermal billing printer:</Text>
+                    {localPrinters.length === 0 ? (
+                      <Text className="text-xs text-red-600 font-bold bg-white p-2 rounded-lg border border-red-100">
+                        No OS printers detected by print agent.
+                      </Text>
+                    ) : (
+                      <View className="bg-white rounded-xl border border-[#c5d9eb] overflow-hidden p-1">
+                        {Platform.OS === 'web' ? (
+                          <select
+                            value={selectedLocalPrinter}
+                            onChange={(e) => {
+                              setSelectedLocalPrinter(e.target.value);
+                              setLocalBillingPrinter(e.target.value);
+                            }}
+                            className="w-full px-3 py-1.5 text-xs font-semibold text-text-primary bg-white outline-none border-none cursor-pointer"
+                            style={{ appearance: 'none', WebkitAppearance: 'none' }}
+                          >
+                            {localPrinters.map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <View className="p-1 gap-1">
+                            {localPrinters.map((p) => {
+                              const isSel = selectedLocalPrinter === p;
+                              return (
+                                <Pressable
+                                  key={p}
+                                  onPress={() => {
+                                    setSelectedLocalPrinter(p);
+                                    setLocalBillingPrinter(p);
+                                  }}
+                                  className={`p-2 rounded-lg ${isSel ? 'bg-primary' : 'bg-transparent'}`}
+                                >
+                                  <Text className={`text-xs ${isSel ? 'text-white font-bold' : 'text-text-primary'}`}>
+                                    {p}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View>
+                    <Text className="text-[11px] text-red-700 bg-red-50/50 p-3 rounded-xl border border-red-100 leading-relaxed font-semibold">
+                      ⚠ Local Print Agent is offline. Verify it is running at http://localhost:4545
+                    </Text>
+                    <Pressable
+                      onPress={checkLocalPrintAgent}
+                      disabled={checkingAgent}
+                      className="mt-3 bg-white border border-[#c5d9eb] px-3 py-2 rounded-xl flex-row items-center justify-center active:bg-slate-50 min-h-[36px]"
+                    >
+                      {checkingAgent ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Text className="text-xs font-extrabold text-text-primary">Retry Connection</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+
               <Text className="text-base font-bold text-text-primary mb-4">Configured Printers</Text>
 
               {loading ? (

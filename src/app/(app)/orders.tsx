@@ -33,6 +33,7 @@ import { SettlementModal } from '@/components/pos/SettlementModal';
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { logSupabaseError } from '@/lib/pos/supabase-debug';
+import { printReceipt, buildReceiptText } from '@/services/printService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ function matchesSearch(summary: OpenOrderSummary, query: string): boolean {
   const { order, previewItems, kotNumbers } = summary;
 
   if (order.id.toLowerCase().includes(q)) return true;
-  if (order.bill_number && String(order.bill_number).toLowerCase().includes(q)) return true;
+  if (order.invoice_number && String(order.invoice_number).toLowerCase().includes(q)) return true;
   if (kotNumbers && kotNumbers.some((num) => String(num).toLowerCase().includes(q))) return true;
   if (order.token_number && String(order.token_number).toLowerCase().includes(q)) return true;
   if (order.order_name && order.order_name.toLowerCase().includes(q)) return true;
@@ -135,11 +136,14 @@ export default function OrdersScreen() {
 
   const selectOrder = useOrdersStore((state) => state.selectOrder);
 
-  // ── Data state ──────────────────────────────────────────────────────────────
-  const [summaries, setSummaries] = useState<OpenOrderSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // ── Zustand State cache-first connection ─────────────────────────────────────
+  const summaries = useOrdersStore((state) => state.summaries);
+  const isLoading = useOrdersStore((state) => state.isLoadingOrders);
+  const storeError = useOrdersStore((state) => state.error);
+  const loadSummaries = useOrdersStore((state) => state.loadSummaries);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const error = storeError;
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('active');
@@ -179,21 +183,14 @@ export default function OrdersScreen() {
 
   // ── Load data ────────────────────────────────────────────────────────────────
   const loadOrders = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    else setIsRefreshing(true);
-    setError(null);
-
-    const result = await getAllOrders();
-    if (result.error) {
-      setError(result.error);
-      if (!silent) setSummaries([]);
+    if (!silent) {
+      await loadSummaries(false);
     } else {
-      setSummaries(result.data ?? []);
+      setIsRefreshing(true);
+      await loadSummaries(true);
+      setIsRefreshing(false);
     }
-
-    setIsLoading(false);
-    setIsRefreshing(false);
-  }, []);
+  }, [loadSummaries]);
 
   useEffect(() => {
     void loadOrders();
@@ -265,12 +262,13 @@ export default function OrdersScreen() {
     }
 
     const productNameById = useOrdersStore.getState().productNameById;
-    setViewingItems(
-      result.data.items.map((item) => ({
-        name: productNameById[item.product_id] ?? 'Item',
-        qty: item.qty,
-      })),
-    );
+    const mergedMap: Record<string, number> = {};
+    for (const item of result.data.items) {
+      const name = productNameById[item.product_id] ?? 'Item';
+      mergedMap[name] = (mergedMap[name] ?? 0) + item.qty;
+    }
+    const mergedItems = Object.entries(mergedMap).map(([name, qty]) => ({ name, qty }));
+    setViewingItems(mergedItems);
   }, []);
 
   const closeViewModal = useCallback(() => {
@@ -904,7 +902,21 @@ export default function OrdersScreen() {
           total={settlingOrder.totalAmount}
           onClose={() => setSettlingOrder(null)}
           onConfirm={async () => {
+            if (!settlingOrder) return false;
             setIsSettlingMutating(true);
+            
+            // 1. Pre-settlement fetch of full order items before they get processed
+            let orderItems: any[] = [];
+            try {
+              const detailsRes = await fetchOpenOrderById(settlingOrder.order.id);
+              if (detailsRes.data) {
+                orderItems = detailsRes.data.items;
+              }
+            } catch (err) {
+              console.warn('[Print] Pre-settlement fetch items failed:', err);
+            }
+
+            // 2. Perform DB write
             const result = await settleOrderById(settlingOrder.order.id);
             setIsSettlingMutating(false);
 
@@ -913,9 +925,41 @@ export default function OrdersScreen() {
               return false;
             }
 
+            // 3. Printing asynchronously after successful save
+            const orderName = settlingOrder.order.order_name || `Order #${settlingOrder.order.id}`;
+            const totalAmount = settlingOrder.totalAmount;
+            
+            const productNameById = useOrdersStore.getState().productNameById;
+            const printItems = orderItems.map((item) => ({
+              name: item.item_name || productNameById[item.product_id] || 'Item',
+              qty: item.qty,
+              price: item.price,
+            }));
+
             showToast('Bill settled successfully.');
             setViewingOrderId(null); // Close the preview layover
             void loadOrders(true); // Asynchronously reload the orders queue
+
+            void (async () => {
+              try {
+                const printerName = typeof window !== 'undefined' && window.localStorage
+                  ? window.localStorage.getItem('billingPrinter')
+                  : null;
+
+                if (printerName) {
+                  const receiptText = buildReceiptText(orderName, null, printItems, totalAmount);
+                  const printSuccess = await printReceipt(printerName, receiptText);
+                  if (printSuccess) {
+                    showToast('Bill settled & receipt printed.');
+                  } else {
+                    showToast('Bill settled successfully. (Print failed)');
+                  }
+                }
+              } catch (printErr) {
+                console.warn('[Print] Silent printing failed:', printErr);
+              }
+            })();
+
             return true;
           }}
           isMutating={isSettlingMutating}

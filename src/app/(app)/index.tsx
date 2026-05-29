@@ -10,9 +10,11 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  Alert,
 } from 'react-native';
 import { Search, Plus } from 'lucide-react-native';
 import { useNavigation } from 'expo-router';
+import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
@@ -241,6 +243,7 @@ export default function PosBillingScreen() {
   const resetCart = useOrdersStore((s) => s.resetCart);
   const holdOrder = useOrdersStore((s) => s.holdOrder);
   const saveKot = useOrdersStore((s) => s.saveKot);
+  const saveAndPrint = useOrdersStore((s) => s.saveAndPrint);
   const settleBill = useOrdersStore((s) => s.settleBill);
   const cancelOrder = useOrdersStore((s) => s.cancelOrder);
   const enterEditMode = useOrdersStore((s) => s.enterEditMode);
@@ -260,6 +263,23 @@ export default function PosBillingScreen() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Local Print Agent Health Check state
+  const [printAgentOnline, setPrintAgentOnline] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const isOnline = await isPrintAgentRunning();
+        setPrintAgentOnline(isOnline);
+      } catch {
+        setPrintAgentOnline(false);
+      }
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 15000); // Check every 15 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const [timeStr, setTimeStr] = useState('11:42 AM');
   const [dateStr, setDateStr] = useState('20 May 2025');
@@ -595,6 +615,18 @@ export default function PosBillingScreen() {
     }
   }, [saveKot, showToast]);
 
+  const handleSaveAndPrintClick = useCallback(async () => {
+    if (isMutating) return;
+    if (activeOrderItems.length === 0) {
+      showToast('Cannot Save & Print for an empty cart.');
+      return;
+    }
+    const success = await saveAndPrint();
+    if (success) {
+      showToast('Provisional bill printed.');
+    }
+  }, [isMutating, activeOrderItems.length, saveAndPrint, showToast]);
+
   // Cancel order handler
   const handleCancelClick = useCallback(() => {
     if (isMutating) return;
@@ -650,12 +682,45 @@ export default function PosBillingScreen() {
   }, [isMutating, activeOrder, showToast]);
 
   const confirmSettlement = useCallback(async () => {
+    // 1. Capture order details before settleBill wipes the active cart state
+    const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
+    const invoiceNumber = null;
+    const items = activeOrderItems.map((item) => ({
+      name: item.item_name || 'Item',
+      qty: item.qty,
+      price: item.price,
+    }));
+    const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
+
+    // 2. Perform DB write
     const success = await settleBill();
+    
+    // 3. Printing asynchronously after successful save
     if (success) {
       showToast('Bill settled successfully.');
+      
+      void (async () => {
+        try {
+          const printerName = typeof window !== 'undefined' && window.localStorage
+            ? window.localStorage.getItem('billingPrinter')
+            : null;
+
+          if (printerName) {
+            const receiptText = buildReceiptText(orderName, invoiceNumber, items, totalAmount);
+            const printSuccess = await printReceipt(printerName, receiptText);
+            if (printSuccess) {
+              showToast('Bill settled & receipt printed.');
+            } else {
+              showToast('Bill settled successfully. (Print failed)');
+            }
+          }
+        } catch (printErr) {
+          console.warn('[Print] Silent thermal printing failed:', printErr);
+        }
+      })();
     }
     return success;
-  }, [settleBill, showToast]);
+  }, [settleBill, activeOrder, activeOrderId, activeOrderItems, showToast]);
 
   // Guard Modals mapping
   const activeModalConfig = useMemo(() => {
@@ -854,6 +919,12 @@ export default function PosBillingScreen() {
       }
       return;
     }
+    // Alt + P or F3: Save & Print
+    if ((altKey && key.toLowerCase() === 'p') || key === 'F3') {
+      e.preventDefault?.();
+      handleSaveAndPrintClick();
+      return;
+    }
     // Alt + H or F4: Hold Order
     if ((altKey && key.toLowerCase() === 'h') || key === 'F4') {
       e.preventDefault?.();
@@ -861,6 +932,37 @@ export default function PosBillingScreen() {
       const hasItems = activeOrderItems.length > 0;
       if (isDraft && hasItems && !isMutating) {
         void confirmHoldOrder();
+      }
+      return;
+    }
+    // Alt + R: Reset Cart / Discard Changes
+    if (altKey && key.toLowerCase() === 'r') {
+      e.preventDefault?.();
+      const hasItems = activeOrderItems.length > 0;
+      if (activeOrder && !isMutating) {
+        if (isEditingUnpaid) {
+          if (Platform.OS === 'web') {
+            if (window.confirm('Discard unsaved edits?')) {
+              void handleDiscardChangesClick();
+            }
+          } else {
+            Alert.alert('Discard unsaved edits?', 'All unsaved changes will be lost.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Discard', style: 'destructive', onPress: () => void handleDiscardChangesClick() }
+            ]);
+          }
+        } else if (hasItems) {
+          if (Platform.OS === 'web') {
+            if (window.confirm('Clear current cart?\n\nThis will remove all items from the current cart.')) {
+              void handleDiscardChangesClick();
+            }
+          } else {
+            Alert.alert('Clear current cart?', 'This will remove all items from the current cart.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Clear Cart', style: 'destructive', onPress: () => void handleDiscardChangesClick() }
+            ]);
+          }
+        }
       }
       return;
     }
@@ -1156,6 +1258,7 @@ export default function PosBillingScreen() {
       onDecrementItem={handleDecrementItem}
       onRemoveItem={handleRemoveItem}
       onSaveKot={handleSaveKotClick}
+      onSaveAndPrint={handleSaveAndPrintClick}
       onSettle={handleSettleClick}
       onCancel={handleCancelClick}
       onHoldOrder={confirmHoldOrder}
@@ -1192,6 +1295,13 @@ export default function PosBillingScreen() {
         {isTablet && (
           <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', zIndex: 9999, elevation: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 9999 }}>
+              {/* Print Agent Status Indicator */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', gap: 6, height: 34 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: printAgentOnline === true ? '#22C55E' : printAgentOnline === false ? '#EF4444' : '#94A3B8' }} />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: printAgentOnline === true ? '#1E293B' : printAgentOnline === false ? '#EF4444' : '#64748B' }}>
+                  {printAgentOnline === true ? '🟢 Printer Connected' : printAgentOnline === false ? '⚠ Print Agent Offline' : 'Checking Printer...'}
+                </Text>
+              </View>
               {/* + New Order */}
               <Pressable
                 disabled={isMutating}
