@@ -118,18 +118,24 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
     <View style={{
       flexDirection: 'row',
       backgroundColor: '#FFFFFF',
-      borderTopWidth: 1,
-      borderTopColor: '#EEF2F6',
-      height: 72,
-      paddingHorizontal: 20,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      height: 64,
+      paddingHorizontal: 16,
       alignItems: 'center',
       justifyContent: 'space-around',
-      shadowColor: '#0D264C',
-      shadowOffset: { width: 0, height: -3 },
-      shadowOpacity: 0.05,
-      shadowRadius: 14,
-      elevation: 12,
-      position: 'relative',
+      shadowColor: '#0F172A',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.06,
+      shadowRadius: 16,
+      elevation: 10,
+      position: 'absolute',
+      bottom: 24,
+      alignSelf: 'center',
+      width: Platform.OS === 'web' ? 840 : '92%',
+      maxWidth: '92%',
+      zIndex: 100,
     }}>
       {/* Sliding Highlight Backdrop Pill */}
       {tabLayouts[activeTabName] && (
@@ -138,36 +144,10 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
             position: 'absolute',
             left: slideAnim,
             width: widthAnim,
-            height: 48,
-            borderRadius: 12,
-            backgroundColor: 'rgba(0, 102, 178, 0.08)',
-            shadowColor: colors.primaryMid,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 8,
-            elevation: 2,
+            height: 44,
+            borderRadius: 16,
+            backgroundColor: '#F1F5F9', // Subtle, premium neutral filled background
             zIndex: 1,
-          }}
-        />
-      )}
-
-      {/* Sliding Left Glowing Highlighter Line */}
-      {tabLayouts[activeTabName] && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            left: slideAnim,
-            top: 16,
-            width: 4,
-            height: 40,
-            backgroundColor: colors.primary,
-            borderRadius: 999,
-            shadowColor: colors.primary,
-            shadowOffset: { width: -2, height: 0 },
-            shadowOpacity: 0.35,
-            shadowRadius: 4,
-            elevation: 4,
-            zIndex: 2,
           }}
         />
       )}
@@ -216,26 +196,26 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              paddingVertical: 12,
-              paddingHorizontal: 24,
-              borderRadius: 12,
-              backgroundColor: hovered ? 'rgba(2, 81, 184, 0.03)' : 'transparent',
-              transform: [{ scale: pressed ? 0.95 : (hovered ? 1.03 : 1) }],
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderRadius: 16,
+              backgroundColor: hovered ? 'rgba(15, 23, 42, 0.02)' : 'transparent',
+              transform: [{ scale: pressed ? 0.96 : (hovered ? 1.02 : 1) }],
               zIndex: 3,
               ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
             } as any)}
           >
             <TabIcon
-              color={isFocused ? colors.primaryMid : '#7C8BA1'}
-              size={isFocused ? 21 : 19}
+              color={isFocused ? '#0F172A' : '#64748B'}
+              size={isFocused ? 18 : 17}
               style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
             />
             <Text style={{
-              color: isFocused ? colors.primaryMid : '#7C8BA1',
-              fontWeight: isFocused ? '800' : '600',
-              fontSize: isFocused ? 13.5 : 12.5,
-              marginLeft: isFocused ? 10 : 8,
-              letterSpacing: isFocused ? 0.2 : 0,
+              color: isFocused ? '#0F172A' : '#64748B',
+              fontWeight: isFocused ? '700' : '500',
+              fontSize: isFocused ? 12 : 11.5,
+              marginLeft: isFocused ? 8 : 6,
+              letterSpacing: isFocused ? 0.1 : 0,
             }}>
               {label}
             </Text>

@@ -291,35 +291,55 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#e8f2fa' }}>
-      {/* Branded Top Header Surface following the theme of Le Leban */}
-      <LinearGradient
-        colors={['#024db1', '#01389e']}
-        style={{
-          paddingHorizontal: 20,
-          paddingTop: Platform.OS === 'ios' ? 44 : 16,
-          paddingBottom: 14,
-          height: Platform.OS === 'ios' ? 104 : 76,
-          justifyContent: 'center',
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 19, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
-              System Preferences
-            </Text>
-            <Text style={{ fontSize: 12, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.85 }}>
-              Configure network thermal hardware, operational parameters, and menu catalog preferences
-            </Text>
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+      {/* Modern Premium Page Header */}
+      <View style={{
+        paddingHorizontal: 28,
+        paddingTop: Platform.OS === 'ios' ? 44 : 24,
+        paddingBottom: 20,
+        backgroundColor: '#F8FAFC',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+        marginBottom: 24,
+      }}>
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <Text style={{
+            fontSize: 32,
+            fontWeight: '600',
+            color: '#0F172A',
+            fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif',
+            letterSpacing: -0.8
+          }}>
+            Settings
+          </Text>
+          <Text style={{
+            fontSize: 14,
+            fontWeight: '500',
+            color: '#64748B',
+            marginTop: 4,
+            opacity: 0.95
+          }}>
+            Manage operational and system preferences
+          </Text>
+        </View>
+
+        {/* Right side branch context badge */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
+            <View className="w-2 h-2 rounded-full bg-emerald-500" />
+            <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Main Container with reduced padding for a sharp, high-density layout */}
-      <View className="flex-1 p-2.5">
+      {/* Main Container with generous SaaS padding */}
+      <View className="flex-1 px-8">
         
-        {/* Navigation Tab Bar - Scaled down padding & text sizes */}
-        <View className="flex-row bg-white border border-slate-200 rounded-xl mb-3.5 shadow-xs overflow-hidden">
+        {/* Segmented SaaS Navigation Tab Bar */}
+        <View className="flex-row bg-slate-100/90 p-1 rounded-2xl mb-8 shadow-xs border border-slate-200/60 self-start">
           {[
             { key: 'system', label: 'System Settings', icon: Settings },
             { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
@@ -331,14 +351,13 @@ export default function SettingsScreen() {
               <Pressable
                 key={tab.key}
                 onPress={() => setActiveTab(tab.key as any)}
-                className="flex-row items-center gap-2 px-4.5 py-3 transition-all cursor-pointer"
-                style={{
-                  borderBottomWidth: 3,
-                  borderBottomColor: isSel ? colors.primary : 'transparent',
-                }}
+                className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
+                }`}
+                style={isSel ? { elevation: 1 } : {}}
               >
-                <Icon size={14} color={isSel ? colors.primary : colors.textSecondary} />
-                <Text className={`text-[11px] font-extrabold ${isSel ? 'text-textPrimary' : 'text-textSecondary'}`}>
+                <Icon size={14} color={isSel ? '#0F172A' : '#64748B'} />
+                <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
                   {tab.label}
                 </Text>
               </Pressable>
@@ -347,36 +366,36 @@ export default function SettingsScreen() {
         </View>
 
         {activeTab === 'printers' ? (
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
             
-            {/* Local Print Agent - Scaled down spacing & paddings */}
-            <View className="bg-white border border-slate-200 p-3.5 rounded-xl mb-3.5 shadow-xs flex-row items-center justify-between flex-wrap gap-3">
+            {/* Local Print Agent Profile Card */}
+            <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs flex-row items-center justify-between flex-wrap gap-4">
               <View className="flex-row items-center gap-3.5">
-                <View className="p-2 bg-blue-50/50 border border-blue-100 rounded-xl w-9.5 h-9.5 items-center justify-center">
-                  <PrinterIcon size={16} color={colors.primary} />
+                <View className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl w-11 h-11 items-center justify-center">
+                  <PrinterIcon size={18} color="#0F172A" />
                 </View>
                 <View>
-                  <Text className="text-sm font-black text-textPrimary">Local Print Agent</Text>
-                  <Text className="text-[10px] text-textSecondary font-semibold mt-0.5 leading-relaxed">Direct IP network printing via local print agent bridge.</Text>
+                  <Text className="text-base font-bold text-[#0F172A]">Local Print Agent</Text>
+                  <Text className="text-xs text-slate-500 mt-0.5 leading-relaxed">Direct IP network printing via local print agent bridge.</Text>
                 </View>
               </View>
 
               {/* Status indicator */}
               <Pressable 
                 onPress={checkAgentStatus}
-                className="flex-row items-center gap-2"
+                className="flex-row items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl active:bg-slate-100"
               >
-                <Text className="text-[10px] font-black text-textSecondary uppercase tracking-wider">Agent Status</Text>
+                <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agent Status</Text>
                 {checkingAgent ? (
-                  <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.65 }] }} />
+                  <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.65 }] }} />
                 ) : agentOnline === true ? (
-                  <View className="bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
-                    <View className="w-1 h-1 rounded-full bg-emerald-500" />
+                  <View className="bg-emerald-50 border border-emerald-200/50 px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
+                    <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     <Text className="text-emerald-700 text-[9px] font-black uppercase">Online</Text>
                   </View>
                 ) : (
-                  <View className="bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
-                    <View className="w-1 h-1 rounded-full bg-rose-500" />
+                  <View className="bg-rose-50 border border-rose-200/50 px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
+                    <View className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                     <Text className="text-rose-700 text-[9px] font-black uppercase">Offline</Text>
                   </View>
                 )}
@@ -384,10 +403,10 @@ export default function SettingsScreen() {
             </View>
 
             {/* Collapsible accordion network configurations stream */}
-            <View className="gap-3 w-full">
+            <View className="gap-4 w-full">
               {loading ? (
-                <View className="items-center justify-center py-8 bg-white rounded-xl border border-slate-200">
-                  <ActivityIndicator size="large" color={colors.primary} />
+                <View className="items-center justify-center py-12 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+                  <ActivityIndicator size="large" color="#0F172A" />
                 </View>
               ) : (
                 <>
@@ -396,20 +415,20 @@ export default function SettingsScreen() {
                     return (
                       <View 
                         key={printer.id} 
-                        className={`bg-white rounded-xl border transition-all ${
-                          isExpanded ? 'border-primary shadow-xs' : 'border-slate-200 shadow-xs'
+                        className={`bg-white rounded-2xl border transition-all ${
+                          isExpanded ? 'border-slate-300 shadow-sm' : 'border-slate-200/80 shadow-xs'
                         }`}
                       >
                         {/* Accordion header - Scaled down padding & spacing */}
                         <Pressable
                           onPress={() => isExpanded ? handleCollapsePrinter() : handleExpandPrinter(printer)}
-                          className="flex-row items-center justify-between p-3.5 flex-wrap gap-2"
+                          className="flex-row items-center justify-between p-4.5 flex-wrap gap-2"
                         >
-                          <View className="flex-row items-center gap-3 flex-1 min-w-[260px]">
-                            <Wifi size={16} color={printer.is_active ? colors.primary : colors.textSecondary} />
-                            <View className="flex-row items-center gap-2 flex-wrap">
-                              <Text className="font-black text-[#0f2744] text-sm">{printer.name}</Text>
-                              <Text className="text-[10px] text-textSecondary font-bold">
+                          <View className="flex-row items-center gap-3.5 flex-1 min-w-[260px]">
+                            <Wifi size={16} color={printer.is_active ? '#0F172A' : '#94A3B8'} />
+                            <View className="flex-row items-center gap-2.5 flex-wrap">
+                              <Text className="font-bold text-[#0F172A] text-sm">{printer.name}</Text>
+                              <Text className="text-xs text-slate-500 font-semibold">
                                 {printer.printer_role === 'bill' ? 'Bill Printer' : 'Kitchen Printer'} • {printer.ip_address}:{printer.port}
                               </Text>
                               {isExpanded && renderStatusBadge(connStatus)}
@@ -417,8 +436,8 @@ export default function SettingsScreen() {
                           </View>
 
                           {/* Collapse button style matching the mockup */}
-                          <View className="flex-row items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
-                            <Text className="text-slate-600 text-[10px] font-extrabold uppercase tracking-wider">
+                          <View className="flex-row items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                            <Text className="text-slate-600 text-[10px] font-bold uppercase tracking-wider">
                               {isExpanded ? 'Collapse' : 'Expand'}
                             </Text>
                             {isExpanded ? <ChevronUp size={12} color="#64748b" /> : <ChevronDown size={12} color="#64748b" />}
@@ -427,39 +446,39 @@ export default function SettingsScreen() {
 
                         {/* Accordion body form */}
                         {isExpanded && (
-                          <View className="border-t border-slate-100 p-4 bg-white rounded-b-xl">
+                          <View className="border-t border-slate-100 p-6 bg-white rounded-b-2xl">
                             {formError && (
-                              <View className="flex-row items-center gap-2 bg-red-50 p-2.5 border border-red-200 rounded-xl mb-4">
+                              <View className="flex-row items-center gap-2 bg-rose-50 p-3 border border-rose-200 rounded-xl mb-5">
                                 <AlertCircle size={16} color="#dc2626" />
-                                <Text className="text-red-700 font-bold flex-1 text-xs">{formError}</Text>
+                                <Text className="text-rose-700 font-bold flex-1 text-xs">{formError}</Text>
                               </View>
                             )}
 
                             {successMsg && (
-                              <View className="flex-row items-center gap-2 bg-green-50 p-2.5 border border-green-200 rounded-xl mb-4">
+                              <View className="flex-row items-center gap-2 bg-emerald-50 p-3 border border-emerald-200 rounded-xl mb-5">
                                 <Check size={16} color="#15803d" />
-                                <Text className="text-green-700 font-bold flex-1 text-xs">{successMsg}</Text>
+                                <Text className="text-emerald-700 font-bold flex-1 text-xs">{successMsg}</Text>
                               </View>
                             )}
 
                             {/* 2-column input grid with reduced margins & text inputs */}
-                            <View className="flex-row flex-wrap -mx-2">
+                            <View className="flex-row flex-wrap -mx-2.5">
                               {/* Printer Name */}
-                              <View className="w-full md:w-1/2 px-2 mb-3.5">
-                                <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Printer Name</Text>
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Printer Name</Text>
                                 <TextInput
                                   value={formState.name}
                                   onChangeText={(text) => setFormState(prev => ({ ...prev, name: text }))}
-                                  placeholder="e.g. cash"
+                                  placeholder="e.g. Counter Cashier"
                                   placeholderTextColor="#94a3b8"
-                                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-textPrimary bg-white focus:border-primary text-xs font-bold select-all w-full"
-                                  style={{ minHeight: 36 }}
+                                  className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                                  style={{ minHeight: 40 }}
                                 />
                               </View>
 
                               {/* Printer Role */}
-                              <View className="w-full md:w-1/2 px-2 mb-3.5">
-                                <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Printer Role</Text>
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Printer Role</Text>
                                 <View className="flex-row gap-2">
                                   {[
                                     { value: 'bill', label: 'Bill Printer' },
@@ -471,16 +490,16 @@ export default function SettingsScreen() {
                                         key={role.value}
                                         className={`flex-1 border items-center justify-center ${
                                           isSelected 
-                                            ? 'bg-[#f4f8fd] border-[#0D6CE0] text-primary' 
-                                            : 'bg-white border-slate-200 text-textSecondary active:bg-slate-50'
+                                            ? 'bg-slate-900 border-slate-900 text-white' 
+                                            : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
                                         }`}
                                         style={({ pressed }) => [
-                                          { height: 36, borderRadius: 8, borderWidth: isSelected ? 2 : 1 },
+                                          { height: 40, borderRadius: 12, borderWidth: 1 },
                                           pressed && { opacity: 0.9 }
                                         ]}
                                         onPress={() => setFormState(prev => ({ ...prev, printer_role: role.value }))}
                                       >
-                                        <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-[#0D6CE0]' : 'text-textSecondary'}`}>
+                                        <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                                           {role.label}
                                         </Text>
                                       </Pressable>
@@ -490,36 +509,36 @@ export default function SettingsScreen() {
                               </View>
 
                               {/* IP Address */}
-                              <View className="w-full md:w-1/2 px-2 mb-3.5">
-                                <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">IP Address</Text>
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">IP Address</Text>
                                 <TextInput
                                   value={formState.ip_address ?? ''}
                                   onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
-                                  placeholder="e.g. 192.168.1.106"
+                                  placeholder="e.g. 192.168.1.100"
                                   placeholderTextColor="#94a3b8"
-                                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-textPrimary bg-white focus:border-primary text-xs font-bold select-all w-full"
-                                  style={{ minHeight: 36 }}
+                                  className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                                  style={{ minHeight: 40 }}
                                   keyboardType="numeric"
                                 />
                               </View>
 
                               {/* Port */}
-                              <View className="w-full md:w-1/2 px-2 mb-3.5">
-                                <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Port</Text>
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Port</Text>
                                 <TextInput
                                   value={String(formState.port)}
                                   onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
                                   placeholder="9100"
                                   placeholderTextColor="#94a3b8"
-                                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-textPrimary bg-white focus:border-primary text-xs font-bold select-all w-full"
-                                  style={{ minHeight: 36 }}
+                                  className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                                  style={{ minHeight: 40 }}
                                   keyboardType="number-pad"
                                 />
                               </View>
 
                               {/* Paper Width */}
-                              <View className="w-full md:w-1/2 px-2 mb-3.5">
-                                <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Paper Width</Text>
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Paper Width</Text>
                                 <View className="flex-row gap-2">
                                   {['80mm', '58mm'].map((size) => {
                                     const isSelected = formState.paper_width === size;
@@ -528,16 +547,16 @@ export default function SettingsScreen() {
                                         key={size}
                                         className={`flex-1 border items-center justify-center ${
                                           isSelected 
-                                            ? 'bg-[#f4f8fd] border-[#0D6CE0] text-primary' 
-                                            : 'bg-white border-slate-200 text-textSecondary active:bg-slate-50'
+                                            ? 'bg-slate-900 border-slate-900 text-white' 
+                                            : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
                                         }`}
                                         style={({ pressed }) => [
-                                          { height: 36, borderRadius: 8, borderWidth: isSelected ? 2 : 1 },
+                                          { height: 40, borderRadius: 12, borderWidth: 1 },
                                           pressed && { opacity: 0.9 }
                                         ]}
                                         onPress={() => setFormState(prev => ({ ...prev, paper_width: size }))}
                                       >
-                                        <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-[#0D6CE0]' : 'text-textSecondary'}`}>
+                                        <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                                           {size}
                                         </Text>
                                       </Pressable>
@@ -547,22 +566,19 @@ export default function SettingsScreen() {
                               </View>
 
                               {/* Status toggles with smaller scales & fonts */}
-                              <View className="w-full md:w-1/2 px-2 mb-3.5">
-                                <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Status</Text>
-                                <View className="flex-row gap-4 flex-wrap items-center mt-1">
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Operational Status</Text>
+                                <View className="flex-row gap-5 flex-wrap items-center mt-2.5">
                                   <View className="flex-row items-center gap-2.5">
                                     <Switch
                                       value={formState.is_active}
                                       onValueChange={(val) => setFormState(prev => ({ ...prev, is_active: val }))}
-                                      trackColor={{ false: '#cbd5e1', true: '#0D6CE0' }}
+                                      trackColor={{ false: '#cbd5e1', true: '#0F172A' }}
                                       thumbColor={formState.is_active ? '#ffffff' : '#f4f3f4'}
                                       style={{ transform: [{ scale: 0.8 }] }}
                                     />
                                     <View>
-                                      <Text className="text-[11px] font-extrabold text-textPrimary">Active</Text>
-                                      <Text className="text-[9px] font-semibold text-textSecondary mt-0.5">
-                                        Inactive printers will not print.
-                                      </Text>
+                                      <Text className="text-[11px] font-extrabold text-slate-800">Active Printer</Text>
                                     </View>
                                   </View>
 
@@ -570,15 +586,12 @@ export default function SettingsScreen() {
                                     <Switch
                                       value={formState.is_default}
                                       onValueChange={(val) => setFormState(prev => ({ ...prev, is_default: val }))}
-                                      trackColor={{ false: '#cbd5e1', true: '#0D6CE0' }}
+                                      trackColor={{ false: '#cbd5e1', true: '#0F172A' }}
                                       thumbColor={formState.is_default ? '#ffffff' : '#f4f3f4'}
                                       style={{ transform: [{ scale: 0.8 }] }}
                                     />
                                     <View>
-                                      <Text className="text-[11px] font-extrabold text-textPrimary">Default Printer</Text>
-                                      <Text className="text-[9px] font-semibold text-textSecondary mt-0.5">
-                                        Primary billing printer.
-                                      </Text>
+                                      <Text className="text-[11px] font-extrabold text-slate-800">Primary (Default)</Text>
                                     </View>
                                   </View>
                                 </View>
@@ -586,36 +599,36 @@ export default function SettingsScreen() {
                             </View>
 
                             {/* Accordion form actions - scaled down height & padding */}
-                            <View className="flex-row border-t border-slate-100 pt-3.5 mt-3.5 justify-between flex-wrap gap-2.5 items-center">
+                            <View className="flex-row border-t border-slate-100 pt-4.5 mt-4 justify-between flex-wrap gap-2.5 items-center">
                               <Pressable
                                 style={({ pressed }) => [
-                                  { height: 34 },
+                                  { height: 36 },
                                   pressed && { opacity: 0.85 }
                                 ]}
-                                className="px-4 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 flex-row gap-1.5 items-center justify-center"
+                                className="px-4.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 flex-row gap-1.5 items-center justify-center"
                                 onPress={() => handleDelete(printer.id)}
                               >
-                                <Trash2 size={12} color="#dc2626" />
+                                <Trash2 size={13} color="#dc2626" />
                                 <Text className="font-extrabold text-rose-700 text-[11px]">Delete Printer</Text>
                               </Pressable>
 
                               <View className="flex-row gap-2.5">
                                 <Pressable
-                                  className="px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 items-center justify-center flex-row gap-1.5"
-                                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 34 }]}
+                                  className="px-4.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 items-center justify-center flex-row gap-1.5"
+                                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 36 }]}
                                   onPress={handleTestConnection}
                                   disabled={testing || submitting}
                                 >
                                   {testing ? (
-                                    <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.7 }] }} />
+                                    <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.7 }] }} />
                                   ) : (
                                     <Text className="font-extrabold text-slate-700 text-[11px]">Test Connection</Text>
                                   )}
                                 </Pressable>
 
                                 <Pressable
-                                  className="px-5 rounded-xl bg-primary hover:bg-primaryDeep active:bg-primaryDeep items-center justify-center flex-row gap-1.5"
-                                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 34 }]}
+                                  className="px-5.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-850 items-center justify-center flex-row gap-1.5"
+                                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 36 }]}
                                   onPress={handleSave}
                                   disabled={testing || submitting}
                                 >
@@ -635,45 +648,45 @@ export default function SettingsScreen() {
 
                   {/* Collapsed + Add Another Printer trigger & expanded form */}
                   {isAddingNew ? (
-                    <View className="bg-white rounded-xl border border-primary shadow-xs overflow-hidden animate-fade-in">
-                      <View className="p-3 bg-slate-50 flex-row justify-between items-center border-b border-slate-200">
+                    <View className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
+                      <View className="p-4 bg-slate-50 flex-row justify-between items-center border-b border-slate-200/80">
                         <View className="flex-row items-center gap-1.5">
-                          <PrinterIcon size={14} color={colors.primary} />
-                          <Text className="font-black text-slate-800 text-xs">Add Another Printer</Text>
+                          <PrinterIcon size={14} color="#0F172A" />
+                          <Text className="font-bold text-slate-800 text-xs">Add Another Printer</Text>
                         </View>
                         <Pressable 
                           onPress={handleCancelNew}
-                          className="px-3 py-1 rounded-lg border border-slate-200 bg-white active:bg-slate-50"
+                          className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white active:bg-slate-50"
                         >
                           <Text className="text-[9px] font-black text-slate-500 uppercase">Cancel</Text>
                         </Pressable>
                       </View>
 
-                      <View className="p-4">
+                      <View className="p-6">
                         {formError && (
-                          <View className="flex-row items-center gap-2 bg-red-50 p-2.5 border border-red-200 rounded-xl mb-4">
+                          <View className="flex-row items-center gap-2 bg-rose-50 p-3 border border-rose-200 rounded-xl mb-5">
                             <AlertCircle size={16} color="#dc2626" />
-                            <Text className="text-red-700 font-bold flex-1 text-xs">{formError}</Text>
+                            <Text className="text-rose-700 font-bold flex-1 text-xs">{formError}</Text>
                           </View>
                         )}
 
-                        <View className="flex-row flex-wrap -mx-2">
+                        <View className="flex-row flex-wrap -mx-2.5">
                           {/* Printer Name */}
-                          <View className="w-full md:w-1/2 px-2 mb-3.5">
-                            <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Printer Name</Text>
+                          <View className="w-full md:w-1/2 px-2.5 mb-4">
+                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Printer Name</Text>
                             <TextInput
                               value={formState.name}
                               onChangeText={(text) => setFormState(prev => ({ ...prev, name: text }))}
-                              placeholder="e.g. Kitchen Printer"
+                              placeholder="e.g. Kitchen Output"
                               placeholderTextColor="#94a3b8"
-                              className="border border-slate-200 rounded-xl px-3 py-1.5 text-textPrimary bg-slate-50 focus:bg-white text-xs font-bold select-all w-full"
-                              style={{ minHeight: 36 }}
+                              className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                              style={{ minHeight: 40 }}
                             />
                           </View>
 
                           {/* Printer Role */}
-                          <View className="w-full md:w-1/2 px-2 mb-3.5">
-                            <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Printer Role</Text>
+                          <View className="w-full md:w-1/2 px-2.5 mb-4">
+                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Printer Role</Text>
                             <View className="flex-row gap-2">
                               {[
                                 { value: 'bill', label: 'Bill Printer' },
@@ -685,16 +698,16 @@ export default function SettingsScreen() {
                                     key={role.value}
                                     className={`flex-1 border items-center justify-center ${
                                       isSelected 
-                                        ? 'bg-[#f4f8fd] border-[#0D6CE0] text-primary' 
-                                        : 'bg-slate-50 border-slate-200 text-textSecondary active:bg-slate-100'
+                                        ? 'bg-slate-900 border-slate-900 text-white' 
+                                        : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
                                     }`}
                                     style={({ pressed }) => [
-                                      { height: 36, borderRadius: 8, borderWidth: isSelected ? 2 : 1 },
+                                      { height: 40, borderRadius: 12, borderWidth: 1 },
                                       pressed && { opacity: 0.9 }
                                     ]}
                                     onPress={() => setFormState(prev => ({ ...prev, printer_role: role.value }))}
                                   >
-                                    <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-[#0D6CE0]' : 'text-textSecondary'}`}>
+                                    <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                                       {role.label}
                                     </Text>
                                   </Pressable>
@@ -704,36 +717,36 @@ export default function SettingsScreen() {
                           </View>
 
                           {/* IP Address */}
-                          <View className="w-full md:w-1/2 px-2 mb-3.5">
-                            <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">IP Address</Text>
+                          <View className="w-full md:w-1/2 px-2.5 mb-4">
+                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">IP Address</Text>
                             <TextInput
                               value={formState.ip_address ?? ''}
                               onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
-                              placeholder="e.g. 192.168.1.107"
+                              placeholder="e.g. 192.168.1.101"
                               placeholderTextColor="#94a3b8"
-                              className="border border-slate-200 rounded-xl px-3 py-1.5 text-textPrimary bg-slate-50 focus:bg-white text-xs font-bold select-all w-full"
-                              style={{ minHeight: 36 }}
+                              className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                              style={{ minHeight: 40 }}
                               keyboardType="numeric"
                             />
                           </View>
 
                           {/* Port */}
-                          <View className="w-full md:w-1/2 px-2 mb-3.5">
-                            <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Port</Text>
+                          <View className="w-full md:w-1/2 px-2.5 mb-4">
+                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Port</Text>
                             <TextInput
                               value={String(formState.port)}
                               onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
                               placeholder="9100"
                               placeholderTextColor="#94a3b8"
-                              className="border border-slate-200 rounded-xl px-3 py-1.5 text-textPrimary bg-slate-50 focus:bg-white text-xs font-bold select-all w-full"
-                              style={{ minHeight: 36 }}
+                              className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                              style={{ minHeight: 40 }}
                               keyboardType="number-pad"
                             />
                           </View>
 
                           {/* Paper Width */}
-                          <View className="w-full md:w-1/2 px-2 mb-3.5">
-                            <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider mb-1.5">Paper Width</Text>
+                          <View className="w-full md:w-1/2 px-2.5 mb-4">
+                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Paper Width</Text>
                             <View className="flex-row gap-2">
                               {['80mm', '58mm'].map((size) => {
                                 const isSelected = formState.paper_width === size;
@@ -742,16 +755,16 @@ export default function SettingsScreen() {
                                     key={size}
                                     className={`flex-1 border items-center justify-center ${
                                       isSelected 
-                                        ? 'bg-[#f4f8fd] border-[#0D6CE0] text-primary' 
-                                        : 'bg-slate-50 border-slate-200 text-textSecondary active:bg-slate-100'
+                                        ? 'bg-slate-900 border-slate-900 text-white' 
+                                        : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
                                     }`}
                                     style={({ pressed }) => [
-                                      { height: 36, borderRadius: 8, borderWidth: isSelected ? 2 : 1 },
+                                      { height: 40, borderRadius: 12, borderWidth: 1 },
                                       pressed && { opacity: 0.9 }
                                     ]}
                                     onPress={() => setFormState(prev => ({ ...prev, paper_width: size }))}
                                   >
-                                    <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-[#0D6CE0]' : 'text-textSecondary'}`}>
+                                    <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                                       {size}
                                     </Text>
                                   </Pressable>
@@ -761,56 +774,56 @@ export default function SettingsScreen() {
                           </View>
 
                           {/* Switches */}
-                          <View className="w-full px-2 mb-2 flex-row gap-5 mt-1 flex-wrap">
+                          <View className="w-full px-2.5 mb-2 flex-row gap-5 mt-1 flex-wrap">
                             <View className="flex-row items-center gap-2">
                               <Switch
                                 value={formState.is_default}
                                 onValueChange={(val) => setFormState(prev => ({ ...prev, is_default: val }))}
-                                trackColor={{ false: '#cbd5e1', true: '#0D6CE0' }}
+                                trackColor={{ false: '#cbd5e1', true: '#0F172A' }}
                                 thumbColor={formState.is_default ? '#ffffff' : '#f4f3f4'}
                                 style={{ transform: [{ scale: 0.8 }] }}
                               />
-                              <Text className="text-[11px] font-extrabold text-textPrimary">Default Printer</Text>
+                              <Text className="text-[11px] font-extrabold text-slate-800">Primary (Default)</Text>
                             </View>
 
                             <View className="flex-row items-center gap-2">
                               <Switch
                                 value={formState.is_active}
                                 onValueChange={(val) => setFormState(prev => ({ ...prev, is_active: val }))}
-                                trackColor={{ false: '#cbd5e1', true: '#0D6CE0' }}
+                                trackColor={{ false: '#cbd5e1', true: '#0F172A' }}
                                 thumbColor={formState.is_active ? '#ffffff' : '#f4f3f4'}
                                 style={{ transform: [{ scale: 0.8 }] }}
                               />
-                              <Text className="text-[11px] font-extrabold text-textPrimary">Active</Text>
+                              <Text className="text-[11px] font-extrabold text-slate-800">Active Printer</Text>
                             </View>
                           </View>
                         </View>
 
                         {/* Actions */}
-                        <View className="flex-row gap-2.5 border-t border-slate-200 pt-3.5 mt-3.5 justify-end flex-wrap">
+                        <View className="flex-row gap-2.5 border-t border-slate-200/80 pt-4.5 mt-4 justify-end flex-wrap">
                           <Pressable
-                            className="px-4 rounded-xl border border-slate-200 bg-white active:bg-slate-50 items-center justify-center flex-row gap-1.5"
-                            style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 34 }]}
+                            className="px-4.5 rounded-xl border border-slate-200 bg-white active:bg-slate-50 items-center justify-center flex-row gap-1.5"
+                            style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 36 }]}
                             onPress={handleTestConnection}
                             disabled={testing || submitting}
                           >
                             {testing ? (
-                              <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.7 }] }} />
+                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.7 }] }} />
                             ) : (
                               <Text className="font-extrabold text-slate-700 text-[11px]">Test Connection</Text>
                             )}
                           </Pressable>
 
                           <Pressable
-                            className="px-5 rounded-xl bg-primary active:opacity-90 items-center justify-center flex-row gap-1.5"
-                            style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 34 }]}
+                            className="px-5.5 rounded-xl bg-slate-900 active:opacity-95 items-center justify-center flex-row gap-1.5"
+                            style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 36 }]}
                             onPress={handleSave}
                             disabled={testing || submitting}
                           >
                             {submitting ? (
                               <ActivityIndicator size="small" color="white" style={{ transform: [{ scale: 0.7 }] }} />
                             ) : (
-                              <Text className="font-extrabold text-white text-[11px]">Save Settings</Text>
+                              <Text className="font-extrabold text-white text-[11px]">Save Printer</Text>
                             )}
                           </Pressable>
                         </View>
@@ -819,10 +832,10 @@ export default function SettingsScreen() {
                   ) : (
                     <Pressable
                       onPress={handleStartNew}
-                      className="bg-white border border-dashed border-slate-300 py-2.5 rounded-xl flex-row items-center justify-center gap-1.5 active:bg-slate-50"
+                      className="bg-white border border-dashed border-slate-300 py-3 rounded-2xl flex-row items-center justify-center gap-1.5 active:bg-slate-50 shadow-xs"
                     >
-                      <Plus size={14} color={colors.primary} />
-                      <Text className="text-[10px] font-black text-slate-600 uppercase tracking-wider">+ Add Another Printer</Text>
+                      <Plus size={14} color="#0F172A" />
+                      <Text className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">+ Add Another Printer</Text>
                     </Pressable>
                   )}
                 </>
@@ -830,47 +843,58 @@ export default function SettingsScreen() {
             </View>
           </ScrollView>
         ) : activeTab === 'system' ? (
-          <ScrollView className="flex-1 bg-white border border-slate-200 rounded-xl p-4 shadow-xs animate-fade-in" showsVerticalScrollIndicator={false}>
-            <View className="flex-row items-center gap-3 border-b border-slate-100 pb-3 mb-4">
-              <View className="p-2 bg-accentSoft rounded-xl">
-                <Settings size={18} color={colors.primary} />
-              </View>
-              <View>
-                <Text className="text-sm font-black text-textPrimary">System Settings</Text>
-                <Text className="text-[10px] text-textSecondary font-semibold">General configurations and restaurant operations metadata</Text>
-              </View>
+          <ScrollView className="flex-1 animate-fade-in" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
+            <View className="mb-6">
+              <Text style={{ fontSize: 20, fontWeight: '600', color: '#0F172A' }}>
+                System Profile
+              </Text>
+              <Text className="text-sm text-slate-500 mt-1">General configurations and core POS metadata</Text>
             </View>
 
-            <View className="flex-row flex-wrap -mx-2 gap-y-3.5">
-              <View className="w-full md:w-1/2 px-2">
-                <View className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <Text className="text-[9px] font-bold text-textSecondary uppercase tracking-wider mb-1">POS Brand</Text>
-                  <Text className="text-sm font-black text-slate-800">{brand.name}</Text>
-                  <Text className="text-[10px] text-textSecondary font-semibold mt-0.5">{brand.tagline}</Text>
+            <View className="flex-row flex-wrap -mx-3 gap-y-6">
+              {/* POS Brand Card */}
+              <View className="w-full md:w-1/2 px-3">
+                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                  <View>
+                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">POS Brand</Text>
+                    <Text className="text-[22px] font-semibold text-slate-800">{brand.name}</Text>
+                  </View>
+                  <Text className="text-xs text-slate-500 mt-3">{brand.tagline}</Text>
                 </View>
               </View>
 
-              <View className="w-full md:w-1/2 px-2">
-                <View className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <Text className="text-[9px] font-bold text-textSecondary uppercase tracking-wider mb-1">Active Currency</Text>
-                  <Text className="text-sm font-black text-slate-800">INR (₹)</Text>
-                  <Text className="text-[10px] text-textSecondary font-semibold mt-0.5">Official restaurant transactions and accounting currency.</Text>
+              {/* Active Currency Card */}
+              <View className="w-full md:w-1/2 px-3">
+                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                  <View>
+                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Active Currency</Text>
+                    <Text className="text-[22px] font-semibold text-slate-800">INR (₹)</Text>
+                  </View>
+                  <Text className="text-xs text-slate-500 mt-3">Primary transaction and billing currency.</Text>
                 </View>
               </View>
 
-              <View className="w-full md:w-1/2 px-2">
-                <View className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <Text className="text-[9px] font-bold text-textSecondary uppercase tracking-wider mb-1">Thermal Receipt Format</Text>
-                  <Text className="text-sm font-black text-slate-800">ESC/POS (Network IP)</Text>
-                  <Text className="text-[10px] text-textSecondary font-semibold mt-0.5">Raw character printer streams and immediate spool cuts.</Text>
+              {/* Print Protocol Card */}
+              <View className="w-full md:w-1/2 px-3">
+                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                  <View>
+                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Print Protocol</Text>
+                    <Text className="text-[22px] font-semibold text-slate-800">ESC/POS (Network IP)</Text>
+                  </View>
+                  <Text className="text-xs text-slate-500 mt-3">Thermal printer stream and spool formatting protocol.</Text>
                 </View>
               </View>
 
-              <View className="w-full md:w-1/2 px-2">
-                <View className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <Text className="text-[9px] font-bold text-textSecondary uppercase tracking-wider mb-1">Local Bridge Endpoint</Text>
-                  <Text className="text-sm font-black text-[#0D6CE0] select-all">http://localhost:3210</Text>
-                  <Text className="text-[10px] text-textSecondary font-semibold mt-0.5">Production endpoint of the Grovit Print Agent interface.</Text>
+              {/* Local Print Bridge Card */}
+              <View className="w-full md:w-1/2 px-3">
+                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                  <View>
+                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Local Print Bridge</Text>
+                    <Pressable className="self-start active:opacity-80">
+                      <Text className="text-[22px] font-semibold text-sky-600 underline">localhost:4545</Text>
+                    </Pressable>
+                  </View>
+                  <Text className="text-xs text-slate-500 mt-3">Operational production endpoint of the local print agent.</Text>
                 </View>
               </View>
             </View>

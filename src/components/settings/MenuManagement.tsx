@@ -648,6 +648,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
             data={filteredAndSortedProducts}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 130 }}
             renderItem={({ item }) => {
               const category = categories.find(c => c.id === item.category_id);
               const colorSchema = getCategoryColorSchema(item.category_id ?? '');
