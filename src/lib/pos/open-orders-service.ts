@@ -973,26 +973,37 @@ export async function settleOrderById(
     let bill = existingBill;
 
     if (!bill) {
+      const billPayload = {
+        tenant_id,
+        branch_id,
+        open_order_id: orderId,
+        subtotal,
+        tax_amount,
+        discount_amount,
+        total_amount,
+        status: 'paid',
+        settled_at: new Date().toISOString(),
+        created_by: createdBy,
+      };
+
+      console.log('[settleOrderById] Bill payload', billPayload);
+
       const { data: newBill, error: billErr } = await supabase
         .from('bills')
-        .insert({
-          tenant_id,
-          branch_id,
-          open_order_id: orderId,
-          subtotal,
-          tax_amount,
-          discount_amount,
-          total_amount,
-          status: 'paid',
-          settled_at: new Date().toISOString(),
-          created_by: createdBy,
-        })
+        .insert(billPayload)
         .select()
         .single();
 
       if (billErr || !newBill) {
-        logSupabaseError('settleOrderById.createBill', billErr);
-        return { data: null, error: 'Unable to create bill.' };
+        console.error(
+          '[settleOrderById] Bill creation failed',
+          {
+            error: billErr,
+            payload: billPayload,
+            orderId,
+          }
+        );
+        throw new Error(`Unable to create bill: ${billErr?.message || 'Unknown error'}`);
       }
       bill = newBill;
     }
@@ -1013,13 +1024,22 @@ export async function settleOrderById(
         price: item.price,
       }));
 
+      console.log('[settleOrderById] Bill items payload', billItemsPayload);
+
       const { error: billItemsErr } = await supabase
         .from('bill_items')
         .insert(billItemsPayload);
 
       if (billItemsErr) {
-        logSupabaseError('settleOrderById.createBillItems', billItemsErr);
-        return { data: null, error: 'Unable to create bill items.' };
+        console.error(
+          '[settleOrderById] Bill items creation failed',
+          {
+            error: billItemsErr,
+            payload: billItemsPayload,
+            billId: bill.id,
+          }
+        );
+        throw new Error(`Unable to create bill items: ${billItemsErr.message}`);
       }
     }
 
@@ -1031,18 +1051,30 @@ export async function settleOrderById(
       .limit(1);
 
     if (!existingSettlement || existingSettlement.length === 0) {
+      const settlementPayload = {
+        bill_id: bill.id,
+        tenant_id,
+        branch_id,
+        payment_type: paymentType.toLowerCase(),
+        amount: total_amount,
+      };
+
+      console.log('[settleOrderById] Settlement payload', settlementPayload);
+
       const { error: settlementErr } = await supabase
         .from('settlements')
-        .insert({
-          bill_id: bill.id,
-          tenant_id,
-          branch_id,
-          payment_type: paymentType.toLowerCase(),
-          amount: total_amount,
-        });
+        .insert(settlementPayload);
 
       if (settlementErr) {
-        logSupabaseError('settleOrderById.createSettlement', settlementErr);
+        console.error(
+          '[settleOrderById] Settlement creation failed',
+          {
+            error: settlementErr,
+            payload: settlementPayload,
+            billId: bill.id,
+          }
+        );
+        throw new Error(`Unable to create settlement: ${settlementErr.message}`);
       }
     }
 
@@ -1067,15 +1099,15 @@ export async function settleOrderById(
 
     if (updateErr) {
       logSupabaseError('settleOrderById.updateOrder', updateErr);
-      return { data: null, error: 'Unable to mark order as paid.' };
+      throw new Error(`Unable to mark order as paid: ${updateErr.message}`);
     }
 
     return { data: updatedOrder as OpenOrder, error: null };
-  } catch (err) {
+  } catch (err: any) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.error('[Grovit] settleOrderById exception:', err);
     }
-    return { data: null, error: 'Unable to settle order.' };
+    return { data: null, error: err instanceof Error ? err.message : 'Unable to settle order.' };
   }
 }
 
