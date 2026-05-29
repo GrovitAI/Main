@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Platform } from 'react-native';
-import { Printer as PrinterIcon, Plus, Trash2, Check, AlertCircle, Wifi, Settings, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Printer as PrinterIcon, Plus, Trash2, Check, AlertCircle, Wifi, Settings } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, diagnosePrinterConnection } from '@/lib/printer/printer-service';
 import { MenuManagement } from '@/components/settings/MenuManagement';
-import { isPrintAgentRunning, getPrinters } from '@/services/printService';
 
 type PrinterFormState = Omit<Printer, 'id' | 'tenant_id' | 'branch_id'> & { id?: string };
 
@@ -36,58 +35,8 @@ export default function SettingsScreen() {
   const [formState, setFormState] = useState<PrinterFormState>(initialFormState);
   const [isNew, setIsNew] = useState(true);
 
-  // Advanced section collapse state
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
   // Live connection status indicator state
-  const [connStatus, setConnStatus] = useState<'connected' | 'unreachable' | 'offline' | 'missing' | 'checking'>('checking');
-
-  // Local Print Agent Integration state
-  const [localPrinters, setLocalPrinters] = useState<string[]>([]);
-  const [selectedLocalPrinter, setSelectedLocalPrinter] = useState<string>('');
-  const [agentOnline, setAgentOnline] = useState<boolean | null>(null);
-  const [checkingAgent, setCheckingAgent] = useState<boolean>(false);
-
-  const getLocalBillingPrinter = () => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage.getItem('billingPrinter') || '';
-    }
-    return '';
-  };
-
-  const setLocalBillingPrinter = (printerName: string) => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem('billingPrinter', printerName);
-    }
-  };
-
-  const checkLocalPrintAgent = async () => {
-    setCheckingAgent(true);
-    try {
-      const isRunning = await isPrintAgentRunning();
-      setAgentOnline(isRunning);
-      if (isRunning) {
-        const list = await getPrinters();
-        setLocalPrinters(list);
-        
-        const saved = getLocalBillingPrinter();
-        if (saved && list.includes(saved)) {
-          setSelectedLocalPrinter(saved);
-        } else if (list.length > 0) {
-          setSelectedLocalPrinter(list[0]);
-          setLocalBillingPrinter(list[0]);
-        }
-      } else {
-        setLocalPrinters([]);
-      }
-    } catch (err) {
-      console.error('[Settings] Failed to check print agent:', err);
-      setAgentOnline(false);
-      setLocalPrinters([]);
-    } finally {
-      setCheckingAgent(false);
-    }
-  };
+  const [connStatus, setConnStatus] = useState<'connected' | 'unreachable' | 'offline' | 'checking'>('checking');
 
   // Load configured printers
   const loadPrinters = async () => {
@@ -98,8 +47,14 @@ export default function SettingsScreen() {
       setError(res.error);
     } else if (res.data) {
       setPrinters(res.data);
-      if (res.data.length > 0 && !selectedPrinter) {
-        handleSelectPrinter(res.data[0]);
+      if (res.data.length > 0) {
+        // If we already have a selected printer, re-select it to get fresh data
+        const current = selectedPrinter 
+          ? res.data.find(p => p.id === selectedPrinter.id) 
+          : null;
+        handleSelectPrinter(current || res.data[0]);
+      } else {
+        handleStartNew();
       }
     }
     setLoading(false);
@@ -107,15 +62,22 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadPrinters();
-    checkLocalPrintAgent();
   }, []);
 
   // Async connectivity checking
   const checkConnectivity = async (currentForm: PrinterFormState) => {
+    if (currentForm.connection !== 'network' || !currentForm.ip_address) {
+      setConnStatus('unreachable');
+      return;
+    }
     setConnStatus('checking');
     try {
       const status = await diagnosePrinterConnection(currentForm);
-      setConnStatus(status);
+      if (status === 'missing') {
+        setConnStatus('unreachable');
+      } else {
+        setConnStatus(status as any);
+      }
     } catch {
       setConnStatus('offline');
     }
@@ -124,7 +86,7 @@ export default function SettingsScreen() {
   // Check connectivity whenever critical values are edited
   useEffect(() => {
     checkConnectivity(formState);
-  }, [formState.connection, formState.ip_address, formState.port, formState.name, formState.os_printer_name]);
+  }, [formState.connection, formState.ip_address, formState.port]);
 
   const handleSelectPrinter = (printer: Printer) => {
     setSelectedPrinter(printer);
@@ -145,7 +107,6 @@ export default function SettingsScreen() {
     setIsNew(false);
     setFormError(null);
     setSuccessMsg(null);
-    setShowAdvanced(false);
     checkConnectivity(selectedState);
   };
 
@@ -155,7 +116,6 @@ export default function SettingsScreen() {
     setIsNew(true);
     setFormError(null);
     setSuccessMsg(null);
-    setShowAdvanced(false);
     checkConnectivity(initialFormState);
   };
 
@@ -193,26 +153,20 @@ export default function SettingsScreen() {
       ...formState,
       ip_address: formState.connection === 'network' ? (formState.ip_address || '').trim() : null,
       port: Number(formState.port),
-      os_printer_name: formState.os_printer_name,
     };
 
-    // Note: If os_printer_name is missing, standard REST insert might return error until DDL runs.
-    // We handle it gracefully by letting users know.
     const res = await savePrinter(printerPayload);
     setSubmitting(false);
 
     if (res.error) {
-      if (res.error.toLowerCase().includes('column') || res.error.toLowerCase().includes('does not exist')) {
-        setFormError('Database column missing. Please run the SQL migration inside your Supabase console:\n\nALTER TABLE printers ADD COLUMN os_printer_name text;');
-      } else {
-        setFormError(res.error);
-      }
+      setFormError(res.error);
     } else if (res.data) {
       setSuccessMsg(`Printer "${res.data.name}" saved successfully!`);
+      const savedPrinterId = res.data.id;
       const updatedRes = await fetchPrinters();
       if (updatedRes.data) {
         setPrinters(updatedRes.data);
-        const saved = updatedRes.data.find(p => p.name === printerPayload.name || p.id === printerPayload.id);
+        const saved = updatedRes.data.find(p => p.id === savedPrinterId || p.name === printerPayload.name);
         if (saved) {
           handleSelectPrinter(saved);
         }
@@ -227,6 +181,7 @@ export default function SettingsScreen() {
     if (res.error) {
       setError(res.error);
     } else {
+      setSelectedPrinter(null);
       handleStartNew();
       loadPrinters();
     }
@@ -246,16 +201,8 @@ export default function SettingsScreen() {
         port: Number(formState.port),
       };
 
-      // testPrinter resolves and returns the matched OS printer name!
-      const resolvedSpooler = await printerService.testPrinter(testPrinterPayload);
-      
-      // Auto-populate the matched spooler into our form state so it is ready to save!
-      setFormState(prev => ({
-        ...prev,
-        os_printer_name: resolvedSpooler
-      }));
-
-      setSuccessMsg('Printer connected successfully');
+      await printerService.testPrinter(testPrinterPayload);
+      setSuccessMsg('Test receipt printed successfully!');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes('offline') || msg.toLowerCase().includes('agent') || msg.toLowerCase().includes('service offline')) {
@@ -273,38 +220,31 @@ export default function SettingsScreen() {
     switch (connStatus) {
       case 'connected':
         return (
-          <View className="flex-row items-center gap-2 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-            <View className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <Text className="text-emerald-700 text-xs font-bold">Connected</Text>
+          <View className="flex-row items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+            <View className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <Text className="text-emerald-700 text-[10px] font-black uppercase">Connected</Text>
           </View>
         );
       case 'unreachable':
         return (
-          <View className="flex-row items-center gap-2 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-            <View className="w-2 h-2 rounded-full bg-amber-500" />
-            <Text className="text-amber-700 text-xs font-bold">Printer Unreachable</Text>
-          </View>
-        );
-      case 'missing':
-        return (
-          <View className="flex-row items-center gap-2 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200">
-            <View className="w-2 h-2 rounded-full bg-yellow-500" />
-            <Text className="text-yellow-700 text-xs font-bold">Printer Missing (No Match)</Text>
+          <View className="flex-row items-center gap-1.5 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+            <View className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <Text className="text-amber-700 text-[10px] font-black uppercase">Printer Unreachable</Text>
           </View>
         );
       case 'offline':
         return (
-          <View className="flex-row items-center gap-2 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
-            <View className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-            <Text className="text-rose-700 text-xs font-bold">Agent Offline</Text>
+          <View className="flex-row items-center gap-1.5 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
+            <View className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+            <Text className="text-rose-700 text-[10px] font-black uppercase">Agent Offline</Text>
           </View>
         );
       case 'checking':
       default:
         return (
-          <View className="flex-row items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-            <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.7 }] }} />
-            <Text className="text-slate-600 text-xs font-bold">Checking...</Text>
+          <View className="flex-row items-center gap-1.5 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
+            <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.6 }] }} />
+            <Text className="text-slate-600 text-[10px] font-black uppercase">Checking...</Text>
           </View>
         );
     }
@@ -349,113 +289,33 @@ export default function SettingsScreen() {
       {activeTab === 'printers' ? (
         <>
           {/* Header section with brand colors */}
-          <View className="mb-6 flex-row items-center justify-between border-b border-border p-4 bg-white rounded-2xl shadow-sm">
+          <View className="mb-4 flex-row items-center justify-between border border-border p-3.5 bg-white rounded-2xl shadow-xs">
             <View className="flex-row items-center gap-3">
-              <View className="p-3 bg-accentSoft rounded-xl">
-                <PrinterIcon size={24} color={colors.primary} />
+              <View className="p-2 bg-accentSoft rounded-xl">
+                <PrinterIcon size={20} color={colors.primary} />
               </View>
               <View>
-                <Text className="text-xl font-bold text-text-primary">Printer Configuration</Text>
-                <Text className="text-sm text-text-secondary">Manage Epson LAN/IP thermal printer settings</Text>
+                <Text className="text-lg font-black text-text-primary">Network Printer Management</Text>
+                <Text className="text-xs text-text-secondary font-medium">Manage network thermal receipt and kitchen tickets</Text>
               </View>
             </View>
 
             <Pressable
-              className="flex-row items-center gap-2 px-5 py-3 rounded-xl bg-primary active:opacity-90"
+              className="flex-row items-center gap-1.5 px-4 py-2 rounded-xl bg-primary active:opacity-90"
               style={({ pressed }) => pressed && { opacity: 0.9 }}
               onPress={handleStartNew}
             >
-              <Plus size={18} color="white" />
-              <Text className="text-white font-semibold text-sm">Add Printer</Text>
+              <Plus size={16} color="white" />
+              <Text className="text-white font-extrabold text-xs">Add Printer</Text>
             </Pressable>
           </View>
 
           {/* Main layout: responsive side-by-side or stacked grid */}
-          <View className={`flex-1 ${Platform.OS === 'web' ? 'flex-row gap-6' : 'flex-col gap-6'}`}>
+          <View className={`flex-1 ${Platform.OS === 'web' ? 'flex-row gap-4' : 'flex-col gap-4'}`}>
             
             {/* Left Side: Printers list */}
-            <View className={`bg-white rounded-2xl p-5 border border-border shadow-sm ${Platform.OS === 'web' ? 'w-1/3' : 'w-full'}`}>
-              
-              {/* Grovit Local Print Agent Card */}
-              <View className="mb-6 p-4 bg-[#e8f2fa] rounded-2xl border border-[#c5d9eb]">
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-xs font-bold text-text-primary">Local Print Agent</Text>
-                  <View className="flex-row items-center gap-1.5">
-                    <View className={`w-2 h-2 rounded-full ${agentOnline === true ? 'bg-green-500' : agentOnline === false ? 'bg-red-500' : 'bg-yellow-500'}`} />
-                    <Text className="text-[10px] font-black text-text-secondary uppercase">
-                      {agentOnline === true ? 'Online' : agentOnline === false ? 'Offline' : 'Checking'}
-                    </Text>
-                  </View>
-                </View>
-
-                {agentOnline === true ? (
-                  <View>
-                    <Text className="text-[11px] text-text-secondary mb-2 font-medium">Select thermal billing printer:</Text>
-                    {localPrinters.length === 0 ? (
-                      <Text className="text-xs text-red-600 font-bold bg-white p-2 rounded-lg border border-red-100">
-                        No OS printers detected by print agent.
-                      </Text>
-                    ) : (
-                      <View className="bg-white rounded-xl border border-[#c5d9eb] overflow-hidden p-1">
-                        {Platform.OS === 'web' ? (
-                          <select
-                            value={selectedLocalPrinter}
-                            onChange={(e) => {
-                              setSelectedLocalPrinter(e.target.value);
-                              setLocalBillingPrinter(e.target.value);
-                            }}
-                            className="w-full px-3 py-1.5 text-xs font-semibold text-text-primary bg-white outline-none border-none cursor-pointer"
-                            style={{ appearance: 'none', WebkitAppearance: 'none' }}
-                          >
-                            {localPrinters.map((p) => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <View className="p-1 gap-1">
-                            {localPrinters.map((p) => {
-                              const isSel = selectedLocalPrinter === p;
-                              return (
-                                <Pressable
-                                  key={p}
-                                  onPress={() => {
-                                    setSelectedLocalPrinter(p);
-                                    setLocalBillingPrinter(p);
-                                  }}
-                                  className={`p-2 rounded-lg ${isSel ? 'bg-primary' : 'bg-transparent'}`}
-                                >
-                                  <Text className={`text-xs ${isSel ? 'text-white font-bold' : 'text-text-primary'}`}>
-                                    {p}
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View>
-                    <Text className="text-[11px] text-red-700 bg-red-50/50 p-3 rounded-xl border border-red-100 leading-relaxed font-semibold">
-                      ⚠ Local Print Agent is offline. Verify it is running at http://localhost:4545
-                    </Text>
-                    <Pressable
-                      onPress={checkLocalPrintAgent}
-                      disabled={checkingAgent}
-                      className="mt-3 bg-white border border-[#c5d9eb] px-3 py-2 rounded-xl flex-row items-center justify-center active:bg-slate-50 min-h-[36px]"
-                    >
-                      {checkingAgent ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : (
-                        <Text className="text-xs font-extrabold text-text-primary">Retry Connection</Text>
-                      )}
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-
-              <Text className="text-base font-bold text-text-primary mb-4">Configured Printers</Text>
+            <View className={`bg-white rounded-2xl p-4 border border-border shadow-xs ${Platform.OS === 'web' ? 'w-5/12' : 'w-full'}`}>
+              <Text className="text-sm font-black text-text-primary mb-3">Configured Printers</Text>
 
               {loading ? (
                 <View className="flex-1 items-center justify-center py-10">
@@ -468,10 +328,10 @@ export default function SettingsScreen() {
                 </View>
               ) : printers.length === 0 ? (
                 <View className="flex-1 items-center justify-center py-12 px-4 border-2 border-dashed border-border rounded-2xl">
-                  <PrinterIcon size={48} color={colors.textSecondary} className="opacity-40" />
-                  <Text className="text-text-primary font-bold text-lg mt-4 text-center">No Printers Configured</Text>
-                  <Text className="text-text-secondary text-sm text-center mt-2">
-                    Click "Add Printer" to set up your Epson network/IP printer.
+                  <PrinterIcon size={40} color={colors.textSecondary} className="opacity-40" />
+                  <Text className="text-text-primary font-black text-base mt-3 text-center">No Printers Configured</Text>
+                  <Text className="text-text-secondary text-xs text-center mt-1">
+                    Click "Add Printer" to set up your network thermal printer.
                   </Text>
                 </View>
               ) : (
@@ -485,55 +345,55 @@ export default function SettingsScreen() {
                       <Pressable
                         onPress={() => handleSelectPrinter(item)}
                         style={({ pressed }) => pressed && { opacity: 0.95 }}
-                        className={`flex-row items-center justify-between p-4 mb-3 rounded-xl border transition-all ${
+                        className={`p-3.5 mb-2.5 rounded-2xl border transition-all ${
                           isSelected
-                            ? 'bg-accentSoft border-primary'
-                            : 'bg-white border-border active:bg-slate-50'
+                            ? 'bg-emerald-50/50 border-emerald-500 shadow-xs'
+                            : 'bg-white border-slate-100 active:bg-slate-50'
                         }`}
                       >
-                        <View className="flex-1 mr-3">
-                          <View className="flex-row items-center gap-2 flex-wrap">
-                            <Text className="font-semibold text-text-primary text-base">{item.name}</Text>
-                            {item.is_default && (
-                              <View className="bg-primary px-2 py-0.5 rounded-md">
-                                <Text className="text-white text-xs font-medium">Default</Text>
+                        <View className="flex-row items-center justify-between">
+                          <View className="flex-1 mr-2">
+                            <View className="flex-row items-center gap-1.5 flex-wrap">
+                              <Text className="font-extrabold text-slate-800 text-sm">{item.name}</Text>
+                              {item.is_default && (
+                                <View className="bg-emerald-500 px-1.5 py-0.5 rounded">
+                                  <Text className="text-white text-[9px] font-black uppercase tracking-wider">Default</Text>
+                                </View>
+                              )}
+                              {!item.is_active && (
+                                <View className="bg-slate-200 px-1.5 py-0.5 rounded">
+                                  <Text className="text-slate-600 text-[9px] font-black uppercase tracking-wider">Inactive</Text>
+                                </View>
+                              )}
+                            </View>
+                            
+                            <View className="flex-row items-center gap-2 mt-1.5 flex-wrap">
+                              <View className="flex-row items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded">
+                                <Wifi size={10} color={colors.textSecondary} />
+                                <Text className="text-slate-600 text-[9px] font-black uppercase tracking-wider">
+                                  {item.printer_role === 'bill' ? 'Bill Printer' : 'Kitchen Printer'}
+                                </Text>
                               </View>
-                            )}
-                            {!item.is_active && (
-                              <View className="bg-slate-200 px-2 py-0.5 rounded-md">
-                                <Text className="text-slate-600 text-xs font-medium">Inactive</Text>
-                              </View>
-                            )}
+
+                              {item.ip_address && (
+                                <Text className="text-slate-500 text-xs font-bold">
+                                  • {item.ip_address}:{item.port} ({item.paper_width})
+                                </Text>
+                              )}
+                            </View>
                           </View>
                           
-                          <View className="flex-row items-center gap-2 mt-2 flex-wrap">
-                            <View className="flex-row items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md">
-                              <Wifi size={12} color={colors.textSecondary} />
-                              <Text className="text-text-secondary text-xs font-medium uppercase">
-                                {item.connection}
-                              </Text>
-                            </View>
-
-                            <Text className="text-text-secondary text-xs">
-                              {item.printer_role === 'bill' ? 'Bill Printer' : 'Kitchen Printer'}
-                            </Text>
-                            
-                            {item.ip_address && (
-                              <Text className="text-text-secondary text-xs">• {item.ip_address}:{item.port}</Text>
-                            )}
-                          </View>
+                          <Pressable
+                            style={({ pressed }) => pressed && { opacity: 0.8 }}
+                            className="p-1.5 bg-red-50 active:bg-red-100 rounded-lg"
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleDelete(item.id);
+                            }}
+                          >
+                            <Trash2 size={13} color="#dc2626" />
+                          </Pressable>
                         </View>
-                        
-                        <Pressable
-                          style={({ pressed }) => pressed && { opacity: 0.8 }}
-                          className="p-2 hover:bg-red-50 rounded-lg"
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            handleDelete(item.id);
-                          }}
-                        >
-                          <Trash2 size={16} color="#dc2626" />
-                        </Pressable>
                       </Pressable>
                     );
                   }}
@@ -542,12 +402,12 @@ export default function SettingsScreen() {
             </View>
 
             {/* Right Side: Configuration Detail / Form */}
-            <View className="flex-1 bg-white rounded-2xl p-6 border border-border shadow-sm justify-between">
+            <View className="flex-1 bg-white rounded-2xl p-4 border border-border shadow-xs justify-between">
               <View>
-                <View className="border-b border-border pb-3 mb-6 flex-row items-center justify-between">
+                <View className="border-b border-border pb-2.5 mb-4 flex-row items-center justify-between">
                   <View className="flex-row items-center gap-2">
-                    <Settings size={20} color={colors.primary} />
-                    <Text className="text-lg font-bold text-text-primary">
+                    <Settings size={16} color={colors.primary} />
+                    <Text className="text-sm font-extrabold text-text-primary">
                       {isNew ? 'New Printer Configuration' : 'Edit Printer Configuration'}
                     </Text>
                   </View>
@@ -555,131 +415,38 @@ export default function SettingsScreen() {
                 </View>
 
                 {formError && (
-                  <View className="flex-row items-center gap-3 bg-red-50 p-4 border border-red-200 rounded-xl mb-6">
-                    <AlertCircle size={20} color="#dc2626" />
-                    <Text className="text-red-700 font-medium flex-1 text-sm">{formError}</Text>
+                  <View className="flex-row items-center gap-2 bg-red-50 p-3 border border-red-200 rounded-xl mb-4">
+                    <AlertCircle size={16} color="#dc2626" />
+                    <Text className="text-red-700 font-bold flex-1 text-xs">{formError}</Text>
                   </View>
                 )}
 
                 {successMsg && (
-                  <View className="flex-row items-center gap-3 bg-green-50 p-4 border border-green-200 rounded-xl mb-6">
-                    <Check size={20} color="#15803d" />
-                    <Text className="text-green-700 font-medium flex-1 text-sm">{successMsg}</Text>
+                  <View className="flex-row items-center gap-2 bg-green-50 p-3 border border-green-200 rounded-xl mb-4">
+                    <Check size={16} color="#15803d" />
+                    <Text className="text-green-700 font-bold flex-1 text-xs">{successMsg}</Text>
                   </View>
                 )}
 
                 {/* Inputs grid */}
-                <View className="flex-row flex-wrap -mx-3">
+                <View className="flex-row flex-wrap -mx-2">
                   {/* Printer Friendly Name */}
-                  <View className="w-full md:w-1/2 px-3 mb-5">
-                    <Text className="text-sm font-semibold text-text-primary mb-2">Printer Name (Display Label)</Text>
+                  <View className="w-full md:w-1/2 px-2 mb-3.5">
+                    <Text className="text-xs font-black text-text-primary mb-1.5">Printer Name</Text>
                     <TextInput
                       value={formState.name}
                       onChangeText={(text) => setFormState(prev => ({ ...prev, name: text }))}
                       placeholder="e.g. Cash Counter"
                       placeholderTextColor="#94a3b8"
-                      className="border border-border rounded-xl px-4 py-3 text-text-primary bg-slate-50 focus:bg-white text-base"
-                      style={{ minHeight: 44 }}
+                      className="border border-border rounded-xl px-3 py-2 text-text-primary bg-slate-50 focus:bg-white text-sm"
+                      style={{ minHeight: 38 }}
                     />
                   </View>
 
-                  {/* Printer Type */}
-                  <View className="w-full md:w-1/2 px-3 mb-5">
-                    <Text className="text-sm font-semibold text-text-primary mb-2">Printer Type</Text>
-                    <View className="border border-border rounded-xl bg-slate-50 overflow-hidden" style={{ minHeight: 44, justifyContent: 'center' }}>
-                      <Text className="px-4 py-3 text-text-primary text-base font-medium">Epson Thermal</Text>
-                    </View>
-                  </View>
-
-                  {/* Connection Type */}
-                  <View className="w-full md:w-1/2 px-3 mb-5">
-                    <Text className="text-sm font-semibold text-text-primary mb-2">Connection Type</Text>
-                    <View className="flex-row gap-3">
-                      {['network', 'usb'].map((conn) => {
-                        const isSelected = formState.connection === conn;
-                        return (
-                          <Pressable
-                            key={conn}
-                            className={`flex-1 border rounded-xl items-center justify-center ${
-                              isSelected ? 'bg-primary border-primary' : 'bg-slate-50 border-border active:bg-slate-100'
-                            }`}
-                            style={({ pressed }) => [
-                              { height: 44, justifyContent: 'center', flex: 1 },
-                              pressed && { opacity: 0.9 }
-                            ]}
-                            onPress={() => setFormState(prev => ({ ...prev, connection: conn }))}
-                          >
-                            <Text className={`font-semibold text-sm ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
-                              {conn === 'network' ? 'Network IP' : 'USB (Future)'}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* Paper Width */}
-                  <View className="w-full md:w-1/2 px-3 mb-5">
-                    <Text className="text-sm font-semibold text-text-primary mb-2">Paper Width</Text>
-                    <View className="flex-row gap-3">
-                      {['80mm', '58mm'].map((size) => {
-                        const isSelected = formState.paper_width === size;
-                        return (
-                          <Pressable
-                            key={size}
-                            className={`flex-1 border rounded-xl items-center justify-center ${
-                              isSelected ? 'bg-primary border-primary' : 'bg-slate-50 border-border active:bg-slate-100'
-                            }`}
-                            style={({ pressed }) => [
-                              { height: 44, justifyContent: 'center', flex: 1 },
-                              pressed && { opacity: 0.9 }
-                            ]}
-                            onPress={() => setFormState(prev => ({ ...prev, paper_width: size }))}
-                          >
-                            <Text className={`font-semibold text-sm ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
-                              {size}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* Conditional Network IP & Port */}
-                  {formState.connection === 'network' && (
-                    <>
-                      <View className="w-full md:w-1/2 px-3 mb-5">
-                        <Text className="text-sm font-semibold text-text-primary mb-2">IP Address</Text>
-                        <TextInput
-                          value={formState.ip_address ?? ''}
-                          onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
-                          placeholder="e.g. 192.168.1.106"
-                          placeholderTextColor="#94a3b8"
-                          className="border border-border rounded-xl px-4 py-3 text-text-primary bg-slate-50 focus:bg-white text-base"
-                          style={{ minHeight: 44 }}
-                          keyboardType="numeric"
-                        />
-                      </View>
-
-                      <View className="w-full md:w-1/2 px-3 mb-5">
-                        <Text className="text-sm font-semibold text-text-primary mb-2">Port</Text>
-                        <TextInput
-                          value={String(formState.port)}
-                          onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
-                          placeholder="9100"
-                          placeholderTextColor="#94a3b8"
-                          className="border border-border rounded-xl px-4 py-3 text-text-primary bg-slate-50 focus:bg-white text-base"
-                          style={{ minHeight: 44 }}
-                          keyboardType="number-pad"
-                        />
-                      </View>
-                    </>
-                  )}
-
                   {/* Printer Role */}
-                  <View className="w-full md:w-1/2 px-3 mb-5">
-                    <Text className="text-sm font-semibold text-text-primary mb-2">Printer Role</Text>
-                    <View className="flex-row gap-3">
+                  <View className="w-full md:w-1/2 px-2 mb-3.5">
+                    <Text className="text-xs font-black text-text-primary mb-1.5">Printer Role</Text>
+                    <View className="flex-row gap-2">
                       {[
                         { value: 'bill', label: 'Bill Printer' },
                         { value: 'kitchen', label: 'Kitchen Printer' }
@@ -692,12 +459,12 @@ export default function SettingsScreen() {
                               isSelected ? 'bg-primary border-primary' : 'bg-slate-50 border-border active:bg-slate-100'
                             }`}
                             style={({ pressed }) => [
-                              { height: 44, justifyContent: 'center', flex: 1 },
+                              { height: 38, justifyContent: 'center', flex: 1 },
                               pressed && { opacity: 0.9 }
                             ]}
                             onPress={() => setFormState(prev => ({ ...prev, printer_role: role.value }))}
                           >
-                            <Text className={`font-semibold text-sm ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
+                            <Text className={`font-extrabold text-xs ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
                               {role.label}
                             </Text>
                           </Pressable>
@@ -706,82 +473,117 @@ export default function SettingsScreen() {
                     </View>
                   </View>
 
-                  {/* Toggles */}
-                  <View className="w-full px-3 mb-3 flex-row gap-6 mt-2 flex-wrap">
-                    <View className="flex-row items-center gap-3">
+                  {/* Network IP Address */}
+                  <View className="w-full md:w-1/2 px-2 mb-3.5">
+                    <Text className="text-xs font-black text-text-primary mb-1.5">IP Address</Text>
+                    <TextInput
+                      value={formState.ip_address ?? ''}
+                      onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
+                      placeholder="e.g. 192.168.1.106"
+                      placeholderTextColor="#94a3b8"
+                      className="border border-border rounded-xl px-3 py-2 text-text-primary bg-slate-50 focus:bg-white text-sm"
+                      style={{ minHeight: 38 }}
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  {/* Network Port */}
+                  <View className="w-full md:w-1/2 px-2 mb-3.5">
+                    <Text className="text-xs font-black text-text-primary mb-1.5">Port</Text>
+                    <TextInput
+                      value={String(formState.port)}
+                      onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
+                      placeholder="9100"
+                      placeholderTextColor="#94a3b8"
+                      className="border border-border rounded-xl px-3 py-2 text-text-primary bg-slate-50 focus:bg-white text-sm"
+                      style={{ minHeight: 38 }}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+
+                  {/* Paper Width */}
+                  <View className="w-full md:w-1/2 px-2 mb-3.5">
+                    <Text className="text-xs font-black text-text-primary mb-1.5">Paper Width</Text>
+                    <View className="flex-row gap-2">
+                      {['80mm', '58mm'].map((size) => {
+                        const isSelected = formState.paper_width === size;
+                        return (
+                          <Pressable
+                            key={size}
+                            className={`flex-1 border rounded-xl items-center justify-center ${
+                              isSelected ? 'bg-primary border-primary' : 'bg-slate-50 border-border active:bg-slate-100'
+                            }`}
+                            style={({ pressed }) => [
+                              { height: 38, justifyContent: 'center', flex: 1 },
+                              pressed && { opacity: 0.9 }
+                            ]}
+                            onPress={() => setFormState(prev => ({ ...prev, paper_width: size }))}
+                          >
+                            <Text className={`font-extrabold text-xs ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
+                              {size}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Empty Spacer to Align Switches */}
+                  <View className="w-full md:w-1/2 px-2 mb-3.5" />
+
+                  {/* Switches */}
+                  <View className="w-full px-2 mb-2 flex-row gap-5 mt-1 flex-wrap">
+                    <View className="flex-row items-center gap-2">
                       <Switch
                         value={formState.is_default}
                         onValueChange={(val) => setFormState(prev => ({ ...prev, is_default: val }))}
                         trackColor={{ false: '#cbd5e1', true: colors.accent }}
                         thumbColor={formState.is_default ? colors.primary : '#f4f3f4'}
+                        style={{ transform: [{ scale: 0.85 }] }}
                       />
-                      <Text className="text-sm font-semibold text-text-primary">Default Printer</Text>
+                      <Text className="text-xs font-extrabold text-text-primary">Default Printer</Text>
                     </View>
 
-                    <View className="flex-row items-center gap-3">
+                    <View className="flex-row items-center gap-2">
                       <Switch
                         value={formState.is_active}
                         onValueChange={(val) => setFormState(prev => ({ ...prev, is_active: val }))}
                         trackColor={{ false: '#cbd5e1', true: colors.accent }}
                         thumbColor={formState.is_active ? colors.primary : '#f4f3f4'}
+                        style={{ transform: [{ scale: 0.85 }] }}
                       />
-                      <Text className="text-sm font-semibold text-text-primary">Active</Text>
+                      <Text className="text-xs font-extrabold text-text-primary">Active</Text>
                     </View>
-                  </View>
-
-                  {/* Advanced Section Dropdown Accordion */}
-                  <View className="w-full px-3 border-t border-border pt-4 mt-2">
-                    <Pressable
-                      className="flex-row items-center gap-2"
-                      style={({ pressed }) => pressed && { opacity: 0.8 }}
-                      onPress={() => setShowAdvanced(!showAdvanced)}
-                    >
-                      <Text className="text-sm font-bold text-text-secondary">Advanced Settings</Text>
-                      {showAdvanced ? (
-                        <ChevronUp size={16} color={colors.textSecondary} />
-                      ) : (
-                        <ChevronDown size={16} color={colors.textSecondary} />
-                      )}
-                    </Pressable>
-
-                    {showAdvanced && (
-                      <View className="mt-4 bg-slate-50 p-4 border border-border rounded-xl">
-                        <Text className="text-xs font-semibold text-text-secondary mb-1">Detected OS Spooler Printer</Text>
-                        <Text className="text-sm text-text-primary font-mono select-all">
-                          {formState.os_printer_name ?? 'No matching OS printer detected yet. Run "Test Connection" to discover.'}
-                        </Text>
-                      </View>
-                    )}
                   </View>
 
                 </View>
               </View>
 
               {/* Form Actions Footer */}
-              <View className="flex-row gap-4 border-t border-border pt-5 mt-6 justify-end flex-wrap">
+              <View className="flex-row gap-3 border-t border-border pt-4 mt-4 justify-end flex-wrap">
                 <Pressable
-                  className="px-6 rounded-xl border border-border bg-white active:bg-slate-50 items-center justify-center flex-row gap-2"
-                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 44 }]}
+                  className="px-5 rounded-xl border border-border bg-white active:bg-slate-50 items-center justify-center flex-row gap-1.5"
+                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 38 }]}
                   onPress={handleTestConnection}
                   disabled={testing || submitting}
                 >
                   {testing ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color={colors.primary} style={{ transform: [{ scale: 0.8 }] }} />
                   ) : (
-                    <Text className="font-bold text-text-primary text-sm">Test Connection</Text>
+                    <Text className="font-extrabold text-text-primary text-xs">Test Connection</Text>
                   )}
                 </Pressable>
 
                 <Pressable
-                  className="px-8 rounded-xl bg-primary active:opacity-90 items-center justify-center flex-row gap-2"
-                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 44 }]}
+                  className="px-7 rounded-xl bg-primary active:opacity-90 items-center justify-center flex-row gap-1.5"
+                  style={({ pressed }) => [pressed && { opacity: 0.9 }, { height: 38 }]}
                   onPress={handleSave}
                   disabled={testing || submitting}
                 >
                   {submitting ? (
-                    <ActivityIndicator size="small" color="white" />
+                    <ActivityIndicator size="small" color="white" style={{ transform: [{ scale: 0.8 }] }} />
                   ) : (
-                    <Text className="font-bold text-white text-sm">Save Configuration</Text>
+                    <Text className="font-extrabold text-white text-xs">Save Configuration</Text>
                   )}
                 </Pressable>
               </View>

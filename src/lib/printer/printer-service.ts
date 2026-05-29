@@ -136,10 +136,14 @@ export const printerService = {
       throw new Error(`Could not reach printer\n${ip}:${port}`);
     }
 
+    const width = printer.paper_width === '58mm' ? 32 : 42;
+    const divider = '-'.repeat(width) + '\n';
+    
     console.log('[Printer] Sending ESC/POS test receipt via Print Agent to:', { ip, port });
 
     const testReceipt = [
       '\x1B@',                  // initialize
+      divider,
       '\x1Ba\x01',              // center
       'GROVIT POS\n\n',
       'Printer Connected \u2713\n\n',
@@ -147,7 +151,10 @@ export const printerService = {
       'IP:\n',
       `${ip}\n\n`,
       'Port:\n',
-      `${port}\n`,
+      `${port}\n\n`,
+      'Date/Time:\n',
+      `${new Date().toLocaleString()}\n`,
+      divider,
       '\n\n\n',
       '\x1Bi\x01'               // cut
     ].join('');
