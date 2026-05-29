@@ -348,7 +348,7 @@ export async function seedDevDatabase(): Promise<void> {
               status,
               created_at: timestamp,
               settled_at: status === 'paid' ? timestamp : null,
-              created_by: 'Owner',
+              created_by: null,
               _items: items,
               _payment_type: paymentTypes[Math.floor(Math.random() * paymentTypes.length)]
             });

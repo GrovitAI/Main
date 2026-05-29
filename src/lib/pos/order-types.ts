@@ -29,7 +29,6 @@ export type OpenOrder = {
   notes?: string | null;
 
   // Numbering readiness fields (Phase 1A.5)
-  bill_number?: string | null;  // Finalized sequentially only upon successful settlement
   internal_order_number?: string | null;
 };
 

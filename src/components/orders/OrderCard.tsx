@@ -147,8 +147,8 @@ export const OrderCard = memo(function OrderCard({
                   : order.status === 'held'
                     ? (order.notes || 'Takeaway')
                     : (order.status === 'paid' || order.status === 'completed')
-                      ? (order.bill_number
-                        ? `Bill #${order.bill_number.replace('BILL-', '')}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
+                      ? (order.invoice_number
+                        ? `${order.invoice_number}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
                         : 'Bill settled'
                       )
                       : `${order.notes || 'Takeaway'}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`

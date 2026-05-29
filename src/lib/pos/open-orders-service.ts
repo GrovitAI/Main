@@ -983,7 +983,7 @@ export async function settleOrderById(
         total_amount,
         status: 'paid',
         settled_at: new Date().toISOString(),
-        created_by: createdBy,
+        created_by: null,
       };
 
       console.log('[settleOrderById] Bill payload', billPayload);
@@ -1164,7 +1164,7 @@ export async function repairMissingBills(): Promise<void> {
               total_amount: subtotal,
               status: 'paid',
               settled_at: order.created_at, // Preserves historical timeline
-              created_by: order.created_by || 'System',
+              created_by: null,
             })
             .select()
             .single();
