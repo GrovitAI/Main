@@ -479,14 +479,24 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         item.id === targetItemId ? { ...item, qty: nextQuantity } : item,
       );
 
-      set({
-        activeOrderItems: nextItems,
-        itemCountByOrderId: {
-          ...snapshot.itemCountByOrderId,
-          [activeOrderId]: getItemCount(nextItems),
-        },
-        isMutating: true,
-        error: null,
+      set((state) => {
+        const nextPrinted = { ...state.billPrintedByOrderId };
+        if (activeOrderId) {
+          delete nextPrinted[activeOrderId];
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+          }
+        }
+        return {
+          activeOrderItems: nextItems,
+          itemCountByOrderId: {
+            ...state.itemCountByOrderId,
+            [activeOrderId]: getItemCount(nextItems),
+          },
+          isMutating: true,
+          error: null,
+          billPrintedByOrderId: nextPrinted,
+        };
       });
 
       if (targetItemId.startsWith('temp-item')) {
@@ -530,14 +540,24 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const nextItems = [...snapshot.activeOrderItems, optimisticItem];
     const nextCount = getItemCount(nextItems);
 
-    set({
-      activeOrderItems: nextItems,
-      itemCountByOrderId: {
-        ...snapshot.itemCountByOrderId,
-        [activeOrderId]: nextCount,
-      },
-      isMutating: true,
-      error: null,
+    set((state) => {
+      const nextPrinted = { ...state.billPrintedByOrderId };
+      if (activeOrderId) {
+        delete nextPrinted[activeOrderId];
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+        }
+      }
+      return {
+        activeOrderItems: nextItems,
+        itemCountByOrderId: {
+          ...state.itemCountByOrderId,
+          [activeOrderId]: nextCount,
+        },
+        isMutating: true,
+        error: null,
+        billPrintedByOrderId: nextPrinted,
+      };
     });
 
     if (activeOrderId.startsWith('temp-order')) {
@@ -596,14 +616,25 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       item.id === itemId ? { ...item, qty: nextQuantity } : item,
     );
 
-    set({
-      activeOrderItems: nextItems,
-      itemCountByOrderId: {
-        ...snapshot.itemCountByOrderId,
-        [snapshot.activeOrderId]: getItemCount(nextItems),
-      },
-      isMutating: true,
-      error: null,
+    set((state) => {
+      const nextPrinted = { ...state.billPrintedByOrderId };
+      const activeOrderId = state.activeOrderId;
+      if (activeOrderId) {
+        delete nextPrinted[activeOrderId];
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+        }
+      }
+      return {
+        activeOrderItems: nextItems,
+        itemCountByOrderId: {
+          ...state.itemCountByOrderId,
+          [activeOrderId || '']: getItemCount(nextItems),
+        },
+        isMutating: true,
+        error: null,
+        billPrintedByOrderId: nextPrinted,
+      };
     });
 
     if (itemId.startsWith('temp-item')) {
@@ -653,14 +684,25 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       item.id === itemId ? { ...item, qty: nextQuantity } : item,
     );
 
-    set({
-      activeOrderItems: nextItems,
-      itemCountByOrderId: {
-        ...snapshot.itemCountByOrderId,
-        [snapshot.activeOrderId]: getItemCount(nextItems),
-      },
-      isMutating: true,
-      error: null,
+    set((state) => {
+      const nextPrinted = { ...state.billPrintedByOrderId };
+      const activeOrderId = state.activeOrderId;
+      if (activeOrderId) {
+        delete nextPrinted[activeOrderId];
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+        }
+      }
+      return {
+        activeOrderItems: nextItems,
+        itemCountByOrderId: {
+          ...state.itemCountByOrderId,
+          [activeOrderId || '']: getItemCount(nextItems),
+        },
+        isMutating: true,
+        error: null,
+        billPrintedByOrderId: nextPrinted,
+      };
     });
 
     if (itemId.startsWith('temp-item')) {
@@ -701,14 +743,25 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     const nextItems = snapshot.activeOrderItems.filter((item) => item.id !== itemId);
-    set({
-      activeOrderItems: nextItems,
-      itemCountByOrderId: {
-        ...snapshot.itemCountByOrderId,
-        [snapshot.activeOrderId]: getItemCount(nextItems),
-      },
-      isMutating: true,
-      error: null,
+    set((state) => {
+      const nextPrinted = { ...state.billPrintedByOrderId };
+      const activeOrderId = state.activeOrderId;
+      if (activeOrderId) {
+        delete nextPrinted[activeOrderId];
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+        }
+      }
+      return {
+        activeOrderItems: nextItems,
+        itemCountByOrderId: {
+          ...state.itemCountByOrderId,
+          [activeOrderId || '']: getItemCount(nextItems),
+        },
+        isMutating: true,
+        error: null,
+        billPrintedByOrderId: nextPrinted,
+      };
     });
 
     if (itemId.startsWith('temp-item')) {
