@@ -1079,6 +1079,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         totalAmount,
         false // provisional bill
       );
+      set((state) => ({
+        billPrintedByOrderId: {
+          ...state.billPrintedByOrderId,
+          [activeOrderId]: true,
+        },
+      }));
       return true;
     }
 
