@@ -230,6 +230,7 @@ export default function PosBillingScreen() {
   const isEditingUnpaid = useOrdersStore((s) => s.isEditingUnpaid);
   const hasUnsavedChanges = useOrdersStore((s) => s.hasUnsavedChanges);
   const isReadOnlyView = useOrdersStore((s) => s.isReadOnlyView);
+  const billPrintedByOrderId = useOrdersStore((s) => s.billPrintedByOrderId);
   const ordersError = useOrdersStore((s) => s.error);
 
   const loadOrders = useOrdersStore((s) => s.loadOrders);
@@ -1254,6 +1255,7 @@ export default function PosBillingScreen() {
       isEditingUnpaid={isEditingUnpaid}
       hasUnsavedChanges={hasUnsavedChanges}
       isReadOnlyView={isReadOnlyView}
+      isBillPrinted={activeOrderId ? !!billPrintedByOrderId[activeOrderId] : false}
       onIncrementItem={handleIncrementItem}
       onDecrementItem={handleDecrementItem}
       onRemoveItem={handleRemoveItem}

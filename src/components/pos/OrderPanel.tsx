@@ -31,6 +31,7 @@ type OrderPanelProps = {
   isEditingUnpaid: boolean;
   hasUnsavedChanges: boolean;
   isReadOnlyView: boolean;
+  isBillPrinted: boolean;
   onIncrementItem: (itemId: string) => void;
   onDecrementItem: (itemId: string) => void;
   onRemoveItem: (itemId: string) => void;
@@ -56,6 +57,7 @@ export function OrderPanel({
   isEditingUnpaid,
   hasUnsavedChanges,
   isReadOnlyView,
+  isBillPrinted,
   onIncrementItem,
   onDecrementItem,
   onRemoveItem,
@@ -112,7 +114,7 @@ export function OrderPanel({
   const hasUnsentItems = items.some((item) => !item.kot_sent);
   const showSaveKotButton = !isReadOnlyView && hasUnsentItems && (isDraft || isEditingUnpaid);
   const showSaveAndPrintButton = !isReadOnlyView && hasItems && (isDraft || isUnpaid);
-  const showSettleButton = !isReadOnlyView && isUnpaid && !hasUnsentItems;
+  const showSettleButton = !isReadOnlyView && isUnpaid && !hasUnsentItems && isBillPrinted;
 
   const handleResetPress = () => {
     if (Platform.OS === 'web') {

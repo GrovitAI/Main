@@ -40,6 +40,7 @@ type OrdersState = {
   itemCountByOrderId: Record<string, number>;
   kotNumbersByOrderId: Record<string, number[]>;
   kotsByOrderId: Record<string, KotTicket[]>;
+  billPrintedByOrderId: Record<string, boolean>;
   productNameById: Record<string, string>;
   isLoadingOrders: boolean;
   isLoadingActiveOrder: boolean;
@@ -98,6 +99,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   itemCountByOrderId: {},
   kotNumbersByOrderId: {},
   kotsByOrderId: {},
+  billPrintedByOrderId: {},
   productNameById: {},
   isLoadingOrders: false,
   isLoadingActiveOrder: false,
@@ -1197,6 +1199,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         ...state.kotsByOrderId,
         [activeOrderId]: nextKots,
       },
+      billPrintedByOrderId: {
+        ...state.billPrintedByOrderId,
+        [activeOrderId]: true,
+      },
     }));
 
     // Background Database Persistence
@@ -1300,28 +1306,33 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     );
 
     // OPTIMISTIC UPDATE: remove settled order, update summaries, and reset cart immediately
-    set((state) => ({
-      orders: state.orders.filter((o) => o.id !== activeOrderId),
-      summaries: state.summaries.map((s) =>
-        s.order.id === activeOrderId
-          ? {
-              ...s,
-              order: {
-                ...s.order,
-                status: 'paid' as const,
-                paid_at: paidAt,
-                invoice_number: generatedInvoiceNumber,
-              },
-            }
-          : s
-      ),
-      activeOrderId: null,
-      activeOrderItems: [],
-      isWorkspaceEmpty: true,
-      isEditingUnpaid: false,
-      hasUnsavedChanges: false,
-      isMutating: false,
-    }));
+    set((state) => {
+      const nextBillPrinted = { ...state.billPrintedByOrderId };
+      delete nextBillPrinted[activeOrderId];
+      return {
+        orders: state.orders.filter((o) => o.id !== activeOrderId),
+        summaries: state.summaries.map((s) =>
+          s.order.id === activeOrderId
+            ? {
+                ...s,
+                order: {
+                  ...s.order,
+                  status: 'paid' as const,
+                  paid_at: paidAt,
+                  invoice_number: generatedInvoiceNumber,
+                },
+              }
+            : s
+        ),
+        activeOrderId: null,
+        activeOrderItems: [],
+        isWorkspaceEmpty: true,
+        isEditingUnpaid: false,
+        hasUnsavedChanges: false,
+        isMutating: false,
+        billPrintedByOrderId: nextBillPrinted,
+      };
+    });
 
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.removeItem('grovit_active_order_id');
