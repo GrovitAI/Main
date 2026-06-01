@@ -424,6 +424,14 @@ export default function PosBillingScreen() {
       qtyRef.current?.focus();
       return;
     }
+
+    // Accidental edit intercept for locked unpaid orders
+    const isUnpaid = activeOrder ? (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen') : false;
+    if (isUnpaid && !isEditingUnpaid) {
+      showToast('This bill is locked. Tap "Edit Bill" to make changes.');
+      return;
+    }
+
     const qtyVal = parseInt(trimmed, 10);
     if (selectedProduct) {
       await addProductToActiveOrder(selectedProduct, qtyVal);
@@ -436,7 +444,7 @@ export default function PosBillingScreen() {
     setTimeout(() => {
       searchRef.current?.focus();
     }, 50);
-  }, [qtyInput, selectedProduct, addProductToActiveOrder, showToast]);
+  }, [qtyInput, selectedProduct, activeOrder, isEditingUnpaid, addProductToActiveOrder, showToast]);
 
   const handleQtyKeyPress = useCallback((e: any) => {
     const key = e.nativeEvent.key;

@@ -386,7 +386,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           [orderId]: orderKots,
         },
         isLoadingActiveOrder: false,
-        isEditingUnpaid: !isReadOnly && (order.status === 'unpaid' || order.status === 'in_kitchen'),
+        isEditingUnpaid: !isReadOnly && (order.status === 'unpaid' || order.status === 'in_kitchen') && !state.billPrintedByOrderId[orderId],
         hasUnsavedChanges: false,
         isReadOnlyView: isReadOnly,
         isWorkspaceEmpty: false,
