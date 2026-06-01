@@ -938,16 +938,21 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       ? snapshot.summaries.map((s) => (s.order.id === activeOrderId ? optimisticSummary : s))
       : [optimisticSummary, ...snapshot.summaries];
     
-    // OPTIMISTIC UPDATE: transition status, order name, summaries, and clear cart instantly
+    // Optimistically transition cart items to kot_sent: true
+    const updatedOrderItems = orderItems.map((item) => ({
+      ...item,
+      kot_sent: true,
+    }));
+
+    // OPTIMISTIC UPDATE: transition status, update items inside cart to kot_sent: true, DO NOT CLEAR CART OR DESELECT ORDER!
     set((state) => ({
       orders: state.orders.map((o) =>
         o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
       ),
       summaries: nextSummaries,
-      activeOrderId: null,
-      activeOrderItems: [],
-      isWorkspaceEmpty: true,
-      isEditingUnpaid: false,
+      activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
+      isWorkspaceEmpty: false,
+      isEditingUnpaid: true, // Keep open editing unpaid
       hasUnsavedChanges: false,
       isMutating: false,
       kotNumbersByOrderId: {
@@ -959,10 +964,6 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         [activeOrderId]: nextKots,
       },
     }));
-
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.removeItem('grovit_active_order_id');
-    }
 
     console.timeEnd('saveKot_ui');
 

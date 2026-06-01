@@ -390,23 +390,23 @@ export function OrderPanel({
                 disabled={isMutating}
                 onPress={onSettle}
                 style={({ pressed }) => [
-                  { flex: 1, shadowColor: '#0B5FB3', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 2 },
+                  { flex: 1, shadowColor: '#047857', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 2 },
                   pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }
                 ]}
               >
                 <LinearGradient
-                  colors={['#0D6CE0', '#0B58B2']}
+                  colors={['#10B981', '#059669']}
                   style={{ height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
                 >
                   {isMutating ? (
                     <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>...</Text>
                   ) : (
                     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
                         Settle Bill
                       </Text>
                       {Platform.OS === 'web' && (
-                        <Text style={{ fontSize: 10, fontWeight: '500', color: '#c5d9eb', opacity: 0.85 }}>[F8]</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: '#A7F3D0', opacity: 0.85 }}>[F8]</Text>
                       )}
                     </View>
                   )}
