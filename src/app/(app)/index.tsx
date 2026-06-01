@@ -268,6 +268,14 @@ export default function PosBillingScreen() {
   // Local Print Agent Health Check state
   const [printAgentOnline, setPrintAgentOnline] = useState<boolean | null>(null);
 
+  const [activeAction, setActiveAction] = useState<'save_kot' | 'save_print' | 'settle' | null>(null);
+
+  useEffect(() => {
+    if (!isMutating) {
+      setActiveAction(null);
+    }
+  }, [isMutating]);
+
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -602,6 +610,7 @@ export default function PosBillingScreen() {
 
   const confirmSaveKotFirst = useCallback(async () => {
     setActiveModal(null);
+    setActiveAction('save_kot');
     const success = await saveKot();
     if (success) {
       showToast('KOT saved and sent to kitchen.');
@@ -610,6 +619,7 @@ export default function PosBillingScreen() {
 
   const confirmSaveKotUpdate = useCallback(async () => {
     setActiveModal(null);
+    setActiveAction('save_kot');
     const success = await saveKot();
     if (success) {
       showToast('KOT updated and sent to kitchen.');
@@ -622,6 +632,7 @@ export default function PosBillingScreen() {
       showToast('Cannot Save & Print for an empty cart.');
       return;
     }
+    setActiveAction('save_print');
     const success = await saveAndPrint();
     if (success) {
       showToast('Provisional bill printed.');
@@ -683,6 +694,7 @@ export default function PosBillingScreen() {
   }, [isMutating, activeOrder, showToast]);
 
   const confirmSettlement = useCallback(async (paymentType: string = 'cash') => {
+    setActiveAction('settle');
     // 1. Capture order details before settleBill wipes the active cart state
     const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
     const invoiceNumber = null;
@@ -1252,6 +1264,7 @@ export default function PosBillingScreen() {
       orderIndex={activeOrderIndex >= 0 ? activeOrderIndex : 0}
       isLoading={isLoadingActiveOrder}
       isMutating={isMutating}
+      activeAction={activeAction}
       isEditingUnpaid={isEditingUnpaid}
       hasUnsavedChanges={hasUnsavedChanges}
       isReadOnlyView={isReadOnlyView}

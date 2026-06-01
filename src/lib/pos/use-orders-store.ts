@@ -99,7 +99,15 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   itemCountByOrderId: {},
   kotNumbersByOrderId: {},
   kotsByOrderId: {},
-  billPrintedByOrderId: {},
+  billPrintedByOrderId: (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('grovit_printed_orders'))
+    ? (() => {
+        try {
+          return JSON.parse(window.localStorage.getItem('grovit_printed_orders') || '{}');
+        } catch {
+          return {};
+        }
+      })()
+    : {},
   productNameById: {},
   isLoadingOrders: false,
   isLoadingActiveOrder: false,
@@ -1079,12 +1087,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         totalAmount,
         false // provisional bill
       );
-      set((state) => ({
-        billPrintedByOrderId: {
+      set((state) => {
+        const nextPrinted = {
           ...state.billPrintedByOrderId,
           [activeOrderId]: true,
-        },
-      }));
+        };
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+        }
+        return {
+          billPrintedByOrderId: nextPrinted,
+        };
+      });
       return true;
     }
 
@@ -1187,29 +1201,35 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       : [optimisticSummary, ...snapshot.summaries];
 
     // OPTIMISTIC UPDATE: transition status, update items inside cart to kot_sent: true, DO NOT CLEAR CART OR SPAWN DRAFT!
-    set((state) => ({
-      orders: state.orders.map((o) =>
-        o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
-      ),
-      summaries: nextSummaries,
-      activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
-      isWorkspaceEmpty: false,
-      isEditingUnpaid: true, // Keep open editing unpaid
-      hasUnsavedChanges: false,
-      isMutating: false,
-      kotNumbersByOrderId: {
-        ...state.kotNumbersByOrderId,
-        [activeOrderId]: nextKotNumbers,
-      },
-      kotsByOrderId: {
-        ...state.kotsByOrderId,
-        [activeOrderId]: nextKots,
-      },
-      billPrintedByOrderId: {
+    set((state) => {
+      const nextPrinted = {
         ...state.billPrintedByOrderId,
         [activeOrderId]: true,
-      },
-    }));
+      };
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
+      }
+      return {
+        orders: state.orders.map((o) =>
+          o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
+        ),
+        summaries: nextSummaries,
+        activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
+        isWorkspaceEmpty: false,
+        isEditingUnpaid: true, // Keep open editing unpaid
+        hasUnsavedChanges: false,
+        isMutating: false,
+        kotNumbersByOrderId: {
+          ...state.kotNumbersByOrderId,
+          [activeOrderId]: nextKotNumbers,
+        },
+        kotsByOrderId: {
+          ...state.kotsByOrderId,
+          [activeOrderId]: nextKots,
+        },
+        billPrintedByOrderId: nextPrinted,
+      };
+    });
 
     // Background Database Persistence
     (async () => {
@@ -1315,6 +1335,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     set((state) => {
       const nextBillPrinted = { ...state.billPrintedByOrderId };
       delete nextBillPrinted[activeOrderId];
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextBillPrinted));
+      }
       return {
         orders: state.orders.filter((o) => o.id !== activeOrderId),
         summaries: state.summaries.map((s) =>
@@ -1396,28 +1419,36 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const cancelledAt = new Date().toISOString();
 
     // OPTIMISTIC UPDATE: filter out from active/held list and set summary as cancelled immediately
-    set((state) => ({
-      orders: state.orders.filter((o) => o.id !== activeOrderId),
-      heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
-      summaries: state.summaries.map((s) =>
-        s.order.id === activeOrderId
-          ? {
-              ...s,
-              order: {
-                ...s.order,
-                status: 'cancelled' as const,
-                cancelled_at: cancelledAt,
-              },
-            }
-          : s
-      ),
-      activeOrderId: null,
-      activeOrderItems: [],
-      isWorkspaceEmpty: true,
-      isEditingUnpaid: false,
-      hasUnsavedChanges: false,
-      isMutating: false,
-    }));
+    set((state) => {
+      const nextBillPrinted = { ...state.billPrintedByOrderId };
+      delete nextBillPrinted[activeOrderId];
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextBillPrinted));
+      }
+      return {
+        orders: state.orders.filter((o) => o.id !== activeOrderId),
+        heldOrders: state.heldOrders.filter((o) => o.id !== activeOrderId),
+        summaries: state.summaries.map((s) =>
+          s.order.id === activeOrderId
+            ? {
+                ...s,
+                order: {
+                  ...s.order,
+                  status: 'cancelled' as const,
+                  cancelled_at: cancelledAt,
+                },
+              }
+            : s
+        ),
+        activeOrderId: null,
+        activeOrderItems: [],
+        isWorkspaceEmpty: true,
+        isEditingUnpaid: false,
+        hasUnsavedChanges: false,
+        isMutating: false,
+        billPrintedByOrderId: nextBillPrinted,
+      };
+    });
 
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.removeItem('grovit_active_order_id');
