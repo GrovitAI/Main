@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -78,6 +78,29 @@ export function OrderPanel({
   const [saveKotHovered, setSaveKotHovered] = useState(false);
   const [savePrintHovered, setSavePrintHovered] = useState(false);
   const WebPressable = Pressable as any;
+
+  const [buttonFeedback, setButtonFeedback] = useState<{
+    button: 'save_kot' | 'save_print' | 'settle' | null;
+    status: 'idle' | 'loading' | 'success';
+  }>({ button: null, status: 'idle' });
+
+  useEffect(() => {
+    if (activeAction) {
+      setButtonFeedback({ button: activeAction, status: 'loading' });
+      
+      const loadingTimer = setTimeout(() => {
+        setButtonFeedback(prev => prev.button === activeAction ? { ...prev, status: 'success' } : prev);
+        
+        const successTimer = setTimeout(() => {
+          setButtonFeedback({ button: null, status: 'idle' });
+        }, 1200);
+        
+        return () => clearTimeout(successTimer);
+      }, 800);
+      
+      return () => clearTimeout(loadingTimer);
+    }
+  }, [activeAction]);
 
   const subtotal = useMemo(() => calculateOrderSubtotal(items), [items]);
   const tax = useMemo(() => calculateTax(subtotal, TAX_RATE), [subtotal]);
@@ -311,7 +334,7 @@ export function OrderPanel({
             {showSaveKotButton && (
               <WebPressable
                 accessibilityRole="button"
-                disabled={!hasItems || isMutating}
+                disabled={!hasItems || isMutating || buttonFeedback.button !== null}
                 onPress={onSaveKot}
                 onMouseEnter={() => setSaveKotHovered(true)}
                 onMouseLeave={() => setSaveKotHovered(false)}
@@ -321,8 +344,12 @@ export function OrderPanel({
                     height: 42, 
                     borderRadius: 12, 
                     borderWidth: 1.5,
-                    borderColor: saveKotHovered ? '#047857' : '#10B981',
-                    backgroundColor: saveKotHovered ? '#059669' : '#10B981', 
+                    borderColor: buttonFeedback.button === 'save_kot' && buttonFeedback.status === 'success'
+                      ? '#059669'
+                      : (saveKotHovered ? '#047857' : '#10B981'),
+                    backgroundColor: buttonFeedback.button === 'save_kot' && buttonFeedback.status === 'success'
+                      ? '#059669'
+                      : (saveKotHovered ? '#059669' : '#10B981'), 
                     alignItems: 'center', 
                     justifyContent: 'center',
                     shadowColor: '#047857', 
@@ -331,17 +358,25 @@ export function OrderPanel({
                     shadowRadius: 8, 
                     elevation: 2 
                   },
-                  (!hasItems || isMutating) && { opacity: 0.5 },
+                  ((!hasItems || isMutating || (buttonFeedback.button !== null && buttonFeedback.button !== 'save_kot'))) && { opacity: 0.5 },
                   pressed && { transform: [{ scale: 0.98 }] }
                 ]}
               >
-                {isMutating && activeAction === 'save_kot' ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
-                      {isEditingUnpaid ? 'Updating...' : 'Saving...'}
-                    </Text>
-                  </View>
+                {buttonFeedback.button === 'save_kot' ? (
+                  buttonFeedback.status === 'loading' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                        {isEditingUnpaid ? 'Updating...' : 'Saving...'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>
+                        Saved ✔
+                      </Text>
+                    </View>
+                  )
                 ) : (
                   <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
@@ -358,7 +393,7 @@ export function OrderPanel({
             {showSaveAndPrintButton && (
               <WebPressable
                 accessibilityRole="button"
-                disabled={!hasItems || isMutating}
+                disabled={!hasItems || isMutating || buttonFeedback.button !== null}
                 onPress={onSaveAndPrint}
                 onMouseEnter={() => setSavePrintHovered(true)}
                 onMouseLeave={() => setSavePrintHovered(false)}
@@ -368,8 +403,12 @@ export function OrderPanel({
                     height: 42, 
                     borderRadius: 12, 
                     borderWidth: 1.5,
-                    borderColor: savePrintHovered ? '#047857' : '#10B981',
-                    backgroundColor: savePrintHovered ? '#059669' : '#10B981', 
+                    borderColor: buttonFeedback.button === 'save_print' && buttonFeedback.status === 'success'
+                      ? '#059669'
+                      : (savePrintHovered ? '#047857' : '#10B981'),
+                    backgroundColor: buttonFeedback.button === 'save_print' && buttonFeedback.status === 'success'
+                      ? '#059669'
+                      : (savePrintHovered ? '#059669' : '#10B981'), 
                     alignItems: 'center', 
                     justifyContent: 'center',
                     shadowColor: '#047857', 
@@ -378,17 +417,25 @@ export function OrderPanel({
                     shadowRadius: 8, 
                     elevation: 2 
                   },
-                  (!hasItems || isMutating) && { opacity: 0.5 },
+                  ((!hasItems || isMutating || (buttonFeedback.button !== null && buttonFeedback.button !== 'save_print'))) && { opacity: 0.5 },
                   pressed && { transform: [{ scale: 0.98 }] }
                 ]}
               >
-                {isMutating && activeAction === 'save_print' ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
-                      Printing...
-                    </Text>
-                  </View>
+                {buttonFeedback.button === 'save_print' ? (
+                  buttonFeedback.status === 'loading' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                        Printing...
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>
+                        Printed ✔
+                      </Text>
+                    </View>
+                  )
                 ) : (
                   <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
@@ -405,7 +452,7 @@ export function OrderPanel({
             {showReprintButton && (
               <WebPressable
                 accessibilityRole="button"
-                disabled={isMutating}
+                disabled={isMutating || buttonFeedback.button !== null}
                 onPress={onSaveAndPrint}
                 onMouseEnter={() => setSavePrintHovered(true)}
                 onMouseLeave={() => setSavePrintHovered(false)}
@@ -415,8 +462,12 @@ export function OrderPanel({
                     height: 42, 
                     borderRadius: 12, 
                     borderWidth: 1.5,
-                    borderColor: savePrintHovered ? '#047857' : '#10B981',
-                    backgroundColor: savePrintHovered ? '#059669' : '#10B981', 
+                    borderColor: buttonFeedback.button === 'save_print' && buttonFeedback.status === 'success'
+                      ? '#059669'
+                      : (savePrintHovered ? '#047857' : '#10B981'),
+                    backgroundColor: buttonFeedback.button === 'save_print' && buttonFeedback.status === 'success'
+                      ? '#059669'
+                      : (savePrintHovered ? '#059669' : '#10B981'), 
                     alignItems: 'center', 
                     justifyContent: 'center',
                     shadowColor: '#047857', 
@@ -425,17 +476,25 @@ export function OrderPanel({
                     shadowRadius: 8, 
                     elevation: 2 
                   },
-                  isMutating && { opacity: 0.5 },
+                  ((isMutating || (buttonFeedback.button !== null && buttonFeedback.button !== 'save_print'))) && { opacity: 0.5 },
                   pressed && { transform: [{ scale: 0.98 }] }
                 ]}
               >
-                {isMutating && activeAction === 'save_print' ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
-                      Printing...
-                    </Text>
-                  </View>
+                {buttonFeedback.button === 'save_print' ? (
+                  buttonFeedback.status === 'loading' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                        Printing...
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>
+                        Printed ✔
+                      </Text>
+                    </View>
+                  )
                 ) : (
                   <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
@@ -452,24 +511,36 @@ export function OrderPanel({
             {showSettleButton && (
               <Pressable
                 accessibilityRole="button"
-                disabled={isMutating}
+                disabled={isMutating || buttonFeedback.button !== null}
                 onPress={onSettle}
                 style={({ pressed }) => [
                   { flex: 1, shadowColor: '#047857', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 2 },
+                  ((isMutating || (buttonFeedback.button !== null && buttonFeedback.button !== 'settle'))) && { opacity: 0.5 },
                   pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }
                 ]}
               >
                 <LinearGradient
-                  colors={['#10B981', '#059669']}
+                  colors={buttonFeedback.button === 'settle' && buttonFeedback.status === 'success'
+                    ? ['#059669', '#059669']
+                    : ['#10B981', '#059669']
+                  }
                   style={{ height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
                 >
-                  {isMutating && activeAction === 'settle' ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
-                        Settling...
-                      </Text>
-                    </View>
+                  {buttonFeedback.button === 'settle' ? (
+                    buttonFeedback.status === 'loading' ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                          Settling...
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>
+                          Settled ✔
+                        </Text>
+                      </View>
+                    )
                   ) : (
                     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
