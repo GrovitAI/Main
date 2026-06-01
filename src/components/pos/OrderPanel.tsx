@@ -418,17 +418,17 @@ export function OrderPanel({
           </View>
         )}
 
-        {!isReadOnlyView && !isEditingUnpaid && showSettleButton && (
+        {!isReadOnlyView && !isEditingUnpaid && isUnpaid && (
           <Pressable
             accessibilityRole="button"
             disabled={isMutating}
             onPress={onEditBill}
             style={({ pressed }) => [
-              { height: 40, width: '100%', borderRadius: 12, borderWidth: 1.5, borderColor: '#0D6CE0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', marginTop: 8 },
-              pressed && { backgroundColor: '#F0F7FF', transform: [{ scale: 0.98 }] }
+              { height: 40, width: '100%', borderRadius: 12, borderWidth: 1.5, borderColor: '#10B981', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', marginTop: 8 },
+              pressed && { backgroundColor: '#ECFDF5', transform: [{ scale: 0.98 }] }
             ]}
           >
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0D6CE0' }}>Edit Bill</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#10B981' }}>Edit Bill</Text>
           </Pressable>
         )}
  
