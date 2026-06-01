@@ -1269,7 +1269,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         summaries: nextSummaries,
         activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
         isWorkspaceEmpty: false,
-        isEditingUnpaid: true, // Keep open editing unpaid
+        isEditingUnpaid: false, // Exit edit mode upon printing provisional bill
         hasUnsavedChanges: false,
         isMutating: false,
         kotNumbersByOrderId: {

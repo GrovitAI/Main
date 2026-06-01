@@ -601,12 +601,18 @@ export default function PosBillingScreen() {
       return;
     }
 
+    const hasUnsent = activeOrderItems.some((item) => !item.kot_sent);
+    if (!hasUnsent) {
+      showToast('No changes since last KOT.');
+      return;
+    }
+
     if (activeOrder && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
       setActiveModal('save_kot_update');
     } else {
       setActiveModal('save_kot_first');
     }
-  }, [isMutating, activeOrderItems.length, activeOrder]);
+  }, [isMutating, activeOrderItems, activeOrder, showToast]);
 
   const confirmSaveKotFirst = useCallback(async () => {
     setActiveModal(null);
@@ -926,7 +932,8 @@ export default function PosBillingScreen() {
     if ((altKey && key.toLowerCase() === 'k') || key === 'F2') {
       e.preventDefault?.();
       const isDraft = activeOrder && (activeOrder.status === 'draft' || activeOrder.status === 'open');
-      const canSaveKot = !isReadOnlyView && (isDraft || isEditingUnpaid);
+      const hasUnsent = activeOrderItems.some((item) => !item.kot_sent);
+      const canSaveKot = !isReadOnlyView && hasUnsent && (isDraft || isEditingUnpaid);
       if (canSaveKot) {
         handleSaveKotClick();
       }
