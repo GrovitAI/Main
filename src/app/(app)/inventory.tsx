@@ -16,6 +16,7 @@ import {
 import {
   AlertTriangle,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   BarChart3,
   Bell,
@@ -2059,10 +2060,10 @@ export default function InventoryScreen() {
               setActiveTab('purchases');
               setModalError(null);
             }}
-            className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 active:scale-95 shadow-xs"
+            className="flex-row items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50/50 border border-blue-200 active:scale-95 shadow-xs"
           >
-            <ChevronRight size={14} color="#475569" style={{ transform: [{ rotate: '180deg' }] }} />
-            <Text className="text-[11px] font-bold text-slate-600">Back to Purchases</Text>
+            <ArrowLeft size={14} color="#0066b2" />
+            <Text className="text-[11px] font-black text-[#0066b2]">Back to Purchases</Text>
           </Pressable>
 
           <View className="flex-1 min-w-[200px] px-2">
@@ -2091,12 +2092,12 @@ export default function InventoryScreen() {
 
         {/* Scrollable meta & items details */}
         <ScrollView className="flex-1 mb-4 pr-1" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View className="flex-col gap-6 pb-6">
+          <View className="flex-col gap-8 pb-8">
           
           {/* SECTION A: INVOICE META DETAILS */}
-          <View className="flex-col gap-4" style={{ zIndex: 100 }}>
+          <View className="flex-col gap-6" style={{ zIndex: 100 }}>
             {/* Row 1: Supplier and Invoice Number */}
-            <View className="flex-row flex-wrap gap-4">
+            <View className="flex-row flex-wrap gap-6">
               
               {/* Supplier dropdown */}
               <View className="flex-1 min-w-[280px] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
@@ -2108,7 +2109,7 @@ export default function InventoryScreen() {
                     setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <Store size={14} color="#64748b" />
@@ -2160,7 +2161,7 @@ export default function InventoryScreen() {
               {/* Invoice / Bill number */}
               <View className="flex-1 min-w-[280px] gap-1.5">
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
-                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 shadow-inner">
+                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Hash size={14} color="#64748b" className="mr-2" />
                   <TextInput
                     value={purchaseInvoiceNum}
@@ -2174,7 +2175,7 @@ export default function InventoryScreen() {
             </View>
 
             {/* Row 2: Date, Payment, Freight */}
-            <View className="flex-row flex-wrap gap-4">
+            <View className="flex-row flex-wrap gap-6">
               
               {/* Date Input with Mini Calendar Popup */}
               <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: 10000 }}>
@@ -2187,7 +2188,7 @@ export default function InventoryScreen() {
                     setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <Calendar size={14} color="#64748b" />
@@ -2271,7 +2272,7 @@ export default function InventoryScreen() {
                     setOpenLineMatDropdownIdx(null);
                     setIsCalendarOpen(false);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <CreditCard size={14} color="#64748b" />
@@ -2303,7 +2304,7 @@ export default function InventoryScreen() {
               {/* Freight Charge */}
               <View className="flex-1 min-w-[180px] gap-1.5">
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
-                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 shadow-inner">
+                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Truck size={14} color="#64748b" className="mr-2" />
                   <TextInput
                     value={purchaseTransportCharges}
@@ -2326,7 +2327,7 @@ export default function InventoryScreen() {
                     setOpenLineMatDropdownIdx(null);
                     setIsCalendarOpen(false);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <Home size={14} color="#64748b" />
@@ -2441,7 +2442,7 @@ export default function InventoryScreen() {
                           setIsLocDropdownOpen(false);
                           setIsCalendarOpen(false);
                         }}
-                        className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
+                        className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 items-center justify-between shadow-xs active:scale-[98%]"
                       >
                         <View className="flex-col flex-1 pr-1">
                           <Text className="text-[11px] font-bold text-slate-700 truncate">
@@ -2486,7 +2487,7 @@ export default function InventoryScreen() {
 
                     {/* Unit Box */}
                     <View style={{ width: '10%' }} className="relative pr-1.5">
-                      <View className="bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between flex-row shadow-xs">
+                      <View className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 items-center justify-between flex-row shadow-xs">
                         <Text className="text-[11px] font-bold text-slate-700 truncate">
                           {selectedMat ? matUnitShort : 'Select unit'}
                         </Text>
@@ -2510,7 +2511,7 @@ export default function InventoryScreen() {
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
                         placeholder="0.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
                       <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
                         e.g. 10
@@ -2524,7 +2525,7 @@ export default function InventoryScreen() {
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
                         placeholder="0.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
                       <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
                         e.g. 120.00
@@ -2542,7 +2543,7 @@ export default function InventoryScreen() {
                           setIsLocDropdownOpen(false);
                           setIsCalendarOpen(false);
                         }}
-                        className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
+                        className="flex-row bg-white border border-slate-200 rounded-lg px-2 py-1.5 items-center justify-between shadow-xs active:scale-[98%]"
                       >
                         <Text className="text-[11px] font-bold text-slate-700">
                           {itm.gst || '0'}%
@@ -2576,7 +2577,7 @@ export default function InventoryScreen() {
 
                     {/* GST Amount Column */}
                     <View style={{ width: '12%' }} className="pr-1.5">
-                      <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 items-center justify-center">
+                      <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 items-center justify-center">
                         <Text className="text-[11px] font-bold text-slate-500">
                           ₹{gstAmount.toFixed(2)}
                         </Text>
@@ -2623,7 +2624,7 @@ export default function InventoryScreen() {
       </ScrollView>
 
       {/* SECTION C: HORIZONTAL CALCULATIONS SUMMARY BAR */}
-      <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex-row items-center justify-between my-2">
+      <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-6 flex-row items-center justify-between mt-8 mb-6">
         {/* 1. Total Items */}
         <View className="flex-1 flex-row items-center justify-center pl-2">
           <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center mr-2">
@@ -2691,7 +2692,7 @@ export default function InventoryScreen() {
       </View>
 
           {/* FOOTER ACTIONS */}
-          <View className="border-t border-slate-100 pt-4 flex-row justify-end items-center gap-3">
+          <View className="border-t border-slate-100 pt-6 mt-4 flex-row justify-end items-center gap-3">
             <Pressable
               onPress={() => {
                 setActiveTab('purchases');
