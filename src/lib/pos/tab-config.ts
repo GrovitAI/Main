@@ -6,7 +6,7 @@ import {
   Receipt,
   Settings2,
   ShoppingCart,
-  Wallet,
+  Boxes,
 } from 'lucide-react-native';
 
 import type { UserRole } from './session-context';
@@ -29,7 +29,7 @@ const MANAGER_TABS: TabConfig[] = [
   { name: 'index', href: '/(app)/index', icon: Receipt, label: 'POS' },
   { name: 'orders', href: '/(app)/orders', icon: ShoppingCart, label: 'Orders' },
   { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
-  { name: 'finance', href: '/(app)/finance', icon: Wallet, label: 'Finance' },
+  { name: 'inventory', href: '/(app)/inventory', icon: Boxes, label: 'Inventory' },
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
@@ -43,7 +43,7 @@ const OWNER_TABS: TabConfig[] = [
   { name: 'index', href: '/(app)/index', icon: Receipt, label: 'POS' },
   { name: 'orders', href: '/(app)/orders', icon: ShoppingCart, label: 'Orders' },
   { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
-  { name: 'finance', href: '/(app)/finance', icon: Wallet, label: 'Finance' },
+  { name: 'inventory', href: '/(app)/inventory', icon: Boxes, label: 'Inventory' },
   { name: 'analytics', href: '/(app)/analytics', icon: BarChart3, label: 'Analytics' },
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
@@ -52,7 +52,7 @@ export const APP_TAB_ROUTE_NAMES = [
   'index',
   'orders',
   'kitchen',
-  'finance',
+  'inventory',
   'settings',
   'dashboard',
   'analytics',

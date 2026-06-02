@@ -49,7 +49,7 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   index: '/',
   orders: '/orders',
   kitchen: '/kitchen',
-  finance: '/finance',
+  inventory: '/inventory',
   settings: '/settings',
   dashboard: '/dashboard',
   analytics: '/analytics',
