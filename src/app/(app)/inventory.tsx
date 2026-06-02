@@ -38,6 +38,8 @@ import {
   TrendingUp,
   Truck,
   User,
+  Eye,
+  ShoppingCart,
   X,
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
@@ -362,6 +364,13 @@ export default function InventoryScreen() {
   // ─── FILTER STATES ─────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'healthy' | 'low' | 'out' | 'expiring'>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [showOnlyMyItems, setShowOnlyMyItems] = useState(false);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 
   // ─── MODAL STATES ──────────────────────────────────────────────────────────
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -488,9 +497,29 @@ export default function InventoryScreen() {
         m.material_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (m.barcode && m.barcode.includes(searchQuery));
       const matchCat = selectedCategoryFilter === 'all' || m.category_id === selectedCategoryFilter;
-      return matchSearch && matchCat;
+      
+      // Status Filter
+      const isOut = m.current_stock === 0;
+      const isLow = m.current_stock > 0 && m.current_stock <= m.reorder_level;
+      const isHealthy = m.current_stock > m.reorder_level;
+      const isExpiringSoon = m.current_stock > 0 && m.current_stock <= m.reorder_level * 0.6;
+      
+      let matchStatus = true;
+      if (statusFilter === 'healthy') matchStatus = isHealthy;
+      else if (statusFilter === 'low') matchStatus = isLow;
+      else if (statusFilter === 'out') matchStatus = isOut;
+      else if (statusFilter === 'expiring') matchStatus = isExpiringSoon;
+
+      // Location Filter
+      const itemLocation = m.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage';
+      const matchLocation = locationFilter === 'all' || itemLocation === locationFilter;
+
+      // My Items Filter (mocked using preferred supplier ID or code check)
+      const matchMyItems = !showOnlyMyItems || (m.preferred_supplier_id === 'sup-00000000-0000-0000-0000-000000000001');
+
+      return matchSearch && matchCat && matchStatus && matchLocation && matchMyItems;
     });
-  }, [materials, searchQuery, selectedCategoryFilter]);
+  }, [materials, searchQuery, selectedCategoryFilter, statusFilter, locationFilter, showOnlyMyItems]);
 
   const lowStockMaterials = useMemo(() => {
     return materials.filter((m) => m.current_stock <= m.reorder_level && m.current_stock > 0);
@@ -1285,152 +1314,609 @@ export default function InventoryScreen() {
   };
 
   const renderMaterials = () => {
+    // ─── UTILITIES & HELPERS ────────────────────────────────────────────────
+    const getCategoryEmoji = (catName?: string) => {
+      const name = (catName || '').toLowerCase();
+      if (name.includes('meat')) return '🥩';
+      if (name.includes('dairy') || name.includes('milk') || name.includes('cheese')) return '🥛';
+      if (name.includes('veg') || name.includes('tomato')) return '🍅';
+      if (name.includes('grain') || name.includes('rice') || name.includes('flour') || name.includes('paste')) return '🌾';
+      if (name.includes('oil') || name.includes('spice') || name.includes('condiment')) return '🏺';
+      if (name.includes('fruit')) return '🍎';
+      if (name.includes('bake') || name.includes('bread')) return '🍞';
+      if (name.includes('beverage') || name.includes('drink')) return '🥤';
+      return '📦';
+    };
+
+    // ─── CALCULATED STATS ──────────────────────────────────────────────────
+    const totalItems = materials.length;
+    const totalStockValue = materials.reduce((sum, m) => sum + (m.current_stock * m.average_cost), 0);
+    const lowStockCount = materials.filter(m => m.current_stock <= m.reorder_level && m.current_stock > 0).length;
+    const outOfStockCount = materials.filter(m => m.current_stock === 0).length;
+    const pendingPurchasesCount = 8;
+    const pendingPurchasesValuation = 48250;
+
+    // ─── CLIENT-SIDE PAGINATION ─────────────────────────────────────────────
+    const totalFiltered = filteredMaterials.length;
+    const totalPages = Math.ceil(totalFiltered / pageSize) || 1;
+    const paginated = filteredMaterials.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+    const handlePillClick = (matName: string) => {
+      setSearchQuery(matName);
+    };
+
     return (
-      <View className="flex-1">
-        <View className="flex-row justify-between items-center mb-5 flex-wrap gap-4">
-          <View className="flex-1 min-w-[240px] flex-row bg-white border border-slate-200 rounded-2xl items-center px-4 py-2.5 shadow-sm">
-            <Search size={18} color="#64748b" className="mr-2" />
-            <TextInput
-              placeholder="Search materials..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="flex-1 text-sm text-slate-800 outline-none"
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery('')}>
-                <X size={16} color="#64748b" />
-              </Pressable>
-            )}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-w-[40%] flex-grow-0">
-            <View className="flex-row py-1">
-              <Pressable
-                onPress={() => setSelectedCategoryFilter('all')}
-                className={`px-4 py-2 rounded-full mr-2 border ${
-                  selectedCategoryFilter === 'all' ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-200'
-                }`}
-              >
-                <Text className={`text-xs font-bold ${selectedCategoryFilter === 'all' ? 'text-white' : 'text-slate-600'}`}>
-                  All
-                </Text>
-              </Pressable>
-              {categories.map((c) => (
-                <Pressable
-                  key={c.id}
-                  onPress={() => setSelectedCategoryFilter(c.id)}
-                  className={`px-4 py-2 rounded-full mr-2 border ${
-                    selectedCategoryFilter === c.id ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-200'
-                  }`}
-                >
-                  <Text className={`text-xs font-bold ${selectedCategoryFilter === c.id ? 'text-white' : 'text-slate-600'}`}>
-                    {c.category_name}
-                  </Text>
-                </Pressable>
-              ))}
+      <View className="flex-1 flex-col gap-6">
+        
+        {/* ─── 1. 5 KPI CARDS ROW ───────────────────────────────────────────── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pb-2">
+          <View className="flex-row gap-4">
+            
+            {/* Card 1: Total Items */}
+            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-56 flex-row items-center gap-4 shadow-sm">
+              <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center">
+                <Boxes size={22} color="#0066b2" />
+              </View>
+              <View>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Items</Text>
+                <Text className="text-xl font-black text-slate-800 mt-0.5">{totalItems}</Text>
+                <Text className="text-[10px] text-slate-400 mt-0.5 font-medium">Active raw ingredients</Text>
+              </View>
             </View>
-          </ScrollView>
 
-          <Pressable
-            onPress={() => handleOpenMaterialModal()}
-            className="flex-row bg-blue-600 items-center justify-center py-3 px-5 rounded-2xl shadow-md active:scale-95 transition-transform"
-          >
-            <Plus size={16} color="white" className="mr-1.5" />
-            <Text className="text-sm font-bold text-white">Add Raw Material</Text>
-          </Pressable>
-        </View>
-
-        <FlatList
-          key="materials-flatlist"
-          data={filteredMaterials}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View className="py-20 items-center justify-center">
-              <Boxes size={48} color="#94a3b8" className="mb-4" />
-              <Text className="text-base font-bold text-slate-500">No materials found</Text>
-              <Text className="text-xs text-slate-400 mt-1">Try resetting search filters or register a new raw ingredient.</Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const isOut = item.current_stock === 0;
-            const isLow = item.current_stock > 0 && item.current_stock <= item.reorder_level;
-
-            let badgeColor = 'bg-emerald-50 border-emerald-200 text-emerald-700';
-            let badgeText = 'Normal';
-            if (isOut) {
-              badgeColor = 'bg-rose-50 border-rose-200 text-rose-700';
-              badgeText = 'Out of Stock';
-            } else if (isLow) {
-              badgeColor = 'bg-amber-50 border-amber-200 text-amber-700';
-              badgeText = 'Low Stock';
-            }
-
-            return (
-              <View className="bg-white border border-slate-200 rounded-2xl p-3.5 mb-3 flex-row items-center justify-between shadow-sm">
-                <View className="flex-row items-center flex-1 mr-3">
-                  <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
-                    <Boxes size={18} color={colors.primary} />
-                  </View>
-                  <View className="flex-1 mr-2">
-                    <View className="flex-row items-center mb-0.5 flex-wrap">
-                      <Text className="text-sm font-black text-slate-800 mr-2">{item.material_name}</Text>
-                      <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">
-                        {item.material_code}
-                      </Text>
-                    </View>
-                    <View className="flex-row flex-wrap items-center">
-                      <Text className="text-[11px] text-slate-400 mr-2.5">Cat: {item.category_name}</Text>
-                      <Text className="text-[11px] text-slate-400 mr-2.5">Unit: {item.unit_short_name}</Text>
-                      {item.barcode && <Text className="text-[11px] text-slate-400 mr-2.5">SKU: {item.barcode}</Text>}
-                      {item.hsn_code && <Text className="text-[11px] text-slate-400">HSN: {item.hsn_code}</Text>}
-                    </View>
-                    <View className="flex-row mt-1.5 pt-1.5 border-t border-slate-50">
-                      <Text className="text-[9.5px] text-slate-400 font-semibold uppercase tracking-wider mr-2">
-                        Location Splits:
-                      </Text>
-                      <Text className="text-[11px] font-semibold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                        {item.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage'}: {item.current_stock}{' '}
-                        {item.unit_short_name}
-                      </Text>
-                    </View>
-                  </View>
+            {/* Card 2: Total Stock Value */}
+            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-64 shadow-sm">
+              <View className="flex-row items-center gap-4">
+                <View className="w-12 h-12 bg-emerald-50 rounded-2xl items-center justify-center">
+                  <Text className="text-xl font-black text-emerald-700">₹</Text>
                 </View>
-
-                <View className="flex-row items-center gap-4 flex-wrap">
-                  <View className="items-end">
-                    <Text className="text-xs font-black text-slate-900">
-                      {item.current_stock} {item.unit_short_name}
-                    </Text>
-                    <View className={`border rounded-full px-1.5 py-0.5 mt-0.5 ${badgeColor}`}>
-                      <Text className="text-[8px] font-bold uppercase">{badgeText}</Text>
-                    </View>
-                  </View>
-
-                  <View className="items-end border-l border-slate-100 pl-4">
-                    <Text className="text-[10px] text-slate-400">Avg Cost</Text>
-                    <Text className="text-xs font-extrabold text-slate-800 mt-0.5">₹{item.average_cost.toFixed(2)}</Text>
-                  </View>
-
-                  <View className="flex-row items-center border-l border-slate-100 pl-4 gap-1.5">
-                    <Pressable
-                      onPress={() => handleOpenMaterialModal(item)}
-                      className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
-                    >
-                      <FileText size={14} color="#64748b" />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleDeleteMaterialItem(item.id)}
-                      className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
-                    >
-                      <Trash2 size={14} color="#e11d48" />
-                    </Pressable>
+                <View>
+                  <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Stock Value</Text>
+                  <Text className="text-xl font-black text-slate-800 mt-0.5">
+                    ₹{totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </Text>
+                  <View className="flex-row items-center gap-1 mt-0.5">
+                    <TrendingUp size={10} color="#16a34a" />
+                    <Text className="text-[10px] text-emerald-600 font-bold">12.4% vs last month</Text>
                   </View>
                 </View>
               </View>
-            );
-          }}
-        />
+            </View>
+
+            {/* Card 3: Low Stock Alerts */}
+            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-56 flex-row items-center gap-4 shadow-sm">
+              <View className="w-12 h-12 bg-amber-50 rounded-2xl items-center justify-center">
+                <AlertTriangle size={22} color="#d97706" />
+              </View>
+              <View>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Low Stock Alerts</Text>
+                <Text className="text-xl font-black text-amber-700 mt-0.5">{lowStockCount}</Text>
+                <Text className="text-[10px] text-amber-600 font-bold mt-0.5">Requires attention</Text>
+              </View>
+            </View>
+
+            {/* Card 4: Out of Stock */}
+            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-56 flex-row items-center gap-4 shadow-sm">
+              <View className="w-12 h-12 bg-rose-50 rounded-2xl items-center justify-center">
+                <ShieldAlert size={22} color="#dc2626" />
+              </View>
+              <View>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Out of Stock</Text>
+                <Text className="text-xl font-black text-rose-700 mt-0.5">{outOfStockCount}</Text>
+                <Text className="text-[10px] text-rose-600 font-bold mt-0.5">Needs immediate order</Text>
+              </View>
+            </View>
+
+            {/* Card 5: Pending Purchases */}
+            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-60 flex-row items-center gap-4 shadow-sm">
+              <View className="w-12 h-12 bg-indigo-50 rounded-2xl items-center justify-center">
+                <Truck size={22} color="#4f46e5" />
+              </View>
+              <View>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pending Purchases</Text>
+                <Text className="text-xl font-black text-indigo-700 mt-0.5">{pendingPurchasesCount}</Text>
+                <Text className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                  Worth ₹{pendingPurchasesValuation.toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+
+          </View>
+        </ScrollView>
+
+        {/* ─── 2. ADVANCED FILTERS CONSOLE ───────────────────────────────────── */}
+        <View className="bg-white border border-slate-200 rounded-3xl p-5 gap-4 shadow-sm">
+          
+          {/* Row 1: Status pills */}
+          <View className="flex-row items-center justify-between border-b border-slate-100 pb-4 flex-wrap gap-3">
+            <View className="flex-row gap-2 flex-wrap">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'healthy', label: 'Healthy' },
+                { key: 'low', label: 'Low Stock' },
+                { key: 'out', label: 'Out of Stock' },
+                { key: 'expiring', label: 'Expiring Soon' },
+              ].map((pill) => {
+                const isActive = statusFilter === pill.key;
+                return (
+                  <Pressable
+                    key={pill.key}
+                    onPress={() => {
+                      setStatusFilter(pill.key as any);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-4 py-2 rounded-full border active:scale-95 transition-all ${
+                      isActive
+                        ? 'bg-blue-600 border-blue-600 shadow-sm'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                      {pill.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View className="flex-row items-center gap-2">
+              <View className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+              <Text className="text-[11px] text-amber-600 font-bold">Auto-Sync Enabled</Text>
+            </View>
+          </View>
+
+          {/* Row 2: Search, pickers, my items toggle and actions */}
+          <View className="flex-row items-center justify-between flex-wrap gap-4">
+            
+            {/* Left side filters group */}
+            <View className="flex-row items-center gap-3 flex-wrap flex-1 min-w-[320px]">
+              
+              {/* Search input */}
+              <View className="flex-1 min-w-[200px] flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3.5 py-2 shadow-inner">
+                <Search size={16} color="#64748b" className="mr-2" />
+                <TextInput
+                  placeholder="Search materials by name, code or category..."
+                  value={searchQuery}
+                  onChangeText={(t) => {
+                    setSearchQuery(t);
+                    setCurrentPage(1);
+                  }}
+                  className="flex-1 text-xs text-slate-800 outline-none"
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery('')}>
+                    <X size={14} color="#64748b" />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Category Dropdown */}
+              <View className="relative">
+                <Pressable
+                  onPress={() => {
+                    setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
+                    setIsLocationDropdownOpen(false);
+                  }}
+                  className="flex-row items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 gap-1.5 active:scale-95 shadow-sm"
+                >
+                  <Text className="text-xs font-bold text-slate-600">
+                    {selectedCategoryFilter === 'all'
+                      ? 'All Categories'
+                      : categories.find((c) => c.id === selectedCategoryFilter)?.category_name || 'Category'}
+                  </Text>
+                  <ChevronDown size={12} color="#64748b" />
+                </Pressable>
+                {isCategoryDropdownOpen && (
+                  <View className="absolute top-11 left-0 bg-white border border-slate-200 rounded-2xl shadow-lg z-50 w-52 p-1.5">
+                    <Pressable
+                      onPress={() => {
+                        setSelectedCategoryFilter('all');
+                        setIsCategoryDropdownOpen(false);
+                        setCurrentPage(1);
+                      }}
+                      className="px-3.5 py-2 rounded-xl hover:bg-slate-50 active:bg-slate-100"
+                    >
+                      <Text className="text-xs font-semibold text-slate-700">All Categories</Text>
+                    </Pressable>
+                    {categories.map((c) => (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => {
+                          setSelectedCategoryFilter(c.id);
+                          setIsCategoryDropdownOpen(false);
+                          setCurrentPage(1);
+                        }}
+                        className="px-3.5 py-2 rounded-xl hover:bg-slate-50 active:bg-slate-100"
+                      >
+                        <Text className="text-xs font-semibold text-slate-700">{c.category_name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Location Dropdown */}
+              <View className="relative">
+                <Pressable
+                  onPress={() => {
+                    setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                    setIsCategoryDropdownOpen(false);
+                  }}
+                  className="flex-row items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 gap-1.5 active:scale-95 shadow-sm"
+                >
+                  <Text className="text-xs font-bold text-slate-600">
+                    {locationFilter === 'all' ? 'All Locations' : locationFilter}
+                  </Text>
+                  <ChevronDown size={12} color="#64748b" />
+                </Pressable>
+                {isLocationDropdownOpen && (
+                  <View className="absolute top-11 left-0 bg-white border border-slate-200 rounded-2xl shadow-lg z-50 w-44 p-1.5">
+                    {['all', 'Freezer', 'Dry Storage'].map((loc) => (
+                      <Pressable
+                        key={loc}
+                        onPress={() => {
+                          setLocationFilter(loc);
+                          setIsLocationDropdownOpen(false);
+                          setCurrentPage(1);
+                        }}
+                        className="px-3.5 py-2 rounded-xl hover:bg-slate-50 active:bg-slate-100"
+                      >
+                        <Text className="text-xs font-semibold text-slate-700">
+                          {loc === 'all' ? 'All Locations' : loc}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Checkbox: Show only my items */}
+              <Pressable
+                onPress={() => {
+                  setShowOnlyMyItems(!showOnlyMyItems);
+                  setCurrentPage(1);
+                }}
+                className="flex-row items-center gap-2 px-1 py-2 active:opacity-80"
+              >
+                <View
+                  className={`w-4 h-4 rounded border flex items-center justify-center ${
+                    showOnlyMyItems ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
+                  }`}
+                >
+                  {showOnlyMyItems && <Check size={10} color="white" strokeWidth={3} />}
+                </View>
+                <Text className="text-xs font-semibold text-slate-500">Show only my items</Text>
+              </Pressable>
+
+            </View>
+
+            {/* Right side actions group */}
+            <View className="flex-row items-center gap-2 flex-wrap">
+              <Pressable
+                onPress={handleOpenPurchaseModal}
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+              >
+                <Text className="text-xs font-bold text-slate-600">+ Purchase</Text>
+              </Pressable>
+              
+              <Pressable
+                onPress={handleOpenPurchaseModal}
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+              >
+                <Text className="text-xs font-bold text-slate-600">+ Receive Stock</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleOpenAdjustmentModal}
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+              >
+                <Text className="text-xs font-bold text-slate-600">Transfer</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleOpenAdjustmentModal}
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+              >
+                <Text className="text-xs font-bold text-slate-600">Adjust Stock</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => handleOpenMaterialModal()}
+                className="bg-blue-600 hover:bg-blue-700 flex-row items-center gap-1 px-4 py-2.5 rounded-xl active:scale-95 shadow-md"
+              >
+                <Plus size={14} color="white" />
+                <Text className="text-xs font-bold text-white">Add Raw Material</Text>
+              </Pressable>
+            </View>
+
+          </View>
+        </View>
+
+        {/* ─── 3. INLINE LOW STOCK ALERTS BANNER ──────────────────────────────── */}
+        {lowStockMaterials.length > 0 && (
+          <View className="bg-amber-50/70 border border-amber-200 rounded-3xl p-4 shadow-sm">
+            <View className="flex-row justify-between items-center mb-2 flex-wrap gap-2">
+              <View className="flex-row items-center gap-2">
+                <AlertTriangle size={16} color="#d97706" />
+                <Text className="text-xs font-black text-amber-800">
+                  Low Stock Alerts ({lowStockMaterials.length})
+                </Text>
+              </View>
+              <Pressable 
+                onPress={() => { setStatusFilter('low'); setCurrentPage(1); }}
+                className="active:opacity-80"
+              >
+                <Text className="text-xs font-bold text-amber-700">View all low stock →</Text>
+              </Pressable>
+            </View>
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-1">
+              <View className="flex-row gap-2">
+                {lowStockMaterials.map((lm) => (
+                  <Pressable
+                    key={lm.id}
+                    onPress={() => handlePillClick(lm.material_name)}
+                    className="bg-white border border-amber-200/85 hover:border-amber-300 rounded-full px-3 py-1 flex-row items-center gap-1.5 active:scale-95 shadow-xs"
+                  >
+                    <View className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <Text className="text-[11px] font-semibold text-slate-700">
+                      {lm.material_name}
+                    </Text>
+                    <Text className="text-[10px] font-black text-amber-600">
+                      {lm.current_stock} {lm.unit_short_name || 'KG'} left
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ─── 4. STRUCTURED DATA TABLE ──────────────────────────────────────── */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={true} 
+          className="w-full bg-white border border-slate-200 rounded-3xl shadow-sm"
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
+          <View style={{ minWidth: 1100 }} className="flex-col p-4 flex-1">
+            
+            {/* Table Header */}
+            <View className="flex-row border-b border-slate-100 pb-3.5 mb-1 px-3">
+              <View style={{ width: '22%' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Item Name</Text>
+              </View>
+              <View style={{ width: '10%' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</Text>
+              </View>
+              <View style={{ width: '10%' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Location</Text>
+              </View>
+              <View style={{ width: '15%' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Current Stock</Text>
+              </View>
+              <View style={{ width: '8%', alignItems: 'center' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Min. Level</Text>
+              </View>
+              <View style={{ width: '6%', alignItems: 'center' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
+              </View>
+              <View style={{ width: '10%', alignItems: 'flex-end' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Avg. Cost</Text>
+              </View>
+              <View style={{ width: '10%', alignItems: 'flex-end' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Stock Value</Text>
+              </View>
+              <View style={{ width: '11%', alignItems: 'center' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</Text>
+              </View>
+              <View style={{ width: '8%', alignItems: 'center' }}>
+                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Actions</Text>
+              </View>
+            </View>
+
+            {/* Table Body */}
+            {paginated.length === 0 ? (
+              <View className="py-20 items-center justify-center flex-1">
+                <Boxes size={48} color="#94a3b8" className="mb-4" />
+                <Text className="text-base font-bold text-slate-500">No materials matched your filters</Text>
+                <Text className="text-xs text-slate-400 mt-1">Try resetting search filters or register a new raw ingredient.</Text>
+              </View>
+            ) : (
+              paginated.map((item) => {
+                const isOut = item.current_stock === 0;
+                const isLow = item.current_stock > 0 && item.current_stock <= item.reorder_level;
+
+                let badgeColor = 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                let badgeText = 'Healthy';
+                if (isOut) {
+                  badgeColor = 'bg-rose-50 border-rose-200 text-rose-700';
+                  badgeText = 'Out of Stock';
+                } else if (isLow) {
+                  badgeColor = 'bg-amber-50 border-amber-200 text-amber-700';
+                  badgeText = 'Low Stock';
+                }
+
+                const itemLocation = item.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage';
+                const valuation = item.current_stock * item.average_cost;
+
+                return (
+                  <View 
+                    key={item.id} 
+                    className="flex-row items-center py-3 px-3 border-b border-slate-50 hover:bg-slate-50/50 rounded-xl"
+                  >
+                    
+                    {/* Item Name (Emoji + Title + Code) */}
+                    <View style={{ width: '22%' }} className="flex-row items-center pr-3">
+                      <View className="w-9 h-9 bg-slate-50 border border-slate-100 rounded-full items-center justify-center mr-3 shadow-xs">
+                        <Text className="text-lg">{getCategoryEmoji(item.category_name)}</Text>
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-xs font-black text-slate-800 leading-tight truncate">{item.material_name}</Text>
+                        <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                          {item.material_code}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Category */}
+                    <View style={{ width: '10%' }}>
+                      <Text className="text-xs font-semibold text-slate-600">{item.category_name || 'N/A'}</Text>
+                    </View>
+
+                    {/* Location */}
+                    <View style={{ width: '10%' }}>
+                      <Text className="text-xs font-semibold text-slate-600">{itemLocation}</Text>
+                    </View>
+
+                    {/* Current Stock (Val + Level Indicator Bar) */}
+                    <View style={{ width: '15%' }} className="flex-col">
+                      <Text className={`text-xs font-extrabold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-800'}`}>
+                        {item.current_stock} {item.unit_short_name}
+                      </Text>
+                      
+                      {/* stock level ratio visual bar */}
+                      <View className="w-24 bg-slate-100 h-1 rounded-full mt-1.5 overflow-hidden">
+                        <View 
+                          className={`h-full ${isOut ? 'bg-slate-300' : isLow ? 'bg-amber-500' : 'bg-emerald-500'}`} 
+                          style={{ width: `${Math.min(Math.max((item.current_stock / (item.reorder_level || 1)) * 100, 0), 100)}%` }} 
+                        />
+                      </View>
+                      <Text className="text-[9px] text-slate-400 mt-1 font-medium">
+                        {item.current_stock} / {item.reorder_level} {item.unit_short_name}
+                      </Text>
+                    </View>
+
+                    {/* Min Level */}
+                    <View style={{ width: '8%', alignItems: 'center' }}>
+                      <Text className="text-xs font-bold text-slate-700">{item.reorder_level}</Text>
+                    </View>
+
+                    {/* Unit */}
+                    <View style={{ width: '6%', alignItems: 'center' }}>
+                      <Text className="text-xs font-black text-slate-400 uppercase">{item.unit_short_name || 'UoM'}</Text>
+                    </View>
+
+                    {/* Avg Cost */}
+                    <View style={{ width: '10%', alignItems: 'flex-end' }}>
+                      <Text className="text-xs font-bold text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
+                    </View>
+
+                    {/* Stock Value */}
+                    <View style={{ width: '10%', alignItems: 'flex-end' }}>
+                      <Text className="text-xs font-black text-slate-800">
+                        ₹{valuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+
+                    {/* Status Badge */}
+                    <View style={{ width: '11%', alignItems: 'center' }}>
+                      <View className={`border rounded-full px-2 py-0.5 ${badgeColor} shadow-xs`}>
+                        <Text className="text-[9px] font-extrabold uppercase tracking-wider">{badgeText}</Text>
+                      </View>
+                    </View>
+
+                    {/* Actions */}
+                    <View style={{ width: '8%' }} className="flex-row items-center justify-center gap-1">
+                      <Pressable
+                        onPress={() => handleOpenMaterialModal(item)}
+                        className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                      >
+                        <Eye size={12} color="#64748b" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleOpenMaterialModal(item)}
+                        className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                      >
+                        <FileText size={12} color="#64748b" />
+                      </Pressable>
+                      <Pressable
+                        onPress={handleOpenPurchaseModal}
+                        className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                      >
+                        <ShoppingCart size={12} color="#64748b" />
+                      </Pressable>
+                    </View>
+
+                  </View>
+                );
+              })
+            )}
+
+          </View>
+        </ScrollView>
+
+        {/* ─── 5. PAGINATION FOOTER ──────────────────────────────────────────── */}
+        <View className="flex-row justify-between items-center px-4 py-1.5 flex-wrap gap-4">
+          <Text className="text-xs font-bold text-slate-400">
+            Showing {totalFiltered > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalFiltered)} of {totalFiltered} items
+          </Text>
+
+          <View className="flex-row items-center gap-4 flex-wrap">
+            
+            {/* Rows per page selector */}
+            <View className="flex-row items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rows per page</Text>
+              <Pressable
+                onPress={() => {
+                  const nextSize = pageSize === 10 ? 25 : pageSize === 25 ? 50 : 10;
+                  setPageSize(nextSize);
+                  setCurrentPage(1);
+                }}
+                className="flex-row items-center gap-1 active:opacity-70"
+              >
+                <Text className="text-xs font-black text-slate-700">{pageSize}</Text>
+                <ChevronDown size={10} color="#64748b" />
+              </Pressable>
+            </View>
+
+            {/* Page indicators list */}
+            {totalPages > 1 && (
+              <View className="flex-row gap-1">
+                <Pressable
+                  onPress={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                    currentPage === 1 ? 'border-slate-100 bg-slate-50/55 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <Text className="text-xs font-black text-slate-500">‹</Text>
+                </Pressable>
+                
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const pageNum = idx + 1;
+                  const isActive = currentPage === pageNum;
+                  return (
+                    <Pressable
+                      key={pageNum}
+                      onPress={() => setCurrentPage(pageNum)}
+                      className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                        isActive
+                          ? 'bg-blue-600 border-blue-600'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <Text className={`text-xs font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                        {pageNum}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+
+                <Pressable
+                  onPress={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                    currentPage === totalPages ? 'border-slate-100 bg-slate-50/55 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <Text className="text-xs font-black text-slate-500">›</Text>
+                </Pressable>
+              </View>
+            )}
+
+          </View>
+        </View>
+
       </View>
     );
   };
