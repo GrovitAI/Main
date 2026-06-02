@@ -406,8 +406,8 @@ export default function InventoryScreen() {
   const [purchasePaymentMode, setPurchasePaymentMode] = useState('UPI');
   const [purchaseTransportCharges, setPurchaseTransportCharges] = useState('0');
   const [purchaseRemarks, setPurchaseRemarks] = useState('');
-  const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; unit_price: string; gst: string }[]>([
-    { material_id: '', quantity: '', unit_price: '', gst: '0' },
+  const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; unit_price: string; gst: string; unit_short_name?: string }[]>([
+    { material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' },
   ]);
   const [purchaseLocation, setPurchaseLocation] = useState('Dry Storage');
   const [purchaseInvoiceDate, setPurchaseInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -858,7 +858,7 @@ export default function InventoryScreen() {
     setModalError(null);
     setPurchaseSupplierId('');
     setPurchaseInvoiceNum('');
-    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
+    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
     setPurchaseTransportCharges('0');
     setPurchaseRemarks('');
     setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
@@ -956,7 +956,7 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setActiveTab('purchases');
       setPurchaseSupplierId('');
-      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
+      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
       setPurchaseRemarks('');
       setPurchaseInvoiceNum('');
       setPurchaseTransportCharges('0');
@@ -1057,7 +1057,7 @@ export default function InventoryScreen() {
   };
 
   const handleAddPurchaseLine = () => {
-    setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', unit_price: '', gst: '0' }]);
+    setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
   };
 
   const handleUpdatePurchaseLine = (idx: number, key: string, value: string) => {
@@ -1068,7 +1068,7 @@ export default function InventoryScreen() {
 
   const handleRemovePurchaseLine = (idx: number) => {
     if (purchaseItems.length === 1) {
-      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
+      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
       return;
     }
     setPurchaseItems(purchaseItems.filter((_, i) => i !== idx));
@@ -2506,7 +2506,7 @@ export default function InventoryScreen() {
                   <View
                     key={idx}
                     className="flex-row items-center py-3 px-1 border-b border-slate-100 relative"
-                    style={{ zIndex: (openLineMatDropdownIdx === idx || openLineGstDropdownIdx === idx) ? 999 : 1 }}
+                    style={{ zIndex: (openLineMatDropdownIdx === idx || openLineGstDropdownIdx === idx || openLineUnitDropdownIdx === idx) ? 999 : 1 }}
                   >
                     
                     {/* Raw Material Select Dropdown */}
@@ -2543,6 +2543,7 @@ export default function InventoryScreen() {
                                 key={m.id}
                                 onPress={() => {
                                   handleUpdatePurchaseLine(idx, 'material_id', m.id);
+                                  handleUpdatePurchaseLine(idx, 'unit_short_name', m.unit_short_name || 'units');
                                   setOpenLineMatDropdownIdx(null);
                                 }}
                                 className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
@@ -2559,14 +2560,48 @@ export default function InventoryScreen() {
                       )}
                     </View>
 
-                    {/* Unit Box */}
-                    <View style={{ width: '10%' }} className="items-center justify-center relative pr-3">
-                      <View className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between flex-row shadow-xs">
+                    {/* Unit Box (Dropdown) */}
+                    <View style={{ width: '10%', zIndex: openLineUnitDropdownIdx === idx ? 10000 : 1 }} className="items-center justify-center relative pr-3">
+                      <Pressable
+                        onPress={() => {
+                          setOpenLineUnitDropdownIdx(openLineUnitDropdownIdx === idx ? null : idx);
+                          setOpenLineMatDropdownIdx(null);
+                          setOpenLineGstDropdownIdx(null);
+                          setIsSupDropdownOpen(false);
+                          setIsPayDropdownOpen(false);
+                          setIsLocDropdownOpen(false);
+                          setIsCalendarOpen(false);
+                        }}
+                        className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
+                      >
                         <Text className="text-[11px] font-bold text-slate-700 truncate text-center flex-1">
-                          {selectedMat ? matUnitShort : 'Unit'}
+                          {itm.unit_short_name || (selectedMat ? matUnitShort : 'Unit')}
                         </Text>
-                        <ChevronDown size={10} color="#cbd5e1" />
-                      </View>
+                        <ChevronDown size={10} color="#64748b" />
+                      </Pressable>
+
+                      {openLineUnitDropdownIdx === idx && (
+                        <View className="absolute top-[36px] left-0 right-3 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1 max-h-[140px] overflow-hidden" style={{ zIndex: 10000 }}>
+                          <ScrollView nestedScrollEnabled className="flex-col">
+                            {units.map((u) => (
+                              <Pressable
+                                key={u.id}
+                                onPress={() => {
+                                  handleUpdatePurchaseLine(idx, 'unit_short_name', u.short_name);
+                                  setOpenLineUnitDropdownIdx(null);
+                                }}
+                                className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
+                                  (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : ''
+                                }`}
+                              >
+                                <Text className="text-[10px] font-semibold text-slate-700">
+                                  {u.unit_name} ({u.short_name})
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
                     </View>
 
                     {/* Quantity input */}
