@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {
   AlertTriangle,
@@ -91,6 +92,8 @@ const TABS: TabItem[] = [
 ];
 
 export default function InventoryScreen() {
+  const { width } = useWindowDimensions();
+  const numColumns = width >= 768 ? 2 : 1;
   const [activeTab, setActiveTab] = useState<TabName>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -609,6 +612,7 @@ export default function InventoryScreen() {
 
         {/* Materials Table List */}
         <FlatList
+          key="materials-flatlist"
           data={filteredMaterials}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
@@ -717,10 +721,11 @@ export default function InventoryScreen() {
 
         {/* Suppliers directory grid */}
         <FlatList
+          key={`suppliers-grid-${numColumns}`}
           data={suppliers}
           keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={{ justifyContent: 'space-between' }}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns === 2 ? { justifyContent: 'space-between' } : undefined}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View className="py-20 w-full items-center justify-center">
@@ -729,7 +734,7 @@ export default function InventoryScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View className="w-[49%] bg-white border border-slate-200 rounded-3xl p-5 mb-5 shadow-sm">
+            <View className={`${numColumns === 2 ? 'w-[49%]' : 'w-full'} bg-white border border-slate-200 rounded-3xl p-5 mb-5 shadow-sm`}>
               <View className="flex-row justify-between items-start mb-3">
                 <View className="flex-1 mr-2">
                   <Text className="text-base font-bold text-slate-800">{item.supplier_name}</Text>
@@ -814,6 +819,7 @@ export default function InventoryScreen() {
 
         {/* Purchase Orders List */}
         <FlatList
+          key="purchases-flatlist"
           data={purchases}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
@@ -895,6 +901,7 @@ export default function InventoryScreen() {
 
         {/* Wastage list */}
         <FlatList
+          key="wastage-flatlist"
           data={wastages}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
@@ -940,6 +947,7 @@ export default function InventoryScreen() {
         <View className="w-[48%] flex-col">
           <Text className="text-base font-bold text-slate-800 mb-4">Active Stock Alerts & Thresholds</Text>
           <FlatList
+            key="alerts-flatlist"
             data={alerts}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
@@ -972,6 +980,7 @@ export default function InventoryScreen() {
         <View className="w-[48%] flex-col">
           <Text className="text-base font-bold text-slate-800 mb-4">Operations Audit Log (Who Changed What)</Text>
           <FlatList
+            key="audit-flatlist"
             data={auditLogs}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
