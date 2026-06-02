@@ -633,7 +633,8 @@ export default function InventoryScreen() {
         hsn_code: formMatHsn || null,
         preferred_supplier_id: formMatSupplier || null,
       };
-      await saveMaterial(payload);
+      const res = await saveMaterial(payload);
+      if (res.error) throw new Error(res.error);
       setIsMaterialModalOpen(false);
       await loadAllData(true);
     } catch (err: any) {
@@ -709,7 +710,8 @@ export default function InventoryScreen() {
         payment_terms: formSupTerms,
         notes: formSupNotes || null,
       };
-      await saveSupplier(payload);
+      const res = await saveSupplier(payload);
+      if (res.error) throw new Error(res.error);
       setIsSupplierModalOpen(false);
       await loadAllData(true);
     } catch (err: any) {
@@ -766,7 +768,8 @@ export default function InventoryScreen() {
         category_code: formCatCode || editingCategory?.category_code,
         description: formCatDesc || null,
       };
-      await saveCategory(payload);
+      const res = await saveCategory(payload);
+      if (res.error) throw new Error(res.error);
       setIsCategoryModalOpen(false);
       await loadAllData(true);
     } catch (err: any) {
@@ -828,7 +831,8 @@ export default function InventoryScreen() {
         short_name: formUnitShort || editingUnit?.short_name,
         is_active: true,
       };
-      await saveUnit(payload);
+      const res = await saveUnit(payload);
+      if (res.error) throw new Error(res.error);
       setIsUnitModalOpen(false);
       await loadAllData(true);
     } catch (err: any) {
@@ -948,7 +952,8 @@ export default function InventoryScreen() {
           line_total: Number(itm.quantity) * Number(itm.unit_price) * (1 + (Number(itm.gst || '0') / 100)),
         }));
 
-      await createPurchase(headerPayload, finalItems, purchaseLocation);
+      const res = await createPurchase(headerPayload, finalItems, purchaseLocation);
+      if (res.error) throw new Error(res.error);
       setActiveTab('purchases');
       setPurchaseSupplierId('');
       setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
@@ -988,7 +993,8 @@ export default function InventoryScreen() {
         location_id: wastageLocation,
         recorded_by: wastageRecorder,
       };
-      await createWastage(payload);
+      const res = await createWastage(payload);
+      if (res.error) throw new Error(res.error);
       setIsWastageModalOpen(false);
       setWastageMaterialId('');
       setWastageQty('');
@@ -1031,7 +1037,8 @@ export default function InventoryScreen() {
         created_by: 'Owner Staff',
         adjustment_date: new Date().toISOString(),
       };
-      await createAdjustment(payload);
+      const res = await createAdjustment(payload);
+      if (res.error) throw new Error(res.error);
       setIsAdjustmentModalOpen(false);
       setAdjMaterialId('');
       setAdjQty('');

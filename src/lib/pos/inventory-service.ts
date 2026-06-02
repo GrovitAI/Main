@@ -848,10 +848,13 @@ function saveCategoryLocal(category: any): ServiceResult<InventoryCategory> {
 export async function deleteCategory(id: string): Promise<ServiceResult<boolean>> {
   try {
     if (!forceLocalFallback) {
+      const { tenant_id, branch_id } = getTenantContext();
       const { data, error } = await supabase
         .from('inventory_categories')
         .update({ deleted_at: new Date().toISOString(), deleted_by: 'Owner Staff' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
 
       if (error) {
         if (await handleQueryError(error, 'deleteCategory')) {
@@ -979,10 +982,13 @@ function saveUnitLocal(unit: any): ServiceResult<InventoryUnit> {
 export async function deleteUnit(id: string): Promise<ServiceResult<boolean>> {
   try {
     if (!forceLocalFallback) {
+      const { tenant_id, branch_id } = getTenantContext();
       const { data, error } = await supabase
         .from('inventory_units')
         .update({ is_active: false })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
 
       if (error) {
         if (await handleQueryError(error, 'deleteUnit')) {
@@ -1123,10 +1129,13 @@ function saveSupplierLocal(supplier: any): ServiceResult<InventorySupplier> {
 export async function deleteSupplier(id: string): Promise<ServiceResult<boolean>> {
   try {
     if (!forceLocalFallback) {
+      const { tenant_id, branch_id } = getTenantContext();
       const { data, error } = await supabase
         .from('inventory_suppliers')
         .update({ deleted_at: new Date().toISOString(), deleted_by: 'Owner Staff' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
 
       if (error) {
         if (await handleQueryError(error, 'deleteSupplier')) {
@@ -1325,10 +1334,13 @@ function saveMaterialLocal(material: any): ServiceResult<InventoryMaterial> {
 export async function deleteMaterial(id: string): Promise<ServiceResult<boolean>> {
   try {
     if (!forceLocalFallback) {
+      const { tenant_id, branch_id } = getTenantContext();
       const { data, error } = await supabase
         .from('inventory_materials')
         .update({ deleted_at: new Date().toISOString(), deleted_by: 'Owner Staff' })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
 
       if (error) {
         if (await handleQueryError(error, 'deleteMaterial')) {
