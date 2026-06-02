@@ -103,7 +103,8 @@ type TabName =
   | 'reports'
   | 'alerts'
   | 'units'
-  | 'categories';
+  | 'categories'
+  | 'record_purchase';
 
 interface SidebarItem {
   id: TabName;
@@ -784,7 +785,7 @@ export default function InventoryScreen() {
     setPurchaseTransportCharges('0');
     setPurchaseRemarks('');
     setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
-    setIsPurchaseModalOpen(true);
+    setActiveTab('record_purchase');
     setIsSupDropdownOpen(false);
     setIsPayDropdownOpen(false);
     setIsLocDropdownOpen(false);
@@ -875,7 +876,7 @@ export default function InventoryScreen() {
         }));
 
       await createPurchase(headerPayload, finalItems, purchaseLocation);
-      setIsPurchaseModalOpen(false);
+      setActiveTab('purchases');
       setPurchaseSupplierId('');
       setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
       setPurchaseRemarks('');
@@ -2048,6 +2049,582 @@ export default function InventoryScreen() {
     );
   };
 
+  const renderRecordPurchaseScreen = () => {
+    return (
+      <View className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex-col flex-1">
+        {/* Header with Back Button */}
+        <View className="flex-row items-center justify-between mb-6 border-b border-slate-100 pb-4">
+          <Pressable
+            onPress={() => {
+              setActiveTab('purchases');
+              setModalError(null);
+            }}
+            className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 active:scale-95 shadow-xs"
+          >
+            <ChevronRight size={14} color="#475569" style={{ transform: [{ rotate: '180deg' }] }} />
+            <Text className="text-[11px] font-bold text-slate-600">Back to Purchases</Text>
+          </Pressable>
+          <View className="flex-row items-center gap-2">
+            <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center">
+              <FileText size={14} color="#0066b2" />
+            </View>
+            <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">
+              Procurement Form
+            </Text>
+          </View>
+        </View>
+
+        {modalError && (
+          <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+            <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+            <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+          </View>
+        )}
+
+        {/* Scrollable meta & items details */}
+        <ScrollView className="flex-1 mb-4 pr-1" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View className="flex-col gap-6 pb-6">
+          
+          {/* SECTION A: INVOICE META DETAILS */}
+          <View className="flex-col gap-4" style={{ zIndex: 100 }}>
+            {/* Row 1: Supplier and Invoice Number */}
+            <View className="flex-row flex-wrap gap-4">
+              
+              {/* Supplier dropdown */}
+              <View className="flex-1 min-w-[280px] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
+                <Pressable
+                  onPress={() => {
+                    setIsSupDropdownOpen(!isSupDropdownOpen);
+                    setIsPayDropdownOpen(false);
+                    setIsLocDropdownOpen(false);
+                    setOpenLineMatDropdownIdx(null);
+                  }}
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Store size={14} color="#64748b" />
+                    <Text className="text-xs font-bold text-slate-700">
+                      {purchaseSupplierId
+                        ? suppliers.find((s) => s.id === purchaseSupplierId)?.supplier_name
+                        : 'Select supplier'}
+                    </Text>
+                  </View>
+                  <ChevronDown size={12} color="#64748b" />
+                </Pressable>
+                
+                <Pressable
+                  onPress={() => {
+                    setIsSupplierModalOpen(true);
+                  }}
+                  className="mt-1 flex-row items-center self-start"
+                >
+                  <Text className="text-[10.5px] font-black text-blue-600">+ Add new supplier</Text>
+                </Pressable>
+
+                {isSupDropdownOpen && (
+                  <View className="absolute top-[72px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[140px] overflow-hidden">
+                    <ScrollView nestedScrollEnabled className="flex-col">
+                      {suppliers.map((s) => (
+                        <Pressable
+                          key={s.id}
+                          onPress={() => {
+                            setPurchaseSupplierId(s.id);
+                            setIsSupDropdownOpen(false);
+                          }}
+                          className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
+                            purchaseSupplierId === s.id ? 'bg-blue-50/50' : ''
+                          }`}
+                        >
+                          <Text className="text-xs font-bold text-slate-700">{s.supplier_name}</Text>
+                        </Pressable>
+                      ))}
+                      {suppliers.length === 0 && (
+                        <View className="p-2 items-center">
+                          <Text className="text-[11px] text-slate-400">No suppliers registered</Text>
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              {/* Invoice / Bill number */}
+              <View className="flex-1 min-w-[280px] gap-1.5">
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
+                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 shadow-inner">
+                  <Hash size={14} color="#64748b" className="mr-2" />
+                  <TextInput
+                    value={purchaseInvoiceNum}
+                    onChangeText={setPurchaseInvoiceNum}
+                    placeholder="e.g., INV-8976"
+                    className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                  />
+                </View>
+              </View>
+
+            </View>
+
+            {/* Row 2: Date, Payment, Freight */}
+            <View className="flex-row flex-wrap gap-4">
+              
+              {/* Date Input with Mini Calendar Popup */}
+              <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: 10000 }}>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
+                <Pressable
+                  onPress={() => {
+                    setIsCalendarOpen(!isCalendarOpen);
+                    setIsSupDropdownOpen(false);
+                    setIsPayDropdownOpen(false);
+                    setIsLocDropdownOpen(false);
+                    setOpenLineMatDropdownIdx(null);
+                  }}
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Calendar size={14} color="#64748b" />
+                    <Text className="text-xs font-bold text-slate-700">{purchaseInvoiceDate}</Text>
+                  </View>
+                  <ChevronDown size={12} color="#64748b" />
+                </Pressable>
+
+                {isCalendarOpen && (
+                  <View className="absolute top-[62px] left-0 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-[9999] w-[240px]">
+                    {/* Calendar Header */}
+                    <View className="flex-row justify-between items-center mb-2 px-1">
+                      <Pressable
+                        onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))}
+                        className="w-5 h-5 rounded-full bg-slate-50 border border-slate-100 items-center justify-center active:scale-90"
+                      >
+                        <Text className="text-xs font-black text-slate-600">‹</Text>
+                      </Pressable>
+                      <Text className="text-xs font-black text-slate-800">
+                        {calendarDate.toLocaleString('default', { month: 'long' })} {calendarDate.getFullYear()}
+                      </Text>
+                      <Pressable
+                        onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))}
+                        className="w-5 h-5 rounded-full bg-slate-50 border border-slate-100 items-center justify-center active:scale-90"
+                      >
+                        <Text className="text-xs font-black text-slate-600">›</Text>
+                      </Pressable>
+                    </View>
+
+                    {/* Weekday headers */}
+                    <View className="flex-row mb-1">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                        <View key={d} className="w-[14.28%] items-center">
+                          <Text className="text-[9px] font-black text-slate-400 uppercase">{d}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Days Grid */}
+                    <View className="flex-row flex-wrap">
+                      {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay() }).map((_, idx) => (
+                        <View key={`empty-${idx}`} className="w-[14.28%] py-1" />
+                      ))}
+                      {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate() }).map((_, idx) => {
+                        const dayNum = idx + 1;
+                        const formattedDay = String(dayNum).padStart(2, '0');
+                        const formattedMonth = String(calendarDate.getMonth() + 1).padStart(2, '0');
+                        const dateStr = `${calendarDate.getFullYear()}-${formattedMonth}-${formattedDay}`;
+                        const isSelected = purchaseInvoiceDate === dateStr;
+
+                        return (
+                          <Pressable
+                            key={`day-${dayNum}`}
+                            onPress={() => {
+                              setPurchaseInvoiceDate(dateStr);
+                              setIsCalendarOpen(false);
+                            }}
+                            className={`w-[14.28%] items-center justify-center py-1 rounded-full ${
+                              isSelected ? 'bg-blue-600' : 'hover:bg-slate-50 active:bg-slate-100'
+                            }`}
+                          >
+                            <Text className={`text-[10px] font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                              {dayNum}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* Payment Mode */}
+              <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
+                <Pressable
+                  onPress={() => {
+                    setIsPayDropdownOpen(!isPayDropdownOpen);
+                    setIsSupDropdownOpen(false);
+                    setIsLocDropdownOpen(false);
+                    setOpenLineMatDropdownIdx(null);
+                    setIsCalendarOpen(false);
+                  }}
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <CreditCard size={14} color="#64748b" />
+                    <Text className="text-xs font-bold text-slate-700">{purchasePaymentMode || 'Select mode'}</Text>
+                  </View>
+                  <ChevronDown size={12} color="#64748b" />
+                </Pressable>
+
+                {isPayDropdownOpen && (
+                  <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
+                    {['Cash', 'UPI', 'Bank Transfer', 'Credit Card'].map((mode) => (
+                      <Pressable
+                        key={mode}
+                        onPress={() => {
+                          setPurchasePaymentMode(mode);
+                          setIsPayDropdownOpen(false);
+                        }}
+                        className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
+                          purchasePaymentMode === mode ? 'bg-blue-50/50' : ''
+                        }`}
+                      >
+                        <Text className="text-xs font-bold text-slate-700">{mode}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Freight Charge */}
+              <View className="flex-1 min-w-[180px] gap-1.5">
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
+                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 shadow-inner">
+                  <Truck size={14} color="#64748b" className="mr-2" />
+                  <TextInput
+                    value={purchaseTransportCharges}
+                    onChangeText={setPurchaseTransportCharges}
+                    placeholder="0.00"
+                    keyboardType="numeric"
+                    className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                  />
+                </View>
+              </View>
+
+            </View>
+          </View>
+
+          {/* SECTION B: PROCUREMENT LINE ITEMS TABLE */}
+          <View className="border-t border-slate-100 pt-4 gap-2" style={{ zIndex: 1 }}>
+            <View className="flex-row justify-between items-center mb-1">
+              <View>
+                <Text className="text-sm font-black text-slate-800">Procurement Items</Text>
+                <Text className="text-[10.5px] font-semibold text-slate-400 mt-0.5">
+                  Add the raw materials included in this invoice.
+                </Text>
+              </View>
+              
+              <Pressable
+                onPress={handleAddPurchaseLine}
+                className="bg-[#0066b2] hover:bg-blue-700 flex-row items-center gap-1.5 px-4 py-2.5 rounded-lg active:scale-95 shadow-sm"
+              >
+                <Plus size={12} color="#ffffff" />
+                <Text className="text-xs font-bold text-white">+ Add Item</Text>
+              </Pressable>
+            </View>
+
+            {/* Structured Columns Header */}
+            <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
+              <View style={{ width: '32%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
+              </View>
+              <View style={{ width: '12%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
+              </View>
+              <View style={{ width: '11%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Quantity</Text>
+              </View>
+              <View style={{ width: '12%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rate (₹)</Text>
+              </View>
+              <View style={{ width: '11%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">GST (%)</Text>
+              </View>
+              <View style={{ width: '14%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Amount (₹)</Text>
+              </View>
+              <View style={{ width: '8%', alignItems: 'center' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Action</Text>
+              </View>
+            </View>
+
+            {/* Table Body List */}
+            {purchaseItems.length === 0 ? (
+              <View className="py-12 bg-white border border-dashed border-slate-200 rounded-2xl items-center justify-center gap-2.5 my-4">
+                <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center border border-blue-100">
+                  <Boxes size={20} color="#0066b2" />
+                </View>
+                <Text className="text-xs font-black text-slate-700">No items added yet</Text>
+                <Text className="text-[10px] font-semibold text-slate-400">Add your first item to get started</Text>
+              </View>
+            ) : (
+              purchaseItems.map((itm, idx) => {
+                const selectedMat = materials.find((m) => m.id === itm.material_id);
+                const matUnitShort = selectedMat?.unit_short_name || 'Units';
+                const amount = (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (1 + (Number(itm.gst || '0') / 100));
+
+                return (
+                  <View
+                    key={idx}
+                    className="flex-row items-start py-3 px-1 border-b border-slate-100 relative"
+                    style={{ zIndex: (openLineMatDropdownIdx === idx || openLineGstDropdownIdx === idx) ? 999 : 1 }}
+                  >
+                    
+                    {/* Raw Material Select Dropdown */}
+                    <View style={{ width: '32%' }} className="relative pr-1.5">
+                      <Pressable
+                        onPress={() => {
+                          setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
+                          setOpenLineGstDropdownIdx(null);
+                          setIsSupDropdownOpen(false);
+                          setIsPayDropdownOpen(false);
+                          setIsLocDropdownOpen(false);
+                          setIsCalendarOpen(false);
+                        }}
+                        className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
+                      >
+                        <Text className="text-[11px] font-bold text-slate-700 truncate pr-1">
+                          {selectedMat ? selectedMat.material_name : 'Select raw material'}
+                        </Text>
+                        <ChevronDown size={10} color="#64748b" />
+                      </Pressable>
+                      
+                      <Text className="text-[9px] font-bold text-slate-400 mt-1 pl-1">
+                        Search by name or code
+                      </Text>
+
+                      {openLineMatDropdownIdx === idx && (
+                        <View className="absolute top-[42px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1 max-h-[140px] overflow-hidden" style={{ zIndex: 10000 }}>
+                          <ScrollView nestedScrollEnabled className="flex-col">
+                            {materials.map((m) => (
+                              <Pressable
+                                key={m.id}
+                                onPress={() => {
+                                  handleUpdatePurchaseLine(idx, 'material_id', m.id);
+                                  setOpenLineMatDropdownIdx(null);
+                                }}
+                                className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
+                                  itm.material_id === m.id ? 'bg-blue-50/50' : ''
+                                }`}
+                              >
+                                <Text className="text-[10px] font-semibold text-slate-700">
+                                  {m.material_name} ({m.material_code})
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Unit Box */}
+                    <View style={{ width: '12%' }} className="relative pr-1.5">
+                      <View className="bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between flex-row shadow-xs">
+                        <Text className="text-[11px] font-bold text-slate-700 truncate">
+                          {selectedMat ? matUnitShort : 'Select unit'}
+                        </Text>
+                        <ChevronDown size={10} color="#cbd5e1" />
+                      </View>
+                      
+                      <Pressable
+                        onPress={() => {
+                          Alert.alert("Manage Units", "Units of measurement can be managed inside the Master > Units tab.");
+                        }}
+                        className="mt-1 pl-1"
+                      >
+                        <Text className="text-[9px] font-black text-blue-600">+ Add unit</Text>
+                      </Pressable>
+                    </View>
+
+                    {/* Quantity input */}
+                    <View style={{ width: '11%' }} className="pr-1.5">
+                      <TextInput
+                        value={itm.quantity}
+                        onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                      />
+                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
+                        e.g. 10
+                      </Text>
+                    </View>
+
+                    {/* Rate / price input */}
+                    <View style={{ width: '12%' }} className="pr-1.5">
+                      <TextInput
+                        value={itm.unit_price}
+                        onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                      />
+                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
+                        e.g. 120.00
+                      </Text>
+                    </View>
+
+                    {/* GST dropdown */}
+                    <View style={{ width: '11%' }} className="relative pr-1.5">
+                      <Pressable
+                        onPress={() => {
+                          setOpenLineGstDropdownIdx(openLineGstDropdownIdx === idx ? null : idx);
+                          setOpenLineMatDropdownIdx(null);
+                          setIsSupDropdownOpen(false);
+                          setIsPayDropdownOpen(false);
+                          setIsLocDropdownOpen(false);
+                          setIsCalendarOpen(false);
+                        }}
+                        className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
+                      >
+                        <Text className="text-[11px] font-bold text-slate-700">
+                          {itm.gst || '0'}%
+                        </Text>
+                        <ChevronDown size={10} color="#64748b" />
+                      </Pressable>
+                      
+                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
+                        Select GST
+                      </Text>
+
+                      {openLineGstDropdownIdx === idx && (
+                        <View className="absolute top-[42px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1" style={{ zIndex: 10000 }}>
+                          {['0', '5', '12', '18', '28'].map((gstVal) => (
+                            <Pressable
+                              key={gstVal}
+                              onPress={() => {
+                                handleUpdatePurchaseLine(idx, 'gst', gstVal);
+                                setOpenLineGstDropdownIdx(null);
+                              }}
+                              className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
+                                itm.gst === gstVal ? 'bg-blue-50/50' : ''
+                              }`}
+                            >
+                              <Text className="text-[10px] font-semibold text-slate-700 text-center">{gstVal}%</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Dynamic Row line amount wrapped in premium card background */}
+                    <View style={{ width: '14%' }} className="pr-1.5">
+                      <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 items-center justify-center">
+                        <Text className="text-[11px] font-black text-slate-800">
+                          ₹{amount.toFixed(2)}
+                        </Text>
+                      </View>
+                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
+                        Auto-calculated
+                      </Text>
+                    </View>
+
+                    {/* Row Trash Remove item */}
+                    <View style={{ width: '8%' }} className="items-center">
+                      <Pressable
+                        onPress={() => handleRemovePurchaseLine(idx)}
+                        className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
+                      >
+                        <Trash2 size={12} color="#dc2626" />
+                      </Pressable>
+                    </View>
+
+                  </View>
+                );
+              })
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* SECTION C: HORIZONTAL CALCULATIONS SUMMARY BAR */}
+          <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex-row items-center justify-between my-2">
+            {/* 1. Total Items */}
+            <View className="flex-1 flex-row items-center justify-center pl-2">
+              <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center mr-2.5">
+                <Boxes size={14} color="#0066b2" />
+              </View>
+              <View>
+                <Text className="text-xs font-black text-slate-700">{purchaseItems.length} Items</Text>
+                <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Items</Text>
+              </View>
+            </View>
+
+            <View className="w-[1px] h-8 bg-slate-200" />
+
+            {/* 2. Total Quantity */}
+            <View className="flex-1 items-center justify-center">
+              <Text className="text-xs font-black text-slate-700">
+                {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0), 0).toFixed(2)}
+              </Text>
+              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
+            </View>
+
+            <View className="w-[1px] h-8 bg-slate-200" />
+
+            {/* 3. Total Before Tax (Subtotal) */}
+            <View className="flex-1 items-center justify-center">
+              <Text className="text-xs font-black text-slate-700">
+                ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toFixed(2)}
+              </Text>
+              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
+            </View>
+
+            <View className="w-[1px] h-8 bg-slate-200" />
+
+            {/* 4. Total GST */}
+            <View className="flex-1 items-center justify-center">
+              <Text className="text-xs font-black text-slate-700">
+                ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toFixed(2)}
+              </Text>
+              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
+            </View>
+
+            <View className="w-[1px] h-8 bg-slate-200" />
+
+            {/* 5. Total Amount (Vibrant Blue highlighted) */}
+            <View className="flex-1 items-end pr-2 justify-center">
+              <Text className="text-sm font-black text-[#0066b2]">
+                ₹{(
+                  purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0) +
+                  purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0) +
+                  (Number(purchaseTransportCharges) || 0)
+                ).toFixed(2)}
+              </Text>
+              <Text className="text-[9px] font-bold text-[#0066b2] uppercase tracking-wider mt-0.5">Total Amount</Text>
+            </View>
+          </View>
+
+          {/* FOOTER ACTIONS */}
+          <View className="border-t border-slate-100 pt-4 flex-row justify-end items-center gap-3">
+            <Pressable
+              onPress={() => {
+                setActiveTab('purchases');
+                setModalError(null);
+              }}
+              className="px-5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl items-center active:scale-95"
+            >
+              <Text className="text-xs font-bold text-slate-600">Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleRecordPurchase}
+              className="px-5 py-2.5 bg-[#0066b2] hover:bg-blue-700 rounded-xl items-center active:scale-95 shadow-sm"
+            >
+              <Text className="text-xs font-bold text-white">Record Procurement Invoice</Text>
+            </Pressable>
+          </View>
+
+      </View>
+    );
+  };
+
   const renderWastage = () => {
     return (
       <View className="flex-1">
@@ -2430,12 +3007,17 @@ export default function InventoryScreen() {
         return renderUnits();
       case 'categories':
         return renderCategories();
+      case 'record_purchase':
+        return renderRecordPurchaseScreen();
       default:
         return renderDashboard();
     }
   };
 
   const getTabTitle = () => {
+    if (activeTab === 'record_purchase') {
+      return 'Record Procurement Invoice';
+    }
     const matched = SIDEBAR_ITEMS.find((s) => s.id === activeTab);
     return matched ? matched.label : 'Inventory Center';
   };
@@ -2462,6 +3044,8 @@ export default function InventoryScreen() {
         return 'Configure global recipe weight units';
       case 'categories':
         return 'Classify storage items and classify waste';
+      case 'record_purchase':
+        return 'Enter invoice details and items to update your inventory';
       default:
         return 'Enterprise Restaurant Control Cockpit';
     }
@@ -2479,7 +3063,7 @@ export default function InventoryScreen() {
   return (
     <View className="flex-1 bg-slate-50 flex-row">
       {/* LEFT SIDEBAR (Web/Tablet view) */}
-      {width >= 768 && (
+      {width >= 768 && activeTab !== 'record_purchase' && (
         <View style={{ width: 180, minWidth: 180, maxWidth: 180, overflow: 'hidden' }} className="flex-col h-full">
           <LinearGradient
             colors={['#0251b8', '#013b8c', '#012f70']}
@@ -2733,59 +3317,72 @@ export default function InventoryScreen() {
       {/* RIGHT MAIN PANEL */}
       <View className="flex-1 flex-col">
         {/* Header Bar */}
-        <View className="bg-white border-b border-slate-200 px-6 py-4 flex-row items-center justify-between shadow-sm">
-          <View className="flex-row items-center gap-3">
-            {width < 768 && (
-              <Pressable
-                onPress={() => setIsMobileMenuOpen(true)}
-                className="w-10 h-10 bg-slate-100 rounded-xl items-center justify-center active:scale-95"
-              >
-                <Menu size={20} color="#0f2744" />
-              </Pressable>
+        {activeTab !== 'record_purchase' && (
+          <View className="bg-white border-b border-slate-200 px-6 py-4 flex-row items-center justify-between shadow-sm">
+            <View className="flex-row items-center gap-3">
+              {width < 768 && (
+                <Pressable
+                  onPress={() => setIsMobileMenuOpen(true)}
+                  className="w-10 h-10 bg-slate-100 rounded-xl items-center justify-center active:scale-95"
+                >
+                  <Menu size={20} color="#0f2744" />
+                </Pressable>
+              )}
+              <View>
+                <Text className="text-base font-black text-slate-800 leading-none">{getTabTitle()}</Text>
+                <Text className="text-[11px] text-slate-400 font-bold mt-0.5">{getTabSubtitle()}</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center gap-4">
+              <View className="relative">
+                <Pressable className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-full items-center justify-center active:scale-95">
+                  <Bell size={18} color="#475569" />
+                </Pressable>
+                <View className="absolute top-0 right-0 bg-red-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+                  <Text className="text-[8px] font-black text-white leading-none">3</Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-center gap-2 border-l border-slate-200 pl-4">
+                <View className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center">
+                  <Text className="text-xs font-black text-white">RA</Text>
+                </View>
+                <View className="hidden md:flex">
+                  <Text className="text-xs font-black text-slate-800 leading-none">Rami Abou Jaoude</Text>
+                  <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5">Manager</Text>
+                </View>
+              </View>
+
+              <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row items-center gap-2">
+                <Calendar size={14} color="#475569" />
+                <Text className="text-[10px] font-black text-slate-600">Jun 1 - Jun 30, 2024</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'record_purchase' ? (
+          <View className="flex-1 p-6">
+            {errorMsg && (
+              <View className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
+                <AlertTriangle size={20} color="#e11d48" className="mr-3" />
+                <Text className="text-xs font-bold text-rose-700">{errorMsg}</Text>
+              </View>
             )}
-            <View>
-              <Text className="text-base font-black text-slate-800 leading-none">{getTabTitle()}</Text>
-              <Text className="text-[11px] text-slate-400 font-bold mt-0.5">{getTabSubtitle()}</Text>
-            </View>
+            {renderActiveTabPanel()}
           </View>
-
-          <View className="flex-row items-center gap-4">
-            <View className="relative">
-              <Pressable className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-full items-center justify-center active:scale-95">
-                <Bell size={18} color="#475569" />
-              </Pressable>
-              <View className="absolute top-0 right-0 bg-red-500 rounded-full w-4 h-4 items-center justify-center border border-white">
-                <Text className="text-[8px] font-black text-white leading-none">3</Text>
+        ) : (
+          <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
+            {errorMsg && (
+              <View className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
+                <AlertTriangle size={20} color="#e11d48" className="mr-3" />
+                <Text className="text-xs font-bold text-rose-700">{errorMsg}</Text>
               </View>
-            </View>
-
-            <View className="flex-row items-center gap-2 border-l border-slate-200 pl-4">
-              <View className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center">
-                <Text className="text-xs font-black text-white">RA</Text>
-              </View>
-              <View className="hidden md:flex">
-                <Text className="text-xs font-black text-slate-800 leading-none">Rami Abou Jaoude</Text>
-                <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5">Manager</Text>
-              </View>
-            </View>
-
-            <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row items-center gap-2">
-              <Calendar size={14} color="#475569" />
-              <Text className="text-[10px] font-black text-slate-600">Jun 1 - Jun 30, 2024</Text>
-            </View>
-          </View>
-        </View>
-
-        <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
-          {errorMsg && (
-            <View className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
-              <AlertTriangle size={20} color="#e11d48" className="mr-3" />
-              <Text className="text-xs font-bold text-rose-700">{errorMsg}</Text>
-            </View>
-          )}
-
-          {renderActiveTabPanel()}
-        </ScrollView>
+            )}
+            {renderActiveTabPanel()}
+          </ScrollView>
+        )}
       </View>
 
       {/* MOBILE MENU DRAWER MODAL */}
@@ -3303,627 +3900,7 @@ export default function InventoryScreen() {
         </View>
       </Modal>
 
-      {/* 3. Record Purchase Invoice Modal */}
-      <Modal visible={isPurchaseModalOpen} animationType="fade" transparent>
-        <View className="flex-1 bg-black/60 justify-center items-center p-4">
-          <View className="bg-white w-[98%] md:w-[90%] lg:w-[80%] max-w-[1020px] rounded-3xl p-6 shadow-2xl flex-col max-h-[92%] overflow-hidden">
-            
-            {/* ─── MODAL HEADER ────────────────────────────────────────────────── */}
-            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-xl items-center justify-center mr-3 shadow-xs">
-                  <FileText size={18} color="#0066b2" />
-                </View>
-                <View>
-                  <Text className="text-base font-black text-slate-800">Record Procurement Invoice</Text>
-                  <Text className="text-[11px] font-semibold text-slate-400 mt-0.5">
-                    Enter invoice details and items to update your inventory
-                  </Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={() => {
-                  setIsPurchaseModalOpen(false);
-                  setModalError(null);
-                }}
-                className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 items-center justify-center active:scale-90"
-              >
-                <X size={18} color="#64748b" />
-              </Pressable>
-            </View>
 
-            {modalError && (
-              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
-                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
-                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
-              </View>
-            )}
-
-            {/* ─── SCROLLABLE CONTENT BODY ─────────────────────────────────────── */}
-            <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ gap: 16 }}>
-              
-              {/* SECTION A: INVOICE META DETAILS */}
-              <View className="flex-col gap-3" style={{ zIndex: 100 }}>
-                
-                {/* Row 1: Supplier and Invoice Number */}
-                <View className="flex-row flex-wrap gap-3.5">
-                  
-                  {/* Supplier dropdown */}
-                  <View className="flex-1 min-w-[280px] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
-                    <Pressable
-                      onPress={() => {
-                        setIsSupDropdownOpen(!isSupDropdownOpen);
-                        setIsPayDropdownOpen(false);
-                        setIsLocDropdownOpen(false);
-                        setOpenLineMatDropdownIdx(null);
-                      }}
-                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
-                    >
-                      <View className="flex-row items-center gap-2">
-                        <Store size={14} color="#64748b" />
-                        <Text className="text-xs font-bold text-slate-700">
-                          {purchaseSupplierId
-                            ? suppliers.find((s) => s.id === purchaseSupplierId)?.supplier_name
-                            : 'Select supplier'}
-                        </Text>
-                      </View>
-                      <ChevronDown size={12} color="#64748b" />
-                    </Pressable>
-                    
-                    <Pressable
-                      onPress={() => {
-                        setIsPurchaseModalOpen(false);
-                        setIsSupplierModalOpen(true);
-                      }}
-                      className="mt-1 flex-row items-center self-start"
-                    >
-                      <Text className="text-[10.5px] font-black text-blue-600">+ Add new supplier</Text>
-                    </Pressable>
-
-                    {isSupDropdownOpen && (
-                      <View className="absolute top-[68px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[140px] overflow-hidden">
-                        <ScrollView nestedScrollEnabled className="flex-col">
-                          {suppliers.map((s) => (
-                            <Pressable
-                              key={s.id}
-                              onPress={() => {
-                                setPurchaseSupplierId(s.id);
-                                setIsSupDropdownOpen(false);
-                              }}
-                              className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                                purchaseSupplierId === s.id ? 'bg-blue-50/50' : ''
-                              }`}
-                            >
-                              <Text className="text-xs font-bold text-slate-700">{s.supplier_name}</Text>
-                            </Pressable>
-                          ))}
-                          {suppliers.length === 0 && (
-                            <View className="p-2 items-center">
-                              <Text className="text-[11px] text-slate-400">No suppliers registered</Text>
-                            </View>
-                          )}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Invoice / Bill number */}
-                  <View className="flex-1 min-w-[280px] gap-1.5">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
-                    <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 shadow-inner">
-                      <Hash size={14} color="#64748b" className="mr-2" />
-                      <TextInput
-                        value={purchaseInvoiceNum}
-                        onChangeText={setPurchaseInvoiceNum}
-                        placeholder="e.g., INV-8976"
-                        className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
-                      />
-                    </View>
-                  </View>
-
-                </View>
-
-                {/* Row 2: Date, Payment, Freight, Storage */}
-                <View className="flex-row flex-wrap gap-3">
-                  
-                  {/* Date Input with Mini Calendar Popup */}
-                  <View className="flex-1 min-w-[130px] gap-1.5 relative" style={{ zIndex: 10000 }}>
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
-                    <Pressable
-                      onPress={() => {
-                        setIsCalendarOpen(!isCalendarOpen);
-                        setIsSupDropdownOpen(false);
-                        setIsPayDropdownOpen(false);
-                        setIsLocDropdownOpen(false);
-                        setOpenLineMatDropdownIdx(null);
-                      }}
-                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
-                    >
-                      <View className="flex-row items-center gap-2">
-                        <Calendar size={14} color="#64748b" />
-                        <Text className="text-xs font-bold text-slate-700">{purchaseInvoiceDate}</Text>
-                      </View>
-                      <ChevronDown size={12} color="#64748b" />
-                    </Pressable>
-
-                    {isCalendarOpen && (
-                      <View className="absolute top-[58px] left-0 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-[9999] w-[240px]">
-                        {/* Calendar Header */}
-                        <View className="flex-row justify-between items-center mb-2 px-1">
-                          <Pressable
-                            onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))}
-                            className="w-5 h-5 rounded-full bg-slate-50 border border-slate-100 items-center justify-center active:scale-90"
-                          >
-                            <Text className="text-xs font-black text-slate-600">‹</Text>
-                          </Pressable>
-                          <Text className="text-xs font-black text-slate-800">
-                            {calendarDate.toLocaleString('default', { month: 'long' })} {calendarDate.getFullYear()}
-                          </Text>
-                          <Pressable
-                            onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))}
-                            className="w-5 h-5 rounded-full bg-slate-50 border border-slate-100 items-center justify-center active:scale-90"
-                          >
-                            <Text className="text-xs font-black text-slate-600">›</Text>
-                          </Pressable>
-                        </View>
-
-                        {/* Weekday headers */}
-                        <View className="flex-row mb-1">
-                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                            <View key={d} className="w-[14.28%] items-center">
-                              <Text className="text-[9px] font-black text-slate-400 uppercase">{d}</Text>
-                            </View>
-                          ))}
-                        </View>
-
-                        {/* Days Grid */}
-                        <View className="flex-row flex-wrap">
-                          {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay() }).map((_, idx) => (
-                            <View key={`empty-${idx}`} className="w-[14.28%] py-1" />
-                          ))}
-                          {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate() }).map((_, idx) => {
-                            const dayNum = idx + 1;
-                            const formattedDay = String(dayNum).padStart(2, '0');
-                            const formattedMonth = String(calendarDate.getMonth() + 1).padStart(2, '0');
-                            const dateStr = `${calendarDate.getFullYear()}-${formattedMonth}-${formattedDay}`;
-                            const isSelected = purchaseInvoiceDate === dateStr;
-
-                            return (
-                              <Pressable
-                                key={`day-${dayNum}`}
-                                onPress={() => {
-                                  setPurchaseInvoiceDate(dateStr);
-                                  setIsCalendarOpen(false);
-                                }}
-                                className={`w-[14.28%] items-center justify-center py-1 rounded-full ${
-                                  isSelected ? 'bg-blue-600' : 'hover:bg-slate-50 active:bg-slate-100'
-                                }`}
-                              >
-                                <Text className={`text-[10px] font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
-                                  {dayNum}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Payment Mode */}
-                  <View className="flex-1 min-w-[130px] gap-1.5 relative" style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
-                    <Pressable
-                      onPress={() => {
-                        setIsPayDropdownOpen(!isPayDropdownOpen);
-                        setIsSupDropdownOpen(false);
-                        setIsLocDropdownOpen(false);
-                        setOpenLineMatDropdownIdx(null);
-                        setIsCalendarOpen(false);
-                      }}
-                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
-                    >
-                      <View className="flex-row items-center gap-2">
-                        <CreditCard size={14} color="#64748b" />
-                        <Text className="text-xs font-bold text-slate-700">{purchasePaymentMode || 'Select mode'}</Text>
-                      </View>
-                      <ChevronDown size={12} color="#64748b" />
-                    </Pressable>
-
-                    {isPayDropdownOpen && (
-                      <View className="absolute top-[58px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
-                        {['Cash', 'UPI', 'Bank Transfer', 'Credit Card'].map((mode) => (
-                          <Pressable
-                            key={mode}
-                            onPress={() => {
-                              setPurchasePaymentMode(mode);
-                              setIsPayDropdownOpen(false);
-                            }}
-                            className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                              purchasePaymentMode === mode ? 'bg-blue-50/50' : ''
-                            }`}
-                          >
-                            <Text className="text-xs font-bold text-slate-700">{mode}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Freight Charge */}
-                  <View className="flex-1 min-w-[130px] gap-1.5">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
-                    <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 shadow-inner">
-                      <Truck size={14} color="#64748b" className="mr-2" />
-                      <TextInput
-                        value={purchaseTransportCharges}
-                        onChangeText={setPurchaseTransportCharges}
-                        placeholder="0.00"
-                        keyboardType="numeric"
-                        className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Storage destination */}
-                  <View className="flex-1 min-w-[130px] gap-1.5 relative" style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
-                    <Pressable
-                      onPress={() => {
-                        setIsLocDropdownOpen(!isLocDropdownOpen);
-                        setIsSupDropdownOpen(false);
-                        setIsPayDropdownOpen(false);
-                        setOpenLineMatDropdownIdx(null);
-                        setIsCalendarOpen(false);
-                      }}
-                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
-                    >
-                      <View className="flex-row items-center gap-2">
-                        <Home size={14} color="#64748b" />
-                        <Text className="text-xs font-bold text-slate-700">{purchaseLocation || 'Select location'}</Text>
-                      </View>
-                      <ChevronDown size={12} color="#64748b" />
-                    </Pressable>
-
-                    {isLocDropdownOpen && (
-                      <View className="absolute top-[58px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
-                        {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                          <Pressable
-                            key={loc}
-                            onPress={() => {
-                              setPurchaseLocation(loc);
-                              setIsLocDropdownOpen(false);
-                            }}
-                            className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                              purchaseLocation === loc ? 'bg-blue-50/50' : ''
-                            }`}
-                          >
-                            <Text className="text-xs font-bold text-slate-700">{loc}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-
-                </View>
-
-              </View>
-
-              {/* SECTION B: PROCUREMENT LINE ITEMS TABLE */}
-              <View className="border-t border-slate-100 pt-4 gap-2" style={{ zIndex: 1 }}>
-                <View className="flex-row justify-between items-center mb-1">
-                  <View>
-                    <Text className="text-sm font-black text-slate-800">Procurement Items</Text>
-                    <Text className="text-[10.5px] font-semibold text-slate-400 mt-0.5">
-                      Add the raw materials included in this invoice.
-                    </Text>
-                  </View>
-                  
-                  <Pressable
-                    onPress={handleAddPurchaseLine}
-                    className="bg-[#0066b2] hover:bg-blue-700 flex-row items-center gap-1.5 px-4 py-2.5 rounded-lg active:scale-95 shadow-sm"
-                  >
-                    <Plus size={12} color="#ffffff" />
-                    <Text className="text-xs font-bold text-white">+ Add Item</Text>
-                  </Pressable>
-                </View>
-
-                {/* Structured Columns Header */}
-                <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
-                  <View style={{ width: '32%' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
-                  </View>
-                  <View style={{ width: '12%' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
-                  </View>
-                  <View style={{ width: '11%' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Quantity</Text>
-                  </View>
-                  <View style={{ width: '12%' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rate (₹)</Text>
-                  </View>
-                  <View style={{ width: '11%' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">GST (%)</Text>
-                  </View>
-                  <View style={{ width: '14%' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Amount (₹)</Text>
-                  </View>
-                  <View style={{ width: '8%', alignItems: 'center' }}>
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Action</Text>
-                  </View>
-                </View>
-
-                {/* Table Body List */}
-                {purchaseItems.length === 0 ? (
-                  <View className="py-12 bg-white border border-dashed border-slate-200 rounded-2xl items-center justify-center gap-2.5 my-4">
-                    <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center border border-blue-100">
-                      <Boxes size={20} color="#0066b2" />
-                    </View>
-                    <Text className="text-xs font-black text-slate-700">No items added yet</Text>
-                    <Text className="text-[10px] font-semibold text-slate-400">Add your first item to get started</Text>
-                  </View>
-                ) : (
-                  purchaseItems.map((itm, idx) => {
-                    const selectedMat = materials.find((m) => m.id === itm.material_id);
-                    const matUnitShort = selectedMat?.unit_short_name || 'Units';
-                    const amount = (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (1 + (Number(itm.gst || '0') / 100));
-
-                    return (
-                      <View
-                        key={idx}
-                        className="flex-row items-start py-3 px-1 border-b border-slate-100 relative"
-                        style={{ zIndex: (openLineMatDropdownIdx === idx || openLineGstDropdownIdx === idx) ? 999 : 1 }}
-                      >
-                        
-                        {/* Raw Material Select Dropdown */}
-                        <View style={{ width: '32%' }} className="relative pr-1.5">
-                          <Pressable
-                            onPress={() => {
-                              setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
-                              setOpenLineGstDropdownIdx(null);
-                              setIsSupDropdownOpen(false);
-                              setIsPayDropdownOpen(false);
-                              setIsLocDropdownOpen(false);
-                              setIsCalendarOpen(false);
-                            }}
-                            className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
-                          >
-                            <Text className="text-[11px] font-bold text-slate-700 truncate pr-1">
-                              {selectedMat ? selectedMat.material_name : 'Select raw material'}
-                            </Text>
-                            <ChevronDown size={10} color="#64748b" />
-                          </Pressable>
-                          
-                          <Text className="text-[9px] font-bold text-slate-400 mt-1 pl-1">
-                            Search by name or code
-                          </Text>
-
-                          {openLineMatDropdownIdx === idx && (
-                            <View className="absolute top-[42px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1 max-h-[140px] overflow-hidden" style={{ zIndex: 10000 }}>
-                              <ScrollView nestedScrollEnabled className="flex-col">
-                                {materials.map((m) => (
-                                  <Pressable
-                                    key={m.id}
-                                    onPress={() => {
-                                      handleUpdatePurchaseLine(idx, 'material_id', m.id);
-                                      setOpenLineMatDropdownIdx(null);
-                                    }}
-                                    className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                      itm.material_id === m.id ? 'bg-blue-50/50' : ''
-                                    }`}
-                                  >
-                                    <Text className="text-[10px] font-semibold text-slate-700">
-                                      {m.material_name} ({m.material_code})
-                                    </Text>
-                                  </Pressable>
-                                ))}
-                              </ScrollView>
-                            </View>
-                          )}
-                        </View>
-
-                        {/* Unit Box */}
-                        <View style={{ width: '12%' }} className="relative pr-1.5">
-                          <View className="bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between flex-row shadow-xs">
-                            <Text className="text-[11px] font-bold text-slate-700 truncate">
-                              {selectedMat ? matUnitShort : 'Select unit'}
-                            </Text>
-                            <ChevronDown size={10} color="#cbd5e1" />
-                          </View>
-                          
-                          <Pressable
-                            onPress={() => {
-                              Alert.alert("Manage Units", "Units of measurement can be managed inside the Master > Units tab.");
-                            }}
-                            className="mt-1 pl-1"
-                          >
-                            <Text className="text-[9px] font-black text-blue-600">+ Add unit</Text>
-                          </Pressable>
-                        </View>
-
-                        {/* Quantity input */}
-                        <View style={{ width: '11%' }} className="pr-1.5">
-                          <TextInput
-                            value={itm.quantity}
-                            onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
-                            placeholder="0.00"
-                            keyboardType="numeric"
-                            className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
-                          />
-                          <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                            e.g. 10
-                          </Text>
-                        </View>
-
-                        {/* Rate / price input */}
-                        <View style={{ width: '12%' }} className="pr-1.5">
-                          <TextInput
-                            value={itm.unit_price}
-                            onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
-                            placeholder="0.00"
-                            keyboardType="numeric"
-                            className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
-                          />
-                          <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                            e.g. 120.00
-                          </Text>
-                        </View>
-
-                        {/* GST dropdown */}
-                        <View style={{ width: '11%' }} className="relative pr-1.5">
-                          <Pressable
-                            onPress={() => {
-                              setOpenLineGstDropdownIdx(openLineGstDropdownIdx === idx ? null : idx);
-                              setOpenLineMatDropdownIdx(null);
-                              setIsSupDropdownOpen(false);
-                              setIsPayDropdownOpen(false);
-                              setIsLocDropdownOpen(false);
-                              setIsCalendarOpen(false);
-                            }}
-                            className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
-                          >
-                            <Text className="text-[11px] font-bold text-slate-700">
-                              {itm.gst || '0'}%
-                            </Text>
-                            <ChevronDown size={10} color="#64748b" />
-                          </Pressable>
-                          
-                          <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                            Select GST
-                          </Text>
-
-                          {openLineGstDropdownIdx === idx && (
-                            <View className="absolute top-[42px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1" style={{ zIndex: 10000 }}>
-                              {['0', '5', '12', '18', '28'].map((gstVal) => (
-                                <Pressable
-                                  key={gstVal}
-                                  onPress={() => {
-                                    handleUpdatePurchaseLine(idx, 'gst', gstVal);
-                                    setOpenLineGstDropdownIdx(null);
-                                  }}
-                                  className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                    itm.gst === gstVal ? 'bg-blue-50/50' : ''
-                                  }`}
-                                >
-                                  <Text className="text-[10px] font-semibold text-slate-700 text-center">{gstVal}%</Text>
-                                </Pressable>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-
-                        {/* Dynamic Row line amount wrapped in premium card background */}
-                        <View style={{ width: '14%' }} className="pr-1.5">
-                          <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 items-center justify-center">
-                            <Text className="text-[11px] font-black text-slate-800">
-                              ₹{amount.toFixed(2)}
-                            </Text>
-                          </View>
-                          <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                            Auto-calculated
-                          </Text>
-                        </View>
-
-                        {/* Row Trash Remove item */}
-                        <View style={{ width: '8%' }} className="items-center">
-                          <Pressable
-                            onPress={() => handleRemovePurchaseLine(idx)}
-                            className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
-                          >
-                            <Trash2 size={12} color="#dc2626" />
-                          </Pressable>
-                        </View>
-
-                      </View>
-                    );
-                  })
-                )}
-              </View>
-
-              {/* SECTION C: HORIZONTAL CALCULATIONS SUMMARY BAR */}
-              <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex-row items-center justify-between my-2">
-                {/* 1. Total Items */}
-                <View className="flex-1 flex-row items-center justify-center pl-2">
-                  <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center mr-2.5">
-                    <Boxes size={14} color="#0066b2" />
-                  </View>
-                  <View>
-                    <Text className="text-xs font-black text-slate-700">{purchaseItems.length} Items</Text>
-                    <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Items</Text>
-                  </View>
-                </View>
-
-                <View className="w-[1px] h-8 bg-slate-200" />
-
-                {/* 2. Total Quantity */}
-                <View className="flex-1 items-center justify-center">
-                  <Text className="text-xs font-black text-slate-700">
-                    {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0), 0).toFixed(2)}
-                  </Text>
-                  <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
-                </View>
-
-                <View className="w-[1px] h-8 bg-slate-200" />
-
-                {/* 3. Total Before Tax (Subtotal) */}
-                <View className="flex-1 items-center justify-center">
-                  <Text className="text-xs font-black text-slate-700">
-                    ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toFixed(2)}
-                  </Text>
-                  <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
-                </View>
-
-                <View className="w-[1px] h-8 bg-slate-200" />
-
-                {/* 4. Total GST */}
-                <View className="flex-1 items-center justify-center">
-                  <Text className="text-xs font-black text-slate-700">
-                    ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toFixed(2)}
-                  </Text>
-                  <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
-                </View>
-
-                <View className="w-[1px] h-8 bg-slate-200" />
-
-                {/* 5. Total Amount (Vibrant Blue highlighted) */}
-                <View className="flex-1 items-end pr-2 justify-center">
-                  <Text className="text-sm font-black text-[#0066b2]">
-                    ₹{(
-                      purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0) +
-                      purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0) +
-                      (Number(purchaseTransportCharges) || 0)
-                    ).toFixed(2)}
-                  </Text>
-                  <Text className="text-[9px] font-bold text-[#0066b2] uppercase tracking-wider mt-0.5">Total Amount</Text>
-                </View>
-              </View>
-
-            </ScrollView>
-
-            {/* ─── FOOTER ACTIONS ──────────────────────────────────────────────── */}
-            <View className="border-t border-slate-100 pt-4 flex-row justify-end items-center gap-3">
-              <Pressable
-                onPress={() => {
-                  setIsPurchaseModalOpen(false);
-                  setModalError(null);
-                }}
-                className="px-5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl items-center active:scale-95"
-              >
-                <Text className="text-xs font-bold text-slate-600">Cancel</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleRecordPurchase}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl items-center active:scale-95 shadow-sm"
-              >
-                <Text className="text-xs font-bold text-white">Record Procurement Invoice</Text>
-              </Pressable>
-            </View>
-
-          </View>
-        </View>
-      </Modal>
 
       {/* 4. Record Wastage Modal */}
       <Modal visible={isWastageModalOpen} animationType="fade" transparent>
