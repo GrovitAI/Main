@@ -1346,76 +1346,76 @@ export default function InventoryScreen() {
     };
 
     return (
-      <View className="flex-1 flex-col gap-6">
+      <View className="flex-1 flex-col gap-4">
         
-        {/* ─── 1. 5 KPI CARDS ROW ───────────────────────────────────────────── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pb-2">
-          <View className="flex-row gap-4">
+        {/* ─── 1. COMPACT 5 KPI CARDS ROW ────────────────────────────────────── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pb-1">
+          <View className="flex-row gap-3">
             
             {/* Card 1: Total Items */}
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-56 flex-row items-center gap-4 shadow-sm">
-              <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center">
-                <Boxes size={22} color="#0066b2" />
+            <View className="bg-white border border-slate-200 rounded-2xl p-3 w-44 flex-row items-center gap-3 shadow-xs">
+              <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center">
+                <Boxes size={18} color="#0066b2" />
               </View>
               <View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Items</Text>
-                <Text className="text-xl font-black text-slate-800 mt-0.5">{totalItems}</Text>
-                <Text className="text-[10px] text-slate-400 mt-0.5 font-medium">Active raw ingredients</Text>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Items</Text>
+                <Text className="text-base font-black text-slate-800 leading-none mt-0.5">{totalItems}</Text>
+                <Text className="text-[9px] text-slate-400 font-semibold mt-0.5">Raw ingredients</Text>
               </View>
             </View>
 
             {/* Card 2: Total Stock Value */}
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-64 shadow-sm">
-              <View className="flex-row items-center gap-4">
-                <View className="w-12 h-12 bg-emerald-50 rounded-2xl items-center justify-center">
-                  <Text className="text-xl font-black text-emerald-700">₹</Text>
+            <View className="bg-white border border-slate-200 rounded-2xl p-3 w-56 shadow-xs">
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 bg-emerald-50 rounded-xl items-center justify-center">
+                  <Text className="text-base font-black text-emerald-700">₹</Text>
                 </View>
-                <View>
-                  <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Stock Value</Text>
-                  <Text className="text-xl font-black text-slate-800 mt-0.5">
+                <View className="flex-1">
+                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Total Stock Value</Text>
+                  <Text className="text-base font-black text-slate-800 leading-none mt-0.5">
                     ₹{totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </Text>
                   <View className="flex-row items-center gap-1 mt-0.5">
-                    <TrendingUp size={10} color="#16a34a" />
-                    <Text className="text-[10px] text-emerald-600 font-bold">12.4% vs last month</Text>
+                    <TrendingUp size={9} color="#16a34a" />
+                    <Text className="text-[9px] text-emerald-600 font-bold leading-none">12.4% vs last mo</Text>
                   </View>
                 </View>
               </View>
             </View>
 
             {/* Card 3: Low Stock Alerts */}
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-56 flex-row items-center gap-4 shadow-sm">
-              <View className="w-12 h-12 bg-amber-50 rounded-2xl items-center justify-center">
-                <AlertTriangle size={22} color="#d97706" />
+            <View className="bg-white border border-slate-200 rounded-2xl p-3 w-44 flex-row items-center gap-3 shadow-xs">
+              <View className="w-10 h-10 bg-amber-50 rounded-xl items-center justify-center">
+                <AlertTriangle size={18} color="#d97706" />
               </View>
               <View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Low Stock Alerts</Text>
-                <Text className="text-xl font-black text-amber-700 mt-0.5">{lowStockCount}</Text>
-                <Text className="text-[10px] text-amber-600 font-bold mt-0.5">Requires attention</Text>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Low Stock Alerts</Text>
+                <Text className="text-base font-black text-amber-700 leading-none mt-0.5">{lowStockCount}</Text>
+                <Text className="text-[9px] text-amber-600 font-bold mt-0.5">Requires attention</Text>
               </View>
             </View>
 
             {/* Card 4: Out of Stock */}
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-56 flex-row items-center gap-4 shadow-sm">
-              <View className="w-12 h-12 bg-rose-50 rounded-2xl items-center justify-center">
-                <ShieldAlert size={22} color="#dc2626" />
+            <View className="bg-white border border-slate-200 rounded-2xl p-3 w-44 flex-row items-center gap-3 shadow-xs">
+              <View className="w-10 h-10 bg-rose-50 rounded-xl items-center justify-center">
+                <ShieldAlert size={18} color="#dc2626" />
               </View>
               <View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Out of Stock</Text>
-                <Text className="text-xl font-black text-rose-700 mt-0.5">{outOfStockCount}</Text>
-                <Text className="text-[10px] text-rose-600 font-bold mt-0.5">Needs immediate order</Text>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Out of Stock</Text>
+                <Text className="text-base font-black text-rose-700 leading-none mt-0.5">{outOfStockCount}</Text>
+                <Text className="text-[9px] text-rose-600 font-bold mt-0.5">Needs order</Text>
               </View>
             </View>
 
             {/* Card 5: Pending Purchases */}
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 w-60 flex-row items-center gap-4 shadow-sm">
-              <View className="w-12 h-12 bg-indigo-50 rounded-2xl items-center justify-center">
-                <Truck size={22} color="#4f46e5" />
+            <View className="bg-white border border-slate-200 rounded-2xl p-3 w-48 flex-row items-center gap-3 shadow-xs">
+              <View className="w-10 h-10 bg-indigo-50 rounded-xl items-center justify-center">
+                <Truck size={18} color="#4f46e5" />
               </View>
               <View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pending Purchases</Text>
-                <Text className="text-xl font-black text-indigo-700 mt-0.5">{pendingPurchasesCount}</Text>
-                <Text className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Pending Purchases</Text>
+                <Text className="text-base font-black text-indigo-700 leading-none mt-0.5">{pendingPurchasesCount}</Text>
+                <Text className="text-[9px] text-indigo-600 font-bold mt-0.5 leading-none">
                   Worth ₹{pendingPurchasesValuation.toLocaleString('en-IN')}
                 </Text>
               </View>
@@ -1424,12 +1424,79 @@ export default function InventoryScreen() {
           </View>
         </ScrollView>
 
-        {/* ─── 2. ADVANCED FILTERS CONSOLE ───────────────────────────────────── */}
-        <View className="bg-white border border-slate-200 rounded-3xl p-5 gap-4 shadow-sm">
+        {/* ─── 2. COMPACT ANALYTICS CHARTS ROW (SIDE-BY-SIDE) ────────────────── */}
+        <View className="flex-row flex-wrap justify-between gap-4">
+          
+          {/* Chart 1: Procurement Trend */}
+          <View className="flex-1 min-w-[320px] bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Procurement Trend</Text>
+              <View className="bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">
+                <Text className="text-[8px] font-bold text-slate-500 uppercase">This Month</Text>
+              </View>
+            </View>
+            <View className="h-40 items-center justify-center overflow-hidden">
+              <ProcurementLineChart />
+            </View>
+          </View>
+
+          {/* Chart 2: Wastage Breakdown */}
+          <View className="flex-1 min-w-[320px] bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Wastage Breakdown</Text>
+              <View className="bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">
+                <Text className="text-[8px] font-bold text-slate-500 uppercase">This Month</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-center justify-between pt-1">
+              <View className="w-24 h-24 items-center justify-center overflow-hidden">
+                <WastageDonutChart
+                  totalLoss={kpis ? kpis.wastageCostImpactThisMonth : 1440}
+                  spoilage={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.625) : 900}
+                  expiry={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.243) : 350}
+                  theft={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.132) : 190}
+                />
+              </View>
+              <View className="flex-1 pl-4 gap-1.5">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-1">
+                    <View className="w-2 h-2 rounded-full bg-red-600" />
+                    <Text className="text-[9.5px] font-bold text-slate-500">Spoilage</Text>
+                  </View>
+                  <Text className="text-[9.5px] font-black text-slate-700">
+                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.625) : 900}
+                  </Text>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-1">
+                    <View className="w-2 h-2 rounded-full bg-orange-500" />
+                    <Text className="text-[9.5px] font-bold text-slate-500">Expiry</Text>
+                  </View>
+                  <Text className="text-[9.5px] font-black text-slate-700">
+                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.243) : 350}
+                  </Text>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-1">
+                    <View className="w-2 h-2 rounded-full bg-yellow-500" />
+                    <Text className="text-[9.5px] font-bold text-slate-500">Theft</Text>
+                  </View>
+                  <Text className="text-[9.5px] font-black text-slate-700">
+                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.132) : 190}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ─── 3. ADVANCED FILTERS CONSOLE ───────────────────────────────────── */}
+        <View className="bg-white border border-slate-200 rounded-2xl p-4 gap-3 shadow-xs">
           
           {/* Row 1: Status pills */}
-          <View className="flex-row items-center justify-between border-b border-slate-100 pb-4 flex-wrap gap-3">
-            <View className="flex-row gap-2 flex-wrap">
+          <View className="flex-row items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+            <View className="flex-row gap-1.5 flex-wrap">
               {[
                 { key: 'all', label: 'All' },
                 { key: 'healthy', label: 'Healthy' },
@@ -1445,46 +1512,46 @@ export default function InventoryScreen() {
                       setStatusFilter(pill.key as any);
                       setCurrentPage(1);
                     }}
-                    className={`px-4 py-2 rounded-full border active:scale-95 transition-all ${
+                    className={`px-3 py-1.5 rounded-full border active:scale-95 transition-all ${
                       isActive
                         ? 'bg-blue-600 border-blue-600 shadow-sm'
                         : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                    <Text className={`text-[11px] font-bold ${isActive ? 'text-white' : 'text-slate-600'}`}>
                       {pill.label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-            <View className="flex-row items-center gap-2">
-              <View className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-              <Text className="text-[11px] text-amber-600 font-bold">Auto-Sync Enabled</Text>
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <Text className="text-[10px] text-amber-600 font-bold">Auto-Sync Active</Text>
             </View>
           </View>
 
           {/* Row 2: Search, pickers, my items toggle and actions */}
-          <View className="flex-row items-center justify-between flex-wrap gap-4">
+          <View className="flex-row items-center justify-between flex-wrap gap-3">
             
             {/* Left side filters group */}
-            <View className="flex-row items-center gap-3 flex-wrap flex-1 min-w-[320px]">
+            <View className="flex-row items-center gap-2 flex-wrap flex-1 min-w-[280px]">
               
               {/* Search input */}
-              <View className="flex-1 min-w-[200px] flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3.5 py-2 shadow-inner">
-                <Search size={16} color="#64748b" className="mr-2" />
+              <View className="flex-1 min-w-[180px] flex-row bg-slate-50 border border-slate-200 rounded-lg items-center px-3 py-1.5 shadow-inner">
+                <Search size={14} color="#64748b" className="mr-1.5" />
                 <TextInput
-                  placeholder="Search materials by name, code or category..."
+                  placeholder="Search materials..."
                   value={searchQuery}
                   onChangeText={(t) => {
                     setSearchQuery(t);
                     setCurrentPage(1);
                   }}
-                  className="flex-1 text-xs text-slate-800 outline-none"
+                  className="flex-1 text-[11px] text-slate-800 outline-none"
                 />
                 {searchQuery.length > 0 && (
                   <Pressable onPress={() => setSearchQuery('')}>
-                    <X size={14} color="#64748b" />
+                    <X size={12} color="#64748b" />
                   </Pressable>
                 )}
               </View>
@@ -1496,26 +1563,26 @@ export default function InventoryScreen() {
                     setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
                     setIsLocationDropdownOpen(false);
                   }}
-                  className="flex-row items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 gap-1.5 active:scale-95 shadow-sm"
+                  className="flex-row items-center bg-white border border-slate-200 rounded-lg px-3 py-2 gap-1 active:scale-95 shadow-xs"
                 >
-                  <Text className="text-xs font-bold text-slate-600">
+                  <Text className="text-[11px] font-bold text-slate-600">
                     {selectedCategoryFilter === 'all'
                       ? 'All Categories'
                       : categories.find((c) => c.id === selectedCategoryFilter)?.category_name || 'Category'}
                   </Text>
-                  <ChevronDown size={12} color="#64748b" />
+                  <ChevronDown size={10} color="#64748b" />
                 </Pressable>
                 {isCategoryDropdownOpen && (
-                  <View className="absolute top-11 left-0 bg-white border border-slate-200 rounded-2xl shadow-lg z-50 w-52 p-1.5">
+                  <View className="absolute top-10 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-48 p-1">
                     <Pressable
                       onPress={() => {
                         setSelectedCategoryFilter('all');
                         setIsCategoryDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className="px-3.5 py-2 rounded-xl hover:bg-slate-50 active:bg-slate-100"
+                      className="px-3 py-1.5 rounded-lg hover:bg-slate-50 active:bg-slate-100"
                     >
-                      <Text className="text-xs font-semibold text-slate-700">All Categories</Text>
+                      <Text className="text-[11px] font-semibold text-slate-700">All Categories</Text>
                     </Pressable>
                     {categories.map((c) => (
                       <Pressable
@@ -1525,9 +1592,9 @@ export default function InventoryScreen() {
                           setIsCategoryDropdownOpen(false);
                           setCurrentPage(1);
                         }}
-                        className="px-3.5 py-2 rounded-xl hover:bg-slate-50 active:bg-slate-100"
+                        className="px-3 py-1.5 rounded-lg hover:bg-slate-50 active:bg-slate-100"
                       >
-                        <Text className="text-xs font-semibold text-slate-700">{c.category_name}</Text>
+                        <Text className="text-[11px] font-semibold text-slate-700">{c.category_name}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -1541,15 +1608,15 @@ export default function InventoryScreen() {
                     setIsLocationDropdownOpen(!isLocationDropdownOpen);
                     setIsCategoryDropdownOpen(false);
                   }}
-                  className="flex-row items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 gap-1.5 active:scale-95 shadow-sm"
+                  className="flex-row items-center bg-white border border-slate-200 rounded-lg px-3 py-2 gap-1 active:scale-95 shadow-xs"
                 >
-                  <Text className="text-xs font-bold text-slate-600">
+                  <Text className="text-[11px] font-bold text-slate-600">
                     {locationFilter === 'all' ? 'All Locations' : locationFilter}
                   </Text>
-                  <ChevronDown size={12} color="#64748b" />
+                  <ChevronDown size={10} color="#64748b" />
                 </Pressable>
                 {isLocationDropdownOpen && (
-                  <View className="absolute top-11 left-0 bg-white border border-slate-200 rounded-2xl shadow-lg z-50 w-44 p-1.5">
+                  <View className="absolute top-10 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-40 p-1">
                     {['all', 'Freezer', 'Dry Storage'].map((loc) => (
                       <Pressable
                         key={loc}
@@ -1558,9 +1625,9 @@ export default function InventoryScreen() {
                           setIsLocationDropdownOpen(false);
                           setCurrentPage(1);
                         }}
-                        className="px-3.5 py-2 rounded-xl hover:bg-slate-50 active:bg-slate-100"
+                        className="px-3 py-1.5 rounded-lg hover:bg-slate-50 active:bg-slate-100"
                       >
-                        <Text className="text-xs font-semibold text-slate-700">
+                        <Text className="text-[11px] font-semibold text-slate-700">
                           {loc === 'all' ? 'All Locations' : loc}
                         </Text>
                       </Pressable>
@@ -1575,69 +1642,69 @@ export default function InventoryScreen() {
                   setShowOnlyMyItems(!showOnlyMyItems);
                   setCurrentPage(1);
                 }}
-                className="flex-row items-center gap-2 px-1 py-2 active:opacity-80"
+                className="flex-row items-center gap-1.5 px-1 py-1.5 active:opacity-85"
               >
                 <View
-                  className={`w-4 h-4 rounded border flex items-center justify-center ${
+                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
                     showOnlyMyItems ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
                   }`}
                 >
-                  {showOnlyMyItems && <Check size={10} color="white" strokeWidth={3} />}
+                  {showOnlyMyItems && <Check size={8} color="white" strokeWidth={3} />}
                 </View>
-                <Text className="text-xs font-semibold text-slate-500">Show only my items</Text>
+                <Text className="text-[11px] font-semibold text-slate-500">Show only my items</Text>
               </Pressable>
 
             </View>
 
             {/* Right side actions group */}
-            <View className="flex-row items-center gap-2 flex-wrap">
+            <View className="flex-row items-center gap-1.5 flex-wrap">
               <Pressable
                 onPress={handleOpenPurchaseModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
-                <Text className="text-xs font-bold text-slate-600">+ Purchase</Text>
+                <Text className="text-[11px] font-bold text-slate-600">+ Purchase</Text>
               </Pressable>
               
               <Pressable
                 onPress={handleOpenPurchaseModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
-                <Text className="text-xs font-bold text-slate-600">+ Receive Stock</Text>
+                <Text className="text-[11px] font-bold text-slate-600">+ Receive</Text>
               </Pressable>
 
               <Pressable
                 onPress={handleOpenAdjustmentModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
-                <Text className="text-xs font-bold text-slate-600">Transfer</Text>
+                <Text className="text-[11px] font-bold text-slate-600">Transfer</Text>
               </Pressable>
 
               <Pressable
                 onPress={handleOpenAdjustmentModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-xl px-3.5 py-2.5 active:scale-95 shadow-sm"
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
-                <Text className="text-xs font-bold text-slate-600">Adjust Stock</Text>
+                <Text className="text-[11px] font-bold text-slate-600">Adjust</Text>
               </Pressable>
 
               <Pressable
                 onPress={() => handleOpenMaterialModal()}
-                className="bg-blue-600 hover:bg-blue-700 flex-row items-center gap-1 px-4 py-2.5 rounded-xl active:scale-95 shadow-md"
+                className="bg-blue-600 hover:bg-blue-700 flex-row items-center gap-1 px-3 py-2 rounded-lg active:scale-95 shadow-xs"
               >
-                <Plus size={14} color="white" />
-                <Text className="text-xs font-bold text-white">Add Raw Material</Text>
+                <Plus size={12} color="white" />
+                <Text className="text-[11px] font-bold text-white">Add Raw Material</Text>
               </Pressable>
             </View>
 
           </View>
         </View>
 
-        {/* ─── 3. INLINE LOW STOCK ALERTS BANNER ──────────────────────────────── */}
+        {/* ─── 4. INLINE LOW STOCK ALERTS BANNER ──────────────────────────────── */}
         {lowStockMaterials.length > 0 && (
-          <View className="bg-amber-50/70 border border-amber-200 rounded-3xl p-4 shadow-sm">
-            <View className="flex-row justify-between items-center mb-2 flex-wrap gap-2">
-              <View className="flex-row items-center gap-2">
-                <AlertTriangle size={16} color="#d97706" />
-                <Text className="text-xs font-black text-amber-800">
+          <View className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 shadow-xs">
+            <View className="flex-row justify-between items-center mb-1.5 flex-wrap gap-2">
+              <View className="flex-row items-center gap-1.5">
+                <AlertTriangle size={14} color="#d97706" />
+                <Text className="text-[11px] font-black text-amber-800">
                   Low Stock Alerts ({lowStockMaterials.length})
                 </Text>
               </View>
@@ -1645,23 +1712,23 @@ export default function InventoryScreen() {
                 onPress={() => { setStatusFilter('low'); setCurrentPage(1); }}
                 className="active:opacity-80"
               >
-                <Text className="text-xs font-bold text-amber-700">View all low stock →</Text>
+                <Text className="text-[11px] font-bold text-amber-700">View all low stock →</Text>
               </Pressable>
             </View>
             
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-1">
-              <View className="flex-row gap-2">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-0.5">
+              <View className="flex-row gap-1.5">
                 {lowStockMaterials.map((lm) => (
                   <Pressable
                     key={lm.id}
                     onPress={() => handlePillClick(lm.material_name)}
-                    className="bg-white border border-amber-200/85 hover:border-amber-300 rounded-full px-3 py-1 flex-row items-center gap-1.5 active:scale-95 shadow-xs"
+                    className="bg-white border border-amber-200/80 hover:border-amber-300 rounded-full px-2.5 py-0.5 flex-row items-center gap-1 active:scale-95 shadow-xs"
                   >
-                    <View className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    <Text className="text-[11px] font-semibold text-slate-700">
+                    <View className="w-1 h-1 rounded-full bg-amber-500" />
+                    <Text className="text-[10px] font-semibold text-slate-600">
                       {lm.material_name}
                     </Text>
-                    <Text className="text-[10px] font-black text-amber-600">
+                    <Text className="text-[9.5px] font-black text-amber-600">
                       {lm.current_stock} {lm.unit_short_name || 'KG'} left
                     </Text>
                   </Pressable>
@@ -1671,55 +1738,55 @@ export default function InventoryScreen() {
           </View>
         )}
 
-        {/* ─── 4. STRUCTURED DATA TABLE ──────────────────────────────────────── */}
+        {/* ─── 5. STRUCTURED DATA TABLE (EXTREMELY COMPACT) ──────────────────── */}
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={true} 
-          className="w-full bg-white border border-slate-200 rounded-3xl shadow-sm"
+          className="w-full bg-white border border-slate-200 rounded-2xl shadow-xs"
           contentContainerStyle={{ flexGrow: 1 }}
         >
-          <View style={{ minWidth: 1100 }} className="flex-col p-4 flex-1">
+          <View style={{ minWidth: 1100 }} className="flex-col p-3 flex-1">
             
             {/* Table Header */}
-            <View className="flex-row border-b border-slate-100 pb-3.5 mb-1 px-3">
+            <View className="flex-row border-b border-slate-100 pb-2.5 mb-0.5 px-2">
               <View style={{ width: '22%' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Item Name</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Item Name</Text>
               </View>
               <View style={{ width: '10%' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Category</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Category</Text>
               </View>
               <View style={{ width: '10%' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Location</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Location</Text>
               </View>
               <View style={{ width: '15%' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Current Stock</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Current Stock</Text>
               </View>
               <View style={{ width: '8%', alignItems: 'center' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Min. Level</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Min. Level</Text>
               </View>
               <View style={{ width: '6%', alignItems: 'center' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
               </View>
               <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Avg. Cost</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Avg. Cost</Text>
               </View>
               <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Stock Value</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Stock Value</Text>
               </View>
               <View style={{ width: '11%', alignItems: 'center' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Status</Text>
               </View>
               <View style={{ width: '8%', alignItems: 'center' }}>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Actions</Text>
+                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Actions</Text>
               </View>
             </View>
 
             {/* Table Body */}
             {paginated.length === 0 ? (
-              <View className="py-20 items-center justify-center flex-1">
-                <Boxes size={48} color="#94a3b8" className="mb-4" />
-                <Text className="text-base font-bold text-slate-500">No materials matched your filters</Text>
-                <Text className="text-xs text-slate-400 mt-1">Try resetting search filters or register a new raw ingredient.</Text>
+              <View className="py-16 items-center justify-center flex-1">
+                <Boxes size={36} color="#94a3b8" className="mb-3" />
+                <Text className="text-sm font-bold text-slate-500">No materials matched your filters</Text>
+                <Text className="text-[10px] text-slate-400 mt-0.5">Try resetting search filters or register a new raw ingredient.</Text>
               </View>
             ) : (
               paginated.map((item) => {
@@ -1742,76 +1809,71 @@ export default function InventoryScreen() {
                 return (
                   <View 
                     key={item.id} 
-                    className="flex-row items-center py-3 px-3 border-b border-slate-50 hover:bg-slate-50/50 rounded-xl"
+                    className="flex-row items-center py-2 px-2 border-b border-slate-50 hover:bg-slate-50/50 rounded-xl"
                   >
                     
-                    {/* Item Name (Emoji + Title + Code) */}
-                    <View style={{ width: '22%' }} className="flex-row items-center pr-3">
-                      <View className="w-9 h-9 bg-slate-50 border border-slate-100 rounded-full items-center justify-center mr-3 shadow-xs">
-                        <Text className="text-lg">{getCategoryEmoji(item.category_name)}</Text>
-                      </View>
-                      <View className="flex-1">
-                        <Text className="text-xs font-black text-slate-800 leading-tight truncate">{item.material_name}</Text>
-                        <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                          {item.material_code}
-                        </Text>
-                      </View>
+                    {/* Item Name (Title + Code) */}
+                    <View style={{ width: '22%' }} className="justify-center pr-3">
+                      <Text className="text-[11.5px] font-black text-slate-800 leading-tight truncate">{item.material_name}</Text>
+                      <Text className="text-[8.5px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                        {item.material_code}
+                      </Text>
                     </View>
 
                     {/* Category */}
                     <View style={{ width: '10%' }}>
-                      <Text className="text-xs font-semibold text-slate-600">{item.category_name || 'N/A'}</Text>
+                      <Text className="text-[11px] font-semibold text-slate-600">{item.category_name || 'N/A'}</Text>
                     </View>
 
                     {/* Location */}
                     <View style={{ width: '10%' }}>
-                      <Text className="text-xs font-semibold text-slate-600">{itemLocation}</Text>
+                      <Text className="text-[11px] font-semibold text-slate-600">{itemLocation}</Text>
                     </View>
 
                     {/* Current Stock (Val + Level Indicator Bar) */}
                     <View style={{ width: '15%' }} className="flex-col">
-                      <Text className={`text-xs font-extrabold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-800'}`}>
+                      <Text className={`text-[11px] font-extrabold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-800'}`}>
                         {item.current_stock} {item.unit_short_name}
                       </Text>
                       
                       {/* stock level ratio visual bar */}
-                      <View className="w-24 bg-slate-100 h-1 rounded-full mt-1.5 overflow-hidden">
+                      <View className="w-20 bg-slate-100 h-0.5 rounded-full mt-1 overflow-hidden">
                         <View 
                           className={`h-full ${isOut ? 'bg-slate-300' : isLow ? 'bg-amber-500' : 'bg-emerald-500'}`} 
                           style={{ width: `${Math.min(Math.max((item.current_stock / (item.reorder_level || 1)) * 100, 0), 100)}%` }} 
                         />
                       </View>
-                      <Text className="text-[9px] text-slate-400 mt-1 font-medium">
+                      <Text className="text-[8.5px] text-slate-400 mt-0.5 font-medium">
                         {item.current_stock} / {item.reorder_level} {item.unit_short_name}
                       </Text>
                     </View>
 
                     {/* Min Level */}
                     <View style={{ width: '8%', alignItems: 'center' }}>
-                      <Text className="text-xs font-bold text-slate-700">{item.reorder_level}</Text>
+                      <Text className="text-[11px] font-bold text-slate-700">{item.reorder_level}</Text>
                     </View>
 
                     {/* Unit */}
                     <View style={{ width: '6%', alignItems: 'center' }}>
-                      <Text className="text-xs font-black text-slate-400 uppercase">{item.unit_short_name || 'UoM'}</Text>
+                      <Text className="text-[11px] font-black text-slate-400 uppercase">{item.unit_short_name || 'UoM'}</Text>
                     </View>
 
                     {/* Avg Cost */}
                     <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                      <Text className="text-xs font-bold text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
+                      <Text className="text-[11px] font-bold text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
                     </View>
 
                     {/* Stock Value */}
                     <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                      <Text className="text-xs font-black text-slate-800">
+                      <Text className="text-[11px] font-black text-slate-800">
                         ₹{valuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
 
                     {/* Status Badge */}
                     <View style={{ width: '11%', alignItems: 'center' }}>
-                      <View className={`border rounded-full px-2 py-0.5 ${badgeColor} shadow-xs`}>
-                        <Text className="text-[9px] font-extrabold uppercase tracking-wider">{badgeText}</Text>
+                      <View className={`border rounded-full px-1.5 py-0.5 ${badgeColor} shadow-xs`}>
+                        <Text className="text-[8.5px] font-extrabold uppercase tracking-wider">{badgeText}</Text>
                       </View>
                     </View>
 
@@ -1819,21 +1881,21 @@ export default function InventoryScreen() {
                     <View style={{ width: '8%' }} className="flex-row items-center justify-center gap-1">
                       <Pressable
                         onPress={() => handleOpenMaterialModal(item)}
-                        className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
-                        <Eye size={12} color="#64748b" />
+                        <Eye size={10} color="#64748b" />
                       </Pressable>
                       <Pressable
                         onPress={() => handleOpenMaterialModal(item)}
-                        className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
-                        <FileText size={12} color="#64748b" />
+                        <FileText size={10} color="#64748b" />
                       </Pressable>
                       <Pressable
                         onPress={handleOpenPurchaseModal}
-                        className="w-7 h-7 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
-                        <ShoppingCart size={12} color="#64748b" />
+                        <ShoppingCart size={10} color="#64748b" />
                       </Pressable>
                     </View>
 
@@ -1845,27 +1907,27 @@ export default function InventoryScreen() {
           </View>
         </ScrollView>
 
-        {/* ─── 5. PAGINATION FOOTER ──────────────────────────────────────────── */}
-        <View className="flex-row justify-between items-center px-4 py-1.5 flex-wrap gap-4">
-          <Text className="text-xs font-bold text-slate-400">
+        {/* ─── 6. PAGINATION FOOTER ──────────────────────────────────────────── */}
+        <View className="flex-row justify-between items-center px-3 py-1 flex-wrap gap-3">
+          <Text className="text-[11px] font-bold text-slate-400">
             Showing {totalFiltered > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalFiltered)} of {totalFiltered} items
           </Text>
 
-          <View className="flex-row items-center gap-4 flex-wrap">
+          <View className="flex-row items-center gap-3 flex-wrap">
             
             {/* Rows per page selector */}
-            <View className="flex-row items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rows per page</Text>
+            <View className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-xs">
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rows per page</Text>
               <Pressable
                 onPress={() => {
                   const nextSize = pageSize === 10 ? 25 : pageSize === 25 ? 50 : 10;
                   setPageSize(nextSize);
                   setCurrentPage(1);
                 }}
-                className="flex-row items-center gap-1 active:opacity-70"
+                className="flex-row items-center gap-1 active:opacity-75"
               >
-                <Text className="text-xs font-black text-slate-700">{pageSize}</Text>
-                <ChevronDown size={10} color="#64748b" />
+                <Text className="text-[11.5px] font-black text-slate-700">{pageSize}</Text>
+                <ChevronDown size={8} color="#64748b" />
               </Pressable>
             </View>
 
@@ -1875,11 +1937,11 @@ export default function InventoryScreen() {
                 <Pressable
                   onPress={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
-                    currentPage === 1 ? 'border-slate-100 bg-slate-50/55 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  className={`w-6.5 h-6.5 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                    currentPage === 1 ? 'border-slate-100 bg-slate-50/50 opacity-40' : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
-                  <Text className="text-xs font-black text-slate-500">‹</Text>
+                  <Text className="text-[11px] font-black text-slate-500">‹</Text>
                 </Pressable>
                 
                 {Array.from({ length: totalPages }).map((_, idx) => {
@@ -1889,13 +1951,13 @@ export default function InventoryScreen() {
                     <Pressable
                       key={pageNum}
                       onPress={() => setCurrentPage(pageNum)}
-                      className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                      className={`w-6.5 h-6.5 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
                         isActive
                           ? 'bg-blue-600 border-blue-600'
                           : 'border-slate-200 bg-white hover:bg-slate-50'
                       }`}
                     >
-                      <Text className={`text-xs font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                      <Text className={`text-[11.5px] font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
                         {pageNum}
                       </Text>
                     </Pressable>
@@ -1905,11 +1967,11 @@ export default function InventoryScreen() {
                 <Pressable
                   onPress={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
-                    currentPage === totalPages ? 'border-slate-100 bg-slate-50/55 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  className={`w-6.5 h-6.5 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                    currentPage === totalPages ? 'border-slate-100 bg-slate-50/50 opacity-40' : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
-                  <Text className="text-xs font-black text-slate-500">›</Text>
+                  <Text className="text-[11px] font-black text-slate-500">›</Text>
                 </Pressable>
               </View>
             )}
