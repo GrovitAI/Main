@@ -1576,9 +1576,10 @@ export async function createPurchase(
       // Since writing complex transaction RPC handlers in a dual-fallback mode is prone to remote permission errors,
       // we will perform atomic upsert actions and trigger the localStorage logic if they fail.
       
+      const { id: _, ...supabaseHeader } = fullHeader;
       const { data, error } = await supabase
         .from('inventory_purchase_headers')
-        .insert(fullHeader)
+        .insert(supabaseHeader)
         .select('*')
         .single();
 
@@ -1589,10 +1590,9 @@ export async function createPurchase(
         return { data: null, error: error.message };
       }
 
-      // Bulk save purchase items
+      // Bulk save purchase items (omitting custom 'id' so Supabase generates UUIDs)
       const finalItems = items.map(itm => ({
         ...itm,
-        id: `pi-${Math.random().toString(36).substr(2, 9)}`,
         tenant_id,
         branch_id,
         purchase_header_id: data.id,
@@ -1957,9 +1957,10 @@ export async function createAdjustment(
     };
 
     if (!forceLocalFallback) {
+      const { id: _, ...supabaseAdjustment } = fullAdjustment;
       const { data, error } = await supabase
         .from('inventory_adjustments')
-        .insert(fullAdjustment)
+        .insert(supabaseAdjustment)
         .select('*')
         .single();
 
@@ -2199,9 +2200,10 @@ export async function createWastage(
     };
 
     if (!forceLocalFallback) {
+      const { id: _, ...supabaseWastage } = fullWastage;
       const { data, error } = await supabase
         .from('inventory_wastage')
-        .insert(fullWastage)
+        .insert(supabaseWastage)
         .select('*')
         .single();
 
