@@ -2053,7 +2053,7 @@ export default function InventoryScreen() {
     return (
       <View className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex-col flex-1">
         {/* Header with Back Button */}
-        <View className="flex-row items-center justify-between mb-6 border-b border-slate-100 pb-4">
+        <View className="flex-row items-center justify-between mb-6 border-b border-slate-100 pb-4 flex-wrap gap-4">
           <Pressable
             onPress={() => {
               setActiveTab('purchases');
@@ -2064,11 +2064,19 @@ export default function InventoryScreen() {
             <ChevronRight size={14} color="#475569" style={{ transform: [{ rotate: '180deg' }] }} />
             <Text className="text-[11px] font-bold text-slate-600">Back to Purchases</Text>
           </Pressable>
-          <View className="flex-row items-center gap-2">
-            <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center">
-              <FileText size={14} color="#0066b2" />
-            </View>
-            <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">
+
+          <View className="flex-1 min-w-[200px] px-2">
+            <Text className="text-lg font-black text-slate-800 leading-tight">
+              Record Procurement Invoice
+            </Text>
+            <Text className="text-[11px] text-slate-400 font-bold mt-0.5">
+              Enter invoice details and add items to update your inventory
+            </Text>
+          </View>
+
+          <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/50 border border-blue-100 shadow-xs">
+            <FileText size={14} color="#0066b2" />
+            <Text className="text-[10px] font-black text-[#0066b2] uppercase tracking-wider">
               Procurement Form
             </Text>
           </View>
@@ -2307,6 +2315,46 @@ export default function InventoryScreen() {
                 </View>
               </View>
 
+              {/* Storage Destination */}
+              <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
+                <Pressable
+                  onPress={() => {
+                    setIsLocDropdownOpen(!isLocDropdownOpen);
+                    setIsSupDropdownOpen(false);
+                    setIsPayDropdownOpen(false);
+                    setOpenLineMatDropdownIdx(null);
+                    setIsCalendarOpen(false);
+                  }}
+                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-3 justify-between active:scale-[99%]"
+                >
+                  <View className="flex-row items-center gap-2">
+                    <Home size={14} color="#64748b" />
+                    <Text className="text-xs font-bold text-slate-700">{purchaseLocation || 'Select location'}</Text>
+                  </View>
+                  <ChevronDown size={12} color="#64748b" />
+                </Pressable>
+
+                {isLocDropdownOpen && (
+                  <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
+                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
+                      <Pressable
+                        key={loc}
+                        onPress={() => {
+                          setPurchaseLocation(loc);
+                          setIsLocDropdownOpen(false);
+                        }}
+                        className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
+                          purchaseLocation === loc ? 'bg-blue-50/50' : ''
+                        }`}
+                      >
+                        <Text className="text-xs font-bold text-slate-700">{loc}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
             </View>
           </View>
 
@@ -2331,25 +2379,28 @@ export default function InventoryScreen() {
 
             {/* Structured Columns Header */}
             <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
-              <View style={{ width: '32%' }}>
+              <View style={{ width: '26%' }}>
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
               </View>
-              <View style={{ width: '12%' }}>
+              <View style={{ width: '10%' }}>
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
               </View>
+              <View style={{ width: '10%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Quantity</Text>
+              </View>
               <View style={{ width: '11%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Quantity</Text>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Rate (₹)</Text>
+              </View>
+              <View style={{ width: '10%' }}>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST (%)</Text>
               </View>
               <View style={{ width: '12%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rate (₹)</Text>
-              </View>
-              <View style={{ width: '11%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">GST (%)</Text>
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST Amount (₹)</Text>
               </View>
               <View style={{ width: '14%' }}>
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Amount (₹)</Text>
               </View>
-              <View style={{ width: '8%', alignItems: 'center' }}>
+              <View style={{ width: '7%', alignItems: 'center' }}>
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Action</Text>
               </View>
             </View>
@@ -2367,17 +2418,20 @@ export default function InventoryScreen() {
               purchaseItems.map((itm, idx) => {
                 const selectedMat = materials.find((m) => m.id === itm.material_id);
                 const matUnitShort = selectedMat?.unit_short_name || 'Units';
-                const amount = (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (1 + (Number(itm.gst || '0') / 100));
+                const subtotal = (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0);
+                const gstRate = Number(itm.gst || '0');
+                const gstAmount = subtotal * (gstRate / 100);
+                const amount = subtotal + gstAmount;
 
                 return (
                   <View
                     key={idx}
-                    className="flex-row items-start py-3 px-1 border-b border-slate-100 relative"
+                    className="flex-row items-center py-3 px-1 border-b border-slate-100 relative"
                     style={{ zIndex: (openLineMatDropdownIdx === idx || openLineGstDropdownIdx === idx) ? 999 : 1 }}
                   >
                     
                     {/* Raw Material Select Dropdown */}
-                    <View style={{ width: '32%' }} className="relative pr-1.5">
+                    <View style={{ width: '26%' }} className="relative pr-1.5">
                       <Pressable
                         onPress={() => {
                           setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
@@ -2389,9 +2443,16 @@ export default function InventoryScreen() {
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between shadow-xs active:scale-[98%]"
                       >
-                        <Text className="text-[11px] font-bold text-slate-700 truncate pr-1">
-                          {selectedMat ? selectedMat.material_name : 'Select raw material'}
-                        </Text>
+                        <View className="flex-col flex-1 pr-1">
+                          <Text className="text-[11px] font-bold text-slate-700 truncate">
+                            {selectedMat ? selectedMat.material_name : 'Select raw material'}
+                          </Text>
+                          {selectedMat && (
+                            <Text className="text-[9px] text-slate-400 font-bold mt-0.5">
+                              {selectedMat.material_code}
+                            </Text>
+                          )}
+                        </View>
                         <ChevronDown size={10} color="#64748b" />
                       </Pressable>
                       
@@ -2424,7 +2485,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Unit Box */}
-                    <View style={{ width: '12%' }} className="relative pr-1.5">
+                    <View style={{ width: '10%' }} className="relative pr-1.5">
                       <View className="bg-white border border-slate-200 rounded-lg px-2.5 py-2.5 items-center justify-between flex-row shadow-xs">
                         <Text className="text-[11px] font-bold text-slate-700 truncate">
                           {selectedMat ? matUnitShort : 'Select unit'}
@@ -2443,7 +2504,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Quantity input */}
-                    <View style={{ width: '11%' }} className="pr-1.5">
+                    <View style={{ width: '10%' }} className="pr-1.5">
                       <TextInput
                         value={itm.quantity}
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
@@ -2457,7 +2518,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Rate / price input */}
-                    <View style={{ width: '12%' }} className="pr-1.5">
+                    <View style={{ width: '11%' }} className="pr-1.5">
                       <TextInput
                         value={itm.unit_price}
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
@@ -2471,7 +2532,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* GST dropdown */}
-                    <View style={{ width: '11%' }} className="relative pr-1.5">
+                    <View style={{ width: '10%' }} className="relative pr-1.5">
                       <Pressable
                         onPress={() => {
                           setOpenLineGstDropdownIdx(openLineGstDropdownIdx === idx ? null : idx);
@@ -2513,20 +2574,27 @@ export default function InventoryScreen() {
                       )}
                     </View>
 
-                    {/* Dynamic Row line amount wrapped in premium card background */}
-                    <View style={{ width: '14%' }} className="pr-1.5">
+                    {/* GST Amount Column */}
+                    <View style={{ width: '12%' }} className="pr-1.5">
                       <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-2 items-center justify-center">
-                        <Text className="text-[11px] font-black text-slate-800">
-                          ₹{amount.toFixed(2)}
+                        <Text className="text-[11px] font-bold text-slate-500">
+                          ₹{gstAmount.toFixed(2)}
                         </Text>
                       </View>
                       <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                        Auto-calculated
+                        Calculated Tax
+                      </Text>
+                    </View>
+
+                    {/* Amount Column */}
+                    <View style={{ width: '14%', alignSelf: 'center' }} className="pr-1.5 items-center justify-center">
+                      <Text className="text-xs font-black text-slate-800">
+                        ₹{amount.toFixed(2)}
                       </Text>
                     </View>
 
                     {/* Row Trash Remove item */}
-                    <View style={{ width: '8%' }} className="items-center">
+                    <View style={{ width: '7%' }} className="items-center">
                       <Pressable
                         onPress={() => handleRemovePurchaseLine(idx)}
                         className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
@@ -2539,67 +2607,88 @@ export default function InventoryScreen() {
                 );
               })
             )}
+
+            {/* Add more items button at the bottom of the list */}
+            {purchaseItems.length > 0 && (
+              <Pressable
+                onPress={handleAddPurchaseLine}
+                className="mt-4 border border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 hover:bg-blue-50/50 py-3 rounded-2xl flex-row items-center justify-center gap-2 active:scale-[99%]"
+              >
+                <Plus size={14} color="#0066b2" />
+                <Text className="text-xs font-black text-blue-600">Add more items to this invoice</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </ScrollView>
 
       {/* SECTION C: HORIZONTAL CALCULATIONS SUMMARY BAR */}
-          <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex-row items-center justify-between my-2">
-            {/* 1. Total Items */}
-            <View className="flex-1 flex-row items-center justify-center pl-2">
-              <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center mr-2.5">
-                <Boxes size={14} color="#0066b2" />
-              </View>
-              <View>
-                <Text className="text-xs font-black text-slate-700">{purchaseItems.length} Items</Text>
-                <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Items</Text>
-              </View>
-            </View>
-
-            <View className="w-[1px] h-8 bg-slate-200" />
-
-            {/* 2. Total Quantity */}
-            <View className="flex-1 items-center justify-center">
-              <Text className="text-xs font-black text-slate-700">
-                {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0), 0).toFixed(2)}
-              </Text>
-              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
-            </View>
-
-            <View className="w-[1px] h-8 bg-slate-200" />
-
-            {/* 3. Total Before Tax (Subtotal) */}
-            <View className="flex-1 items-center justify-center">
-              <Text className="text-xs font-black text-slate-700">
-                ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toFixed(2)}
-              </Text>
-              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
-            </View>
-
-            <View className="w-[1px] h-8 bg-slate-200" />
-
-            {/* 4. Total GST */}
-            <View className="flex-1 items-center justify-center">
-              <Text className="text-xs font-black text-slate-700">
-                ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toFixed(2)}
-              </Text>
-              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
-            </View>
-
-            <View className="w-[1px] h-8 bg-slate-200" />
-
-            {/* 5. Total Amount (Vibrant Blue highlighted) */}
-            <View className="flex-1 items-end pr-2 justify-center">
-              <Text className="text-sm font-black text-[#0066b2]">
-                ₹{(
-                  purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0) +
-                  purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0) +
-                  (Number(purchaseTransportCharges) || 0)
-                ).toFixed(2)}
-              </Text>
-              <Text className="text-[9px] font-bold text-[#0066b2] uppercase tracking-wider mt-0.5">Total Amount</Text>
-            </View>
+      <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 flex-row items-center justify-between my-2">
+        {/* 1. Total Items */}
+        <View className="flex-1 flex-row items-center justify-center pl-2">
+          <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center mr-2">
+            <Boxes size={14} color="#0066b2" />
           </View>
+          <View>
+            <Text className="text-xs font-black text-slate-700">{purchaseItems.length}</Text>
+            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Items</Text>
+          </View>
+        </View>
+
+        <View className="w-[1px] h-8 bg-slate-200" />
+
+        {/* 2. Total Quantity */}
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-xs font-black text-slate-700">
+            {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0), 0).toFixed(2)}
+          </Text>
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
+        </View>
+
+        <View className="w-[1px] h-8 bg-slate-200" />
+
+        {/* 3. Total Before Tax (Subtotal) */}
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-xs font-black text-slate-700">
+            ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toFixed(2)}
+          </Text>
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
+        </View>
+
+        <View className="w-[1px] h-8 bg-slate-200" />
+
+        {/* 4. Total GST */}
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-xs font-black text-slate-700">
+            ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toFixed(2)}
+          </Text>
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
+        </View>
+
+        <View className="w-[1px] h-8 bg-slate-200" />
+
+        {/* 5. Freight */}
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-xs font-black text-slate-700">
+            ₹{(Number(purchaseTransportCharges) || 0).toFixed(2)}
+          </Text>
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Freight</Text>
+        </View>
+
+        <View className="w-[1px] h-8 bg-slate-200" />
+
+        {/* 6. Total Amount */}
+        <View className="flex-1 items-end pr-2 justify-center">
+          <Text className="text-sm font-black text-[#0066b2]">
+            ₹{(
+              purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0) +
+              purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0) +
+              (Number(purchaseTransportCharges) || 0)
+            ).toFixed(2)}
+          </Text>
+          <Text className="text-[9px] font-bold text-[#0066b2] uppercase tracking-wider mt-0.5">Total Amount</Text>
+        </View>
+      </View>
 
           {/* FOOTER ACTIONS */}
           <View className="border-t border-slate-100 pt-4 flex-row justify-end items-center gap-3">
