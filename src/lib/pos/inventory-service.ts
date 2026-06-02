@@ -928,20 +928,23 @@ export async function saveUnit(unit: Partial<InventoryUnit>): Promise<ServiceRes
     const { tenant_id, branch_id } = getTenantContext();
     const id = unit.id || Math.random().toString(36).substr(2, 9);
     const code = unit.unit_code || `UN${Math.floor(10 + Math.random() * 90)}`;
-    const fullUnit = {
+    const dbPayload = {
       tenant_id,
       branch_id,
       unit_code: code,
       unit_name: unit.unit_name || 'Unnamed Unit',
       short_name: unit.short_name || code.toLowerCase(),
       is_active: unit.is_active !== false,
+    };
+    const fullUnit = {
+      ...dbPayload,
       updated_at: new Date().toISOString(),
     };
 
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_units')
-        .upsert({ id: unit.id || undefined, ...fullUnit })
+        .upsert({ ...(unit.id ? { id: unit.id } : {}), ...dbPayload })
         .select('*')
         .single();
 
