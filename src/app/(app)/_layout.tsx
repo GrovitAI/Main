@@ -136,6 +136,11 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
       width: Platform.OS === 'web' ? 840 : '92%',
       maxWidth: '92%',
       zIndex: 100,
+      transform: [
+        {
+          translateX: (Platform.OS === 'web' && activeTabName === 'index') ? -105 : 0
+        }
+      ] as any,
     }}>
       {/* Sliding Highlight Backdrop Pill */}
       {tabLayouts[activeTabName] && (

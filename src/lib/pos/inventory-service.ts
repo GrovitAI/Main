@@ -197,7 +197,7 @@ export type InventoryAuditLog = {
   id: string;
   tenant_id: string;
   branch_id: string;
-  module_name: 'materials' | 'purchases' | 'adjustments' | 'suppliers' | 'wastage' | 'categories';
+  module_name: 'materials' | 'purchases' | 'adjustments' | 'suppliers' | 'wastage' | 'categories' | 'units';
   record_id: string;
   action_type: 'CREATE' | 'UPDATE' | 'DELETE' | 'ADJUST' | 'WASTAGE';
   old_value: any;
@@ -918,6 +918,98 @@ function fetchUnitsLocal(tenantId: string): ServiceResult<InventoryUnit[]> {
   const all = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
   const active = all.filter(u => u.tenant_id === tenantId && u.is_active);
   return { data: active, error: null };
+}
+
+export async function saveUnit(unit: Partial<InventoryUnit>): Promise<ServiceResult<InventoryUnit>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const id = unit.id || Math.random().toString(36).substr(2, 9);
+    const code = unit.unit_code || `UN${Math.floor(10 + Math.random() * 90)}`;
+    const fullUnit = {
+      tenant_id,
+      branch_id,
+      unit_code: code,
+      unit_name: unit.unit_name || 'Unnamed Unit',
+      short_name: unit.short_name || code.toLowerCase(),
+      is_active: unit.is_active !== false,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_units')
+        .upsert({ id: unit.id || undefined, ...fullUnit })
+        .select('*')
+        .single();
+
+      if (error) {
+        if (await handleQueryError(error, 'saveUnit')) {
+          return saveUnitLocal({ id, ...fullUnit });
+        }
+        return { data: null, error: error.message };
+      }
+      return { data: data as InventoryUnit, error: null };
+    } else {
+      return saveUnitLocal({ id, ...fullUnit });
+    }
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Error saving unit.' };
+  }
+}
+
+function saveUnitLocal(unit: any): ServiceResult<InventoryUnit> {
+  const all = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
+  const idx = all.findIndex(u => u.id === unit.id);
+  const now = new Date().toISOString();
+
+  let finalObj: InventoryUnit;
+  if (idx >= 0) {
+    finalObj = { ...all[idx], ...unit, updated_at: now };
+    all[idx] = finalObj;
+  } else {
+    finalObj = { ...unit, id: unit.id, created_at: now, updated_at: now };
+    all.push(finalObj);
+  }
+
+  saveLocalData(LOCAL_STORAGE_KEYS.UNITS, all);
+  recordAuditLogLocal('units', finalObj.id, idx >= 0 ? 'UPDATE' : 'CREATE', idx >= 0 ? all[idx] : null, finalObj);
+  return { data: finalObj, error: null };
+}
+
+export async function deleteUnit(id: string): Promise<ServiceResult<boolean>> {
+  try {
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_units')
+        .update({ is_active: false })
+        .eq('id', id);
+
+      if (error) {
+        if (await handleQueryError(error, 'deleteUnit')) {
+          return deleteUnitLocal(id);
+        }
+        return { data: false, error: error.message };
+      }
+      return { data: true, error: null };
+    } else {
+      return deleteUnitLocal(id);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error deleting unit.' };
+  }
+}
+
+function deleteUnitLocal(id: string): ServiceResult<boolean> {
+  const all = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
+  const idx = all.findIndex(u => u.id === id);
+  if (idx >= 0) {
+    const old = all[idx];
+    all[idx] = { ...old, is_active: false };
+    saveLocalData(LOCAL_STORAGE_KEYS.UNITS, all);
+    recordAuditLogLocal('units', id, 'DELETE', old, all[idx]);
+    return { data: true, error: null };
+  }
+  return { data: false, error: 'Unit not found.' };
 }
 
 
@@ -2276,7 +2368,7 @@ function fetchAuditLogsLocal(tenantId: string): ServiceResult<InventoryAuditLog[
 }
 
 function recordAuditLogLocal(
-  module: 'materials' | 'purchases' | 'adjustments' | 'suppliers' | 'wastage' | 'categories',
+  module: 'materials' | 'purchases' | 'adjustments' | 'suppliers' | 'wastage' | 'categories' | 'units',
   recordId: string,
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'ADJUST' | 'WASTAGE',
   oldVal: any,

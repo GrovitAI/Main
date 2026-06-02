@@ -75,6 +75,8 @@ import {
   deleteSupplier,
   saveCategory,
   deleteCategory,
+  saveUnit,
+  deleteUnit,
   type InventoryCategory,
   type InventoryUnit,
   type InventorySupplier,
@@ -390,6 +392,9 @@ export default function InventoryScreen() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Partial<InventoryCategory> | null>(null);
 
+  const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<Partial<InventoryUnit> | null>(null);
+
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [isWastageModalOpen, setIsWastageModalOpen] = useState(false);
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
@@ -458,6 +463,11 @@ export default function InventoryScreen() {
   const [formCatName, setFormCatName] = useState('');
   const [formCatCode, setFormCatCode] = useState('');
   const [formCatDesc, setFormCatDesc] = useState('');
+
+  // Unit Form states
+  const [formUnitName, setFormUnitName] = useState('');
+  const [formUnitCode, setFormUnitCode] = useState('');
+  const [formUnitShort, setFormUnitShort] = useState('');
 
   // ─── DATA LOADER ───────────────────────────────────────────────────────────
 
@@ -770,6 +780,68 @@ export default function InventoryScreen() {
     setIsLoading(true);
     try {
       await deleteCategory(id);
+      await loadAllData(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenUnitModal = (unit?: InventoryUnit) => {
+    setModalError(null);
+    if (unit) {
+      setEditingUnit(unit);
+      setFormUnitName(unit.unit_name);
+      setFormUnitCode(unit.unit_code);
+      setFormUnitShort(unit.short_name);
+    } else {
+      setEditingUnit(null);
+      setFormUnitName('');
+      setFormUnitCode('');
+      setFormUnitShort('');
+    }
+    setIsUnitModalOpen(true);
+  };
+
+  const handleSaveUnit = async () => {
+    if (!formUnitName.trim()) {
+      setModalError('Unit Name is required.');
+      return;
+    }
+    if (!formUnitCode.trim()) {
+      setModalError('Unit Code is required.');
+      return;
+    }
+    if (!formUnitShort.trim()) {
+      setModalError('Short Display Name is required.');
+      return;
+    }
+
+    setModalError(null);
+    setIsLoading(true);
+    try {
+      const payload: Partial<InventoryUnit> = {
+        id: editingUnit?.id,
+        unit_name: formUnitName,
+        unit_code: formUnitCode || editingUnit?.unit_code,
+        short_name: formUnitShort || editingUnit?.short_name,
+        is_active: true,
+      };
+      await saveUnit(payload);
+      setIsUnitModalOpen(false);
+      await loadAllData(true);
+    } catch (err: any) {
+      setModalError(err.message || 'Failed to save unit.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteUnitItem = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await deleteUnit(id);
       await loadAllData(true);
     } catch (err) {
       console.error(err);
@@ -2052,7 +2124,7 @@ export default function InventoryScreen() {
 
   const renderRecordPurchaseScreen = () => {
     return (
-      <View className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex-col flex-1">
+      <View className="bg-white flex-col flex-1 p-6">
         {/* Header with Back Button */}
         <View className="flex-row items-center justify-between mb-6 border-b border-slate-100 pb-4 flex-wrap gap-4">
           <Pressable
@@ -2090,17 +2162,13 @@ export default function InventoryScreen() {
           </View>
         )}
 
-        {/* Scrollable meta & items details */}
-        <ScrollView className="flex-1 mb-4 pr-1" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View className="flex-col gap-8 pb-8">
-          
-          {/* SECTION A: INVOICE META DETAILS */}
-          <View className="flex-col gap-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 3000 : 100 }}>
+        {/* SECTION A: INVOICE META DETAILS (STATIONARY/FROZEN) */}
+        <View className="flex-col gap-6 mb-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 3000 : 100, position: 'relative' }}>
             {/* Row 1: Supplier and Invoice Number */}
-            <View className="flex-row flex-wrap gap-6" style={{ zIndex: isSupDropdownOpen ? 2000 : 10 }}>
+            <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: isSupDropdownOpen ? 2000 : 10, position: 'relative' }}>
               
               {/* Supplier dropdown */}
-              <View className="flex-1 min-w-[280px] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
+              <View className="flex-1 min-w-[280px] max-w-[49%] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
                 <Pressable
                   onPress={() => {
@@ -2109,7 +2177,7 @@ export default function InventoryScreen() {
                     setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
+                  className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <Store size={14} color="#64748b" />
@@ -2159,9 +2227,9 @@ export default function InventoryScreen() {
               </View>
 
               {/* Invoice / Bill number */}
-              <View className="flex-1 min-w-[280px] gap-1.5">
+              <View className="flex-1 min-w-[280px] max-w-[49%] gap-1.5">
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
-                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
+                <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Hash size={14} color="#64748b" className="mr-2" />
                   <TextInput
                     value={purchaseInvoiceNum}
@@ -2174,11 +2242,11 @@ export default function InventoryScreen() {
 
             </View>
 
-            {/* Row 2: Date, Payment, Freight */}
-            <View className="flex-row flex-wrap gap-6" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 2000 : 5 }}>
+            {/* Row 2: Date, Payment, Freight, Storage */}
+            <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 2000 : 5, position: 'relative' }}>
               
               {/* Date Input with Mini Calendar Popup */}
-              <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: 10000 }}>
+              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5 relative" style={{ zIndex: 10000 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
                 <Pressable
                   onPress={() => {
@@ -2188,7 +2256,7 @@ export default function InventoryScreen() {
                     setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
+                  className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <Calendar size={14} color="#64748b" />
@@ -2262,7 +2330,7 @@ export default function InventoryScreen() {
               </View>
 
               {/* Payment Mode */}
-              <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
+              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5 relative" style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
                 <Pressable
                   onPress={() => {
@@ -2272,7 +2340,7 @@ export default function InventoryScreen() {
                     setOpenLineMatDropdownIdx(null);
                     setIsCalendarOpen(false);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
+                  className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <CreditCard size={14} color="#64748b" />
@@ -2302,9 +2370,9 @@ export default function InventoryScreen() {
               </View>
 
               {/* Freight Charge */}
-              <View className="flex-1 min-w-[180px] gap-1.5">
+              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5">
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
-                <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
+                <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Truck size={14} color="#64748b" className="mr-2" />
                   <TextInput
                     value={purchaseTransportCharges}
@@ -2317,7 +2385,7 @@ export default function InventoryScreen() {
               </View>
 
               {/* Storage Destination */}
-              <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
+              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5 relative" style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
                 <Pressable
                   onPress={() => {
@@ -2327,7 +2395,7 @@ export default function InventoryScreen() {
                     setOpenLineMatDropdownIdx(null);
                     setIsCalendarOpen(false);
                   }}
-                  className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
+                  className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
                 >
                   <View className="flex-row items-center gap-2">
                     <Home size={14} color="#64748b" />
@@ -2359,8 +2427,8 @@ export default function InventoryScreen() {
             </View>
           </View>
 
-          {/* SECTION B: PROCUREMENT LINE ITEMS TABLE */}
-          <View className="border-t border-slate-100 pt-4 gap-2" style={{ zIndex: 1 }}>
+          {/* SECTION B: PROCUREMENT LINE ITEMS TABLE (FROZEN HEADERS + SCROLLABLE BODY) */}
+          <View className="border-t border-slate-100 pt-4 flex-col flex-1" style={{ zIndex: 1 }}>
             <View className="flex-row justify-between items-center mb-1">
               <View>
                 <Text className="text-sm font-black text-slate-800">Procurement Items</Text>
@@ -2379,35 +2447,38 @@ export default function InventoryScreen() {
             </View>
 
             {/* Structured Columns Header */}
-            <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
-              <View style={{ width: '26%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
+            <View className="flex-row border-b border-slate-100 pb-2 px-1">
+              <View style={{ width: '20%' }} className="pr-4">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">RAW MATERIAL</Text>
               </View>
-              <View style={{ width: '10%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
+              <View style={{ width: '10%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">UNIT</Text>
               </View>
-              <View style={{ width: '10%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Quantity</Text>
+              <View style={{ width: '11%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">QUANTITY</Text>
               </View>
-              <View style={{ width: '11%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Rate (₹)</Text>
+              <View style={{ width: '12%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">RATE (₹)</Text>
               </View>
-              <View style={{ width: '10%' }}>
+              <View style={{ width: '11%' }} className="items-center justify-center pr-3">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST (%)</Text>
               </View>
-              <View style={{ width: '12%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST Amount (₹)</Text>
+              <View style={{ width: '13%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST AMOUNT (₹)</Text>
               </View>
-              <View style={{ width: '14%' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">Amount (₹)</Text>
+              <View style={{ width: '16%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">AMOUNT (₹)</Text>
               </View>
-              <View style={{ width: '7%', alignItems: 'center' }}>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Action</Text>
+              <View style={{ width: '7%' }} className="items-center justify-center">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">ACTION</Text>
               </View>
             </View>
 
-            {/* Table Body List */}
-            {purchaseItems.length === 0 ? (
+            {/* Scrollable Table Body List */}
+            <ScrollView className="flex-1 mb-2 pr-1" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View className="flex-col gap-2 pb-6">
+                {/* Table Body List */}
+                {purchaseItems.length === 0 ? (
               <View className="py-12 bg-white border border-dashed border-slate-200 rounded-2xl items-center justify-center gap-2.5 my-4">
                 <View className="w-12 h-12 rounded-full bg-blue-50 items-center justify-center border border-blue-100">
                   <Boxes size={20} color="#0066b2" />
@@ -2432,7 +2503,7 @@ export default function InventoryScreen() {
                   >
                     
                     {/* Raw Material Select Dropdown */}
-                    <View style={{ width: '26%' }} className="relative pr-1.5">
+                    <View style={{ width: '20%' }} className="relative pr-4">
                       <Pressable
                         onPress={() => {
                           setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
@@ -2442,7 +2513,7 @@ export default function InventoryScreen() {
                           setIsLocDropdownOpen(false);
                           setIsCalendarOpen(false);
                         }}
-                        className="flex-row bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 items-center justify-between shadow-xs active:scale-[98%]"
+                        className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
                         <View className="flex-col flex-1 pr-1">
                           <Text className="text-[11px] font-bold text-slate-700 truncate">
@@ -2456,13 +2527,9 @@ export default function InventoryScreen() {
                         </View>
                         <ChevronDown size={10} color="#64748b" />
                       </Pressable>
-                      
-                      <Text className="text-[9px] font-bold text-slate-400 mt-1 pl-1">
-                        Search by name or code
-                      </Text>
 
                       {openLineMatDropdownIdx === idx && (
-                        <View className="absolute top-[42px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1 max-h-[140px] overflow-hidden" style={{ zIndex: 10000 }}>
+                        <View className="absolute top-[36px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1 max-h-[140px] overflow-hidden" style={{ zIndex: 10000 }}>
                           <ScrollView nestedScrollEnabled className="flex-col">
                             {materials.map((m) => (
                               <Pressable
@@ -2486,54 +2553,39 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Unit Box */}
-                    <View style={{ width: '10%' }} className="relative pr-1.5">
-                      <View className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 items-center justify-between flex-row shadow-xs">
-                        <Text className="text-[11px] font-bold text-slate-700 truncate">
-                          {selectedMat ? matUnitShort : 'Select unit'}
+                    <View style={{ width: '10%' }} className="items-center justify-center relative pr-3">
+                      <View className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between flex-row shadow-xs">
+                        <Text className="text-[11px] font-bold text-slate-700 truncate text-center flex-1">
+                          {selectedMat ? matUnitShort : 'Unit'}
                         </Text>
                         <ChevronDown size={10} color="#cbd5e1" />
                       </View>
-                      
-                      <Pressable
-                        onPress={() => {
-                          Alert.alert("Manage Units", "Units of measurement can be managed inside the Master > Units tab.");
-                        }}
-                        className="mt-1 pl-1"
-                      >
-                        <Text className="text-[9px] font-black text-blue-600">+ Add unit</Text>
-                      </Pressable>
                     </View>
 
                     {/* Quantity input */}
-                    <View style={{ width: '10%' }} className="pr-1.5">
+                    <View style={{ width: '11%' }} className="items-center justify-center pr-3">
                       <TextInput
                         value={itm.quantity}
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
                         placeholder="0.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
-                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                        e.g. 10
-                      </Text>
                     </View>
 
                     {/* Rate / price input */}
-                    <View style={{ width: '11%' }} className="pr-1.5">
+                    <View style={{ width: '12%' }} className="items-center justify-center pr-3">
                       <TextInput
                         value={itm.unit_price}
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
                         placeholder="0.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
-                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                        e.g. 120.00
-                      </Text>
                     </View>
 
                     {/* GST dropdown */}
-                    <View style={{ width: '10%' }} className="relative pr-1.5">
+                    <View style={{ width: '11%' }} className="items-center justify-center relative pr-3">
                       <Pressable
                         onPress={() => {
                           setOpenLineGstDropdownIdx(openLineGstDropdownIdx === idx ? null : idx);
@@ -2543,20 +2595,16 @@ export default function InventoryScreen() {
                           setIsLocDropdownOpen(false);
                           setIsCalendarOpen(false);
                         }}
-                        className="flex-row bg-white border border-slate-200 rounded-lg px-2 py-1.5 items-center justify-between shadow-xs active:scale-[98%]"
+                        className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
-                        <Text className="text-[11px] font-bold text-slate-700">
+                        <Text className="text-[11px] font-bold text-slate-700 text-center flex-1">
                           {itm.gst || '0'}%
                         </Text>
                         <ChevronDown size={10} color="#64748b" />
                       </Pressable>
-                      
-                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                        Select GST
-                      </Text>
 
                       {openLineGstDropdownIdx === idx && (
-                        <View className="absolute top-[42px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1" style={{ zIndex: 10000 }}>
+                        <View className="absolute top-[36px] left-0 right-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1" style={{ zIndex: 10000 }}>
                           {['0', '5', '12', '18', '28'].map((gstVal) => (
                             <Pressable
                               key={gstVal}
@@ -2576,26 +2624,23 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* GST Amount Column */}
-                    <View style={{ width: '12%' }} className="pr-1.5">
-                      <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 items-center justify-center">
+                    <View style={{ width: '13%' }} className="items-center justify-center pr-3">
+                      <View className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-center shadow-xs">
                         <Text className="text-[11px] font-bold text-slate-500">
-                          ₹{gstAmount.toFixed(2)}
+                          {gstAmount.toFixed(2)}
                         </Text>
                       </View>
-                      <Text className="text-[9px] text-slate-400 mt-1 text-center font-bold">
-                        Calculated Tax
-                      </Text>
                     </View>
 
                     {/* Amount Column */}
-                    <View style={{ width: '14%', alignSelf: 'center' }} className="pr-1.5 items-center justify-center">
-                      <Text className="text-xs font-black text-slate-800">
-                        ₹{amount.toFixed(2)}
+                    <View style={{ width: '16%' }} className="items-center justify-center pr-3">
+                      <Text className="text-xs font-black text-slate-800 text-center">
+                        {amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
 
                     {/* Row Trash Remove item */}
-                    <View style={{ width: '7%' }} className="items-center">
+                    <View style={{ width: '7%' }} className="items-center justify-center">
                       <Pressable
                         onPress={() => handleRemovePurchaseLine(idx)}
                         className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
@@ -2620,11 +2665,11 @@ export default function InventoryScreen() {
               </Pressable>
             )}
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {/* SECTION C: HORIZONTAL CALCULATIONS SUMMARY BAR */}
-      <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-6 flex-row items-center justify-between mt-8 mb-6">
+      <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl py-3 px-5 flex-row items-center justify-between mt-4 mb-2">
         {/* 1. Total Items */}
         <View className="flex-1 flex-row items-center justify-center pl-2">
           <View className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 items-center justify-center mr-2">
@@ -2651,7 +2696,7 @@ export default function InventoryScreen() {
         {/* 3. Total Before Tax (Subtotal) */}
         <View className="flex-1 items-center justify-center">
           <Text className="text-xs font-black text-slate-700">
-            ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toFixed(2)}
+            ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
           <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
         </View>
@@ -2661,7 +2706,7 @@ export default function InventoryScreen() {
         {/* 4. Total GST */}
         <View className="flex-1 items-center justify-center">
           <Text className="text-xs font-black text-slate-700">
-            ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toFixed(2)}
+            ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
           <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
         </View>
@@ -2671,7 +2716,7 @@ export default function InventoryScreen() {
         {/* 5. Freight */}
         <View className="flex-1 items-center justify-center">
           <Text className="text-xs font-black text-slate-700">
-            ₹{(Number(purchaseTransportCharges) || 0).toFixed(2)}
+            ₹{(Number(purchaseTransportCharges) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
           <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Freight</Text>
         </View>
@@ -2692,7 +2737,7 @@ export default function InventoryScreen() {
       </View>
 
           {/* FOOTER ACTIONS */}
-          <View className="border-t border-slate-100 pt-6 mt-4 flex-row justify-end items-center gap-3">
+          <View className="border-t border-slate-100 pt-4 mt-2 flex-row justify-end items-center gap-3">
             <Pressable
               onPress={() => {
                 setActiveTab('purchases');
@@ -2974,9 +3019,18 @@ export default function InventoryScreen() {
   const renderUnits = () => {
     return (
       <View className="flex-1">
-        <View className="mb-6">
-          <Text className="text-sm font-bold text-slate-800">Units of Measurement (UoM)</Text>
-          <Text className="text-xs text-slate-500">Ensure standardized quantities across recipes, purchases, and wastage sheets.</Text>
+        <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
+          <View className="flex-1 mr-4">
+            <Text className="text-sm font-bold text-slate-800">Units of Measurement (UoM)</Text>
+            <Text className="text-xs text-slate-500">Ensure standardized quantities across recipes, purchases, and wastage sheets.</Text>
+          </View>
+          <Pressable
+            onPress={() => handleOpenUnitModal()}
+            className="flex-row bg-blue-600 items-center justify-center py-2.5 px-4 rounded-xl shadow-sm active:scale-95 transition-transform"
+          >
+            <Plus size={14} color="white" className="mr-1" />
+            <Text className="text-xs font-bold text-white">Add Unit</Text>
+          </Pressable>
         </View>
 
         <FlatList
@@ -3001,6 +3055,21 @@ export default function InventoryScreen() {
                     Code: {item.unit_code}
                   </Text>
                 </View>
+              </View>
+
+              <View className="flex-row items-center gap-1.5">
+                <Pressable
+                  onPress={() => handleOpenUnitModal(item)}
+                  className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+                >
+                  <FileText size={14} color="#64748b" />
+                </Pressable>
+                <Pressable
+                  onPress={() => handleDeleteUnitItem(item.id)}
+                  className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+                >
+                  <Trash2 size={14} color="#e11d48" />
+                </Pressable>
               </View>
             </View>
           )}
@@ -3453,9 +3522,9 @@ export default function InventoryScreen() {
         )}
 
         {activeTab === 'record_purchase' ? (
-          <View className="flex-1 p-6">
+          <View className="flex-1 p-0">
             {errorMsg && (
-              <View className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
+              <View className="mx-6 mt-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
                 <AlertTriangle size={20} color="#e11d48" className="mr-3" />
                 <Text className="text-xs font-bold text-rose-700">{errorMsg}</Text>
               </View>
@@ -4277,6 +4346,71 @@ export default function InventoryScreen() {
 
             <Pressable onPress={handleSaveCategory} className="bg-blue-600 py-3 rounded-2xl items-center mt-5">
               <Text className="text-xs font-bold text-white">Save Category</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 7. Add/Edit Unit Modal */}
+      <Modal visible={isUnitModalOpen} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[85%] md:w-[40%] rounded-3xl p-6 shadow-2xl">
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <Text className="text-base font-black text-slate-900">
+                {editingUnit ? 'Edit Unit Profile' : 'Create New Unit'}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setIsUnitModalOpen(false);
+                  setModalError(null);
+                }}
+              >
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
+
+            <ScrollView className="max-h-[400px] pr-2 gap-4">
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Unit Name*</Text>
+                <TextInput
+                  value={formUnitName}
+                  onChangeText={setFormUnitName}
+                  placeholder="e.g., Kilograms"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
+                />
+              </View>
+
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Unit Code (System)*</Text>
+                <TextInput
+                  value={formUnitCode}
+                  onChangeText={setFormUnitCode}
+                  placeholder="e.g., KG"
+                  editable={!editingUnit}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
+                />
+              </View>
+
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Short Name (Display)*</Text>
+                <TextInput
+                  value={formUnitShort}
+                  onChangeText={setFormUnitShort}
+                  placeholder="e.g., kg"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
+                />
+              </View>
+            </ScrollView>
+
+            <Pressable onPress={handleSaveUnit} className="bg-blue-600 py-3 rounded-2xl items-center mt-5">
+              <Text className="text-xs font-bold text-white">Save Unit</Text>
             </Pressable>
           </View>
         </View>
