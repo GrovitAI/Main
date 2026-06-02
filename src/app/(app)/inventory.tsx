@@ -639,26 +639,26 @@ export default function InventoryScreen() {
             }
 
             return (
-              <View className="bg-white border border-slate-200 rounded-3xl p-5 mb-4 flex-row items-center justify-between shadow-sm hover:border-blue-400 transition-all">
+              <View className="bg-white border border-slate-200 rounded-2xl p-3.5 mb-3 flex-row items-center justify-between shadow-sm hover:border-blue-400 transition-all">
                 <View className="flex-row items-center flex-1">
-                  <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center mr-4">
-                    <Boxes size={22} color={colors.primary} />
+                  <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
+                    <Boxes size={18} color={colors.primary} />
                   </View>
-                  <View className="flex-1 mr-4">
-                    <View className="flex-row items-center mb-1">
-                      <Text className="text-base font-bold text-slate-800 mr-2">{item.material_name}</Text>
-                      <Text className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded uppercase">{item.material_code}</Text>
+                  <View className="flex-1 mr-3">
+                    <View className="flex-row items-center mb-0.5">
+                      <Text className="text-sm font-black text-slate-800 mr-2">{item.material_name}</Text>
+                      <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">{item.material_code}</Text>
                     </View>
                     <View className="flex-row flex-wrap items-center">
-                      <Text className="text-xs text-slate-400 mr-3">Cat: {item.category_name}</Text>
-                      <Text className="text-xs text-slate-400 mr-3">Unit: {item.unit_short_name}</Text>
-                      {item.barcode && <Text className="text-xs text-slate-400 mr-3">SKU: {item.barcode}</Text>}
-                      {item.hsn_code && <Text className="text-xs text-slate-400">HSN: {item.hsn_code}</Text>}
+                      <Text className="text-[11px] text-slate-400 mr-2.5">Cat: {item.category_name}</Text>
+                      <Text className="text-[11px] text-slate-400 mr-2.5">Unit: {item.unit_short_name}</Text>
+                      {item.barcode && <Text className="text-[11px] text-slate-400 mr-2.5">SKU: {item.barcode}</Text>}
+                      {item.hsn_code && <Text className="text-[11px] text-slate-400">HSN: {item.hsn_code}</Text>}
                     </View>
                     {/* Location Stock Levels */}
-                    <View className="flex-row mt-2 pt-2 border-t border-slate-50">
-                      <Text className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-2">Location Splits:</Text>
-                      <Text className="text-xs font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                    <View className="flex-row mt-1.5 pt-1.5 border-t border-slate-50">
+                      <Text className="text-[9.5px] text-slate-400 font-semibold uppercase tracking-wider mr-2">Location Splits:</Text>
+                      <Text className="text-[11px] font-semibold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
                         {item.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage'}: {item.current_stock} {item.unit_short_name}
                       </Text>
                     </View>
@@ -667,30 +667,30 @@ export default function InventoryScreen() {
 
                 {/* Stock levels and options */}
                 <View className="flex-row items-center">
-                  <View className="items-end mr-6">
-                    <Text className="text-sm font-extrabold text-slate-900">{item.current_stock} {item.unit_short_name}</Text>
-                    <View className={`border rounded-full px-2 py-0.5 mt-1 ${badgeColor}`}>
-                      <Text className="text-[9px] font-bold uppercase">{badgeText}</Text>
+                  <View className="items-end mr-4">
+                    <Text className="text-xs font-black text-slate-900">{item.current_stock} {item.unit_short_name}</Text>
+                    <View className={`border rounded-full px-1.5 py-0.5 mt-0.5 ${badgeColor}`}>
+                      <Text className="text-[8px] font-bold uppercase">{badgeText}</Text>
                     </View>
                   </View>
 
-                  <View className="items-end mr-6 border-l border-slate-100 pl-6">
-                    <Text className="text-xs text-slate-400">Avg Cost</Text>
-                    <Text className="text-sm font-bold text-slate-800 mt-0.5">₹{item.average_cost.toFixed(2)}</Text>
+                  <View className="items-end mr-4 border-l border-slate-100 pl-4">
+                    <Text className="text-[10px] text-slate-400">Avg Cost</Text>
+                    <Text className="text-xs font-extrabold text-slate-800 mt-0.5">₹{item.average_cost.toFixed(2)}</Text>
                   </View>
 
-                  <View className="flex-row items-center border-l border-slate-100 pl-6 gap-2">
+                  <View className="flex-row items-center border-l border-slate-100 pl-4 gap-1.5">
                     <Pressable
                       onPress={() => handleOpenMaterialModal(item)}
-                      className="w-9 h-9 bg-slate-50 border border-slate-200 rounded-xl items-center justify-center hover:bg-blue-50 active:scale-95 transition-transform"
+                      className="w-7.5 h-7.5 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center hover:bg-blue-50 active:scale-95 transition-transform"
                     >
-                      <FileText size={15} color="#64748b" />
+                      <FileText size={13} color="#64748b" />
                     </Pressable>
                     <Pressable
                       onPress={() => handleDeleteMaterialItem(item.id)}
-                      className="w-9 h-9 bg-slate-50 border border-rose-100 rounded-xl items-center justify-center hover:bg-rose-50 active:scale-95 transition-transform"
+                      className="w-7.5 h-7.5 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center hover:bg-rose-50 active:scale-95 transition-transform"
                     >
-                      <Trash2 size={15} color="#e11d48" />
+                      <Trash2 size={13} color="#e11d48" />
                     </Pressable>
                   </View>
                 </View>
@@ -713,10 +713,10 @@ export default function InventoryScreen() {
           </View>
           <Pressable
             onPress={() => handleOpenSupplierModal()}
-            className="flex-row bg-blue-600 items-center justify-center py-3 px-5 rounded-2xl shadow-md active:scale-95 transition-transform"
+            className="flex-row bg-blue-600 items-center justify-center py-2 px-3.5 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
-            <Plus size={16} color="white" className="mr-1.5" />
-            <Text className="text-sm font-bold text-white">Add Supplier</Text>
+            <Plus size={13} color="white" className="mr-1" />
+            <Text className="text-xs font-bold text-white">Add Supplier</Text>
           </Pressable>
         </View>
 
@@ -735,48 +735,48 @@ export default function InventoryScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View className={`${numColumns === 2 ? 'w-[49%]' : 'w-full'} bg-white border border-slate-200 rounded-3xl p-5 mb-5 shadow-sm`}>
-              <View className="flex-row justify-between items-start mb-3">
+            <View className={`${numColumns === 2 ? 'w-[49%]' : 'w-full'} bg-white border border-slate-200 rounded-2xl p-3.5 mb-3.5 shadow-sm`}>
+              <View className="flex-row justify-between items-start mb-2.5">
                 <View className="flex-1 mr-2">
-                  <Text className="text-base font-bold text-slate-800">{item.supplier_name}</Text>
-                  <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Code: {item.supplier_code}</Text>
+                  <Text className="text-sm font-black text-slate-800">{item.supplier_name}</Text>
+                  <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Code: {item.supplier_code}</Text>
                 </View>
-                <View className="bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
-                  <Text className="text-[10px] font-bold text-blue-700 uppercase">{item.payment_terms}</Text>
+                <View className="bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
+                  <Text className="text-[9px] font-bold text-blue-700 uppercase">{item.payment_terms}</Text>
                 </View>
               </View>
 
-              <View className="border-t border-slate-100 pt-3 gap-2">
+              <View className="border-t border-slate-100 pt-2 gap-1.5">
                 <View className="flex-row items-center">
-                  <Text className="text-xs font-semibold text-slate-400 w-24">Contact Person:</Text>
-                  <Text className="text-xs font-bold text-slate-700">{item.contact_person || 'N/A'}</Text>
+                  <Text className="text-[11px] font-bold text-slate-400 w-20">Contact:</Text>
+                  <Text className="text-[11px] font-semibold text-slate-700">{item.contact_person || 'N/A'}</Text>
                 </View>
                 <View className="flex-row items-center">
-                  <Text className="text-xs font-semibold text-slate-400 w-24">Phone:</Text>
-                  <Text className="text-xs font-bold text-slate-700">{item.phone}</Text>
+                  <Text className="text-[11px] font-bold text-slate-400 w-20">Phone:</Text>
+                  <Text className="text-[11px] font-semibold text-slate-700">{item.phone}</Text>
                 </View>
                 <View className="flex-row items-center">
-                  <Text className="text-xs font-semibold text-slate-400 w-24">GST Number:</Text>
-                  <Text className="text-xs font-bold text-slate-700 uppercase">{item.gst_number || 'N/A'}</Text>
+                  <Text className="text-[11px] font-bold text-slate-400 w-20">GST Number:</Text>
+                  <Text className="text-[11px] font-semibold text-slate-700 uppercase">{item.gst_number || 'N/A'}</Text>
                 </View>
                 <View className="flex-row items-start">
-                  <Text className="text-xs font-semibold text-slate-400 w-24">Address:</Text>
-                  <Text className="text-xs text-slate-500 flex-1">{item.address}, {item.city}, {item.state}</Text>
+                  <Text className="text-[11px] font-bold text-slate-400 w-20">Address:</Text>
+                  <Text className="text-[11px] text-slate-500 flex-1">{item.address}, {item.city}, {item.state}</Text>
                 </View>
               </View>
 
-              <View className="flex-row justify-between items-center mt-5 pt-3 border-t border-slate-50">
-                <Text className="text-[11px] italic text-slate-400">Created: {new Date(item.created_at).toLocaleDateString()}</Text>
-                <View className="flex-row gap-2">
+              <View className="flex-row justify-between items-center mt-4.5 pt-2 border-t border-slate-50">
+                <Text className="text-[10px] italic text-slate-400">Created: {new Date(item.created_at).toLocaleDateString()}</Text>
+                <View className="flex-row gap-1.5">
                   <Pressable
                     onPress={() => handleOpenSupplierModal(item)}
-                    className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center hover:bg-blue-50"
+                    className="w-7.5 h-7.5 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center hover:bg-blue-50 active:scale-95 transition-transform"
                   >
-                    <FileText size={14} color="#64748b" />
+                    <FileText size={13} color="#64748b" />
                   </Pressable>
                   <Pressable
                     onPress={() => handleDeleteSupplierItem(item.id)}
-                    className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center hover:bg-rose-50"
+                    className="w-7.5 h-7.5 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center hover:bg-rose-50 active:scale-95 transition-transform"
                   >
                     <Trash2 size={14} color="#e11d48" />
                   </Pressable>
@@ -831,7 +831,7 @@ export default function InventoryScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 mb-4 shadow-sm">
+            <View className="bg-white border border-slate-200 rounded-2xl p-3.5 mb-3 shadow-sm">
               <View className="flex-row justify-between items-center mb-3">
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-emerald-50 rounded-xl items-center justify-center mr-3">
@@ -913,7 +913,7 @@ export default function InventoryScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View className="bg-white border border-slate-200 rounded-3xl p-5 mb-4 shadow-sm">
+            <View className="bg-white border border-slate-200 rounded-2xl p-3.5 mb-3 shadow-sm">
               <View className="flex-row justify-between items-center">
                 <View className="flex-row items-center">
                   <View className="w-10 h-10 bg-rose-50 rounded-xl items-center justify-center mr-3">
@@ -957,7 +957,7 @@ export default function InventoryScreen() {
               if (item.alert_type === 'Out of Stock') alertColor = 'border-rose-200 bg-rose-50/50';
 
               return (
-                <View className={`border rounded-2xl p-4 mb-4 ${alertColor} shadow-sm`}>
+                <View className={`border rounded-xl p-3 mb-3 ${alertColor} shadow-sm`}>
                   <View className="flex-row justify-between items-start mb-2">
                     <Text className="text-xs font-extrabold uppercase tracking-wider text-slate-700">{item.alert_type}</Text>
                     {!item.is_read && (
@@ -986,12 +986,12 @@ export default function InventoryScreen() {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <View className="bg-white border border-slate-100 rounded-2xl p-4 mb-4 shadow-sm">
+              <View className="bg-white border border-slate-100 rounded-xl p-3 mb-3 shadow-sm">
                 <View className="flex-row justify-between items-center mb-1">
                   <Text className="text-xs font-bold text-slate-800">Module: {item.module_name.toUpperCase()}</Text>
-                  <Text className="text-[10px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">{item.action_type}</Text>
+                  <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">{item.action_type}</Text>
                 </View>
-                <Text className="text-xs text-slate-500 mb-2">Operation recorded on record ID: {item.record_id}</Text>
+                <Text className="text-[10px] text-slate-500 mb-2">Operation recorded on record ID: {item.record_id}</Text>
                 <View className="flex-row justify-between items-center border-t border-slate-50 pt-2">
                   <Text className="text-[10px] text-slate-400 font-semibold">Performed by: {item.performed_by}</Text>
                   <Text className="text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</Text>
@@ -1105,7 +1105,7 @@ export default function InventoryScreen() {
       </LinearGradient>
 
       {/* Tabs list */}
-      <View className="bg-white border-b border-slate-200 px-6 flex-row items-center shadow-xs">
+      <View className="bg-white border-b border-slate-200 px-8 flex-row items-center gap-4 shadow-sm">
         {TABS.map((tab) => {
           const TabIcon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1114,10 +1114,21 @@ export default function InventoryScreen() {
             <Pressable
               key={tab.id}
               onPress={() => setActiveTab(tab.id)}
-              className={`flex-row items-center py-4 px-6 border-b-2 gap-2 active:scale-95 transition-all ${isActive ? 'border-blue-600' : 'border-transparent'}`}
+              className={`flex-row items-center py-4 px-5 border-b-[3px] gap-2.5 active:scale-95 transition-all ${
+                isActive ? 'border-[#0066b2]' : 'border-transparent'
+              }`}
             >
-              <TabIcon size={16} color={isActive ? '#2563eb' : '#64748b'} />
-              <Text className={`text-sm font-bold ${isActive ? 'text-blue-600' : 'text-slate-500'}`}>{tab.label}</Text>
+              <TabIcon size={18} color={isActive ? '#0066b2' : '#64748b'} />
+              <Text
+                style={{
+                  color: isActive ? '#0066b2' : '#64748b',
+                  fontSize: 14.5,
+                  fontWeight: isActive ? '800' : '600',
+                  letterSpacing: 0.2,
+                }}
+              >
+                {tab.label}
+              </Text>
             </Pressable>
           );
         })}
