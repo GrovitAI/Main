@@ -41,6 +41,11 @@ import {
   Eye,
   ShoppingCart,
   X,
+  Hash,
+  CreditCard,
+  Home,
+  Upload,
+  Store,
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -393,10 +398,18 @@ export default function InventoryScreen() {
   const [purchasePaymentMode, setPurchasePaymentMode] = useState('UPI');
   const [purchaseTransportCharges, setPurchaseTransportCharges] = useState('0');
   const [purchaseRemarks, setPurchaseRemarks] = useState('');
-  const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; unit_price: string }[]>([
-    { material_id: '', quantity: '', unit_price: '' },
+  const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; unit_price: string; gst: string }[]>([
+    { material_id: '', quantity: '', unit_price: '', gst: '0' },
   ]);
   const [purchaseLocation, setPurchaseLocation] = useState('Dry Storage');
+  const [purchaseInvoiceDate, setPurchaseInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Redesigned Purchase Modal Dropdown state controls
+  const [isSupDropdownOpen, setIsSupDropdownOpen] = useState(false);
+  const [isPayDropdownOpen, setIsPayDropdownOpen] = useState(false);
+  const [isLocDropdownOpen, setIsLocDropdownOpen] = useState(false);
+  const [openLineMatDropdownIdx, setOpenLineMatDropdownIdx] = useState<number | null>(null);
+  const [openLineUnitDropdownIdx, setOpenLineUnitDropdownIdx] = useState<number | null>(null);
 
   // New Wastage states
   const [wastageMaterialId, setWastageMaterialId] = useState('');
@@ -763,10 +776,16 @@ export default function InventoryScreen() {
     setModalError(null);
     setPurchaseSupplierId('');
     setPurchaseInvoiceNum('');
-    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '' }]);
+    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
     setPurchaseTransportCharges('0');
     setPurchaseRemarks('');
+    setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
     setIsPurchaseModalOpen(true);
+    setIsSupDropdownOpen(false);
+    setIsPayDropdownOpen(false);
+    setIsLocDropdownOpen(false);
+    setOpenLineMatDropdownIdx(null);
+    setOpenLineUnitDropdownIdx(null);
   };
 
   const handleOpenWastageModal = () => {
@@ -817,20 +836,23 @@ export default function InventoryScreen() {
     setModalError(null);
     setIsLoading(true);
     try {
+      const subtotal = purchaseItems.reduce((acc, itm) => acc + Number(itm.quantity) * Number(itm.unit_price), 0);
+      const tax_amount = purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) * Number(itm.unit_price) * (Number(itm.gst || '0') / 100)), 0);
+      const freight = Number(purchaseTransportCharges) || 0;
+      const grand_total = subtotal + tax_amount + freight;
+
       const headerPayload = {
-        purchase_date: new Date().toISOString(),
+        purchase_date: new Date(purchaseInvoiceDate).toISOString(),
         supplier_id: purchaseSupplierId,
         invoice_number: purchaseInvoiceNum || null,
-        invoice_date: new Date().toISOString(),
+        invoice_date: new Date(purchaseInvoiceDate).toISOString(),
         payment_mode: purchasePaymentMode,
-        subtotal: purchaseItems.reduce((acc, itm) => acc + Number(itm.quantity) * Number(itm.unit_price), 0),
+        subtotal: subtotal,
         discount_amount: 0,
-        tax_amount: 0,
-        transport_charges: Number(purchaseTransportCharges) || 0,
+        tax_amount: tax_amount,
+        transport_charges: freight,
         other_charges: 0,
-        grand_total:
-          purchaseItems.reduce((acc, itm) => acc + Number(itm.quantity) * Number(itm.unit_price), 0) +
-          (Number(purchaseTransportCharges) || 0),
+        grand_total: grand_total,
         invoice_file_url: purchaseInvoiceNum ? `https://supabase.storage/invoice/${purchaseInvoiceNum}.pdf` : null,
         remarks: purchaseRemarks || null,
         created_by: 'Owner Staff',
@@ -842,16 +864,17 @@ export default function InventoryScreen() {
           material_id: itm.material_id,
           quantity: Number(itm.quantity),
           unit_price: Number(itm.unit_price),
-          line_total: Number(itm.quantity) * Number(itm.unit_price),
+          line_total: Number(itm.quantity) * Number(itm.unit_price) * (1 + (Number(itm.gst || '0') / 100)),
         }));
 
       await createPurchase(headerPayload, finalItems, purchaseLocation);
       setIsPurchaseModalOpen(false);
       setPurchaseSupplierId('');
-      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '' }]);
+      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
       setPurchaseRemarks('');
       setPurchaseInvoiceNum('');
       setPurchaseTransportCharges('0');
+      setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to record purchase.');
@@ -946,7 +969,7 @@ export default function InventoryScreen() {
   };
 
   const handleAddPurchaseLine = () => {
-    setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', unit_price: '' }]);
+    setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', unit_price: '', gst: '0' }]);
   };
 
   const handleUpdatePurchaseLine = (idx: number, key: string, value: string) => {
@@ -3272,17 +3295,30 @@ export default function InventoryScreen() {
 
       {/* 3. Record Purchase Invoice Modal */}
       <Modal visible={isPurchaseModalOpen} animationType="fade" transparent>
-        <View className="flex-1 bg-black/50 justify-center items-center p-6">
-          <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl">
+        <View className="flex-1 bg-black/60 justify-center items-center p-4">
+          <View className="bg-white w-[98%] md:w-[90%] lg:w-[80%] max-w-[1020px] rounded-3xl p-6 shadow-2xl flex-col max-h-[92%] overflow-hidden">
+            
+            {/* ─── MODAL HEADER ────────────────────────────────────────────────── */}
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
-              <Text className="text-base font-black text-slate-900">Record Procurement Invoice</Text>
+              <View className="flex-row items-center">
+                <View className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-xl items-center justify-center mr-3 shadow-xs">
+                  <FileText size={18} color="#0066b2" />
+                </View>
+                <View>
+                  <Text className="text-base font-black text-slate-800">Record Procurement Invoice</Text>
+                  <Text className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                    Enter invoice details and items to update your inventory
+                  </Text>
+                </View>
+              </View>
               <Pressable
                 onPress={() => {
                   setIsPurchaseModalOpen(false);
                   setModalError(null);
                 }}
+                className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 items-center justify-center active:scale-90"
               >
-                <X size={20} color="#64748b" />
+                <X size={18} color="#64748b" />
               </Pressable>
             </View>
 
@@ -3293,147 +3329,489 @@ export default function InventoryScreen() {
               </View>
             )}
 
-            <ScrollView className="max-h-[400px] pr-2 gap-4">
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-grow min-w-[160px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Choose Supplier*</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {suppliers.map((s) => (
-                      <Pressable
-                        key={s.id}
-                        onPress={() => setPurchaseSupplierId(s.id)}
-                        className={`p-2 rounded mb-1 ${purchaseSupplierId === s.id ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{s.supplier_name}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
+            {/* ─── SCROLLABLE CONTENT BODY ─────────────────────────────────────── */}
+            <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ gap: 16 }}>
+              
+              {/* SECTION A: INVOICE META DETAILS */}
+              <View className="flex-col gap-3">
+                
+                {/* Row 1: Supplier and Invoice Number */}
+                <View className="flex-row flex-wrap gap-3.5">
+                  
+                  {/* Supplier dropdown */}
+                  <View className="flex-1 min-w-[280px] gap-1.5 relative">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
+                    <Pressable
+                      onPress={() => {
+                        setIsSupDropdownOpen(!isSupDropdownOpen);
+                        setIsPayDropdownOpen(false);
+                        setIsLocDropdownOpen(false);
+                        setOpenLineMatDropdownIdx(null);
+                      }}
+                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
+                    >
+                      <View className="flex-row items-center gap-2">
+                        <Store size={14} color="#64748b" />
+                        <Text className="text-xs font-bold text-slate-700">
+                          {purchaseSupplierId
+                            ? suppliers.find((s) => s.id === purchaseSupplierId)?.supplier_name
+                            : 'Select supplier'}
+                        </Text>
+                      </View>
+                      <ChevronDown size={12} color="#64748b" />
+                    </Pressable>
+                    
+                    <Pressable
+                      onPress={() => {
+                        setIsPurchaseModalOpen(false);
+                        setIsSupplierModalOpen(true);
+                      }}
+                      className="mt-1 flex-row items-center self-start"
+                    >
+                      <Text className="text-[10.5px] font-black text-blue-600">+ Add new supplier</Text>
+                    </Pressable>
+
+                    {isSupDropdownOpen && (
+                      <View className="absolute top-[68px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[140px] overflow-hidden">
+                        <ScrollView nestedScrollEnabled className="flex-col">
+                          {suppliers.map((s) => (
+                            <Pressable
+                              key={s.id}
+                              onPress={() => {
+                                setPurchaseSupplierId(s.id);
+                                setIsSupDropdownOpen(false);
+                              }}
+                              className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
+                                purchaseSupplierId === s.id ? 'bg-blue-50/50' : ''
+                              }`}
+                            >
+                              <Text className="text-xs font-bold text-slate-700">{s.supplier_name}</Text>
+                            </Pressable>
+                          ))}
+                          {suppliers.length === 0 && (
+                            <View className="p-2 items-center">
+                              <Text className="text-[11px] text-slate-400">No suppliers registered</Text>
+                            </View>
+                          )}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Invoice / Bill number */}
+                  <View className="flex-1 min-w-[280px] gap-1.5">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
+                    <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 shadow-inner">
+                      <Hash size={14} color="#64748b" className="mr-2" />
+                      <TextInput
+                        value={purchaseInvoiceNum}
+                        onChangeText={setPurchaseInvoiceNum}
+                        placeholder="e.g., INV-8976"
+                        className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                      />
+                    </View>
+                  </View>
+
                 </View>
-                <View className="flex-grow min-w-[160px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Invoice / Bill Number*</Text>
-                  <TextInput
-                    value={purchaseInvoiceNum}
-                    onChangeText={setPurchaseInvoiceNum}
-                    placeholder="e.g., INV-8976"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
+
+                {/* Row 2: Date, Payment, Freight, Storage */}
+                <View className="flex-row flex-wrap gap-3">
+                  
+                  {/* Date Input */}
+                  <View className="flex-1 min-w-[130px] gap-1.5">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
+                    <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 shadow-inner">
+                      <Calendar size={14} color="#64748b" className="mr-2" />
+                      <TextInput
+                        value={purchaseInvoiceDate}
+                        onChangeText={setPurchaseInvoiceDate}
+                        placeholder="YYYY-MM-DD"
+                        className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Payment Mode */}
+                  <View className="flex-1 min-w-[130px] gap-1.5 relative">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
+                    <Pressable
+                      onPress={() => {
+                        setIsPayDropdownOpen(!isPayDropdownOpen);
+                        setIsSupDropdownOpen(false);
+                        setIsLocDropdownOpen(false);
+                        setOpenLineMatDropdownIdx(null);
+                      }}
+                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
+                    >
+                      <View className="flex-row items-center gap-2">
+                        <CreditCard size={14} color="#64748b" />
+                        <Text className="text-xs font-bold text-slate-700">{purchasePaymentMode || 'Select mode'}</Text>
+                      </View>
+                      <ChevronDown size={12} color="#64748b" />
+                    </Pressable>
+
+                    {isPayDropdownOpen && (
+                      <View className="absolute top-[58px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
+                        {['Cash', 'UPI', 'Bank Transfer', 'Credit Card'].map((mode) => (
+                          <Pressable
+                            key={mode}
+                            onPress={() => {
+                              setPurchasePaymentMode(mode);
+                              setIsPayDropdownOpen(false);
+                            }}
+                            className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
+                              purchasePaymentMode === mode ? 'bg-blue-50/50' : ''
+                            }`}
+                          >
+                            <Text className="text-xs font-bold text-slate-700">{mode}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Freight Charge */}
+                  <View className="flex-1 min-w-[130px] gap-1.5">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
+                    <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 shadow-inner">
+                      <Truck size={14} color="#64748b" className="mr-2" />
+                      <TextInput
+                        value={purchaseTransportCharges}
+                        onChangeText={setPurchaseTransportCharges}
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                        className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Storage destination */}
+                  <View className="flex-1 min-w-[130px] gap-1.5 relative">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
+                    <Pressable
+                      onPress={() => {
+                        setIsLocDropdownOpen(!isLocDropdownOpen);
+                        setIsSupDropdownOpen(false);
+                        setIsPayDropdownOpen(false);
+                        setOpenLineMatDropdownIdx(null);
+                      }}
+                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
+                    >
+                      <View className="flex-row items-center gap-2">
+                        <Home size={14} color="#64748b" />
+                        <Text className="text-xs font-bold text-slate-700">{purchaseLocation || 'Select location'}</Text>
+                      </View>
+                      <ChevronDown size={12} color="#64748b" />
+                    </Pressable>
+
+                    {isLocDropdownOpen && (
+                      <View className="absolute top-[58px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
+                        {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
+                          <Pressable
+                            key={loc}
+                            onPress={() => {
+                              setPurchaseLocation(loc);
+                              setIsLocDropdownOpen(false);
+                            }}
+                            className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
+                              purchaseLocation === loc ? 'bg-blue-50/50' : ''
+                            }`}
+                          >
+                            <Text className="text-xs font-bold text-slate-700">{loc}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
                 </View>
+
               </View>
 
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-1 min-w-[100px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Payment Mode*</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {['Cash', 'UPI', 'Bank Transfer', 'Credit Card'].map((m) => (
-                      <Pressable
-                        key={m}
-                        onPress={() => setPurchasePaymentMode(m)}
-                        className={`p-2 rounded mb-1 ${purchasePaymentMode === m ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{m}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-                <View className="flex-1 min-w-[100px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Freight (₹)</Text>
-                  <TextInput
-                    value={purchaseTransportCharges}
-                    onChangeText={setPurchaseTransportCharges}
-                    keyboardType="numeric"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
-                </View>
-                <View className="flex-1 min-w-[100px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Storage Destination</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => setPurchaseLocation(loc)}
-                        className={`p-2 rounded mb-1 ${purchaseLocation === loc ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
-
-              <View className="border-t border-slate-100 pt-4">
-                <View className="flex-row justify-between items-center mb-3">
-                  <Text className="text-xs font-bold text-slate-800">Procurement Items Details</Text>
+              {/* SECTION B: PROCUREMENT LINE ITEMS TABLE */}
+              <View className="border-t border-slate-100 pt-4 gap-2">
+                <View className="flex-row justify-between items-center mb-1">
+                  <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Procurement Items</Text>
+                  
                   <Pressable
                     onPress={handleAddPurchaseLine}
-                    className="flex-row bg-slate-100 border border-slate-200 rounded-xl px-3 py-1 items-center"
+                    className="border border-blue-200 bg-blue-50/40 hover:bg-blue-100/40 flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg active:scale-95 shadow-xs"
                   >
-                    <Plus size={12} color="#64748b" className="mr-1" />
-                    <Text className="text-[10px] font-bold text-slate-600">Add Line</Text>
+                    <Plus size={12} color="#0066b2" />
+                    <Text className="text-[11px] font-black text-[#0066b2]">+ Add Item</Text>
                   </Pressable>
                 </View>
 
-                {purchaseItems.map((itm, idx) => (
-                  <View key={idx} className="flex-row justify-between items-end mb-3 gap-2 border-b border-slate-50 pb-2">
-                    <View className="w-[45%] gap-1">
-                      <Text className="text-[9px] font-bold text-slate-400">Choose Raw Material</Text>
-                      <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[60px] p-1">
-                        {materials.map((m) => (
+                {/* Structured Columns Header */}
+                <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
+                  <View style={{ width: '38%' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
+                  </View>
+                  <View style={{ width: '13%' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
+                  </View>
+                  <View style={{ width: '12%' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Quantity</Text>
+                  </View>
+                  <View style={{ width: '12%' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rate (₹)</Text>
+                  </View>
+                  <View style={{ width: '11%' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">GST (%)</Text>
+                  </View>
+                  <View style={{ width: '10%', alignItems: 'flex-end' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Amount (₹)</Text>
+                  </View>
+                  <View style={{ width: '4%' }} />
+                </View>
+
+                {/* Table Body List */}
+                {purchaseItems.length === 0 ? (
+                  <View className="py-8 bg-slate-50/50 border border-dashed border-slate-200 rounded-xl items-center justify-center gap-2">
+                    <Boxes size={24} color="#94a3b8" />
+                    <Text className="text-xs font-bold text-slate-400">
+                      No items added yet. Click "+ Add Item" to get started.
+                    </Text>
+                  </View>
+                ) : (
+                  purchaseItems.map((itm, idx) => {
+                    const selectedMat = materials.find((m) => m.id === itm.material_id);
+                    const matUnitShort = selectedMat?.unit_short_name || 'Units';
+                    const amount = (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (1 + (Number(itm.gst || '0') / 100));
+
+                    return (
+                      <View
+                        key={idx}
+                        className="flex-row items-center py-2 px-1 border-b border-slate-50 gap-1.5 relative z-10"
+                      >
+                        
+                        {/* Raw Material Select Dropdown */}
+                        <View style={{ width: '38%' }} className="relative">
                           <Pressable
-                            key={m.id}
-                            onPress={() => handleUpdatePurchaseLine(idx, 'material_id', m.id)}
-                            className={`p-1.5 rounded mb-1 ${itm.material_id === m.id ? 'bg-blue-100' : ''}`}
+                            onPress={() => {
+                              setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
+                              setIsSupDropdownOpen(false);
+                              setIsPayDropdownOpen(false);
+                              setIsLocDropdownOpen(false);
+                            }}
+                            className="flex-row bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 items-center justify-between shadow-xs active:scale-[98%]"
                           >
-                            <Text className="text-[9px] font-bold">
-                              {m.material_name} ({m.material_code})
+                            <Text className="text-[11px] font-bold text-slate-700 truncate pr-1">
+                              {selectedMat ? selectedMat.material_name : 'Select raw material'}
                             </Text>
+                            <ChevronDown size={10} color="#64748b" />
                           </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                    <View className="w-[20%] gap-1">
-                      <Text className="text-[9px] font-bold text-slate-400">Qty</Text>
+
+                          {openLineMatDropdownIdx === idx && (
+                            <View className="absolute top-[34px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[130px] overflow-hidden">
+                              <ScrollView nestedScrollEnabled className="flex-col">
+                                {materials.map((m) => (
+                                  <Pressable
+                                    key={m.id}
+                                    onPress={() => {
+                                      handleUpdatePurchaseLine(idx, 'material_id', m.id);
+                                      setOpenLineMatDropdownIdx(null);
+                                    }}
+                                    className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
+                                      itm.material_id === m.id ? 'bg-blue-50/50' : ''
+                                    }`}
+                                  >
+                                    <Text className="text-[10px] font-semibold text-slate-700">
+                                      {m.material_name} ({m.material_code})
+                                    </Text>
+                                  </Pressable>
+                                ))}
+                              </ScrollView>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Unit Box */}
+                        <View style={{ width: '13%' }}>
+                          <View className="bg-slate-100 border border-slate-200/80 rounded-lg px-2 py-2 items-center justify-center shadow-xs">
+                            <Text className="text-[11px] font-black text-slate-400 truncate uppercase">
+                              {matUnitShort}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Quantity input */}
+                        <View style={{ width: '12%' }}>
+                          <TextInput
+                            value={itm.quantity}
+                            onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
+                            placeholder="0.00"
+                            keyboardType="numeric"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                          />
+                        </View>
+
+                        {/* Rate / price input */}
+                        <View style={{ width: '12%' }}>
+                          <TextInput
+                            value={itm.unit_price}
+                            onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
+                            placeholder="0.00"
+                            keyboardType="numeric"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                          />
+                        </View>
+
+                        {/* GST Percentage input */}
+                        <View style={{ width: '11%' }}>
+                          <TextInput
+                            value={itm.gst}
+                            onChangeText={(val) => handleUpdatePurchaseLine(idx, 'gst', val)}
+                            placeholder="0"
+                            keyboardType="numeric"
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                          />
+                        </View>
+
+                        {/* Dynamic Row line amount */}
+                        <View style={{ width: '10%' }} className="items-end pr-1">
+                          <Text className="text-[11.5px] font-black text-slate-800">
+                            ₹{amount.toFixed(2)}
+                          </Text>
+                        </View>
+
+                        {/* Row Trash Remove item */}
+                        <View style={{ width: '4%' }} className="items-center">
+                          <Pressable
+                            onPress={() => handleRemovePurchaseLine(idx)}
+                            className="w-7 h-7 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
+                          >
+                            <Trash2 size={11} color="#dc2626" />
+                          </Pressable>
+                        </View>
+
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+
+              {/* SECTION C: TWO-COLUMN DETAILS SECTION */}
+              <View className="flex-row flex-wrap gap-4 pt-2 border-t border-slate-100">
+                
+                {/* Column C1: Remarks and mock attachments upload */}
+                <View className="flex-1 min-w-[280px] gap-4">
+                  
+                  {/* Notes Remarks input */}
+                  <View className="flex-col gap-1.5">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Notes / Remarks</Text>
+                    <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 shadow-inner">
                       <TextInput
-                        value={itm.quantity}
-                        onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
-                        placeholder="0.0"
-                        keyboardType="numeric"
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs"
+                        value={purchaseRemarks}
+                        onChangeText={(val) => setPurchaseRemarks(val.slice(0, 500))}
+                        placeholder="Log specific details, cargo vehicle numbers, etc."
+                        multiline
+                        numberOfLines={3}
+                        style={{ height: 64, textAlignVertical: 'top' }}
+                        className="text-xs text-slate-800 font-semibold p-0 outline-none"
                       />
+                      <Text className="text-[8px] font-bold text-slate-400 self-end mt-1">
+                        {purchaseRemarks.length} / 500
+                      </Text>
                     </View>
-                    <View className="w-[20%] gap-1">
-                      <Text className="text-[9px] font-bold text-slate-400">Rate (₹)</Text>
-                      <TextInput
-                        value={itm.unit_price}
-                        onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
-                        placeholder="0.0"
-                        keyboardType="numeric"
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs"
-                      />
-                    </View>
-                    <Pressable
-                      onPress={() => handleRemovePurchaseLine(idx)}
-                      className="w-9 h-9 bg-rose-50 border border-rose-100 rounded-xl items-center justify-center mb-0.5 active:scale-95"
-                    >
-                      <X size={14} color="#e11d48" />
+                  </View>
+
+                  {/* Upload attachments mock */}
+                  <View className="flex-col gap-1.5">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Attachments (Optional)</Text>
+                    <Pressable className="bg-slate-50/50 border border-dashed border-slate-200 rounded-xl p-4 items-center justify-center gap-1">
+                      <Upload size={18} color="#0066b2" />
+                      <Text className="text-[10.5px] font-black text-blue-600">Click to upload or drag and drop</Text>
+                      <Text className="text-[8.5px] font-bold text-slate-400">PDF, JPG, PNG (Max. 5MB)</Text>
                     </Pressable>
                   </View>
-                ))}
+
+                </View>
+
+                {/* Column C2: Summary calculations block */}
+                <View className="w-full md:w-[38%] min-w-[240px] gap-1.5">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Summary</Text>
+                  
+                  <View className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 gap-2.5 shadow-xs">
+                    
+                    <View className="flex-row justify-between items-center border-b border-slate-200 pb-2">
+                      <View className="flex-row items-center gap-1.5">
+                        <FileText size={12} color="#64748b" />
+                        <Text className="text-[10.5px] font-black text-slate-800 uppercase tracking-wider">Summary</Text>
+                      </View>
+                    </View>
+
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-[10.5px] font-semibold text-slate-500">Total Items</Text>
+                      <Text className="text-[11px] font-black text-slate-700">{purchaseItems.length}</Text>
+                    </View>
+
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-[10.5px] font-semibold text-slate-500">Total Quantity</Text>
+                      <Text className="text-[11px] font-black text-slate-700">
+                        {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0), 0).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-[10.5px] font-semibold text-slate-500">Subtotal</Text>
+                      <Text className="text-[11px] font-black text-slate-700">
+                        ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-[10.5px] font-semibold text-slate-500">GST / Tax</Text>
+                      <Text className="text-[11px] font-black text-slate-700">
+                        ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-[10.5px] font-semibold text-slate-500">Freight</Text>
+                      <Text className="text-[11px] font-black text-slate-700">
+                        ₹{(Number(purchaseTransportCharges) || 0).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    <View className="border-t border-slate-200 pt-2 flex-row justify-between items-center mt-1">
+                      <Text className="text-xs font-black text-slate-800">Total Amount</Text>
+                      <Text className="text-sm font-black text-blue-600">
+                        ₹{(
+                          purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0) +
+                          purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0) +
+                          (Number(purchaseTransportCharges) || 0)
+                        ).toFixed(2)}
+                      </Text>
+                    </View>
+
+                  </View>
+                </View>
+
               </View>
 
-              <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Procurement Notes / Remarks</Text>
-                <TextInput
-                  value={purchaseRemarks}
-                  onChangeText={setPurchaseRemarks}
-                  placeholder="Log specific details, cargo vehicle numbers..."
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                />
-              </View>
             </ScrollView>
 
-            <Pressable onPress={handleRecordPurchase} className="bg-emerald-600 py-3 rounded-2xl items-center mt-5">
-              <Text className="text-xs font-bold text-white">Record Procurement Invoice</Text>
-            </Pressable>
+            {/* ─── FOOTER ACTIONS ──────────────────────────────────────────────── */}
+            <View className="border-t border-slate-100 pt-4 flex-row justify-end items-center gap-3">
+              <Pressable
+                onPress={() => {
+                  setIsPurchaseModalOpen(false);
+                  setModalError(null);
+                }}
+                className="px-5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl items-center active:scale-95"
+              >
+                <Text className="text-xs font-bold text-slate-600">Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleRecordPurchase}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 rounded-xl items-center active:scale-95 shadow-sm"
+              >
+                <Text className="text-xs font-bold text-white">Record Procurement Invoice</Text>
+              </Pressable>
+            </View>
+
           </View>
         </View>
       </Modal>
