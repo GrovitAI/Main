@@ -20,6 +20,7 @@ import {
   Calendar,
   Check,
   ChevronRight,
+  Database,
   FileText,
   Info,
   Plus,
@@ -75,7 +76,7 @@ import {
 
 // ─── TABS DEFINITION ─────────────────────────────────────────────────────────
 
-type TabName = 'dashboard' | 'materials' | 'suppliers' | 'purchases' | 'wastage' | 'audit';
+type TabName = 'dashboard' | 'master' | 'purchases' | 'wastage' | 'audit';
 
 interface TabItem {
   id: TabName;
@@ -85,8 +86,7 @@ interface TabItem {
 
 const TABS: TabItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { id: 'materials', label: 'Materials', icon: Boxes },
-  { id: 'suppliers', label: 'Suppliers', icon: User },
+  { id: 'master', label: 'Master setup', icon: Database },
   { id: 'purchases', label: 'Purchases', icon: Truck },
   { id: 'wastage', label: 'Wastage Register', icon: AlertTriangle },
   { id: 'audit', label: 'Alerts & Logs', icon: ShieldAlert },
@@ -99,6 +99,7 @@ export default function InventoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [masterSubTab, setMasterSubTab] = useState<'materials' | 'suppliers'>('materials');
 
   // ─── DATA STATES ───────────────────────────────────────────────────────────
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
@@ -1155,14 +1156,55 @@ export default function InventoryScreen() {
     );
   };
 
+  const renderMaster = () => {
+    return (
+      <View className="flex-1">
+        {/* Sub pill navigation */}
+        <View className="flex-row bg-slate-100 border border-slate-200/60 rounded-2xl p-1 mx-6 mt-4 self-start shadow-sm mb-2">
+          <Pressable
+            onPress={() => setMasterSubTab('materials')}
+            className={`flex-row items-center px-6 py-2.5 rounded-xl gap-2 active:scale-95 transition-all ${
+              masterSubTab === 'materials' ? 'bg-white shadow-sm' : ''
+            }`}
+          >
+            <Boxes size={15} color={masterSubTab === 'materials' ? '#0066b2' : '#64748b'} />
+            <Text
+              className={`text-xs font-bold ${
+                masterSubTab === 'materials' ? 'text-[#0066b2]' : 'text-slate-500'
+              }`}
+            >
+              Raw Materials Master
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setMasterSubTab('suppliers')}
+            className={`flex-row items-center px-6 py-2.5 rounded-xl gap-2 active:scale-95 transition-all ${
+              masterSubTab === 'suppliers' ? 'bg-white shadow-sm' : ''
+            }`}
+          >
+            <User size={15} color={masterSubTab === 'suppliers' ? '#0066b2' : '#64748b'} />
+            <Text
+              className={`text-xs font-bold ${
+                masterSubTab === 'suppliers' ? 'text-[#0066b2]' : 'text-slate-500'
+              }`}
+            >
+              Supplier Master Directory
+            </Text>
+          </Pressable>
+        </View>
+
+        {masterSubTab === 'materials' ? renderMaterials() : renderSuppliers()}
+      </View>
+    );
+  };
+
   const renderActiveTabPanel = () => {
     switch (activeTab) {
       case 'dashboard':
         return renderDashboard();
-      case 'materials':
-        return renderMaterials();
-      case 'suppliers':
-        return renderSuppliers();
+      case 'master':
+        return renderMaster();
       case 'purchases':
         return renderPurchases();
       case 'wastage':
