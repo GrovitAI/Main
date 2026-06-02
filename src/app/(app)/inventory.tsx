@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  Tag,
   Trash2,
   TrendingUp,
   Truck,
@@ -59,6 +60,8 @@ import {
   deleteMaterial,
   saveSupplier,
   deleteSupplier,
+  saveCategory,
+  deleteCategory,
   type InventoryCategory,
   type InventoryUnit,
   type InventorySupplier,
@@ -99,7 +102,7 @@ export default function InventoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
-  const [masterSubTab, setMasterSubTab] = useState<'materials' | 'suppliers'>('materials');
+  const [masterSubTab, setMasterSubTab] = useState<'materials' | 'categories' | 'suppliers'>('materials');
 
   // ─── DATA STATES ───────────────────────────────────────────────────────────
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
@@ -123,6 +126,9 @@ export default function InventoryScreen() {
 
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Partial<InventorySupplier> | null>(null);
+
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Partial<InventoryCategory> | null>(null);
 
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [isWastageModalOpen, setIsWastageModalOpen] = useState(false);
@@ -176,6 +182,11 @@ export default function InventoryScreen() {
   const [formSupGst, setFormSupGst] = useState('');
   const [formSupTerms, setFormSupTerms] = useState('Net 15');
   const [formSupNotes, setFormSupNotes] = useState('');
+
+  // Category Form states
+  const [formCatName, setFormCatName] = useState('');
+  const [formCatCode, setFormCatCode] = useState('');
+  const [formCatDesc, setFormCatDesc] = useState('');
 
   // ─── CORE LOADER ───────────────────────────────────────────────────────────
 
@@ -417,6 +428,65 @@ export default function InventoryScreen() {
     setIsLoading(true);
     try {
       await deleteSupplier(id);
+      await loadAllData(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Category handlers
+  const handleOpenCategoryModal = (category?: InventoryCategory) => {
+    setModalError(null);
+    if (category) {
+      setEditingCategory(category);
+      setFormCatName(category.category_name);
+      setFormCatCode(category.category_code);
+      setFormCatDesc(category.description || '');
+    } else {
+      setEditingCategory(null);
+      setFormCatName('');
+      setFormCatCode('');
+      setFormCatDesc('');
+    }
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!formCatName.trim()) {
+      setModalError('Category Name is required.');
+      return;
+    }
+    if (!formCatCode.trim()) {
+      setModalError('Category Code is required.');
+      return;
+    }
+
+    setModalError(null);
+    setIsLoading(true);
+    try {
+      const payload: Partial<InventoryCategory> = {
+        id: editingCategory?.id,
+        category_name: formCatName,
+        category_code: formCatCode || editingCategory?.category_code,
+        description: formCatDesc || null,
+      };
+      await saveCategory(payload);
+      setIsCategoryModalOpen(false);
+      await loadAllData(true);
+    } catch (err: any) {
+      console.error(err);
+      setModalError(err.message || 'Failed to save category.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteCategoryItem = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await deleteCategory(id);
       await loadAllData(true);
     } catch (err) {
       console.error(err);
@@ -1156,6 +1226,72 @@ export default function InventoryScreen() {
     );
   };
 
+  const renderCategories = () => {
+    return (
+      <View className="flex-1 px-6 pt-4">
+        {/* Header */}
+        <View className="flex-row justify-between items-center mb-6">
+          <View className="flex-1 mr-4">
+            <Text className="text-base font-bold text-slate-800">Ingredients Categories & Classification</Text>
+            <Text className="text-xs text-slate-500">Group raw materials for precise spoilage targets and cost auditing</Text>
+          </View>
+          <Pressable
+            onPress={() => handleOpenCategoryModal()}
+            className="flex-row bg-blue-600 items-center justify-center py-2 px-3.5 rounded-xl shadow-sm active:scale-95 transition-transform"
+          >
+            <Plus size={13} color="white" className="mr-1" />
+            <Text className="text-xs font-bold text-white">Add Category</Text>
+          </Pressable>
+        </View>
+
+        {/* Categories list */}
+        <FlatList
+          key="categories-grid"
+          data={categories}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View className="py-20 w-full items-center justify-center">
+              <Tag size={48} color="#94a3b8" className="mb-4" />
+              <Text className="text-base font-bold text-slate-500">No categories found</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3.5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-row items-center flex-1 mr-4">
+                <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
+                  <Tag size={18} color={colors.primary} />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center mb-0.5">
+                    <Text className="text-sm font-black text-slate-800 mr-2">{item.category_name}</Text>
+                    <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">{item.category_code}</Text>
+                  </View>
+                  <Text className="text-xs text-slate-400 font-semibold">{item.description || 'No description logged.'}</Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-center gap-1.5">
+                <Pressable
+                  onPress={() => handleOpenCategoryModal(item)}
+                  className="w-7.5 h-7.5 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center hover:bg-blue-50 active:scale-95 transition-transform"
+                >
+                  <FileText size={13} color="#64748b" />
+                </Pressable>
+                <Pressable
+                  onPress={() => handleDeleteCategoryItem(item.id)}
+                  className="w-7.5 h-7.5 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center hover:bg-rose-50 active:scale-95 transition-transform"
+                >
+                  <Trash2 size={13} color="#e11d48" />
+                </Pressable>
+              </View>
+            </View>
+          )}
+        />
+      </View>
+    );
+  };
+
   const renderMaster = () => {
     return (
       <View className="flex-1">
@@ -1178,6 +1314,22 @@ export default function InventoryScreen() {
           </Pressable>
 
           <Pressable
+            onPress={() => setMasterSubTab('categories')}
+            className={`flex-row items-center px-6 py-2.5 rounded-xl gap-2 active:scale-95 transition-all ${
+              masterSubTab === 'categories' ? 'bg-white shadow-sm' : ''
+            }`}
+          >
+            <Tag size={15} color={masterSubTab === 'categories' ? '#0066b2' : '#64748b'} />
+            <Text
+              className={`text-xs font-bold ${
+                masterSubTab === 'categories' ? 'text-[#0066b2]' : 'text-slate-500'
+              }`}
+            >
+              Category setup
+            </Text>
+          </Pressable>
+
+          <Pressable
             onPress={() => setMasterSubTab('suppliers')}
             className={`flex-row items-center px-6 py-2.5 rounded-xl gap-2 active:scale-95 transition-all ${
               masterSubTab === 'suppliers' ? 'bg-white shadow-sm' : ''
@@ -1194,7 +1346,7 @@ export default function InventoryScreen() {
           </Pressable>
         </View>
 
-        {masterSubTab === 'materials' ? renderMaterials() : renderSuppliers()}
+        {masterSubTab === 'materials' ? renderMaterials() : masterSubTab === 'categories' ? renderCategories() : renderSuppliers()}
       </View>
     );
   };
@@ -1981,6 +2133,67 @@ export default function InventoryScreen() {
               className="bg-blue-600 py-3 rounded-2xl items-center mt-5"
             >
               <Text className="text-sm font-bold text-white">Record Adjust Movement</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 6. Add/Edit Category Modal */}
+      <Modal visible={isCategoryModalOpen} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[40%] rounded-3xl p-6 shadow-2xl">
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <Text className="text-lg font-bold text-slate-900">{editingCategory ? 'Edit Category Profile' : 'Create New Category'}</Text>
+              <Pressable onPress={() => { setIsCategoryModalOpen(false); setModalError(null); }}>
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
+
+            <ScrollView className="max-h-[400px] pr-2 gap-4">
+              <View className="gap-1 mb-3">
+                <Text className="text-xs font-bold text-slate-500">Category Name*</Text>
+                <TextInput
+                  value={formCatName}
+                  onChangeText={setFormCatName}
+                  placeholder="e.g., Dairy & Milks"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"
+                />
+              </View>
+
+              <View className="gap-1 mb-3">
+                <Text className="text-xs font-bold text-slate-500">Category Code (Short)*</Text>
+                <TextInput
+                  value={formCatCode}
+                  onChangeText={setFormCatCode}
+                  placeholder="e.g., CAT04"
+                  editable={!editingCategory}
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"
+                />
+              </View>
+
+              <View className="gap-1 mb-3">
+                <Text className="text-xs font-bold text-slate-500">Description / Explanations</Text>
+                <TextInput
+                  value={formCatDesc}
+                  onChangeText={setFormCatDesc}
+                  placeholder="Record what materials fit this category..."
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"
+                />
+              </View>
+            </ScrollView>
+
+            <Pressable
+              onPress={handleSaveCategory}
+              className="bg-blue-600 py-3 rounded-2xl items-center mt-5"
+            >
+              <Text className="text-sm font-bold text-white">Save Category</Text>
             </Pressable>
           </View>
         </View>
