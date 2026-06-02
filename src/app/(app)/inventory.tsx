@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -38,7 +39,8 @@ import {
   User,
   X,
 } from 'lucide-react-native';
-import Svg, { Circle, Path, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors } from '@/lib/pos/brand';
 import {
@@ -75,6 +77,11 @@ import {
   type DashboardKPIs,
 } from '@/lib/pos/inventory-service';
 
+// ─── LOGO ASSET LOAD ─────────────────────────────────────────────────────────
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
+
 // ─── TABS DEFINITION ─────────────────────────────────────────────────────────
 
 type TabName =
@@ -109,6 +116,16 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 ];
 
 // ─── VISUALIZATION HELPER COMPONENTS ─────────────────────────────────────────
+
+function SidebarDecoration() {
+  return (
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 180, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: '#ffffff' }} />
+    </View>
+  );
+}
 
 function Sparkline({ data, strokeColor = '#0066b2', fillColor = 'rgba(51, 153, 255, 0.1)' }: { data: number[]; strokeColor?: string; fillColor?: string }) {
   if (!data || data.length < 2) return null;
@@ -220,10 +237,10 @@ function ProcurementLineChart() {
     <View className="w-full overflow-hidden items-center">
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         <Defs>
-          <LinearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+          <SvgLinearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0%" stopColor="#3399ff" stopOpacity="0.25" />
             <Stop offset="100%" stopColor="#3399ff" stopOpacity="0.0" />
-          </LinearGradient>
+          </SvgLinearGradient>
         </Defs>
 
         {[0, 10000, 20000, 30000].map((yVal) => {
@@ -274,7 +291,6 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
   return (
     <View className="items-center justify-center relative" style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        {/* Spoilage */}
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -286,7 +302,6 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
           strokeDashoffset={circumference}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
-        {/* Expiry */}
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -298,7 +313,6 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
           strokeDashoffset={circumference - sStroke}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
-        {/* Theft */}
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -1546,12 +1560,12 @@ export default function InventoryScreen() {
                     </Text>
                   </View>
                 </View>
-                <div className="items-end">
+                <View className="items-end">
                   <Text className="text-sm font-black text-slate-900">₹{item.grand_total.toLocaleString('en-IN')}</Text>
                   <Text className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider mt-0.5">
                     {item.payment_mode}
                   </Text>
-                </div>
+                </View>
               </View>
 
               <View className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mt-2">
@@ -1630,10 +1644,10 @@ export default function InventoryScreen() {
                     </Text>
                   </View>
                 </View>
-                <div className="items-end">
+                <View className="items-end">
                   <Text className="text-sm font-black text-rose-700">₹{item.cost_impact.toFixed(2)}</Text>
                   <Text className="text-[10px] text-slate-400 mt-0.5">Qty lost: {item.quantity}</Text>
-                </div>
+                </View>
               </View>
 
               <View className="flex-row justify-between pt-3 mt-3 border-t border-slate-100 items-center flex-wrap gap-1">
@@ -1693,14 +1707,14 @@ export default function InventoryScreen() {
                       </Text>
                     </View>
                   </View>
-                  <div className="items-end">
+                  <View className="items-end">
                     <Text className={`text-sm font-black ${isAdd ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {isAdd ? '+' : '-'}{item.quantity}
                     </Text>
                     <Text className="text-[10px] text-slate-400 mt-0.5">
                       {new Date(item.adjustment_date).toLocaleDateString()}
                     </Text>
-                  </div>
+                  </View>
                 </View>
                 {item.remarks && (
                   <View className="bg-slate-50 rounded-lg p-2.5 mt-2.5 border border-slate-100">
@@ -1745,12 +1759,12 @@ export default function InventoryScreen() {
           <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
             <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage Leakage Analysis</Text>
             <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
-              <div>
+              <View>
                 <Text className="text-[9px] font-black text-rose-800 uppercase">Monthly Leakage</Text>
                 <Text className="text-2xl font-black text-rose-900 mt-1">
                   ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString() : '1,440'}
                 </Text>
-              </div>
+              </View>
               <View className="bg-rose-100 rounded-xl p-2">
                 <AlertTriangle size={20} color="#dc2626" />
               </View>
@@ -1923,7 +1937,7 @@ export default function InventoryScreen() {
                       {item.category_code}
                     </Text>
                   </View>
-                  <Text className="text-xs text-slate-400 font-semibold">{item.description || 'No descriptionlogged.'}</Text>
+                  <Text className="text-xs text-slate-400 font-semibold">{item.description || 'No description logged.'}</Text>
                 </View>
               </View>
 
@@ -1995,7 +2009,7 @@ export default function InventoryScreen() {
       case 'transfers':
         return 'Ledger adjustments and internal branch transfers';
       case 'reports':
-        return 'Deep analytics and monthly inventory margins';
+        return 'Deep analytics and monthly margin metrics';
       case 'alerts':
         return 'Critical system logs and low stock notifications';
       case 'units':
@@ -2020,18 +2034,31 @@ export default function InventoryScreen() {
     <View className="flex-1 bg-slate-50 flex-row">
       {/* LEFT SIDEBAR (Web/Tablet view) */}
       {width >= 768 && (
-        <View className="w-64 bg-[#002d5a] flex-col border-r border-[#001f3f] shadow-lg">
-          <View className="p-6 border-b border-[#001f3f] flex-row items-center gap-3">
-            <View className="w-9 h-9 rounded-xl bg-blue-600 items-center justify-center">
-              <Boxes size={20} color="white" />
-            </View>
-            <View>
-              <Text className="text-white font-black text-sm tracking-tight leading-none">Le Leban</Text>
-              <Text className="text-[9px] text-blue-300 font-bold tracking-widest uppercase mt-1">Inventory Center</Text>
+        <View style={{ width: 180, minWidth: 180, maxWidth: 180, overflow: 'hidden' }} className="flex-col h-full">
+          <LinearGradient
+            colors={['#0251b8', '#013b8c', '#012f70']}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+          <SidebarDecoration />
+
+          <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 28, paddingBottom: 24, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
+            <Image
+              source={leLabanLogo}
+              style={{ height: 48, width: 75, resizeMode: 'contain', opacity: 0.96 }}
+              accessibilityLabel="Le Leban logo"
+            />
+            <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
+              Inventory Center
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
+              <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
+                Online
+              </Text>
             </View>
           </View>
 
-          <ScrollView className="flex-1 px-4 py-4 gap-1.5" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 px-3 py-4 gap-1" showsVerticalScrollIndicator={false}>
             {SIDEBAR_ITEMS.map((item) => {
               const IconComponent = item.icon;
               const isActive = activeTab === item.id;
@@ -2042,12 +2069,49 @@ export default function InventoryScreen() {
                     setActiveTab(item.id);
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`flex-row items-center px-4 py-3 rounded-xl gap-3 active:scale-95 transition-all ${
-                    isActive ? 'bg-blue-600/15 border-l-4 border-blue-500 pl-3' : 'hover:bg-white/5'
-                  }`}
+                  style={({ hovered, pressed }: any) => [
+                    {
+                      borderRadius: 14,
+                      paddingHorizontal: 12,
+                      height: 40,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 6,
+                    },
+                    isActive && {
+                      borderTopWidth: 1,
+                      borderTopColor: 'rgba(255,255,255,0.10)',
+                      shadowColor: '#000000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.08,
+                      shadowRadius: 12,
+                      elevation: 2,
+                    },
+                    !isActive && hovered && {
+                      backgroundColor: 'rgba(255,255,255,0.08)',
+                      transform: [{ translateX: 2 }],
+                    },
+                    pressed && {
+                      opacity: 0.85,
+                      transform: [{ scale: 0.98 }]
+                    }
+                  ]}
                 >
-                  <IconComponent size={18} color={isActive ? '#3399ff' : '#94a3b8'} />
-                  <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-slate-300'}`}>
+                  {isActive && (
+                    <LinearGradient
+                      colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                    />
+                  )}
+                  <IconComponent size={14} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: isActive ? '600' : '500',
+                      color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
+                    }}
+                  >
                     {item.label}
                   </Text>
                 </Pressable>
@@ -2055,17 +2119,13 @@ export default function InventoryScreen() {
             })}
           </ScrollView>
 
-          <View className="p-4 border-t border-[#001f3f] bg-[#002040]">
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-8 h-8 rounded-full bg-blue-500 items-center justify-center">
-                <Text className="text-xs font-black text-white">LL</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-xs font-bold text-white leading-none">Le Leban Restaurant</Text>
-                <Text className="text-[9px] text-slate-400 font-semibold mt-0.5">ABC Branch</Text>
-              </View>
-            </View>
-            <Text className="text-[9px] text-slate-500 text-center mt-4">© 2026 Le Leban • v2.4.0</Text>
+          <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', backgroundColor: '#002040' }}>
+            <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', fontWeight: '600', textAlign: 'center' }}>
+              ABC Branch
+            </Text>
+            <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 2 }}>
+              © 2026 Le Leban • v2.4.0
+            </Text>
           </View>
         </View>
       )}
@@ -2131,23 +2191,30 @@ export default function InventoryScreen() {
       {/* MOBILE MENU DRAWER MODAL */}
       <Modal visible={isMobileMenuOpen && width < 768} animationType="slide" transparent>
         <View className="flex-1 bg-black/60 flex-row">
-          <View className="w-64 bg-[#002d5a] flex-col h-full shadow-2xl">
-            <View className="p-6 border-b border-[#001f3f] flex-row items-center justify-between">
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-blue-600 items-center justify-center">
-                  <Boxes size={18} color="white" />
-                </View>
-                <View>
-                  <Text className="text-white font-black text-xs leading-none">Le Leban</Text>
-                  <Text className="text-[9px] text-blue-300 font-bold uppercase mt-0.5">Inventory Center</Text>
-                </View>
+          <View style={{ width: 180, minWidth: 180, maxWidth: 180, overflow: 'hidden' }} className="flex-col h-full">
+            <LinearGradient
+              colors={['#0251b8', '#013b8c', '#012f70']}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            />
+            <SidebarDecoration />
+
+            <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 28, paddingBottom: 20, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
+              <View className="flex-row items-center justify-between w-full">
+                <Image
+                  source={leLabanLogo}
+                  style={{ height: 40, width: 62, resizeMode: 'contain', opacity: 0.96 }}
+                  accessibilityLabel="Le Leban logo"
+                />
+                <Pressable onPress={() => setIsMobileMenuOpen(false)} className="p-1 rounded-lg">
+                  <X size={16} color="white" />
+                </Pressable>
               </View>
-              <Pressable onPress={() => setIsMobileMenuOpen(false)} className="p-1 rounded-lg hover:bg-white/10">
-                <X size={18} color="white" />
-              </Pressable>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF', marginTop: 4 }}>
+                Inventory Center
+              </Text>
             </View>
 
-            <ScrollView className="flex-1 px-4 py-4 gap-1.5" showsVerticalScrollIndicator={false}>
+            <ScrollView className="flex-1 px-3 py-4 gap-1.5" showsVerticalScrollIndicator={false}>
               {SIDEBAR_ITEMS.map((item) => {
                 const IconComponent = item.icon;
                 const isActive = activeTab === item.id;
@@ -2158,12 +2225,45 @@ export default function InventoryScreen() {
                       setActiveTab(item.id);
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`flex-row items-center px-4 py-3 rounded-xl gap-3 active:scale-95 transition-all ${
-                      isActive ? 'bg-blue-600/15 border-l-4 border-blue-500 pl-3 bg-blue-600/10' : 'hover:bg-white/5'
-                    }`}
+                    style={({ pressed }: any) => [
+                      {
+                        borderRadius: 14,
+                        paddingHorizontal: 10,
+                        height: 40,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 6,
+                      },
+                      isActive && {
+                        borderTopWidth: 1,
+                        borderTopColor: 'rgba(255,255,255,0.10)',
+                        shadowColor: '#000000',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 12,
+                        elevation: 2,
+                      },
+                      pressed && {
+                        opacity: 0.85,
+                        transform: [{ scale: 0.98 }]
+                      }
+                    ]}
                   >
-                    <IconComponent size={18} color={isActive ? '#3399ff' : '#94a3b8'} />
-                    <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-slate-300'}`}>
+                    {isActive && (
+                      <LinearGradient
+                        colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                      />
+                    )}
+                    <IconComponent size={14} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: isActive ? '600' : '500',
+                        color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
+                      }}
+                    >
                       {item.label}
                     </Text>
                   </Pressable>
