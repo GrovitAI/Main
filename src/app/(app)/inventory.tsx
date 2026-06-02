@@ -3340,13 +3340,13 @@ export default function InventoryScreen() {
             <ScrollView showsVerticalScrollIndicator={false} className="flex-1" contentContainerStyle={{ gap: 16 }}>
               
               {/* SECTION A: INVOICE META DETAILS */}
-              <View className="flex-col gap-3">
+              <View className="flex-col gap-3" style={{ zIndex: 100 }}>
                 
                 {/* Row 1: Supplier and Invoice Number */}
                 <View className="flex-row flex-wrap gap-3.5">
                   
                   {/* Supplier dropdown */}
-                  <View className="flex-1 min-w-[280px] gap-1.5 relative">
+                  <View className="flex-1 min-w-[280px] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
                     <Pressable
                       onPress={() => {
@@ -3509,7 +3509,7 @@ export default function InventoryScreen() {
                   </View>
 
                   {/* Payment Mode */}
-                  <View className="flex-1 min-w-[130px] gap-1.5 relative">
+                  <View className="flex-1 min-w-[130px] gap-1.5 relative" style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
                     <Pressable
                       onPress={() => {
@@ -3564,7 +3564,7 @@ export default function InventoryScreen() {
                   </View>
 
                   {/* Storage destination */}
-                  <View className="flex-1 min-w-[130px] gap-1.5 relative">
+                  <View className="flex-1 min-w-[130px] gap-1.5 relative" style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
                     <Pressable
                       onPress={() => {
@@ -3608,7 +3608,7 @@ export default function InventoryScreen() {
               </View>
 
               {/* SECTION B: PROCUREMENT LINE ITEMS TABLE */}
-              <View className="border-t border-slate-100 pt-4 gap-2">
+              <View className="border-t border-slate-100 pt-4 gap-2" style={{ zIndex: 1 }}>
                 <View className="flex-row justify-between items-center mb-1">
                   <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Procurement Items</Text>
                   
@@ -3623,7 +3623,7 @@ export default function InventoryScreen() {
 
                 {/* Structured Columns Header */}
                 <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
-                  <View style={{ width: '35%' }}>
+                  <View style={{ width: '33%' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
                   </View>
                   <View style={{ width: '12%' }}>
@@ -3638,10 +3638,10 @@ export default function InventoryScreen() {
                   <View style={{ width: '11%' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">GST (%)</Text>
                   </View>
-                  <View style={{ width: '11%', alignItems: 'flex-end' }}>
+                  <View style={{ width: '12%', alignItems: 'flex-end' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Amount (₹)</Text>
                   </View>
-                  <View style={{ width: '7%', alignItems: 'center' }}>
+                  <View style={{ width: '5%', alignItems: 'center' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Action</Text>
                   </View>
                 </View>
@@ -3663,12 +3663,12 @@ export default function InventoryScreen() {
                     return (
                       <View
                         key={idx}
-                        className="flex-row items-center py-2 px-1 border-b border-slate-50 gap-1.5 relative"
+                        className="flex-row items-center py-2 px-1 border-b border-slate-50 relative"
                         style={{ zIndex: openLineMatDropdownIdx === idx ? 999 : 1 }}
                       >
                         
                         {/* Raw Material Select Dropdown */}
-                        <View style={{ width: '35%' }} className="relative">
+                        <View style={{ width: '33%' }} className="relative">
                           <Pressable
                             onPress={() => {
                               setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
@@ -3752,14 +3752,14 @@ export default function InventoryScreen() {
                         </View>
 
                         {/* Dynamic Row line amount */}
-                        <View style={{ width: '11%', alignItems: 'flex-end' }} className="pr-1">
+                        <View style={{ width: '12%', alignItems: 'flex-end' }} className="pr-1">
                           <Text className="text-[11.5px] font-black text-slate-800">
                             ₹{amount.toFixed(2)}
                           </Text>
                         </View>
 
                         {/* Row Trash Remove item */}
-                        <View style={{ width: '7%', alignItems: 'center' }}>
+                        <View style={{ width: '5%', alignItems: 'center' }}>
                           <Pressable
                             onPress={() => handleRemovePurchaseLine(idx)}
                             className="w-7 h-7 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
