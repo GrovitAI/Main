@@ -2095,9 +2095,9 @@ export default function InventoryScreen() {
           <View className="flex-col gap-8 pb-8">
           
           {/* SECTION A: INVOICE META DETAILS */}
-          <View className="flex-col gap-6" style={{ zIndex: 100 }}>
+          <View className="flex-col gap-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 3000 : 100 }}>
             {/* Row 1: Supplier and Invoice Number */}
-            <View className="flex-row flex-wrap gap-6">
+            <View className="flex-row flex-wrap gap-6" style={{ zIndex: isSupDropdownOpen ? 2000 : 10 }}>
               
               {/* Supplier dropdown */}
               <View className="flex-1 min-w-[280px] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
@@ -2132,7 +2132,7 @@ export default function InventoryScreen() {
                 </Pressable>
 
                 {isSupDropdownOpen && (
-                  <View className="absolute top-[72px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[140px] overflow-hidden">
+                  <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[140px] overflow-hidden">
                     <ScrollView nestedScrollEnabled className="flex-col">
                       {suppliers.map((s) => (
                         <Pressable
@@ -2175,7 +2175,7 @@ export default function InventoryScreen() {
             </View>
 
             {/* Row 2: Date, Payment, Freight */}
-            <View className="flex-row flex-wrap gap-6">
+            <View className="flex-row flex-wrap gap-6" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 2000 : 5 }}>
               
               {/* Date Input with Mini Calendar Popup */}
               <View className="flex-1 min-w-[180px] gap-1.5 relative" style={{ zIndex: 10000 }}>
