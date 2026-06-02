@@ -98,6 +98,7 @@ export default function InventoryScreen() {
   const [activeTab, setActiveTab] = useState<TabName>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // ─── DATA STATES ───────────────────────────────────────────────────────────
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
@@ -234,6 +235,7 @@ export default function InventoryScreen() {
   // ─── HANDLERS ──────────────────────────────────────────────────────────────
 
   const handleOpenMaterialModal = (material?: InventoryMaterial) => {
+    setModalError(null);
     if (material) {
       setEditingMaterial(material);
       setFormMatName(material.material_name);
@@ -263,7 +265,48 @@ export default function InventoryScreen() {
   };
 
   const handleSaveMaterial = async () => {
-    if (!formMatName.trim()) return;
+    if (!formMatName.trim()) {
+      setModalError('Material Name is required.');
+      return;
+    }
+    if (!formMatCode.trim()) {
+      setModalError('Material Code is required.');
+      return;
+    }
+    if (!formMatCategory) {
+      setModalError('Please select a Category.');
+      return;
+    }
+    if (!formMatUnit) {
+      setModalError('Please select a Unit of Measurement.');
+      return;
+    }
+    if (!formMatReorder.trim()) {
+      setModalError('Reorder Level is required.');
+      return;
+    }
+    if (isNaN(Number(formMatReorder)) || Number(formMatReorder) < 0) {
+      setModalError('Reorder Level must be a valid non-negative number.');
+      return;
+    }
+    if (!formMatOpening.trim()) {
+      setModalError('Opening Stock is required.');
+      return;
+    }
+    if (isNaN(Number(formMatOpening)) || Number(formMatOpening) < 0) {
+      setModalError('Opening Stock must be a valid non-negative number.');
+      return;
+    }
+    if (!formMatAvgCost.trim()) {
+      setModalError('Average Unit Cost is required.');
+      return;
+    }
+    if (isNaN(Number(formMatAvgCost)) || Number(formMatAvgCost) < 0) {
+      setModalError('Average Unit Cost must be a valid non-negative number.');
+      return;
+    }
+
+    setModalError(null);
     setIsLoading(true);
     try {
       const payload: Partial<InventoryMaterial> = {
@@ -283,8 +326,9 @@ export default function InventoryScreen() {
       await saveMaterial(payload);
       setIsMaterialModalOpen(false);
       await loadAllData(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setModalError(err.message || 'Failed to save material.');
     } finally {
       setIsLoading(false);
     }
@@ -304,6 +348,7 @@ export default function InventoryScreen() {
 
   // Supplier handlers
   const handleOpenSupplierModal = (supplier?: InventorySupplier) => {
+    setModalError(null);
     if (supplier) {
       setEditingSupplier(supplier);
       setFormSupName(supplier.supplier_name);
@@ -329,7 +374,20 @@ export default function InventoryScreen() {
   };
 
   const handleSaveSupplier = async () => {
-    if (!formSupName.trim() || !formSupPhone.trim()) return;
+    if (!formSupName.trim()) {
+      setModalError('Supplier Legal Name is required.');
+      return;
+    }
+    if (!formSupCode.trim()) {
+      setModalError('Supplier Code is required.');
+      return;
+    }
+    if (!formSupPhone.trim()) {
+      setModalError('Phone Number is required.');
+      return;
+    }
+
+    setModalError(null);
     setIsLoading(true);
     try {
       const payload: Partial<InventorySupplier> = {
@@ -346,8 +404,9 @@ export default function InventoryScreen() {
       await saveSupplier(payload);
       setIsSupplierModalOpen(false);
       await loadAllData(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setModalError(err.message || 'Failed to save supplier.');
     } finally {
       setIsLoading(false);
     }
@@ -365,9 +424,57 @@ export default function InventoryScreen() {
     }
   };
 
+  // Transaction trigger helpers to handle modal reset
+  const handleOpenPurchaseModal = () => {
+    setModalError(null);
+    setPurchaseSupplierId('');
+    setPurchaseInvoiceNum('');
+    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '' }]);
+    setPurchaseTransportCharges('0');
+    setPurchaseRemarks('');
+    setIsPurchaseModalOpen(true);
+  };
+
+  const handleOpenWastageModal = () => {
+    setModalError(null);
+    setWastageMaterialId('');
+    setWastageQty('');
+    setIsWastageModalOpen(true);
+  };
+
+  const handleOpenAdjustmentModal = () => {
+    setModalError(null);
+    setAdjMaterialId('');
+    setAdjQty('');
+    setAdjRemarks('');
+    setIsAdjustmentModalOpen(true);
+  };
+
   // Transaction triggers
   const handleRecordPurchase = async () => {
-    if (!purchaseSupplierId) return;
+    if (!purchaseSupplierId) {
+      setModalError('Please select a Supplier.');
+      return;
+    }
+    if (!purchaseInvoiceNum.trim()) {
+      setModalError('Invoice / Bill Number is required.');
+      return;
+    }
+    if (!purchasePaymentMode) {
+      setModalError('Please select a Payment Mode.');
+      return;
+    }
+
+    const invalidItems = purchaseItems.some(
+      itm => !itm.material_id || !itm.quantity || isNaN(Number(itm.quantity)) || Number(itm.quantity) <= 0 || !itm.unit_price || isNaN(Number(itm.unit_price)) || Number(itm.unit_price) <= 0
+    );
+
+    if (invalidItems) {
+      setModalError('Please enter valid Raw Material, Quantity (> 0), and Unit Price (> 0) for all items.');
+      return;
+    }
+
+    setModalError(null);
     setIsLoading(true);
     try {
       const headerPayload = {
@@ -399,20 +506,39 @@ export default function InventoryScreen() {
       await createPurchase(headerPayload, finalItems, purchaseLocation);
       setIsPurchaseModalOpen(false);
       // Reset builder
+      setPurchaseSupplierId('');
       setPurchaseItems([{ material_id: '', quantity: '', unit_price: '' }]);
       setPurchaseRemarks('');
       setPurchaseInvoiceNum('');
       setPurchaseTransportCharges('0');
       await loadAllData(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setModalError(err.message || 'Failed to record purchase invoice.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRecordWastage = async () => {
-    if (!wastageMaterialId || !wastageQty) return;
+    if (!wastageMaterialId) {
+      setModalError('Please choose a Raw Ingredient.');
+      return;
+    }
+    if (!wastageQty.trim()) {
+      setModalError('Quantity Lost is required.');
+      return;
+    }
+    if (isNaN(Number(wastageQty)) || Number(wastageQty) <= 0) {
+      setModalError('Quantity Lost must be a valid number greater than 0.');
+      return;
+    }
+    if (!wastageReason) {
+      setModalError('Please select a Wastage Reason.');
+      return;
+    }
+
+    setModalError(null);
     setIsLoading(true);
     try {
       const payload = {
@@ -424,17 +550,40 @@ export default function InventoryScreen() {
       };
       await createWastage(payload);
       setIsWastageModalOpen(false);
+      setWastageMaterialId('');
       setWastageQty('');
       await loadAllData(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setModalError(err.message || 'Failed to record wastage.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRecordAdjustment = async () => {
-    if (!adjMaterialId || !adjQty) return;
+    if (!adjMaterialId) {
+      setModalError('Please choose a Raw Ingredient.');
+      return;
+    }
+    if (!adjType) {
+      setModalError('Please select an Adjustment Type.');
+      return;
+    }
+    if (!adjQty.trim()) {
+      setModalError('Quantity is required.');
+      return;
+    }
+    if (isNaN(Number(adjQty)) || Number(adjQty) <= 0) {
+      setModalError('Quantity must be a valid number greater than 0.');
+      return;
+    }
+    if (!adjReason.trim()) {
+      setModalError('Audit / Adjust Reason is required.');
+      return;
+    }
+
+    setModalError(null);
     setIsLoading(true);
     try {
       const payload = {
@@ -449,11 +598,13 @@ export default function InventoryScreen() {
       };
       await createAdjustment(payload);
       setIsAdjustmentModalOpen(false);
+      setAdjMaterialId('');
       setAdjQty('');
       setAdjRemarks('');
       await loadAllData(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setModalError(err.message || 'Failed to record adjustment.');
     } finally {
       setIsLoading(false);
     }
@@ -801,7 +952,7 @@ export default function InventoryScreen() {
 
           <View className="flex-row gap-2">
             <Pressable
-              onPress={() => setIsAdjustmentModalOpen(true)}
+              onPress={handleOpenAdjustmentModal}
               className="flex-row bg-slate-100 items-center justify-center py-3 px-5 rounded-2xl active:scale-95 transition-transform"
             >
               <Info size={16} color="#64748b" className="mr-1.5" />
@@ -809,7 +960,7 @@ export default function InventoryScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => setIsPurchaseModalOpen(true)}
+              onPress={handleOpenPurchaseModal}
               className="flex-row bg-blue-600 items-center justify-center py-3 px-5 rounded-2xl shadow-md active:scale-95 transition-transform"
             >
               <Plus size={16} color="white" className="mr-1.5" />
@@ -892,7 +1043,7 @@ export default function InventoryScreen() {
             <Text className="text-xs text-slate-500">Maintain high accuracy on spoiled products, thefts, damages, and negative adjustments</Text>
           </View>
           <Pressable
-            onPress={() => setIsWastageModalOpen(true)}
+            onPress={handleOpenWastageModal}
             className="flex-row bg-rose-600 items-center justify-center py-3 px-5 rounded-2xl shadow-md active:scale-95 transition-transform"
           >
             <Plus size={16} color="white" className="mr-1.5" />
@@ -1153,10 +1304,17 @@ export default function InventoryScreen() {
           <View className="bg-white w-[50%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-lg font-bold text-slate-900">{editingMaterial ? 'Edit Raw Ingredient' : 'Register New Raw Material'}</Text>
-              <Pressable onPress={() => setIsMaterialModalOpen(false)}>
+              <Pressable onPress={() => { setIsMaterialModalOpen(false); setModalError(null); }}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
 
             <ScrollView className="max-h-[500px] pr-2 gap-4">
               <View className="gap-1 mb-3">
@@ -1299,10 +1457,17 @@ export default function InventoryScreen() {
           <View className="bg-white w-[50%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-lg font-bold text-slate-900">{editingSupplier ? 'Edit Supplier Profile' : 'Register New Supplier'}</Text>
-              <Pressable onPress={() => setIsSupplierModalOpen(false)}>
+              <Pressable onPress={() => { setIsSupplierModalOpen(false); setModalError(null); }}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
 
             <ScrollView className="max-h-[500px] pr-2 gap-4">
               <View className="gap-1 mb-3">
@@ -1411,10 +1576,17 @@ export default function InventoryScreen() {
           <View className="bg-white w-[60%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-lg font-bold text-slate-900">Record Procurement Supplier Invoice</Text>
-              <Pressable onPress={() => setIsPurchaseModalOpen(false)}>
+              <Pressable onPress={() => { setIsPurchaseModalOpen(false); setModalError(null); }}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
 
             <ScrollView className="max-h-[500px] pr-2 gap-4">
               <View className="flex-row justify-between mb-3">
@@ -1569,10 +1741,17 @@ export default function InventoryScreen() {
           <View className="bg-white w-[40%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-lg font-bold text-slate-900">Record Kitchen Waste & Spoils</Text>
-              <Pressable onPress={() => setIsWastageModalOpen(false)}>
+              <Pressable onPress={() => { setIsWastageModalOpen(false); setModalError(null); }}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
@@ -1660,10 +1839,17 @@ export default function InventoryScreen() {
           <View className="bg-white w-[40%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-lg font-bold text-slate-900">Manual Inventory Stock Adjustment</Text>
-              <Pressable onPress={() => setIsAdjustmentModalOpen(false)}>
+              <Pressable onPress={() => { setIsAdjustmentModalOpen(false); setModalError(null); }}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
+
+            {modalError && (
+              <View className="mb-4 bg-rose-50 border border-rose-100 rounded-xl p-3 flex-row items-center">
+                <AlertTriangle size={16} color="#e11d48" className="mr-2" />
+                <Text className="text-xs font-bold text-rose-700">{modalError}</Text>
+              </View>
+            )}
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
