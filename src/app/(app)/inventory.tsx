@@ -410,6 +410,8 @@ export default function InventoryScreen() {
   const [isLocDropdownOpen, setIsLocDropdownOpen] = useState(false);
   const [openLineMatDropdownIdx, setOpenLineMatDropdownIdx] = useState<number | null>(null);
   const [openLineUnitDropdownIdx, setOpenLineUnitDropdownIdx] = useState<number | null>(null);
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // New Wastage states
   const [wastageMaterialId, setWastageMaterialId] = useState('');
@@ -786,6 +788,8 @@ export default function InventoryScreen() {
     setIsLocDropdownOpen(false);
     setOpenLineMatDropdownIdx(null);
     setOpenLineUnitDropdownIdx(null);
+    setCalendarDate(new Date());
+    setIsCalendarOpen(false);
   };
 
   const handleOpenWastageModal = () => {
@@ -979,7 +983,10 @@ export default function InventoryScreen() {
   };
 
   const handleRemovePurchaseLine = (idx: number) => {
-    if (purchaseItems.length === 1) return;
+    if (purchaseItems.length === 1) {
+      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0' }]);
+      return;
+    }
     setPurchaseItems(purchaseItems.filter((_, i) => i !== idx));
   };
 
@@ -3417,18 +3424,88 @@ export default function InventoryScreen() {
                 {/* Row 2: Date, Payment, Freight, Storage */}
                 <View className="flex-row flex-wrap gap-3">
                   
-                  {/* Date Input */}
-                  <View className="flex-1 min-w-[130px] gap-1.5">
+                  {/* Date Input with Mini Calendar Popup */}
+                  <View className="flex-1 min-w-[130px] gap-1.5 relative" style={{ zIndex: 10000 }}>
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
-                    <View className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 shadow-inner">
-                      <Calendar size={14} color="#64748b" className="mr-2" />
-                      <TextInput
-                        value={purchaseInvoiceDate}
-                        onChangeText={setPurchaseInvoiceDate}
-                        placeholder="YYYY-MM-DD"
-                        className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
-                      />
-                    </View>
+                    <Pressable
+                      onPress={() => {
+                        setIsCalendarOpen(!isCalendarOpen);
+                        setIsSupDropdownOpen(false);
+                        setIsPayDropdownOpen(false);
+                        setIsLocDropdownOpen(false);
+                        setOpenLineMatDropdownIdx(null);
+                      }}
+                      className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
+                    >
+                      <View className="flex-row items-center gap-2">
+                        <Calendar size={14} color="#64748b" />
+                        <Text className="text-xs font-bold text-slate-700">{purchaseInvoiceDate}</Text>
+                      </View>
+                      <ChevronDown size={12} color="#64748b" />
+                    </Pressable>
+
+                    {isCalendarOpen && (
+                      <View className="absolute top-[58px] left-0 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-[9999] w-[240px]">
+                        {/* Calendar Header */}
+                        <View className="flex-row justify-between items-center mb-2 px-1">
+                          <Pressable
+                            onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))}
+                            className="w-5 h-5 rounded-full bg-slate-50 border border-slate-100 items-center justify-center active:scale-90"
+                          >
+                            <Text className="text-xs font-black text-slate-600">‹</Text>
+                          </Pressable>
+                          <Text className="text-xs font-black text-slate-800">
+                            {calendarDate.toLocaleString('default', { month: 'long' })} {calendarDate.getFullYear()}
+                          </Text>
+                          <Pressable
+                            onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))}
+                            className="w-5 h-5 rounded-full bg-slate-50 border border-slate-100 items-center justify-center active:scale-90"
+                          >
+                            <Text className="text-xs font-black text-slate-600">›</Text>
+                          </Pressable>
+                        </View>
+
+                        {/* Weekday headers */}
+                        <View className="flex-row mb-1">
+                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                            <View key={d} className="w-[14.28%] items-center">
+                              <Text className="text-[9px] font-black text-slate-400 uppercase">{d}</Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        {/* Days Grid */}
+                        <View className="flex-row flex-wrap">
+                          {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay() }).map((_, idx) => (
+                            <View key={`empty-${idx}`} className="w-[14.28%] py-1" />
+                          ))}
+                          {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate() }).map((_, idx) => {
+                            const dayNum = idx + 1;
+                            const formattedDay = String(dayNum).padStart(2, '0');
+                            const formattedMonth = String(calendarDate.getMonth() + 1).padStart(2, '0');
+                            const dateStr = `${calendarDate.getFullYear()}-${formattedMonth}-${formattedDay}`;
+                            const isSelected = purchaseInvoiceDate === dateStr;
+
+                            return (
+                              <Pressable
+                                key={`day-${dayNum}`}
+                                onPress={() => {
+                                  setPurchaseInvoiceDate(dateStr);
+                                  setIsCalendarOpen(false);
+                                }}
+                                className={`w-[14.28%] items-center justify-center py-1 rounded-full ${
+                                  isSelected ? 'bg-blue-600' : 'hover:bg-slate-50 active:bg-slate-100'
+                                }`}
+                              >
+                                <Text className={`text-[10px] font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                                  {dayNum}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
                   </View>
 
                   {/* Payment Mode */}
@@ -3440,6 +3517,7 @@ export default function InventoryScreen() {
                         setIsSupDropdownOpen(false);
                         setIsLocDropdownOpen(false);
                         setOpenLineMatDropdownIdx(null);
+                        setIsCalendarOpen(false);
                       }}
                       className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
                     >
@@ -3494,6 +3572,7 @@ export default function InventoryScreen() {
                         setIsSupDropdownOpen(false);
                         setIsPayDropdownOpen(false);
                         setOpenLineMatDropdownIdx(null);
+                        setIsCalendarOpen(false);
                       }}
                       className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3 py-2.5 justify-between active:scale-[99%]"
                     >
@@ -3544,10 +3623,10 @@ export default function InventoryScreen() {
 
                 {/* Structured Columns Header */}
                 <View className="flex-row border-b border-slate-100 pb-2 px-1 flex-wrap">
-                  <View style={{ width: '38%' }}>
+                  <View style={{ width: '35%' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Raw Material</Text>
                   </View>
-                  <View style={{ width: '13%' }}>
+                  <View style={{ width: '12%' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
                   </View>
                   <View style={{ width: '12%' }}>
@@ -3559,10 +3638,12 @@ export default function InventoryScreen() {
                   <View style={{ width: '11%' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">GST (%)</Text>
                   </View>
-                  <View style={{ width: '10%', alignItems: 'flex-end' }}>
+                  <View style={{ width: '11%', alignItems: 'flex-end' }}>
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Amount (₹)</Text>
                   </View>
-                  <View style={{ width: '4%' }} />
+                  <View style={{ width: '7%', alignItems: 'center' }}>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Action</Text>
+                  </View>
                 </View>
 
                 {/* Table Body List */}
@@ -3582,17 +3663,19 @@ export default function InventoryScreen() {
                     return (
                       <View
                         key={idx}
-                        className="flex-row items-center py-2 px-1 border-b border-slate-50 gap-1.5 relative z-10"
+                        className="flex-row items-center py-2 px-1 border-b border-slate-50 gap-1.5 relative"
+                        style={{ zIndex: openLineMatDropdownIdx === idx ? 999 : 1 }}
                       >
                         
                         {/* Raw Material Select Dropdown */}
-                        <View style={{ width: '38%' }} className="relative">
+                        <View style={{ width: '35%' }} className="relative">
                           <Pressable
                             onPress={() => {
                               setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
                               setIsSupDropdownOpen(false);
                               setIsPayDropdownOpen(false);
                               setIsLocDropdownOpen(false);
+                              setIsCalendarOpen(false);
                             }}
                             className="flex-row bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 items-center justify-between shadow-xs active:scale-[98%]"
                           >
@@ -3603,7 +3686,7 @@ export default function InventoryScreen() {
                           </Pressable>
 
                           {openLineMatDropdownIdx === idx && (
-                            <View className="absolute top-[34px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-[130px] overflow-hidden">
+                            <View className="absolute top-[34px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-[9999] p-1 max-h-[130px] overflow-hidden" style={{ zIndex: 10000 }}>
                               <ScrollView nestedScrollEnabled className="flex-col">
                                 {materials.map((m) => (
                                   <Pressable
@@ -3627,7 +3710,7 @@ export default function InventoryScreen() {
                         </View>
 
                         {/* Unit Box */}
-                        <View style={{ width: '13%' }}>
+                        <View style={{ width: '12%' }}>
                           <View className="bg-slate-100 border border-slate-200/80 rounded-lg px-2 py-2 items-center justify-center shadow-xs">
                             <Text className="text-[11px] font-black text-slate-400 truncate uppercase">
                               {matUnitShort}
@@ -3669,14 +3752,14 @@ export default function InventoryScreen() {
                         </View>
 
                         {/* Dynamic Row line amount */}
-                        <View style={{ width: '10%' }} className="items-end pr-1">
+                        <View style={{ width: '11%', alignItems: 'flex-end' }} className="pr-1">
                           <Text className="text-[11.5px] font-black text-slate-800">
                             ₹{amount.toFixed(2)}
                           </Text>
                         </View>
 
                         {/* Row Trash Remove item */}
-                        <View style={{ width: '4%' }} className="items-center">
+                        <View style={{ width: '7%', alignItems: 'center' }}>
                           <Pressable
                             onPress={() => handleRemovePurchaseLine(idx)}
                             className="w-7 h-7 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
@@ -3694,36 +3777,26 @@ export default function InventoryScreen() {
               {/* SECTION C: TWO-COLUMN DETAILS SECTION */}
               <View className="flex-row flex-wrap gap-4 pt-2 border-t border-slate-100">
                 
-                {/* Column C1: Remarks and mock attachments upload */}
+                {/* Column C1: Remarks Notes */}
                 <View className="flex-1 min-w-[280px] gap-4">
                   
                   {/* Notes Remarks input */}
-                  <View className="flex-col gap-1.5">
+                  <View className="flex-col gap-1.5 flex-1">
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Notes / Remarks</Text>
-                    <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 shadow-inner">
+                    <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 shadow-inner flex-1 justify-between">
                       <TextInput
                         value={purchaseRemarks}
                         onChangeText={(val) => setPurchaseRemarks(val.slice(0, 500))}
                         placeholder="Log specific details, cargo vehicle numbers, etc."
                         multiline
-                        numberOfLines={3}
-                        style={{ height: 64, textAlignVertical: 'top' }}
+                        numberOfLines={4}
+                        style={{ height: 110, textAlignVertical: 'top' }}
                         className="text-xs text-slate-800 font-semibold p-0 outline-none"
                       />
                       <Text className="text-[8px] font-bold text-slate-400 self-end mt-1">
                         {purchaseRemarks.length} / 500
                       </Text>
                     </View>
-                  </View>
-
-                  {/* Upload attachments mock */}
-                  <View className="flex-col gap-1.5">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Attachments (Optional)</Text>
-                    <Pressable className="bg-slate-50/50 border border-dashed border-slate-200 rounded-xl p-4 items-center justify-center gap-1">
-                      <Upload size={18} color="#0066b2" />
-                      <Text className="text-[10.5px] font-black text-blue-600">Click to upload or drag and drop</Text>
-                      <Text className="text-[8.5px] font-bold text-slate-400">PDF, JPG, PNG (Max. 5MB)</Text>
-                    </Pressable>
                   </View>
 
                 </View>
