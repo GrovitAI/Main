@@ -1150,6 +1150,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         }
         return {
           billPrintedByOrderId: nextPrinted,
+          isEditingUnpaid: false, // Exit edit mode upon printing provisional bill
+          hasUnsavedChanges: false,
         };
       });
       return true;
