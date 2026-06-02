@@ -21,6 +21,7 @@ import {
   Boxes,
   Calendar,
   Check,
+  ChevronDown,
   ChevronRight,
   Database,
   FileText,
@@ -344,6 +345,7 @@ export default function InventoryScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMasterExpanded, setIsMasterExpanded] = useState(false);
 
   // ─── DATA STATES ───────────────────────────────────────────────────────────
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
@@ -470,6 +472,12 @@ export default function InventoryScreen() {
   useEffect(() => {
     loadAllData();
   }, []);
+
+  useEffect(() => {
+    if (['materials', 'suppliers', 'units', 'categories'].includes(activeTab)) {
+      setIsMasterExpanded(true);
+    }
+  }, [activeTab]);
 
   // ─── FILTERS ───────────────────────────────────────────────────────────────
 
@@ -2059,14 +2067,168 @@ export default function InventoryScreen() {
           </View>
 
           <ScrollView className="flex-1 px-3 py-4 gap-1" showsVerticalScrollIndicator={false}>
-            {SIDEBAR_ITEMS.map((item) => {
+            {/* Dashboard */}
+            <Pressable
+              onPress={() => {
+                setActiveTab('dashboard');
+                setIsMobileMenuOpen(false);
+              }}
+              style={({ hovered, pressed }: any) => [
+                {
+                  borderRadius: 14,
+                  paddingHorizontal: 12,
+                  height: 40,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 6,
+                },
+                activeTab === 'dashboard' && {
+                  borderTopWidth: 1,
+                  borderTopColor: 'rgba(255,255,255,0.10)',
+                  shadowColor: '#000000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 12,
+                  elevation: 2,
+                },
+                activeTab !== 'dashboard' && hovered && {
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                  transform: [{ translateX: 2 }],
+                },
+                pressed && {
+                  opacity: 0.85,
+                  transform: [{ scale: 0.98 }]
+                }
+              ]}
+            >
+              {activeTab === 'dashboard' && (
+                <LinearGradient
+                  colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                />
+              )}
+              <BarChart3 size={14} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: activeTab === 'dashboard' ? '600' : '500',
+                  color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
+                }}
+              >
+                Dashboard
+              </Text>
+            </Pressable>
+
+            {/* Master Collapsible Group Header */}
+            <Pressable
+              onPress={() => setIsMasterExpanded(!isMasterExpanded)}
+              style={({ hovered, pressed }: any) => [
+                {
+                  borderRadius: 14,
+                  paddingHorizontal: 12,
+                  height: 40,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 6,
+                },
+                hovered && {
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                },
+                pressed && {
+                  opacity: 0.85,
+                }
+              ]}
+            >
+              <Database size={14} color="rgba(255, 255, 255, 0.8)" />
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '500',
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  flex: 1,
+                }}
+              >
+                Master Setup
+              </Text>
+              {isMasterExpanded ? (
+                <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" />
+              ) : (
+                <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" />
+              )}
+            </Pressable>
+
+            {/* Master Sub-items */}
+            {isMasterExpanded && (
+              <View style={{ paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.12)', marginLeft: 16, marginBottom: 8, gap: 4 }}>
+                {[
+                  { id: 'materials', label: 'Raw Materials', icon: Boxes },
+                  { id: 'suppliers', label: 'Suppliers', icon: User },
+                  { id: 'units', label: 'Units', icon: Database },
+                  { id: 'categories', label: 'Categories', icon: Tag }
+                ].map((sub) => {
+                  const SubIcon = sub.icon;
+                  const isActive = activeTab === sub.id;
+                  return (
+                    <Pressable
+                      key={sub.id}
+                      onPress={() => {
+                        setActiveTab(sub.id as TabName);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      style={({ hovered, pressed }: any) => [
+                        {
+                          borderRadius: 10,
+                          paddingHorizontal: 8,
+                          height: 32,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginBottom: 2,
+                        },
+                        isActive && {
+                          backgroundColor: 'rgba(58,120,220,0.3)',
+                          borderLeftWidth: 2,
+                          borderLeftColor: '#3399ff',
+                        },
+                        !isActive && hovered && {
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                        },
+                        pressed && { opacity: 0.85 }
+                      ]}
+                    >
+                      <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
+                      <Text
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: isActive ? '600' : '500',
+                          color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
+                        }}
+                      >
+                        {sub.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Other main items */}
+            {[
+              { id: 'purchases', label: 'Purchases', icon: Truck },
+              { id: 'wastage', label: 'Wastage', icon: Trash2 },
+              { id: 'transfers', label: 'Transfers', icon: RefreshCw },
+              { id: 'reports', label: 'Reports', icon: TrendingUp },
+              { id: 'alerts', label: 'Alerts', icon: ShieldAlert }
+            ].map((item) => {
               const IconComponent = item.icon;
               const isActive = activeTab === item.id;
               return (
                 <Pressable
                   key={item.id}
                   onPress={() => {
-                    setActiveTab(item.id);
+                    setActiveTab(item.id as TabName);
                     setIsMobileMenuOpen(false);
                   }}
                   style={({ hovered, pressed }: any) => [
@@ -2215,14 +2377,158 @@ export default function InventoryScreen() {
             </View>
 
             <ScrollView className="flex-1 px-3 py-4 gap-1.5" showsVerticalScrollIndicator={false}>
-              {SIDEBAR_ITEMS.map((item) => {
+              {/* Dashboard */}
+              <Pressable
+                onPress={() => {
+                  setActiveTab('dashboard');
+                  setIsMobileMenuOpen(false);
+                }}
+                style={({ pressed }: any) => [
+                  {
+                    borderRadius: 14,
+                    paddingHorizontal: 10,
+                    height: 40,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 6,
+                  },
+                  activeTab === 'dashboard' && {
+                    borderTopWidth: 1,
+                    borderTopColor: 'rgba(255,255,255,0.10)',
+                    shadowColor: '#000000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 12,
+                    elevation: 2,
+                  },
+                  pressed && {
+                    opacity: 0.85,
+                    transform: [{ scale: 0.98 }]
+                  }
+                ]}
+              >
+                {activeTab === 'dashboard' && (
+                  <LinearGradient
+                    colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                  />
+                )}
+                <BarChart3 size={14} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: activeTab === 'dashboard' ? '600' : '500',
+                    color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
+                  }}
+                >
+                  Dashboard
+                </Text>
+              </Pressable>
+
+              {/* Master Collapsible Group Header */}
+              <Pressable
+                onPress={() => setIsMasterExpanded(!isMasterExpanded)}
+                style={({ pressed }: any) => [
+                  {
+                    borderRadius: 14,
+                    paddingHorizontal: 10,
+                    height: 40,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 6,
+                  },
+                  pressed && {
+                    opacity: 0.85,
+                  }
+                ]}
+              >
+                <Database size={14} color="rgba(255, 255, 255, 0.8)" />
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '500',
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    flex: 1,
+                  }}
+                >
+                  Master Setup
+                </Text>
+                {isMasterExpanded ? (
+                  <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" />
+                ) : (
+                  <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" />
+                )}
+              </Pressable>
+
+              {/* Master Sub-items */}
+              {isMasterExpanded && (
+                <View style={{ paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.12)', marginLeft: 14, marginBottom: 8, gap: 4 }}>
+                  {[
+                    { id: 'materials', label: 'Raw Materials', icon: Boxes },
+                    { id: 'suppliers', label: 'Suppliers', icon: User },
+                    { id: 'units', label: 'Units', icon: Database },
+                    { id: 'categories', label: 'Categories', icon: Tag }
+                  ].map((sub) => {
+                    const SubIcon = sub.icon;
+                    const isActive = activeTab === sub.id;
+                    return (
+                      <Pressable
+                        key={sub.id}
+                        onPress={() => {
+                          setActiveTab(sub.id as TabName);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        style={({ pressed }: any) => [
+                          {
+                            borderRadius: 10,
+                            paddingHorizontal: 8,
+                            height: 32,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            marginBottom: 2,
+                          },
+                          isActive && {
+                            backgroundColor: 'rgba(58,120,220,0.3)',
+                            borderLeftWidth: 2,
+                            borderLeftColor: '#3399ff',
+                          },
+                          pressed && { opacity: 0.85 }
+                        ]}
+                      >
+                        <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
+                        <Text
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: isActive ? '600' : '500',
+                            color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
+                          }}
+                        >
+                          {sub.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Other main items */}
+              {[
+                { id: 'purchases', label: 'Purchases', icon: Truck },
+                { id: 'wastage', label: 'Wastage', icon: Trash2 },
+                { id: 'transfers', label: 'Transfers', icon: RefreshCw },
+                { id: 'reports', label: 'Reports', icon: TrendingUp },
+                { id: 'alerts', label: 'Alerts', icon: ShieldAlert }
+              ].map((item) => {
                 const IconComponent = item.icon;
                 const isActive = activeTab === item.id;
                 return (
                   <Pressable
                     key={item.id}
                     onPress={() => {
-                      setActiveTab(item.id);
+                      setActiveTab(item.id as TabName);
                       setIsMobileMenuOpen(false);
                     }}
                     style={({ pressed }: any) => [
