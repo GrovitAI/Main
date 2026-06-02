@@ -33,6 +33,7 @@ import {
   User,
   X,
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors } from '@/lib/pos/brand';
 import {
@@ -1057,27 +1058,51 @@ export default function InventoryScreen() {
 
   return (
     <View className="flex-1 bg-slate-50">
-      {/* Visual Header */}
-      <View className="bg-white border-b border-slate-200 px-6 py-4 flex-row items-center justify-between shadow-sm z-50">
-        <View className="flex-row items-center">
-          <View className="w-10 h-10 bg-blue-600 rounded-xl items-center justify-center mr-3 shadow-md">
-            <Boxes size={20} color="white" />
+      {/* Branded Top Header Surface */}
+      <LinearGradient
+        colors={['#024db1', '#01389e']}
+        style={{
+          paddingHorizontal: 24,
+          paddingTop: 16,
+          paddingBottom: 14,
+          height: 84,
+          justifyContent: 'center',
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+              Le Leban Inventory Center
+            </Text>
+            <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
+              Enterprise Restaurant Procurement & Spoilage Register
+            </Text>
           </View>
-          <View>
-            <Text className="text-xl font-black text-slate-900 tracking-tight">GROVIT Inventory Center</Text>
-            <Text className="text-xs text-slate-500 font-medium">Enterprise Restaurant Procurement & Spoilage Register</Text>
-          </View>
-        </View>
-
-        <View className="flex-row gap-2">
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Refresh inventory"
             onPress={() => loadAllData()}
-            className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl items-center justify-center active:scale-95"
+            style={({ pressed }: any) => [
+              {
+                width: 36,
+                height: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                backgroundColor: 'rgba(255,255,255,0.12)',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.08)',
+              },
+              pressed && { opacity: 0.8 },
+            ]}
           >
-            <RefreshCw size={15} color="#64748b" />
+            {isLoading
+              ? <ActivityIndicator color="#FFFFFF" size="small" />
+              : <RefreshCw color="#FFFFFF" size={16} />
+            }
           </Pressable>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* Tabs list */}
       <View className="bg-white border-b border-slate-200 px-6 flex-row items-center shadow-xs">
