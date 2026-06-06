@@ -186,11 +186,20 @@ function SidebarLabel({
 }: {
   expanded: boolean;
   children: React.ReactNode;
-  style?: object;
+  style?: any;
 }) {
   if (Platform.OS !== 'web') {
     return expanded ? <>{children}</> : null;
   }
+  const flattened = style ? (Array.isArray(style) ? Object.assign({}, ...style) : style) : {};
+  const currentMarginLeft = 'marginLeft' in flattened ? flattened.marginLeft : 0;
+  const currentMarginRight = 'marginRight' in flattened ? flattened.marginRight : 0;
+
+  const cleanedStyle = { ...flattened };
+  delete cleanedStyle.marginLeft;
+  delete cleanedStyle.marginRight;
+  delete cleanedStyle.flex; // avoid flex layout thrashing during transition
+
   return (
     <View
       style={[
@@ -200,9 +209,11 @@ function SidebarLabel({
         {
           maxWidth: expanded ? 200 : 0,
           opacity: expanded ? 1 : 0,
-          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease',
+          marginLeft: expanded ? currentMarginLeft : 0,
+          marginRight: expanded ? currentMarginRight : 0,
+          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease, margin-left 240ms cubic-bezier(0.4,0,0.2,1), margin-right 240ms cubic-bezier(0.4,0,0.2,1)',
         } as any,
-        style,
+        cleanedStyle,
       ]}
     >
       {children}
@@ -4900,10 +4911,9 @@ export default function InventoryScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'flex-start',
-                  paddingLeft: Platform.OS === 'web' ? (SIDEBAR_COLLAPSED_W - 16) / 2 : (sidebarExpanded ? 10 : (SIDEBAR_COLLAPSED_W - 16) / 2),
+                  paddingLeft: Platform.OS === 'web' ? 12 : (sidebarExpanded ? 10 : 12),
                   paddingRight: 4,
-                  gap: 8,
-                  ...(Platform.OS === 'web' ? { transition: 'padding 240ms cubic-bezier(0.4,0,0.2,1)' } : {}),
+                  gap: 0,
                 },
                 activeTab === 'dashboard' && {
                   backgroundColor: 'rgba(58,120,220,0.9)',
@@ -4921,7 +4931,7 @@ export default function InventoryScreen() {
                 />
               )}
               <BarChart3 size={16} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
-              <SidebarLabel expanded={sidebarExpanded}>
+              <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 8 }}>
                 <Text style={{ fontSize: 11, fontWeight: activeTab === 'dashboard' ? '600' : '500', color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' } as any}>
                   Dashboard
                 </Text>
@@ -4940,24 +4950,23 @@ export default function InventoryScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'flex-start',
-                  paddingLeft: Platform.OS === 'web' ? (SIDEBAR_COLLAPSED_W - 16) / 2 : (sidebarExpanded ? 10 : (SIDEBAR_COLLAPSED_W - 16) / 2),
+                  paddingLeft: Platform.OS === 'web' ? 12 : (sidebarExpanded ? 10 : 12),
                   paddingRight: 4,
-                  gap: 8,
-                  ...(Platform.OS === 'web' ? { transition: 'padding 240ms cubic-bezier(0.4,0,0.2,1)' } : {}),
+                  gap: 0,
                 },
                 hovered && { backgroundColor: 'rgba(255,255,255,0.08)' },
                 pressed && { opacity: 0.85 }
               ]}
             >
               <Database size={16} color="rgba(255, 255, 255, 0.75)" />
-              <SidebarLabel expanded={sidebarExpanded} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 4 }}>
+              <SidebarLabel expanded={sidebarExpanded} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: 8 }}>
                 <Text style={{ fontSize: 11, fontWeight: '500', color: 'rgba(255, 255, 255, 0.8)', flex: 1, whiteSpace: 'nowrap' } as any}>
                   Master Setup
                 </Text>
                 {isMasterExpanded ? (
-                  <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" />
+                  <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" style={{ marginLeft: 4 }} />
                 ) : (
-                  <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" />
+                  <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" style={{ marginLeft: 4 }} />
                 )}
               </SidebarLabel>
             </Pressable>
@@ -5010,7 +5019,7 @@ export default function InventoryScreen() {
                           alignItems: 'center',
                           justifyContent: 'flex-start',
                           paddingLeft: sidebarExpanded ? 8 : 14,
-                          gap: 6,
+                          gap: 0,
                           marginBottom: 2,
                           ...(Platform.OS === 'web' ? { transition: 'padding-left 240ms, margin 240ms' } : {}),
                         },
@@ -5028,7 +5037,7 @@ export default function InventoryScreen() {
                       ]}
                     >
                       <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
-                      <SidebarLabel expanded={sidebarExpanded}>
+                      <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 6 }}>
                         <Text style={{ fontSize: 10.5, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)', whiteSpace: 'nowrap' } as any}>
                           {sub.label}
                         </Text>
@@ -5066,10 +5075,9 @@ export default function InventoryScreen() {
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'flex-start',
-                      paddingLeft: Platform.OS === 'web' ? (SIDEBAR_COLLAPSED_W - 16) / 2 : (sidebarExpanded ? 10 : (SIDEBAR_COLLAPSED_W - 16) / 2),
+                      paddingLeft: Platform.OS === 'web' ? 12 : (sidebarExpanded ? 10 : 12),
                       paddingRight: 4,
-                      gap: 8,
-                      ...(Platform.OS === 'web' ? { transition: 'padding 240ms cubic-bezier(0.4,0,0.2,1)' } : {}),
+                      gap: 0,
                     },
                     isActive && { backgroundColor: 'rgba(58,120,220,0.9)' },
                     !isActive && hovered && { backgroundColor: 'rgba(255,255,255,0.08)' },
@@ -5083,7 +5091,7 @@ export default function InventoryScreen() {
                     />
                   )}
                   <IconComponent size={16} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
-                  <SidebarLabel expanded={sidebarExpanded}>
+                  <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 8 }}>
                     <Text style={{ fontSize: 11, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' } as any}>
                       {item.label}
                     </Text>
@@ -5103,12 +5111,11 @@ export default function InventoryScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 6,
               opacity: hovered ? 1 : 0.85,
             })}
             accessibilityLabel={sidebarPinned ? 'Collapse sidebar' : 'Pin sidebar open'}
           >
-            <SidebarLabel expanded={sidebarExpanded}>
+            <SidebarLabel expanded={sidebarExpanded} style={{ marginRight: 6 }}>
               <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.3, whiteSpace: 'nowrap' } as any}>
                 {sidebarPinned ? 'PINNED OPEN' : 'AUTO-HIDE'}
               </Text>

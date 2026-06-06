@@ -2,10 +2,10 @@ import React, { useRef, useState, useEffect } from 'react';
 import {
   Animated,
   Easing,
-  FlatList,
   Image,
   Platform,
   Pressable,
+  ScrollView,
   Text,
   View,
 } from 'react-native';
@@ -101,25 +101,36 @@ function SidebarLabel({
 }: {
   expanded: boolean;
   children: React.ReactNode;
-  style?: object;
+  style?: any;
 }) {
   if (Platform.OS !== 'web') {
     // Native fallback: simple conditional render is fine
     return expanded ? <>{children}</> : null;
   }
+
+  const flattened = style ? (Array.isArray(style) ? Object.assign({}, ...style) : style) : {};
+  const currentMarginLeft = 'marginLeft' in flattened ? flattened.marginLeft : 0;
+  const currentMarginRight = 'marginRight' in flattened ? flattened.marginRight : 0;
+
+  const cleanedStyle = { ...flattened };
+  delete cleanedStyle.marginLeft;
+  delete cleanedStyle.marginRight;
+  delete cleanedStyle.flex; // avoid flex layout thrashing during transition
+
   return (
     <View
       style={[
         {
           overflow: 'hidden',
-          // CSS transition on maxWidth + opacity gives smooth fade-slide
         } as any,
         {
           maxWidth: expanded ? 200 : 0,
           opacity: expanded ? 1 : 0,
-          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease',
+          marginLeft: expanded ? currentMarginLeft : 0,
+          marginRight: expanded ? currentMarginRight : 0,
+          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease, margin-left 240ms cubic-bezier(0.4,0,0.2,1), margin-right 240ms cubic-bezier(0.4,0,0.2,1)',
         } as any,
-        style,
+        cleanedStyle,
       ]}
     >
       {children}
@@ -235,7 +246,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
             <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
-            <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
+            <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' } as any}>
               Online
             </Text>
           </View>
@@ -243,9 +254,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
       </View>
 
       {/* Category list */}
-      <FlatList
-        data={tabs}
-        keyExtractor={(item) => item.id ?? 'all'}
+      <ScrollView
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -254,10 +263,12 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           paddingHorizontal: 6,
           paddingBottom: 16,
         }}
-        renderItem={({ item }) => {
+      >
+        {tabs.map((item) => {
           const isActive = selectedCategoryId === item.id;
           return (
             <Pressable
+              key={item.id ?? 'all'}
               accessibilityRole="button"
               onPress={() => onSelectCategory(item.id)}
               style={({ hovered: h, pressed }: any) => [
@@ -267,15 +278,10 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'flex-start',
-                  paddingLeft: Platform.OS === 'web'
-                    ? (expanded ? 12 : (COLLAPSED_W - 18) / 2)
-                    : (expanded ? 12 : (COLLAPSED_W - 18) / 2),
+                  paddingLeft: 12,
                   paddingRight: 4,
                   gap: 0,
                   overflow: 'hidden',
-                  ...(Platform.OS === 'web'
-                    ? { transition: 'padding-left 240ms cubic-bezier(0.4,0,0.2,1)' }
-                    : {}),
                 },
                 isActive && {
                   shadowColor: '#000',
@@ -305,7 +311,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
               </View>
 
               {/* Label — fades in via CSS, no layout jump */}
-              <SidebarLabel expanded={expanded} style={{ flex: 1, marginLeft: 10 }}>
+              <SidebarLabel expanded={expanded} style={{ marginLeft: 10 }}>
                 <Text
                   style={{
                     fontSize: 12,
@@ -321,12 +327,12 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
               </SidebarLabel>
             </Pressable>
           );
-        }}
-      />
+        })}
+      </ScrollView>
 
       {/* Pin / collapse footer */}
       <Pressable
-        onPress={() => setPinned((v) => !v)}
+        onPress={() => setPinned(!pinned)}
         accessibilityLabel={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
         style={({ hovered: h }: any) => ({
           flexDirection: 'row',
@@ -338,10 +344,9 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           borderTopColor: 'rgba(255,255,255,0.08)',
           backgroundColor: '#002040',
           opacity: h ? 1 : 0.8,
-          gap: 6,
         })}
       >
-        <SidebarLabel expanded={expanded}>
+        <SidebarLabel expanded={expanded} style={{ marginRight: 6 }}>
           <Text
             style={{
               fontSize: 8,

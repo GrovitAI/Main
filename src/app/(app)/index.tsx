@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   useWindowDimensions,
@@ -1244,6 +1245,31 @@ export default function PosBillingScreen() {
             </Text>
           </View>
         </View>
+      ) : Platform.OS === 'web' ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 10 }}
+        >
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {visibleProducts.map((item, index) => (
+              <View
+                key={item.id}
+                style={{
+                  width: isTablet ? 'calc(25% - 9px)' : 'calc(50% - 6px)',
+                  minWidth: isTablet ? 150 : 120,
+                  marginBottom: 12,
+                } as any}
+              >
+                <ProductCard
+                  product={item}
+                  disabled={isMutating}
+                  onAdd={handleAddProduct}
+                  highlighted={!qtyMode && searchQuery.trim() !== '' && index === highlightedIndex}
+                />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={visibleProducts}
