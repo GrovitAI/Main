@@ -48,10 +48,13 @@ import {
   Home,
   Upload,
   Store,
+  MoreVertical,
+  Download,
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { BRANCH_ID, getTenantContext } from '@/lib/pos/tenant-context';
 import { colors } from '@/lib/pos/brand';
 import {
   fetchCategories,
@@ -59,7 +62,9 @@ import {
   fetchSuppliers,
   fetchMaterials,
   fetchPurchases,
+  fetchPurchaseItems,
   createPurchase,
+  updatePurchaseStatus,
   fetchAdjustments,
   createAdjustment,
   fetchWastage,
@@ -77,16 +82,36 @@ import {
   deleteCategory,
   saveUnit,
   deleteUnit,
+  fetchBranches,
+  fetchTransferRequests,
+  fetchTransferRequestItems,
+  createTransferRequest,
+  approveTransferRequest,
+  rejectTransferRequest,
+  cancelTransferRequest,
+  createDispatch,
+  receiveDispatch,
+  fetchDispatchItems,
+  fetchTransferEvents,
+  fetchDispatches,
   type InventoryCategory,
   type InventoryUnit,
   type InventorySupplier,
   type InventoryMaterial,
   type InventoryPurchaseHeader,
+  type InventoryPurchaseItem,
   type InventoryAdjustment,
   type InventoryWastage,
   type InventoryAuditLog,
   type InventoryAlert,
   type DashboardKPIs,
+  type Branch,
+  type InventoryTransferRequest,
+  type InventoryTransferRequestItem,
+  type InventoryDispatch,
+  type InventoryDispatchItem,
+  type InventoryTransferVariance,
+  type InventoryTransferEvent,
 } from '@/lib/pos/inventory-service';
 
 // ─── LOGO ASSET LOAD ─────────────────────────────────────────────────────────
@@ -399,6 +424,41 @@ export default function InventoryScreen() {
   const [isWastageModalOpen, setIsWastageModalOpen] = useState(false);
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
 
+  // ─── CENTRAL KITCHEN & TRANSFERS STATES ─────────────────────────────────────
+  const [simulatedBranchId, setSimulatedBranchId] = useState<string>(BRANCH_ID);
+  const [dbBranches, setDbBranches] = useState<Branch[]>([]);
+  const [transferRequests, setTransferRequests] = useState<InventoryTransferRequest[]>([]);
+  const [dispatchesList, setDispatchesList] = useState<InventoryDispatch[]>([]);
+  const [transferSubTab, setTransferSubTab] = useState<'requests' | 'dispatches' | 'adjustments'>('requests');
+  
+  // Modals for Transfers
+  const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
+  const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
+
+  // Forms & Details for Transfers
+  const [newReqFromBranchId, setNewReqFromBranchId] = useState('');
+  const [newReqRemarks, setNewReqRemarks] = useState('');
+  const [newReqItems, setNewReqItems] = useState<{ material_id: string; requested_quantity: string }[]>([
+    { material_id: '', requested_quantity: '' }
+  ]);
+
+  const [selectedRequest, setSelectedRequest] = useState<InventoryTransferRequest | null>(null);
+  const [reqItemsList, setReqItemsList] = useState<InventoryTransferRequestItem[]>([]);
+  const [approvedQuantities, setApprovedQuantities] = useState<Record<string, string>>({});
+  const [dispatchQuantities, setDispatchQuantities] = useState<Record<string, string>>({});
+  const [approveRemarks, setApproveRemarks] = useState('');
+
+  const [selectedDispatch, setSelectedDispatch] = useState<InventoryDispatch | null>(null);
+  const [dispItemsList, setDispItemsList] = useState<InventoryDispatchItem[]>([]);
+  const [receivedQuantities, setReceivedQuantities] = useState<Record<string, string>>({});
+  const [receiveRemarks, setReceiveRemarks] = useState('');
+
+  const [selectedRequestForEvents, setSelectedRequestForEvents] = useState<InventoryTransferRequest | null>(null);
+  const [requestEvents, setRequestEvents] = useState<InventoryTransferEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
   // ─── TRANSACT BUILDING STATES ──────────────────────────────────────────────
   // New Purchase states
   const [purchaseSupplierId, setPurchaseSupplierId] = useState('');
@@ -469,17 +529,28 @@ export default function InventoryScreen() {
   const [formUnitCode, setFormUnitCode] = useState('');
   const [formUnitShort, setFormUnitShort] = useState('');
 
+  // Purchase list view state
+  const [purSearchQuery, setPurSearchQuery] = useState('');
+  const [purStatusFilter, setPurStatusFilter] = useState<'all' | 'Paid' | 'Pending' | 'Overdue'>('all');
+  const [purPage, setPurPage] = useState(1);
+  const [purPageSize, setPurPageSize] = useState(10);
+  const [purOpenActionIdx, setPurOpenActionIdx] = useState<string | null>(null);
+  const [purMenuY, setPurMenuY] = useState(0);
+  const [purDetailItem, setPurDetailItem] = useState<InventoryPurchaseHeader | null>(null);
+  const [purDetailLines, setPurDetailLines] = useState<InventoryPurchaseItem[]>([]);
+  const [purDetailLoading, setPurDetailLoading] = useState(false);
+
   // ─── DATA LOADER ───────────────────────────────────────────────────────────
 
-  const loadAllData = async (silent = false) => {
+  const loadAllData = async (silent = false, targetBranchId = simulatedBranchId) => {
     if (!silent) setIsLoading(true);
     setErrorMsg(null);
     try {
       initializeLocalSeeder();
 
-      const [kpiRes, matRes, catRes, unitRes, supRes, purRes, wstRes, adjRes, audRes, alrtRes] = await Promise.all([
+      const [kpiRes, matRes, catRes, unitRes, supRes, purRes, wstRes, adjRes, audRes, alrtRes, branchRes, reqRes, dispRes] = await Promise.all([
         fetchInventoryDashboardKPIs(),
-        fetchMaterials(),
+        fetchMaterials(targetBranchId),
         fetchCategories(),
         fetchUnits(),
         fetchSuppliers(),
@@ -488,6 +559,9 @@ export default function InventoryScreen() {
         fetchAdjustments(),
         fetchAuditLogs(),
         fetchAlerts(),
+        fetchBranches(),
+        fetchTransferRequests(targetBranchId),
+        fetchDispatches(targetBranchId),
       ]);
 
       if (kpiRes.data) setKpis(kpiRes.data);
@@ -500,6 +574,9 @@ export default function InventoryScreen() {
       if (adjRes.data) setAdjustments(adjRes.data);
       if (audRes.data) setAuditLogs(audRes.data);
       if (alrtRes.data) setAlerts(alrtRes.data);
+      if (branchRes.data) setDbBranches(branchRes.data);
+      if (reqRes.data) setTransferRequests(reqRes.data);
+      if (dispRes.data) setDispatchesList(dispRes.data);
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to fetch inventory records.');
     } finally {
@@ -508,8 +585,8 @@ export default function InventoryScreen() {
   };
 
   useEffect(() => {
-    loadAllData();
-  }, []);
+    loadAllData(false, simulatedBranchId);
+  }, [simulatedBranchId]);
 
   useEffect(() => {
     if (['materials', 'suppliers', 'units', 'categories'].includes(activeTab)) {
@@ -888,6 +965,251 @@ export default function InventoryScreen() {
     setIsAdjustmentModalOpen(true);
   };
 
+  // ─── INTERNAL TRANSFERS HANDLERS ───────────────────────────────────────────
+
+  const handleOpenNewRequestModal = () => {
+    setModalError(null);
+    const ckBranch = dbBranches.find(b => b.branch_type === 'CENTRAL_KITCHEN' || b.branch_type === 'WAREHOUSE');
+    setNewReqFromBranchId(ckBranch ? ckBranch.id : '');
+    setNewReqRemarks('');
+    setNewReqItems([{ material_id: materials[0]?.id || '', requested_quantity: '' }]);
+    setIsNewRequestModalOpen(true);
+  };
+
+  const handleAddRequestItemRow = () => {
+    setNewReqItems([...newReqItems, { material_id: materials[0]?.id || '', requested_quantity: '' }]);
+  };
+
+  const handleRemoveRequestItemRow = (index: number) => {
+    if (newReqItems.length > 1) {
+      setNewReqItems(newReqItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleRequestItemChange = (index: number, field: 'material_id' | 'requested_quantity', value: string) => {
+    const next = [...newReqItems];
+    next[index][field] = value;
+    setNewReqItems(next);
+  };
+
+  const handleSaveTransferRequest = async () => {
+    if (!newReqFromBranchId) {
+      Alert.alert('Error', 'Please select supplying branch.');
+      return;
+    }
+    const validItems = newReqItems.filter(itm => itm.material_id && Number(itm.requested_quantity) > 0);
+    if (validItems.length === 0) {
+      Alert.alert('Error', 'Please add at least one material with quantity > 0.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const itemsPayload = validItems.map(itm => ({
+        material_id: itm.material_id,
+        requested_quantity: Number(itm.requested_quantity)
+      }));
+
+      const res = await createTransferRequest(
+        newReqFromBranchId,
+        simulatedBranchId,
+        itemsPayload,
+        newReqRemarks
+      );
+
+      if (res.error) throw new Error(res.error);
+      setIsNewRequestModalOpen(false);
+      Alert.alert('Success', 'Transfer request created successfully.');
+      await loadAllData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to create request.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenApprovalModal = async (req: InventoryTransferRequest) => {
+    setModalError(null);
+    setSelectedRequest(req);
+    setApproveRemarks('');
+    setIsLoading(true);
+    try {
+      const res = await fetchTransferRequestItems(req.id);
+      if (res.error) throw new Error(res.error);
+      const items = res.data || [];
+      setReqItemsList(items);
+
+      const initialApproved: Record<string, string> = {};
+      const initialDispatch: Record<string, string> = {};
+      
+      items.forEach(itm => {
+        initialApproved[itm.material_id] = String(itm.approved_quantity || itm.requested_quantity);
+        initialDispatch[itm.material_id] = String(itm.approved_quantity || itm.requested_quantity);
+      });
+
+      setApprovedQuantities(initialApproved);
+      setDispatchQuantities(initialDispatch);
+      setIsApprovalModalOpen(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load request items.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProcessApproval = async () => {
+    if (!selectedRequest) return;
+    const itemsPayload = reqItemsList.map(itm => ({
+      material_id: itm.material_id,
+      approved_quantity: Number(approvedQuantities[itm.material_id]) || 0
+    }));
+
+    setIsLoading(true);
+    try {
+      const res = await approveTransferRequest(selectedRequest.id, itemsPayload, 'Central Kitchen Staff');
+      if (res.error) throw new Error(res.error);
+      setIsApprovalModalOpen(false);
+      Alert.alert('Success', 'Transfer request approved.');
+      await loadAllData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to approve request.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProcessRejection = async () => {
+    if (!selectedRequest) return;
+    setIsLoading(true);
+    try {
+      const res = await rejectTransferRequest(selectedRequest.id, 'Central Kitchen Staff', approveRemarks);
+      if (res.error) throw new Error(res.error);
+      setIsApprovalModalOpen(false);
+      Alert.alert('Success', 'Transfer request rejected.');
+      await loadAllData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to reject request.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProcessCancelRequest = async (requestId: string) => {
+    Alert.alert(
+      'Cancel Request',
+      'Are you sure you want to cancel this transfer request? Any stock reservations will be released.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              const res = await cancelTransferRequest(requestId, 'Branch Staff', 'Cancelled by requesting branch.');
+              if (res.error) throw new Error(res.error);
+              Alert.alert('Success', 'Transfer request cancelled successfully.');
+              await loadAllData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to cancel request.');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleProcessDispatch = async () => {
+    if (!selectedRequest) return;
+    const itemsPayload = reqItemsList.map(itm => ({
+      material_id: itm.material_id,
+      dispatched_quantity: Number(dispatchQuantities[itm.material_id]) || 0
+    })).filter(itm => itm.dispatched_quantity > 0);
+
+    if (itemsPayload.length === 0) {
+      Alert.alert('Error', 'Please dispatch at least one item with quantity > 0.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await createDispatch(selectedRequest.id, itemsPayload, approveRemarks, 'Central Kitchen Staff');
+      if (res.error) throw new Error(res.error);
+      setIsApprovalModalOpen(false);
+      Alert.alert('Success', 'Stock dispatch shipment created.');
+      await loadAllData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to dispatch shipment.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenReceiveModal = async (disp: InventoryDispatch) => {
+    setModalError(null);
+    setSelectedDispatch(disp);
+    setReceiveRemarks('');
+    setIsLoading(true);
+    try {
+      const res = await fetchDispatchItems(disp.id);
+      if (res.error) throw new Error(res.error);
+      const items = res.data || [];
+      setDispItemsList(items);
+
+      const initialReceived: Record<string, string> = {};
+      items.forEach(itm => {
+        initialReceived[itm.id] = String(itm.dispatched_quantity);
+      });
+      setReceivedQuantities(initialReceived);
+      setIsReceiveModalOpen(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load dispatch items.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProcessReceive = async () => {
+    if (!selectedDispatch) return;
+    const itemsPayload = dispItemsList.map(itm => ({
+      id: itm.id,
+      material_id: itm.material_id,
+      dispatched_quantity: itm.dispatched_quantity,
+      received_quantity: Number(receivedQuantities[itm.id]) ?? itm.dispatched_quantity
+    }));
+
+    setIsLoading(true);
+    try {
+      const res = await receiveDispatch(selectedDispatch.id, itemsPayload, receiveRemarks, 'Branch Staff');
+      if (res.error) throw new Error(res.error);
+      setIsReceiveModalOpen(false);
+      Alert.alert('Success', 'Shipment receipt recorded and ledger updated.');
+      await loadAllData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to record shipment receipt.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenEventsModal = async (req: InventoryTransferRequest) => {
+    setSelectedRequestForEvents(req);
+    setRequestEvents([]);
+    setEventsLoading(true);
+    setIsEventsModalOpen(true);
+    try {
+      const res = await fetchTransferEvents(req.id);
+      if (res.error) throw new Error(res.error);
+      setRequestEvents(res.data || []);
+    } catch (err: any) {
+      console.error('Failed to load events', err);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
   const handleRecordPurchase = async () => {
     if (!purchaseSupplierId) {
       setModalError('Please select a Supplier.');
@@ -1063,6 +1385,12 @@ export default function InventoryScreen() {
   const handleUpdatePurchaseLine = (idx: number, key: string, value: string) => {
     const next = [...purchaseItems];
     next[idx] = { ...next[idx], [key]: value };
+    setPurchaseItems(next);
+  };
+
+  const handleUpdatePurchaseLineMulti = (idx: number, fields: Partial<{ material_id: string; quantity: string; unit_price: string; gst: string; unit_short_name: string }>) => {
+    const next = [...purchaseItems];
+    next[idx] = { ...next[idx], ...fields };
     setPurchaseItems(next);
   };
 
@@ -2046,88 +2374,648 @@ export default function InventoryScreen() {
   };
 
   const renderPurchases = () => {
+    // ── derive a display-status from status field ──────────────────────────
+    // Only 'Completed' = Paid. Draft invoices are Pending (< 30d) or Overdue (≥ 30d).
+    const getPayStatus = (p: InventoryPurchaseHeader): 'Paid' | 'Pending' | 'Overdue' => {
+      if (p.status === 'Completed') return 'Paid';
+      const invoiceDate = new Date(p.purchase_date);
+      const diffDays = (Date.now() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays >= 30 ? 'Overdue' : 'Pending';
+    };
+
+    // ── filter + search ────────────────────────────────────────────────────
+    const filtered = purchases.filter((p) => {
+      const q = purSearchQuery.toLowerCase();
+      const matchSearch =
+        !q ||
+        p.purchase_number.toLowerCase().includes(q) ||
+        (p.invoice_number || '').toLowerCase().includes(q) ||
+        (p.supplier_name || '').toLowerCase().includes(q);
+      const payStatus = getPayStatus(p);
+      const matchStatus = purStatusFilter === 'all' || payStatus === purStatusFilter;
+      return matchSearch && matchStatus;
+    });
+
+    // ── pagination ─────────────────────────────────────────────────────────
+    const totalPages = Math.ceil(filtered.length / purPageSize) || 1;
+    const paginated = filtered.slice((purPage - 1) * purPageSize, purPage * purPageSize);
+
+    // ── summary stats ──────────────────────────────────────────────────────
+    const totalAmt = purchases.reduce((s, p) => s + p.grand_total, 0);
+    const pendingCount = purchases.filter((p) => getPayStatus(p) !== 'Paid').length;
+    const supplierCount = new Set(purchases.map((p) => p.supplier_id)).size;
+
     return (
-      <View className="flex-1">
-        <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
-          <View className="flex-1 mr-4">
-            <Text className="text-sm font-bold text-slate-800">Purchase Invoices & Procurement Records</Text>
-            <Text className="text-xs text-slate-500">Record freight invoices, payment histories, and stock updates.</Text>
+      <View className="flex-1 flex-col gap-4">
+
+        {/* ── PAGE HEADER ─────────────────────────────────────────────── */}
+        <View className="flex-row justify-between items-start flex-wrap gap-4">
+          <View className="flex-1 min-w-[200px]">
+            <Text className="text-sm font-black text-slate-800">Purchase Invoices & Procurement Records</Text>
+            <Text className="text-xs text-slate-500 mt-0.5">Record freight invoices, payment histories, and stock updates.</Text>
           </View>
           <Pressable
             onPress={handleOpenPurchaseModal}
-            className="flex-row bg-blue-600 items-center justify-center py-2.5 px-4 rounded-xl shadow-md active:scale-95 transition-transform"
+            className="flex-row bg-[#0066b2] items-center justify-center py-2.5 px-4 rounded-xl shadow-md active:scale-95"
+            style={{ gap: 6 }}
           >
-            <Plus size={14} color="white" className="mr-1" />
-            <Text className="text-xs font-bold text-white">Record Purchase</Text>
+            <Plus size={14} color="white" />
+            <Text className="text-xs font-black text-white">+ Record Purchase</Text>
           </Pressable>
         </View>
 
-        <FlatList
-          key="purchases-flatlist"
-          data={purchases}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View className="py-20 w-full items-center justify-center">
-              <Truck size={48} color="#94a3b8" className="mb-4" />
-              <Text className="text-base font-bold text-slate-500">No purchase invoices recorded yet</Text>
+        {/* ── STAT CARDS ──────────────────────────────────────────────── */}
+        <View className="flex-row gap-3 flex-wrap">
+          {/* Total Invoices */}
+          <View className="flex-1 min-w-[140px] bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-xs flex-row items-center gap-3">
+            <View className="w-9 h-9 bg-blue-50 border border-blue-100 rounded-xl items-center justify-center">
+              <FileText size={16} color="#0066b2" />
             </View>
-          }
-          renderItem={({ item }) => (
-            <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
-              <View className="flex-row justify-between items-center flex-wrap gap-2 mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-emerald-50 rounded-xl items-center justify-center mr-3">
-                    <Truck size={20} color="#10b981" />
-                  </View>
-                  <View>
-                    <Text className="text-sm font-bold text-slate-800">{item.purchase_number}</Text>
-                    <Text className="text-[11px] text-slate-400">
-                      {new Date(item.purchase_date).toLocaleDateString()} • By {item.created_by}
-                    </Text>
-                  </View>
-                </View>
-                <View className="items-end">
-                  <Text className="text-sm font-black text-slate-900">₹{item.grand_total.toLocaleString('en-IN')}</Text>
-                  <Text className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider mt-0.5">
-                    {item.payment_mode}
-                  </Text>
-                </View>
-              </View>
+            <View>
+              <Text className="text-xl font-black text-slate-800 leading-tight">{purchases.length}</Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Invoices</Text>
+            </View>
+          </View>
 
-              <View className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mt-2">
-                <View className="flex-row justify-between mb-2 flex-wrap">
-                  <Text className="text-xs font-semibold text-slate-400">Supplier Name:</Text>
-                  <Text className="text-xs font-bold text-slate-700">{item.supplier_name}</Text>
+          {/* Total Amount */}
+          <View className="flex-1 min-w-[160px] bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-xs flex-row items-center gap-3">
+            <View className="w-9 h-9 bg-emerald-50 border border-emerald-100 rounded-xl items-center justify-center">
+              <ShoppingCart size={16} color="#059669" />
+            </View>
+            <View>
+              <Text className="text-xl font-black text-slate-800 leading-tight">
+                ₹{totalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</Text>
+            </View>
+          </View>
+
+          {/* Pending Payments */}
+          <View className="flex-1 min-w-[140px] bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-xs flex-row items-center gap-3">
+            <View className="w-9 h-9 bg-amber-50 border border-amber-100 rounded-xl items-center justify-center">
+              <AlertTriangle size={16} color="#d97706" />
+            </View>
+            <View>
+              <Text className="text-xl font-black text-slate-800 leading-tight">{pendingCount}</Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Payments</Text>
+            </View>
+          </View>
+
+          {/* Suppliers */}
+          <View className="flex-1 min-w-[120px] bg-white border border-slate-200 rounded-2xl px-4 py-3.5 shadow-xs flex-row items-center gap-3">
+            <View className="w-9 h-9 bg-violet-50 border border-violet-100 rounded-xl items-center justify-center">
+              <User size={16} color="#7c3aed" />
+            </View>
+            <View>
+              <Text className="text-xl font-black text-slate-800 leading-tight">{supplierCount || suppliers.length}</Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Suppliers</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── SEARCH + FILTER BAR ─────────────────────────────────────── */}
+        <View className="flex-row items-center gap-3 flex-wrap">
+          {/* Search */}
+          <View className="flex-1 min-w-[200px] flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-xs gap-2">
+            <Search size={14} color="#94a3b8" />
+            <TextInput
+              placeholder="Search by PO / Invoice / Supplier..."
+              value={purSearchQuery}
+              onChangeText={(t) => { setPurSearchQuery(t); setPurPage(1); }}
+              className="flex-1 text-[11px] text-slate-800 outline-none"
+              placeholderTextColor="#94a3b8"
+            />
+            {purSearchQuery.length > 0 && (
+              <Pressable onPress={() => setPurSearchQuery('')}>
+                <X size={12} color="#94a3b8" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Status filter pills */}
+          <View className="flex-row gap-1.5">
+            {(['all', 'Paid', 'Pending', 'Overdue'] as const).map((s) => (
+              <Pressable
+                key={s}
+                onPress={() => { setPurStatusFilter(s); setPurPage(1); }}
+                className={`px-3 py-1.5 rounded-lg border active:scale-95 ${
+                  purStatusFilter === s
+                    ? s === 'Paid' ? 'bg-emerald-600 border-emerald-600'
+                      : s === 'Pending' ? 'bg-amber-500 border-amber-500'
+                      : s === 'Overdue' ? 'bg-rose-600 border-rose-600'
+                      : 'bg-[#0066b2] border-[#0066b2]'
+                    : 'bg-white border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <Text className={`text-[11px] font-bold ${purStatusFilter === s ? 'text-white' : 'text-slate-600'}`}>
+                  {s === 'all' ? 'All' : s}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Export */}
+          <Pressable className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-xs active:scale-95">
+            <Download size={13} color="#64748b" />
+            <Text className="text-[11px] font-bold text-slate-600">Export</Text>
+          </Pressable>
+        </View>
+
+        {/* ── TABLE ───────────────────────────────────────────────────── */}
+        <View className="flex-1 bg-white border border-slate-200 shadow-xs" style={{ borderRadius: 16 }}>
+
+          {/* Table Header */}
+          <View className="flex-row items-center px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <View style={{ width: '18%' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">PO Number</Text>
+            </View>
+            <View style={{ width: '12%' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Invoice No.</Text>
+            </View>
+            <View style={{ width: '20%' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Supplier</Text>
+            </View>
+            <View style={{ width: '14%' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Invoice Date</Text>
+            </View>
+            <View style={{ width: '16%', alignItems: 'flex-end' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Amount</Text>
+            </View>
+            <View style={{ width: '12%', alignItems: 'center' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Status</Text>
+            </View>
+            <View style={{ width: '8%', alignItems: 'center' }}>
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Actions</Text>
+            </View>
+          </View>
+
+          {/* Table Body */}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {paginated.length === 0 ? (
+              <View className="py-16 items-center justify-center gap-3">
+                <View className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-full items-center justify-center">
+                  <FileText size={20} color="#94a3b8" />
                 </View>
-                {item.invoice_number && (
-                  <View className="flex-row justify-between mb-2 flex-wrap">
-                    <Text className="text-xs font-semibold text-slate-400">Invoice Number:</Text>
-                    <Text className="text-xs font-bold text-slate-700 uppercase">{item.invoice_number}</Text>
-                  </View>
-                )}
-                {item.invoice_file_url && (
-                  <View className="flex-row justify-between mb-2 flex-wrap items-center">
-                    <Text className="text-xs font-semibold text-slate-400">Attachment:</Text>
-                    <View className="flex-row items-center bg-blue-50 border border-blue-100 rounded px-2 py-0.5">
-                      <FileText size={10} color={colors.primary} className="mr-1" />
-                      <Text className="text-[9px] font-bold text-blue-700 uppercase">invoice.pdf</Text>
+                <Text className="text-sm font-black text-slate-400">No purchase invoices recorded yet</Text>
+                <Text className="text-xs text-slate-400">Tap "+ Record Purchase" to add your first invoice</Text>
+              </View>
+            ) : (
+              paginated.map((item, rowIdx) => {
+                const payStatus = getPayStatus(item);
+                const statusColor =
+                  payStatus === 'Paid'
+                    ? { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' }
+                    : payStatus === 'Overdue'
+                    ? { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' }
+                    : { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' };
+                const statusIcon = payStatus === 'Paid' ? '✓' : payStatus === 'Overdue' ? '⊗' : '◷';
+                const displayDate = item.invoice_date || item.purchase_date;
+                const dateStr = displayDate
+                  ? new Date(displayDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'numeric', year: 'numeric' })
+                  : '—';
+
+                return (
+                  <View
+                    key={item.id}
+                    className={`flex-row items-center px-4 py-3.5 border-b border-slate-100 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/30`}
+                  >
+                    {/* PO Number */}
+                    <View style={{ width: '18%' }}>
+                      <Text className="text-[12px] font-black text-[#0066b2]">{item.purchase_number}</Text>
+                      <Text className="text-[9px] text-slate-400 font-semibold mt-0.5">By {item.created_by || 'Staff'}</Text>
+                    </View>
+
+                    {/* Invoice Number */}
+                    <View style={{ width: '12%' }}>
+                      <Text className="text-[12px] font-bold text-slate-700">{item.invoice_number || '—'}</Text>
+                    </View>
+
+                    {/* Supplier */}
+                    <View style={{ width: '20%' }}>
+                      <Text className="text-[12px] font-semibold text-slate-700" numberOfLines={1}>
+                        {item.supplier_name || suppliers.find((s) => s.id === item.supplier_id)?.supplier_name || '—'}
+                      </Text>
+                    </View>
+
+                    {/* Invoice Date */}
+                    <View style={{ width: '14%' }}>
+                      <Text className="text-[12px] font-semibold text-slate-600">{dateStr}</Text>
+                    </View>
+
+                    {/* Amount */}
+                    <View style={{ width: '16%', alignItems: 'flex-end' }}>
+                      <Text className="text-[13px] font-black text-slate-800">
+                        ₹{item.grand_total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Text>
+                      <Text className="text-[9px] font-bold text-slate-400 mt-0.5">{item.payment_mode}</Text>
+                    </View>
+
+                    {/* Status Badge */}
+                    <View style={{ width: '12%', alignItems: 'center' }}>
+                      <View className={`flex-row items-center gap-1 border rounded-full px-2 py-0.5 ${statusColor.bg} ${statusColor.border}`}>
+                        <Text className={`text-[9px] font-black ${statusColor.text}`}>{statusIcon}</Text>
+                        <Text className={`text-[9px] font-black ${statusColor.text}`}>{payStatus}</Text>
+                      </View>
+                    </View>
+
+                    {/* Actions (three-dot menu) */}
+                    <View style={{ width: '8%', alignItems: 'center' }}>
+                      <Pressable
+                        onPress={(e) => {
+                          setPurMenuY(e.nativeEvent.pageY);
+                          setPurOpenActionIdx(purOpenActionIdx === item.id ? null : item.id);
+                        }}
+                        className="w-7 h-7 rounded-lg border border-slate-200 bg-white items-center justify-center active:scale-95 hover:bg-slate-50 shadow-xs"
+                      >
+                        <MoreVertical size={14} color="#64748b" />
+                      </Pressable>
                     </View>
                   </View>
-                )}
-                {item.remarks && (
-                  <View className="flex-row justify-between pt-2 border-t border-slate-200/80 flex-wrap">
-                    <Text className="text-xs font-semibold text-slate-400">Remarks:</Text>
-                    <Text className="text-xs text-slate-500 italic">{item.remarks}</Text>
-                  </View>
-                )}
-              </View>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+
+        {/* ── PAGINATION FOOTER ───────────────────────────────────────── */}
+        <View className="flex-row justify-between items-center flex-wrap gap-3">
+          <Text className="text-[11px] font-bold text-slate-400">
+            Showing {filtered.length > 0 ? (purPage - 1) * purPageSize + 1 : 0} to{' '}
+            {Math.min(purPage * purPageSize, filtered.length)} of {filtered.length} invoices
+          </Text>
+
+          <View className="flex-row items-center gap-3">
+            {/* Rows per page */}
+            <View className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-xs">
+              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rows</Text>
+              <Pressable
+                onPress={() => { setPurPageSize(purPageSize === 10 ? 25 : purPageSize === 25 ? 50 : 10); setPurPage(1); }}
+                className="flex-row items-center gap-1"
+              >
+                <Text className="text-[11px] font-black text-slate-700">{purPageSize}</Text>
+                <ChevronDown size={8} color="#64748b" />
+              </Pressable>
             </View>
-          )}
-        />
+
+            {/* Page buttons */}
+            {totalPages > 1 && (
+              <View className="flex-row gap-1">
+                <Pressable
+                  onPress={() => setPurPage((p) => Math.max(p - 1, 1))}
+                  disabled={purPage === 1}
+                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                    purPage === 1 ? 'border-slate-100 bg-slate-50 opacity-40' : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <Text className="text-[11px] font-black text-slate-500">‹</Text>
+                </Pressable>
+
+                {Array.from({ length: Math.min(totalPages, 5) }).map((_, idx) => {
+                  const pageNum = idx + 1;
+                  const isActive = purPage === pageNum;
+                  return (
+                    <Pressable
+                      key={pageNum}
+                      onPress={() => setPurPage(pageNum)}
+                      className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                        isActive ? 'bg-[#0066b2] border-[#0066b2]' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <Text className={`text-[11px] font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                        {pageNum}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+
+                <Pressable
+                  onPress={() => setPurPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={purPage === totalPages}
+                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                    purPage === totalPages ? 'border-slate-100 bg-slate-50 opacity-40' : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <Text className="text-[11px] font-black text-slate-500">›</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* ── ACTION MENU MODAL ──────────────────────────────────────── */}
+        <Modal
+          visible={purOpenActionIdx !== null}
+          transparent
+          animationType="none"
+          onRequestClose={() => setPurOpenActionIdx(null)}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => setPurOpenActionIdx(null)}>
+            <View
+              style={{
+                position: 'absolute',
+                right: 72,
+                top: purMenuY,
+                backgroundColor: 'white',
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#e2e8f0',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.14,
+                shadowRadius: 16,
+                elevation: 10,
+                width: 164,
+                padding: 4,
+              }}
+            >
+              {/* View Details */}
+              <Pressable
+                onPress={async () => {
+                  const item = purchases.find((p) => p.id === purOpenActionIdx);
+                  if (!item) return;
+                  setPurOpenActionIdx(null);
+                  setPurDetailItem(item);
+                  setPurDetailLoading(true);
+                  const res = await fetchPurchaseItems(item.id);
+                  setPurDetailLines(res.data ?? []);
+                  setPurDetailLoading(false);
+                }}
+                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-slate-100"
+              >
+                <Eye size={13} color="#0066b2" />
+                <Text className="text-[12px] font-bold text-slate-700">View Details</Text>
+              </Pressable>
+
+              {/* Edit Invoice */}
+              <Pressable
+                onPress={async () => {
+                  const item = purchases.find((p) => p.id === purOpenActionIdx);
+                  if (!item) return;
+                  // Set ALL header fields first
+                  setModalError(null);
+                  setPurchaseSupplierId(item.supplier_id);
+                  setPurchaseInvoiceNum(item.invoice_number ?? '');
+                  setPurchasePaymentMode(item.payment_mode);
+                  setPurchaseTransportCharges(String(item.transport_charges ?? 0));
+                  setPurchaseRemarks(item.remarks ?? '');
+                  setPurchaseLocation('Dry Storage');
+                  const dateVal = item.invoice_date
+                    ? item.invoice_date.split('T')[0]
+                    : item.purchase_date.split('T')[0];
+                  setPurchaseInvoiceDate(dateVal);
+                  setCalendarDate(new Date(dateVal));
+                  // Reset dropdown states
+                  setIsSupDropdownOpen(false);
+                  setIsPayDropdownOpen(false);
+                  setIsLocDropdownOpen(false);
+                  setIsCalendarOpen(false);
+                  setOpenLineMatDropdownIdx(null);
+                  setOpenLineUnitDropdownIdx(null);
+                  setOpenLineGstDropdownIdx(null);
+                  // Fetch and pre-fill line items
+                  const linesRes = await fetchPurchaseItems(item.id);
+                  if (linesRes.data && linesRes.data.length > 0) {
+                    const mappedLines = linesRes.data.map((line) => {
+                      const mat = materials.find((m) => m.id === line.material_id);
+                      return {
+                        material_id: line.material_id,
+                        quantity: String(line.quantity),
+                        unit_price: String(line.unit_price),
+                        gst: '0',
+                        unit_short_name: mat?.unit_short_name ?? '',
+                      };
+                    });
+                    setPurchaseItems(mappedLines);
+                  } else {
+                    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
+                  }
+                  // Navigate then close modal
+                  setActiveTab('record_purchase');
+                  setPurOpenActionIdx(null);
+                }}
+                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-slate-100"
+              >
+                <FileText size={13} color="#0066b2" />
+                <Text className="text-[12px] font-bold text-slate-700">Edit Invoice</Text>
+              </Pressable>
+
+
+
+              {/* Mark as Paid / Unpaid */}
+              {(() => {
+                const item = purchases.find((p) => p.id === purOpenActionIdx);
+                if (!item) return null;
+                const isPaid = item.status === 'Completed';
+                return (
+                  <Pressable
+                    onPress={async () => {
+                      const newStatus = isPaid ? 'Draft' : 'Completed';
+                      setPurOpenActionIdx(null);
+                      // Optimistic update
+                      setPurchases((prev) =>
+                        prev.map((p) => p.id === item.id ? { ...p, status: newStatus } : p)
+                      );
+                      await updatePurchaseStatus(item.id, newStatus);
+                    }}
+                    className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-emerald-50"
+                  >
+                    <Check size={13} color={isPaid ? '#64748b' : '#059669'} />
+                    <Text
+                      className="text-[12px] font-bold"
+                      style={{ color: isPaid ? '#64748b' : '#059669' }}
+                    >
+                      {isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}
+                    </Text>
+                  </Pressable>
+                );
+              })()}
+
+              <View style={{ height: 1, backgroundColor: '#f1f5f9', marginVertical: 2 }} />
+
+              {/* Delete */}
+              <Pressable
+                onPress={() => setPurOpenActionIdx(null)}
+                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-rose-100"
+              >
+                <Trash2 size={13} color="#e11d48" />
+                <Text className="text-[12px] font-bold text-rose-600">Delete</Text>
+              </Pressable>
+
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* ── PURCHASE DETAIL SHEET ──────────────────────────────────── */}
+        <Modal
+          visible={purDetailItem !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => { setPurDetailItem(null); setPurDetailLines([]); }}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: 'rgba(15,39,68,0.45)', justifyContent: 'center', alignItems: 'center' }}
+            onPress={() => { setPurDetailItem(null); setPurDetailLines([]); }}
+          >
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{
+                width: '88%',
+                maxWidth: 680,
+                backgroundColor: 'white',
+                borderRadius: 20,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.18,
+                shadowRadius: 24,
+                elevation: 16,
+                overflow: 'hidden',
+              }}
+            >
+              {purDetailItem && (
+                <>
+                  {/* Sheet Header */}
+                  <View style={{ backgroundColor: '#0066b2', padding: 20 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View>
+                        <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>{purDetailItem.purchase_number}</Text>
+                        <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '600', marginTop: 2 }}>
+                          {purDetailItem.invoice_number ? `Invoice #${purDetailItem.invoice_number}  •  ` : ''}
+                          {new Date(purDetailItem.purchase_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => { setPurDetailItem(null); setPurDetailLines([]); }}
+                        style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 6 }}
+                      >
+                        <X size={16} color="white" />
+                      </Pressable>
+                    </View>
+
+                    {/* Key stats row */}
+                    <View style={{ flexDirection: 'row', gap: 24, marginTop: 16 }}>
+                      <View>
+                        <Text style={{ color: '#93c5fd', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 }}>Grand Total</Text>
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 2 }}>
+                          ₹{purDetailItem.grand_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={{ color: '#93c5fd', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 }}>Supplier</Text>
+                        <Text style={{ color: 'white', fontSize: 13, fontWeight: '800', marginTop: 2 }}>
+                          {purDetailItem.supplier_name || suppliers.find((s) => s.id === purDetailItem!.supplier_id)?.supplier_name || '—'}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={{ color: '#93c5fd', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 }}>Payment</Text>
+                        <Text style={{ color: 'white', fontSize: 13, fontWeight: '800', marginTop: 2 }}>{purDetailItem.payment_mode}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Line Items */}
+                  <View style={{ padding: 20 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 }}>
+                      Line Items
+                    </Text>
+
+                    {purDetailLoading ? (
+                      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                        <ActivityIndicator size="small" color="#0066b2" />
+                        <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 8 }}>Loading items...</Text>
+                      </View>
+                    ) : purDetailLines.length === 0 ? (
+                      <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                        <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>No line items found for this invoice.</Text>
+                      </View>
+                    ) : (
+                      <>
+                        {/* Line items header */}
+                        <View style={{ flexDirection: 'row', backgroundColor: '#f8fafc', borderRadius: 8, padding: 8, marginBottom: 4 }}>
+                          <Text style={{ flex: 1, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase' }}>Material</Text>
+                          <Text style={{ width: 60, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'center' }}>Qty</Text>
+                          <Text style={{ width: 80, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'right' }}>Unit Price</Text>
+                          <Text style={{ width: 90, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'right' }}>Line Total</Text>
+                        </View>
+                        <ScrollView style={{ maxHeight: 200 }}>
+                          {purDetailLines.map((line, i) => (
+                            <View
+                              key={line.id}
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 8,
+                                paddingHorizontal: 8,
+                                borderBottomWidth: i < purDetailLines.length - 1 ? 1 : 0,
+                                borderBottomColor: '#f1f5f9',
+                              }}
+                            >
+                              <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#334155' }} numberOfLines={1}>
+                                {line.material_name || materials.find((m) => m.id === line.material_id)?.material_name || '—'}
+                              </Text>
+                              <Text style={{ width: 60, fontSize: 12, fontWeight: '700', color: '#475569', textAlign: 'center' }}>
+                                {line.quantity}
+                              </Text>
+                              <Text style={{ width: 80, fontSize: 12, fontWeight: '600', color: '#475569', textAlign: 'right' }}>
+                                ₹{line.unit_price.toFixed(2)}
+                              </Text>
+                              <Text style={{ width: 90, fontSize: 13, fontWeight: '800', color: '#0f2744', textAlign: 'right' }}>
+                                ₹{line.line_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </Text>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      </>
+                    )}
+
+                    {/* Totals breakdown */}
+                    <View style={{ borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 12, paddingTop: 12, gap: 6 }}>
+                      {[
+                        { label: 'Subtotal', value: purDetailItem.subtotal },
+                        ...(purDetailItem.discount_amount > 0 ? [{ label: 'Discount', value: -purDetailItem.discount_amount }] : []),
+                        ...(purDetailItem.tax_amount > 0 ? [{ label: 'Tax (GST)', value: purDetailItem.tax_amount }] : []),
+                        ...(purDetailItem.transport_charges > 0 ? [{ label: 'Freight', value: purDetailItem.transport_charges }] : []),
+                      ].map(({ label, value }) => (
+                        <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '600' }}>{label}</Text>
+                          <Text style={{ fontSize: 12, color: value < 0 ? '#16a34a' : '#475569', fontWeight: '700' }}>
+                            {value < 0 ? '−' : ''}₹{Math.abs(value).toFixed(2)}
+                          </Text>
+                        </View>
+                      ))}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 8, marginTop: 2 }}>
+                        <Text style={{ fontSize: 14, color: '#0f2744', fontWeight: '900' }}>Grand Total</Text>
+                        <Text style={{ fontSize: 14, color: '#0066b2', fontWeight: '900' }}>
+                          ₹{purDetailItem.grand_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Remarks */}
+                    {purDetailItem.remarks && (
+                      <View style={{ marginTop: 12, backgroundColor: '#f8fafc', borderRadius: 10, padding: 12 }}>
+                        <Text style={{ fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Remarks</Text>
+                        <Text style={{ fontSize: 12, color: '#475569' }}>{purDetailItem.remarks}</Text>
+                      </View>
+                    )}
+
+                    {/* Close button */}
+                    <Pressable
+                      onPress={() => { setPurDetailItem(null); setPurDetailLines([]); }}
+                      style={{ marginTop: 16, backgroundColor: '#0066b2', borderRadius: 10, padding: 12, alignItems: 'center' }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 13, fontWeight: '800' }}>Close</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+
       </View>
     );
   };
+
 
   const renderRecordPurchaseScreen = () => {
     return (
@@ -2510,10 +3398,11 @@ export default function InventoryScreen() {
                   >
                     
                     {/* Raw Material Select Dropdown */}
-                    <View style={{ width: '20%' }} className="relative pr-4">
+                    <View style={{ width: '20%', zIndex: openLineMatDropdownIdx === idx ? 10000 : 1 }} className="relative pr-4">
                       <Pressable
                         onPress={() => {
                           setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
+                          setOpenLineUnitDropdownIdx(null);
                           setOpenLineGstDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
@@ -2542,8 +3431,10 @@ export default function InventoryScreen() {
                               <Pressable
                                 key={m.id}
                                 onPress={() => {
-                                  handleUpdatePurchaseLine(idx, 'material_id', m.id);
-                                  handleUpdatePurchaseLine(idx, 'unit_short_name', m.unit_short_name || 'units');
+                                  handleUpdatePurchaseLineMulti(idx, {
+                                    material_id: m.id,
+                                    unit_short_name: m.unit_short_name || 'units',
+                                  });
                                   setOpenLineMatDropdownIdx(null);
                                 }}
                                 className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
@@ -2627,11 +3518,12 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* GST dropdown */}
-                    <View style={{ width: '11%' }} className="items-center justify-center relative pr-3">
+                    <View style={{ width: '11%', zIndex: openLineGstDropdownIdx === idx ? 10000 : 1 }} className="items-center justify-center relative pr-3">
                       <Pressable
                         onPress={() => {
                           setOpenLineGstDropdownIdx(openLineGstDropdownIdx === idx ? null : idx);
                           setOpenLineMatDropdownIdx(null);
+                          setOpenLineUnitDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
                           setIsLocDropdownOpen(false);
@@ -2866,65 +3758,314 @@ export default function InventoryScreen() {
   const renderTransfers = () => {
     return (
       <View className="flex-1">
+        {/* Branch Simulator switcher */}
+        <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-6 flex-row items-center justify-between flex-wrap gap-3">
+          <View className="flex-row items-center">
+            <View className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-2" />
+            <Text className="text-xs font-black text-slate-700 uppercase tracking-wider">Simulate Active Branch:</Text>
+          </View>
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => setSimulatedBranchId('bbbbbbbb-0000-0000-0000-000000000001')}
+              className={`px-3 py-1.5 rounded-xl border ${
+                simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001'
+                  ? 'bg-blue-600 border-blue-600'
+                  : 'bg-white border-slate-200'
+              }`}
+              style={{ minHeight: 40 }}
+            >
+              <Text
+                className={`text-[11px] font-bold ${
+                  simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'
+                }`}
+              >
+                Main Restaurant
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSimulatedBranchId('cccccccc-0000-0000-0000-000000000001')}
+              className={`px-3 py-1.5 rounded-xl border ${
+                simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001'
+                  ? 'bg-blue-600 border-blue-600'
+                  : 'bg-white border-slate-200'
+              }`}
+              style={{ minHeight: 40 }}
+            >
+              <Text
+                className={`text-[11px] font-bold ${
+                  simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'
+                }`}
+              >
+                Central Kitchen
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Header Title with Primary Action */}
         <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
           <View className="flex-1 mr-4">
-            <Text className="text-sm font-bold text-slate-800">Inventory Stock Transfers & Ledger Logs</Text>
-            <Text className="text-xs text-slate-500">Record physical audits, correct ledger weights, or log location transfers.</Text>
+            <Text className="text-sm font-bold text-slate-800">Internal Supply Chain & Transfers</Text>
+            <Text className="text-xs text-slate-500">
+              Manage transfer requests between your outlets and the Central Kitchen.
+            </Text>
           </View>
+          {transferSubTab === 'requests' && simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' && (
+            <Pressable
+              onPress={handleOpenNewRequestModal}
+              className="flex-row bg-blue-600 items-center justify-center py-2.5 px-4 rounded-xl shadow-md active:scale-95"
+              style={{ minHeight: 44 }}
+            >
+              <Plus size={14} color="white" className="mr-1" />
+              <Text className="text-xs font-bold text-white">Create Transfer Request</Text>
+            </Pressable>
+          )}
+          {transferSubTab === 'adjustments' && (
+            <Pressable
+              onPress={handleOpenAdjustmentModal}
+              className="flex-row bg-blue-600 items-center justify-center py-2.5 px-4 rounded-xl shadow-md active:scale-95"
+              style={{ minHeight: 44 }}
+            >
+              <Plus size={14} color="white" className="mr-1" />
+              <Text className="text-xs font-bold text-white">Manual Adjustment</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Sub tabs selector */}
+        <View className="flex-row bg-slate-100 p-1 rounded-2xl mb-4 border border-slate-200/60 max-w-md">
           <Pressable
-            onPress={handleOpenAdjustmentModal}
-            className="flex-row bg-blue-600 items-center justify-center py-2.5 px-4 rounded-xl shadow-md active:scale-95 transition-transform"
+            onPress={() => setTransferSubTab('requests')}
+            className={`flex-1 items-center justify-center py-2 rounded-xl ${
+              transferSubTab === 'requests' ? 'bg-white shadow-sm' : ''
+            }`}
+            style={{ minHeight: 40 }}
           >
-            <Plus size={14} color="white" className="mr-1" />
-            <Text className="text-xs font-bold text-white">Manual Adjustment</Text>
+            <Text className={`text-xs font-bold ${transferSubTab === 'requests' ? 'text-blue-700' : 'text-slate-500'}`}>
+              Requests
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setTransferSubTab('dispatches')}
+            className={`flex-1 items-center justify-center py-2 rounded-xl ${
+              transferSubTab === 'dispatches' ? 'bg-white shadow-sm' : ''
+            }`}
+            style={{ minHeight: 40 }}
+          >
+            <Text className={`text-xs font-bold ${transferSubTab === 'dispatches' ? 'text-blue-700' : 'text-slate-500'}`}>
+              Dispatches
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setTransferSubTab('adjustments')}
+            className={`flex-1 items-center justify-center py-2 rounded-xl ${
+              transferSubTab === 'adjustments' ? 'bg-white shadow-sm' : ''
+            }`}
+            style={{ minHeight: 40 }}
+          >
+            <Text className={`text-xs font-bold ${transferSubTab === 'adjustments' ? 'text-blue-700' : 'text-slate-500'}`}>
+              Adjustments
+            </Text>
           </Pressable>
         </View>
 
-        <FlatList
-          key="adjustments-flatlist"
-          data={adjustments}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View className="py-20 w-full items-center justify-center">
-              <RefreshCw size={48} color="#94a3b8" className="mb-4" />
-              <Text className="text-base font-bold text-slate-500">No stock adjustments recorded</Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const isAdd = item.adjustment_type === 'Add';
-            return (
-              <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
-                <View className="flex-row justify-between items-center flex-wrap gap-2">
-                  <View className="flex-row items-center">
-                    <View className={`w-10 h-10 ${isAdd ? 'bg-emerald-50' : 'bg-rose-50'} rounded-xl items-center justify-center mr-3`}>
-                      <RefreshCw size={20} color={isAdd ? '#10b981' : '#ef4444'} />
-                    </View>
+        {/* Sub tab contents */}
+        {transferSubTab === 'requests' && (
+          <FlatList
+            key="requests-list"
+            data={transferRequests}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View className="py-20 w-full items-center justify-center">
+                <RefreshCw size={48} color="#94a3b8" className="mb-4" />
+                <Text className="text-base font-bold text-slate-500">No transfer requests logged</Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const isCreator = item.to_branch_id === simulatedBranchId;
+              const isSupplier = item.from_branch_id === simulatedBranchId;
+              
+              let statusColor = 'bg-slate-100 text-slate-600 border-slate-200';
+              if (item.status === 'Pending') statusColor = 'bg-amber-50 text-amber-700 border-amber-200';
+              else if (item.status === 'Approved') statusColor = 'bg-blue-50 text-blue-700 border-blue-200';
+              else if (item.status === 'Partially Dispatched') statusColor = 'bg-purple-50 text-purple-700 border-purple-200';
+              else if (item.status === 'Dispatched') statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+              else if (item.status === 'Completed') statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+              else if (item.status === 'Rejected') statusColor = 'bg-rose-50 text-rose-700 border-rose-200';
+              else if (item.status === 'Cancelled') statusColor = 'bg-slate-100 text-slate-500 border-slate-200';
+
+              return (
+                <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+                  <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
                     <View>
-                      <Text className="text-sm font-bold text-slate-800">{item.material_name}</Text>
-                      <Text className="text-xs text-slate-400">
-                        Reason: {item.reason} • Target: {item.location_id}
+                      <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.request_number}</Text>
+                      <Text className="text-sm font-bold text-slate-800 mt-0.5">
+                        {item.to_branch_name} Request
+                      </Text>
+                    </View>
+                    <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
+                      <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
+                    </View>
+                  </View>
+
+                  <View className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
+                    <Text className="text-xs text-slate-500 font-medium">
+                      From supplying branch: <Text className="font-bold text-slate-700">{item.from_branch_name}</Text>
+                    </Text>
+                    <Text className="text-xs text-slate-500 font-medium mt-1">
+                      Request Date: <Text className="font-bold text-slate-700">{new Date(item.request_date).toLocaleDateString()}</Text>
+                    </Text>
+                    {item.remarks && (
+                      <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
+                    )}
+                  </View>
+
+                  {/* Actions */}
+                  <View className="flex-row justify-between items-center flex-wrap gap-2">
+                    <Pressable
+                      onPress={() => handleOpenEventsModal(item)}
+                      className="flex-row items-center"
+                      style={{ minHeight: 44 }}
+                    >
+                      <Info size={12} color="#475569" className="mr-1" />
+                      <Text className="text-xs font-bold text-slate-600">Event Logs</Text>
+                    </Pressable>
+
+                    <View className="flex-row gap-2">
+                      {isCreator && item.status === 'Pending' && (
+                        <Pressable
+                          onPress={() => handleProcessCancelRequest(item.id)}
+                          className="bg-rose-50 border border-rose-200 py-1.5 px-3 rounded-lg active:scale-95"
+                          style={{ minHeight: 44 }}
+                        >
+                          <Text className="text-xs font-bold text-rose-700">Cancel Request</Text>
+                        </Pressable>
+                      )}
+                      
+                      {isSupplier && (item.status === 'Pending' || item.status === 'Approved' || item.status === 'Partially Dispatched') && (
+                        <Pressable
+                          onPress={() => handleOpenApprovalModal(item)}
+                          className="bg-blue-600 py-1.5 px-3 rounded-lg active:scale-95 shadow-sm"
+                          style={{ minHeight: 44 }}
+                        >
+                          <Text className="text-xs font-bold text-white">
+                            {item.status === 'Pending' ? 'Review & Approve' : 'Dispatch Stock'}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )}
+
+        {transferSubTab === 'dispatches' && (
+          <FlatList
+            key="dispatches-list"
+            data={dispatchesList}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View className="py-20 w-full items-center justify-center">
+                <Truck size={48} color="#94a3b8" className="mb-4" />
+                <Text className="text-base font-bold text-slate-500">No dispatches logged</Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const isReceiver = item.to_branch_id === simulatedBranchId;
+              const isReceived = item.status === 'Received';
+              
+              let statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+              if (isReceived) statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+              return (
+                <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+                  <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
+                    <View>
+                      <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.dispatch_number}</Text>
+                      <Text className="text-sm font-bold text-slate-800 mt-0.5">
+                        {item.from_branch_name} → {item.to_branch_name}
+                      </Text>
+                    </View>
+                    <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
+                      <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
+                    </View>
+                  </View>
+
+                  <View className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
+                    <Text className="text-xs text-slate-500 font-medium">
+                      Date shipped: <Text className="font-bold text-slate-700">{new Date(item.dispatch_date).toLocaleDateString()}</Text>
+                    </Text>
+                    {item.remarks && (
+                      <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
+                    )}
+                  </View>
+
+                  {isReceiver && !isReceived && (
+                    <Pressable
+                      onPress={() => handleOpenReceiveModal(item)}
+                      className="bg-emerald-600 py-2 items-center justify-center rounded-xl shadow-sm active:scale-95"
+                      style={{ minHeight: 44 }}
+                    >
+                      <Text className="text-xs font-bold text-white">Verify & Receive Shipment</Text>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            }}
+          />
+        )}
+
+        {transferSubTab === 'adjustments' && (
+          <FlatList
+            key="adjustments-list"
+            data={adjustments}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View className="py-20 w-full items-center justify-center">
+                <RefreshCw size={48} color="#94a3b8" className="mb-4" />
+                <Text className="text-base font-bold text-slate-500">No manual adjustments recorded</Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const isAdd = item.adjustment_type === 'Add';
+              return (
+                <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+                  <View className="flex-row justify-between items-center flex-wrap gap-2">
+                    <View className="flex-row items-center">
+                      <View className={`w-10 h-10 ${isAdd ? 'bg-emerald-50' : 'bg-rose-50'} rounded-xl items-center justify-center mr-3`}>
+                        <RefreshCw size={20} color={isAdd ? '#10b981' : '#ef4444'} />
+                      </View>
+                      <View>
+                        <Text className="text-sm font-bold text-slate-800">{item.material_name}</Text>
+                        <Text className="text-xs text-slate-400">
+                          Reason: {item.reason} • Location: {item.location_id}
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="items-end">
+                      <Text className={`text-sm font-black ${isAdd ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {isAdd ? '+' : '-'}{item.quantity}
+                      </Text>
+                      <Text className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(item.adjustment_date).toLocaleDateString()}
                       </Text>
                     </View>
                   </View>
-                  <View className="items-end">
-                    <Text className={`text-sm font-black ${isAdd ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {isAdd ? '+' : '-'}{item.quantity}
-                    </Text>
-                    <Text className="text-[10px] text-slate-400 mt-0.5">
-                      {new Date(item.adjustment_date).toLocaleDateString()}
-                    </Text>
-                  </View>
+                  {item.remarks && (
+                    <View className="bg-slate-50 rounded-lg p-2.5 mt-2.5 border border-slate-100">
+                      <Text className="text-[11px] text-slate-500 italic">Remarks: {item.remarks}</Text>
+                    </View>
+                  )}
                 </View>
-                {item.remarks && (
-                  <View className="bg-slate-50 rounded-lg p-2.5 mt-2.5 border border-slate-100">
-                    <Text className="text-[11px] text-slate-500 italic">Remarks: {item.remarks}</Text>
-                  </View>
-                )}
-              </View>
-            );
-          }}
-        />
+              );
+            }}
+          />
+        )}
       </View>
     );
   };
@@ -3818,6 +4959,371 @@ export default function InventoryScreen() {
       </Modal>
 
       {/* ─── MODAL DIALOGS ─────────────────────────────────────────────────── */}
+
+      {/* 0.1. New Transfer Request Modal */}
+      <Modal visible={isNewRequestModalOpen} animationType="slide" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%]">
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <Text className="text-base font-black text-slate-900">New Stock Transfer Request</Text>
+              <Pressable onPress={() => setIsNewRequestModalOpen(false)}>
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            <ScrollView className="pr-2 gap-4" showsVerticalScrollIndicator={false}>
+              {/* Supplying Branch Selector */}
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Supply Branch (Source)*</Text>
+                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[100px] p-2">
+                  {dbBranches
+                    .filter(b => b.branch_type === 'CENTRAL_KITCHEN' || b.branch_type === 'WAREHOUSE')
+                    .map(b => (
+                      <Pressable
+                        key={b.id}
+                        onPress={() => setNewReqFromBranchId(b.id)}
+                        className={`p-2.5 rounded-lg mb-1 flex-row items-center ${
+                          newReqFromBranchId === b.id ? 'bg-blue-100' : ''
+                        }`}
+                        style={{ minHeight: 44 }}
+                      >
+                        <Text className="text-xs font-bold text-slate-800">{b.name} ({b.branch_type})</Text>
+                      </Pressable>
+                    ))}
+                </ScrollView>
+              </View>
+
+              {/* Items Table */}
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase mb-2">Request Items*</Text>
+                {newReqItems.map((item, idx) => (
+                  <View key={idx} className="flex-row items-center gap-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <View className="flex-1 gap-1">
+                      <Text className="text-[9px] font-bold text-slate-400 uppercase">Material</Text>
+                      <ScrollView className="bg-white border border-slate-200 rounded-lg max-h-[80px] p-1">
+                        {materials.map(m => (
+                          <Pressable
+                            key={m.id}
+                            onPress={() => handleRequestItemChange(idx, 'material_id', m.id)}
+                            className={`p-1.5 rounded mb-0.5 ${
+                              item.material_id === m.id ? 'bg-blue-50' : ''
+                            }`}
+                            style={{ minHeight: 32 }}
+                          >
+                            <Text className="text-[10px] text-slate-700 font-bold">{m.material_name}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                    <View className="w-24 gap-1">
+                      <Text className="text-[9px] font-bold text-slate-400 uppercase">Quantity</Text>
+                      <TextInput
+                        value={item.requested_quantity}
+                        onChangeText={(val) => handleRequestItemChange(idx, 'requested_quantity', val)}
+                        placeholder="Qty"
+                        keyboardType="numeric"
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800"
+                        style={{ minHeight: 36 }}
+                      />
+                    </View>
+                    {newReqItems.length > 1 && (
+                      <Pressable
+                        onPress={() => handleRemoveRequestItemRow(idx)}
+                        className="w-8 h-8 items-center justify-center bg-rose-50 border border-rose-100 rounded-lg active:scale-95"
+                        style={{ minHeight: 44, minWidth: 44 }}
+                      >
+                        <Trash2 size={14} color="#e11d48" />
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+                
+                <Pressable
+                  onPress={handleAddRequestItemRow}
+                  className="flex-row bg-slate-100 border border-slate-200 items-center justify-center py-2 rounded-xl mt-1 active:scale-95"
+                  style={{ minHeight: 44 }}
+                >
+                  <Plus size={14} color="#475569" className="mr-1" />
+                  <Text className="text-xs font-bold text-slate-600">Add Material Row</Text>
+                </Pressable>
+              </View>
+
+              {/* Remarks */}
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Remarks / Instructions</Text>
+                <TextInput
+                  value={newReqRemarks}
+                  onChangeText={setNewReqRemarks}
+                  placeholder="e.g. Urgent stock replenishment"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800"
+                  style={{ minHeight: 44 }}
+                />
+              </View>
+            </ScrollView>
+
+            <View className="flex-row justify-end gap-3 border-t border-slate-100 pt-4 mt-4">
+              <Pressable
+                onPress={() => setIsNewRequestModalOpen(false)}
+                className="bg-slate-100 border border-slate-200 py-2.5 px-5 rounded-xl active:scale-95"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-slate-600">Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveTransferRequest}
+                className="bg-blue-600 py-2.5 px-5 rounded-xl active:scale-95 shadow-md"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-white">Submit Request</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 0.2. Review, Approve & Dispatch Request Modal */}
+      <Modal visible={isApprovalModalOpen} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%]">
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <Text className="text-base font-black text-slate-900">Review Request: {selectedRequest?.request_number}</Text>
+              <Pressable onPress={() => setIsApprovalModalOpen(false)}>
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            <ScrollView className="pr-2 gap-4" showsVerticalScrollIndicator={false}>
+              <View className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                <Text className="text-xs text-slate-600">Requesting outlet: <Text className="font-bold text-slate-800">{selectedRequest?.to_branch_name}</Text></Text>
+                {selectedRequest?.remarks && (
+                  <Text className="text-xs text-slate-500 mt-1 italic">Remarks: "{selectedRequest.remarks}"</Text>
+                )}
+              </View>
+
+              <Text className="text-[10px] font-black text-slate-500 uppercase mt-2 mb-1">Verify approved & dispatched quantities</Text>
+              
+              {reqItemsList.map((itm) => (
+                <View key={itm.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2">
+                  <Text className="text-xs font-bold text-slate-800">{itm.material_name}</Text>
+                  <Text className="text-[10px] text-slate-400 font-semibold mb-2">Requested: {itm.requested_quantity} {itm.unit_short_name}</Text>
+                  
+                  <View className="flex-row gap-3">
+                    {selectedRequest?.status === 'Pending' && (
+                      <View className="flex-1 gap-1">
+                        <Text className="text-[9px] font-black text-slate-500 uppercase">Approved Quantity</Text>
+                        <TextInput
+                          value={approvedQuantities[itm.material_id] || ''}
+                          onChangeText={(val) => setApprovedQuantities({ ...approvedQuantities, [itm.material_id]: val })}
+                          keyboardType="numeric"
+                          className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800"
+                          style={{ minHeight: 36 }}
+                        />
+                      </View>
+                    )}
+
+                    {(selectedRequest?.status === 'Approved' || selectedRequest?.status === 'Partially Dispatched') && (
+                      <View className="flex-1 gap-1">
+                        <Text className="text-[9px] font-black text-slate-500 uppercase">Dispatch Quantity</Text>
+                        <TextInput
+                          value={dispatchQuantities[itm.material_id] || ''}
+                          onChangeText={(val) => setDispatchQuantities({ ...dispatchQuantities, [itm.material_id]: val })}
+                          keyboardType="numeric"
+                          className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800"
+                          style={{ minHeight: 36 }}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Remarks / Notes</Text>
+                <TextInput
+                  value={approveRemarks}
+                  onChangeText={setApproveRemarks}
+                  placeholder="Approve remarks or reason for rejection/variance"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800"
+                  style={{ minHeight: 44 }}
+                />
+              </View>
+            </ScrollView>
+
+            <View className="flex-row justify-between items-center border-t border-slate-100 pt-4 mt-4 flex-wrap gap-2">
+              <View className="flex-row gap-2">
+                {selectedRequest?.status === 'Pending' && (
+                  <Pressable
+                    onPress={handleProcessRejection}
+                    className="bg-rose-50 border border-rose-200 py-2.5 px-4 rounded-xl active:scale-95"
+                    style={{ minHeight: 44 }}
+                  >
+                    <Text className="text-xs font-bold text-rose-700">Reject Request</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              <View className="flex-row gap-2">
+                <Pressable
+                  onPress={() => setIsApprovalModalOpen(false)}
+                  className="bg-slate-100 border border-slate-200 py-2.5 px-4 rounded-xl active:scale-95"
+                  style={{ minHeight: 44 }}
+                >
+                  <Text className="text-xs font-bold text-slate-600">Close</Text>
+                </Pressable>
+
+                {selectedRequest?.status === 'Pending' && (
+                  <Pressable
+                    onPress={handleProcessApproval}
+                    className="bg-blue-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md"
+                    style={{ minHeight: 44 }}
+                  >
+                    <Text className="text-xs font-bold text-white">Approve Request</Text>
+                  </Pressable>
+                )}
+
+                {(selectedRequest?.status === 'Approved' || selectedRequest?.status === 'Partially Dispatched') && (
+                  <Pressable
+                    onPress={handleProcessDispatch}
+                    className="bg-indigo-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md"
+                    style={{ minHeight: 44 }}
+                  >
+                    <Text className="text-xs font-bold text-white">Create Dispatch</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 0.3. Receive Shipment Verification Modal */}
+      <Modal visible={isReceiveModalOpen} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%]">
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <Text className="text-base font-black text-slate-900">Verify & Receive: {selectedDispatch?.dispatch_number}</Text>
+              <Pressable onPress={() => setIsReceiveModalOpen(false)}>
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            <ScrollView className="pr-2 gap-4" showsVerticalScrollIndicator={false}>
+              <View className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                <Text className="text-xs text-slate-600">Shipped from branch: <Text className="font-bold text-slate-800">{selectedDispatch?.from_branch_name}</Text></Text>
+                {selectedDispatch?.remarks && (
+                  <Text className="text-xs text-slate-500 mt-1 italic">Remarks: "{selectedDispatch.remarks}"</Text>
+                )}
+              </View>
+
+              <Text className="text-[10px] font-black text-slate-500 uppercase mt-2 mb-1">Verify physical weights / counts</Text>
+              
+              {dispItemsList.map((itm) => (
+                <View key={itm.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2">
+                  <Text className="text-xs font-bold text-slate-800">{itm.material_name}</Text>
+                  <Text className="text-[10px] text-slate-400 font-semibold mb-2">Dispatched: {itm.dispatched_quantity} {itm.unit_short_name}</Text>
+                  
+                  <View className="gap-1">
+                    <Text className="text-[9px] font-black text-slate-500 uppercase">Received Quantity</Text>
+                    <TextInput
+                      value={receivedQuantities[itm.id] || ''}
+                      onChangeText={(val) => setReceivedQuantities({ ...receivedQuantities, [itm.id]: val })}
+                      keyboardType="numeric"
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800"
+                      style={{ minHeight: 36 }}
+                    />
+                  </View>
+                </View>
+              ))}
+
+              <View className="gap-1 mb-3">
+                <Text className="text-[10px] font-black text-slate-500 uppercase">Variance Reason (If discrepancy)</Text>
+                <TextInput
+                  value={receiveRemarks}
+                  onChangeText={setReceiveRemarks}
+                  placeholder="e.g. 1 unit damaged in transit"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800"
+                  style={{ minHeight: 44 }}
+                />
+              </View>
+            </ScrollView>
+
+            <View className="flex-row justify-end gap-3 border-t border-slate-100 pt-4 mt-4">
+              <Pressable
+                onPress={() => setIsReceiveModalOpen(false)}
+                className="bg-slate-100 border border-slate-200 py-2.5 px-4 rounded-xl active:scale-95"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-slate-600">Close</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleProcessReceive}
+                className="bg-emerald-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-white">Record Receipt & Update Stock</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 0.4. Event Logs Timeline Modal */}
+      <Modal visible={isEventsModalOpen} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[90%] md:w-[50%] rounded-3xl p-6 shadow-2xl max-h-[80%]">
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <Text className="text-base font-black text-slate-900">Audit Trail: {selectedRequestForEvents?.request_number}</Text>
+              <Pressable onPress={() => setIsEventsModalOpen(false)}>
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            {eventsLoading ? (
+              <ActivityIndicator size="small" color="#0284c7" className="my-10" />
+            ) : (
+              <ScrollView className="pr-2 gap-4" showsVerticalScrollIndicator={false}>
+                {requestEvents.length === 0 ? (
+                  <Text className="text-xs text-slate-500 text-center my-6">No event logs recorded for this request.</Text>
+                ) : (
+                  requestEvents.map((evt, idx) => (
+                    <View key={evt.id} className="flex-row mb-4">
+                      {/* Left timeline indicator */}
+                      <View className="items-center mr-3">
+                        <View className="w-2.5 h-2.5 bg-blue-600 rounded-full" />
+                        {idx < requestEvents.length - 1 && (
+                          <View className="w-0.5 bg-slate-200 flex-1 my-1" />
+                        )}
+                      </View>
+                      
+                      {/* Event content */}
+                      <View className="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                        <View className="flex-row justify-between items-center mb-1 flex-wrap gap-1">
+                          <Text className="text-xs font-black text-slate-800">{evt.event_type}</Text>
+                          <Text className="text-[9px] text-slate-400">
+                            {new Date(evt.created_at).toLocaleDateString()} {new Date(evt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </View>
+                        <Text className="text-xs text-slate-600">{evt.notes}</Text>
+                        <Text className="text-[9px] text-slate-400 mt-2 font-bold uppercase">Performed by: {evt.performed_by}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            <View className="flex-row justify-end border-t border-slate-100 pt-4 mt-4">
+              <Pressable
+                onPress={() => setIsEventsModalOpen(false)}
+                className="bg-slate-100 border border-slate-200 py-2 px-5 rounded-xl active:scale-95"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-slate-600">Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 1. Add/Edit Material Modal */}
       <Modal visible={isMaterialModalOpen} animationType="fade" transparent>

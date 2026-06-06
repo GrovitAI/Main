@@ -237,6 +237,150 @@ export type DashboardKPIs = {
   }[];
 };
 
+export type InventoryTransferRequest = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  request_number: string;
+  from_branch_id: string;
+  to_branch_id: string;
+  request_date: string;
+  status: 'Pending' | 'Approved' | 'Partially Dispatched' | 'Dispatched' | 'Partially Received' | 'Completed' | 'Rejected' | 'Cancelled';
+  remarks: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // UI helpers
+  from_branch_name?: string;
+  to_branch_name?: string;
+};
+
+export type InventoryTransferRequestItem = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  transfer_request_id: string;
+  material_id: string;
+  requested_quantity: number;
+  approved_quantity: number | null;
+  created_at: string;
+  material_name?: string;
+  unit_short_name?: string;
+};
+
+export type InventoryDispatch = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  dispatch_number: string;
+  transfer_request_id: string | null;
+  from_branch_id: string;
+  to_branch_id: string;
+  dispatch_date: string;
+  status: 'Dispatched' | 'Received';
+  remarks: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // UI helpers
+  from_branch_name?: string;
+  to_branch_name?: string;
+};
+
+export type InventoryDispatchItem = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  dispatch_id: string;
+  material_id: string;
+  dispatched_quantity: number;
+  received_quantity: number | null;
+  created_at: string;
+  material_name?: string;
+  unit_short_name?: string;
+};
+
+export type InventoryTransferVariance = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  dispatch_item_id: string;
+  material_id: string;
+  dispatched_qty: number;
+  received_qty: number;
+  variance_qty: number;
+  reason: string;
+  created_at: string;
+};
+
+export type InventoryTransferEvent = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  transfer_request_id: string;
+  event_type: 'Created' | 'Approved' | 'Dispatched' | 'Received' | 'Cancelled' | 'Rejected';
+  performed_by: string;
+  notes: string | null;
+  created_at: string;
+};
+
+export type InventoryRecipe = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  name: string;
+  description: string | null;
+  yield_quantity: number;
+  yield_unit: string;
+  cost_snapshot: number;
+  version_no: number;
+  effective_from: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InventoryRecipeItem = {
+  id: string;
+  recipe_id: string;
+  material_id: string;
+  quantity: number;
+  created_at: string;
+  material_name?: string;
+};
+
+export type InventoryConsumptionBatch = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  bill_id: string;
+  status: 'Pending' | 'Processed' | 'Failed';
+  total_cost_snapshot: number;
+  created_at: string;
+  processed_at: string | null;
+};
+
+export type InventoryConsumptionJob = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  batch_id: string;
+  material_id: string;
+  quantity_to_deduct: number;
+  status: 'Pending' | 'Processed' | 'Failed';
+  attempt_count: number;
+  last_attempt_at: string | null;
+  processed_by: string | null;
+  retry_after: string | null;
+  error_message: string | null;
+  created_at: string;
+  processed_at: string | null;
+};
+
 // ─── LOCAL STORAGE FALLBACK SEED DATA ──────────────────────────────────────────
 
 const LOCAL_STORAGE_KEYS = {
@@ -253,6 +397,16 @@ const LOCAL_STORAGE_KEYS = {
   WASTAGE: 'grovit_inv_wastage_v1',
   AUDIT_LOGS: 'grovit_inv_audit_logs_v1',
   ALERTS: 'grovit_inv_alerts_v1',
+  TRANSFER_REQUESTS: 'grovit_inv_transfer_requests_v1',
+  TRANSFER_REQUEST_ITEMS: 'grovit_inv_transfer_request_items_v1',
+  DISPATCHES: 'grovit_inv_dispatches_v1',
+  DISPATCH_ITEMS: 'grovit_inv_dispatch_items_v1',
+  TRANSFER_VARIANCES: 'grovit_inv_transfer_variances_v1',
+  TRANSFER_EVENTS: 'grovit_inv_transfer_events_v1',
+  RECIPES: 'grovit_inv_recipes_v1',
+  RECIPE_ITEMS: 'grovit_inv_recipe_items_v1',
+  CONSUMPTION_BATCHES: 'grovit_inv_consumption_batches_v1',
+  CONSUMPTION_JOBS: 'grovit_inv_consumption_jobs_v1',
 };
 
 // Global switch to bypass remote calls once a database table does not exist
@@ -1171,13 +1325,14 @@ function deleteSupplierLocal(id: string): ServiceResult<boolean> {
 
 // ─── 4. MATERIALS ────────────────────────────────────────────────────────────
 
-export async function fetchMaterials(): Promise<ServiceResult<InventoryMaterial[]>> {
+export async function fetchMaterials(branchId?: string): Promise<ServiceResult<InventoryMaterial[]>> {
   try {
-    const { tenant_id } = getTenantContext();
+    const { tenant_id, branch_id } = getTenantContext();
+    const targetBranchId = branchId || branch_id;
 
     if (!forceLocalFallback) {
-      // Direct raw query join logic
-      const { data, error } = await supabase
+      // 1. Fetch materials base catalog
+      const { data: mats, error: matErr } = await supabase
         .from('inventory_materials')
         .select(`
           *,
@@ -1188,45 +1343,61 @@ export async function fetchMaterials(): Promise<ServiceResult<InventoryMaterial[
         .is('deleted_at', null)
         .order('material_name', { ascending: true });
 
-      if (error) {
-        if (await handleQueryError(error, 'fetchMaterials')) {
-          return fetchMaterialsLocal(tenant_id);
+      if (matErr) {
+        if (await handleQueryError(matErr, 'fetchMaterials')) {
+          return fetchMaterialsLocal(tenant_id, targetBranchId);
         }
-        return { data: null, error: error.message };
+        return { data: null, error: matErr.message };
       }
 
-      // Flat mapping data joins
-      const formatted = (data || []).map((m: any) => ({
-        ...m,
-        category_name: m.category?.category_name || 'Uncategorized',
-        unit_short_name: m.unit?.short_name || 'units',
-      }));
+      // 2. Fetch stock levels for active branch
+      const { data: stockLvls } = await supabase
+        .from('inventory_material_stock_levels')
+        .select('*')
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', targetBranchId);
+
+      // Map stock level sums into materials
+      const formatted = (mats || []).map((m: any) => {
+        const materialLevels = (stockLvls || []).filter((l: any) => l.material_id === m.id);
+        const sumStock = materialLevels.reduce((sum: number, l: any) => sum + (Number(l.current_stock) || 0), 0);
+        return {
+          ...m,
+          current_stock: sumStock,
+          category_name: m.category?.category_name || 'Uncategorized',
+          unit_short_name: m.unit?.short_name || 'units',
+        };
+      });
 
       return { data: formatted as InventoryMaterial[], error: null };
     } else {
-      return fetchMaterialsLocal(tenant_id);
+      return fetchMaterialsLocal(tenant_id, targetBranchId);
     }
   } catch (err: any) {
     if (await handleQueryError(err, 'fetchMaterials')) {
       const tenant = getTenantContext();
-      return fetchMaterialsLocal(tenant.tenant_id);
+      return fetchMaterialsLocal(tenant.tenant_id, branchId || tenant.branch_id);
     }
     return { data: null, error: err.message || 'Error occurred.' };
   }
 }
 
-function fetchMaterialsLocal(tenantId: string): ServiceResult<InventoryMaterial[]> {
+function fetchMaterialsLocal(tenantId: string, branchId: string): ServiceResult<InventoryMaterial[]> {
   const all = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
   const categories = getLocalData<InventoryCategory[]>(LOCAL_STORAGE_KEYS.CATEGORIES, []);
   const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
+  const stockLvls = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
 
   const active = all.filter(m => m.tenant_id === tenantId && !m.deleted_at);
 
   const formatted = active.map(m => {
     const cat = categories.find(c => c.id === m.category_id);
     const unt = units.find(u => u.id === m.inventory_unit_id);
+    const materialLevels = stockLvls.filter(l => l.tenant_id === tenantId && l.branch_id === branchId && l.material_id === m.id);
+    const sumStock = materialLevels.reduce((sum, l) => sum + (Number(l.current_stock) || 0), 0);
     return {
       ...m,
+      current_stock: sumStock,
       category_name: cat ? cat.category_name : 'Uncategorized',
       unit_short_name: unt ? unt.short_name : 'units',
     };
@@ -1825,6 +1996,55 @@ function createPurchaseLocal(
   recordAuditLogLocal('purchases', headerObj.id, 'CREATE', null, headerObj);
 
   return { data: headerObj, error: null };
+}
+
+
+// ─── UPDATE PURCHASE PAYMENT STATUS ──────────────────────────────────────────
+
+export async function updatePurchaseStatus(
+  purchaseId: string,
+  status: 'Completed' | 'Draft'
+): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+
+    if (!forceLocalFallback) {
+      const { error } = await supabase
+        .from('inventory_purchase_headers')
+        .update({ status })
+        .eq('id', purchaseId)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+
+      if (error) {
+        if (await handleQueryError(error, 'updatePurchaseStatus')) {
+          return updatePurchaseStatusLocal(purchaseId, status, tenant_id);
+        }
+        return { data: null, error: error.message };
+      }
+      recordAuditLogLocal('purchases', purchaseId, 'UPDATE', null, { status });
+      return { data: true, error: null };
+    } else {
+      return updatePurchaseStatusLocal(purchaseId, status, tenant_id);
+    }
+  } catch (err: any) {
+    const { tenant_id } = getTenantContext();
+    return updatePurchaseStatusLocal(purchaseId, status, tenant_id);
+  }
+}
+
+function updatePurchaseStatusLocal(
+  purchaseId: string,
+  status: 'Completed' | 'Draft',
+  tenantId: string
+): ServiceResult<boolean> {
+  const all = getLocalData<InventoryPurchaseHeader[]>(LOCAL_STORAGE_KEYS.PURCHASE_HEADERS, []);
+  const idx = all.findIndex((p) => p.id === purchaseId && p.tenant_id === tenantId);
+  if (idx < 0) return { data: false, error: 'Purchase not found' };
+  all[idx] = { ...all[idx], status };
+  saveLocalData(LOCAL_STORAGE_KEYS.PURCHASE_HEADERS, all);
+  recordAuditLogLocal('purchases', purchaseId, 'UPDATE', null, { status });
+  return { data: true, error: null };
 }
 
 
@@ -2669,3 +2889,2025 @@ export async function fetchInventoryDashboardKPIs(): Promise<ServiceResult<Dashb
     return { data: null, error: err.message || 'Error compiling KPIs.' };
   }
 }
+
+// ─── 12. CENTRAL KITCHEN & TRANSFERS SERVICE LAYER IMPLEMENTATIONS ──────────────
+
+export type Branch = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  address: string | null;
+  branch_type: 'RESTAURANT' | 'CENTRAL_KITCHEN' | 'WAREHOUSE';
+  created_at: string;
+};
+
+export async function fetchBranches(): Promise<ServiceResult<Branch[]>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('*')
+        .eq('tenant_id', tenant_id)
+        .order('name', { ascending: true });
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchBranches')) {
+          return fetchBranchesLocal(tenant_id);
+        }
+        return { data: null, error: error.message };
+      }
+      return { data: data as Branch[], error: null };
+    } else {
+      return fetchBranchesLocal(tenant_id);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchBranches')) {
+      const tenant = getTenantContext();
+      return fetchBranchesLocal(tenant.tenant_id);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchBranchesLocal(tenantId: string): ServiceResult<Branch[]> {
+  const all = getLocalData<Branch[]>('grovit_branches_v1', [
+    {
+      id: 'bbbbbbbb-0000-0000-0000-000000000001',
+      tenant_id: tenantId,
+      name: 'Le Leban Main Branch',
+      address: 'Chennai',
+      branch_type: 'RESTAURANT',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'cccccccc-0000-0000-0000-000000000001',
+      tenant_id: tenantId,
+      name: 'Le Leban Central Kitchen',
+      address: 'Chennai HQ',
+      branch_type: 'CENTRAL_KITCHEN',
+      created_at: new Date().toISOString()
+    }
+  ]);
+  return { data: all.filter(b => b.tenant_id === tenantId), error: null };
+}
+
+export async function fetchTransferRequests(branchId?: string): Promise<ServiceResult<InventoryTransferRequest[]>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const activeBranchId = branchId || branch_id;
+    
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_transfer_requests')
+        .select(`
+          *,
+          from_branch:branches!from_branch_id(name),
+          to_branch:branches!to_branch_id(name)
+        `)
+        .eq('tenant_id', tenant_id)
+        .or(`from_branch_id.eq.${activeBranchId},to_branch_id.eq.${activeBranchId}`)
+        .order('request_date', { ascending: false });
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchTransferRequests')) {
+          return fetchTransferRequestsLocal(tenant_id, activeBranchId);
+        }
+        return { data: null, error: error.message };
+      }
+      
+      const formatted = (data || []).map((r: any) => ({
+        ...r,
+        from_branch_name: r.from_branch?.name || 'Unknown Branch',
+        to_branch_name: r.to_branch?.name || 'Unknown Branch',
+      }));
+      
+      return { data: formatted as InventoryTransferRequest[], error: null };
+    } else {
+      return fetchTransferRequestsLocal(tenant_id, activeBranchId);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchTransferRequests')) {
+      const { tenant_id, branch_id } = getTenantContext();
+      return fetchTransferRequestsLocal(tenant_id, branchId || branch_id);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchTransferRequestsLocal(tenantId: string, branchId: string): ServiceResult<InventoryTransferRequest[]> {
+  const all = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const branches = fetchBranchesLocal(tenantId).data || [];
+  
+  const filtered = all.filter(r => r.tenant_id === tenantId && (r.from_branch_id === branchId || r.to_branch_id === branchId));
+  const formatted = filtered.map(r => {
+    const fromB = branches.find(b => b.id === r.from_branch_id);
+    const toB = branches.find(b => b.id === r.to_branch_id);
+    return {
+      ...r,
+      from_branch_name: fromB ? fromB.name : 'Unknown Branch',
+      to_branch_name: toB ? toB.name : 'Unknown Branch',
+    };
+  });
+  
+  return { data: formatted, error: null };
+}
+
+export async function fetchTransferRequestItems(requestId: string): Promise<ServiceResult<InventoryTransferRequestItem[]>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_transfer_request_items')
+        .select(`
+          *,
+          material:inventory_materials(material_name, unit:inventory_units(short_name))
+        `)
+        .eq('transfer_request_id', requestId);
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchTransferRequestItems')) {
+          return fetchTransferRequestItemsLocal(requestId);
+        }
+        return { data: null, error: error.message };
+      }
+      
+      const formatted = (data || []).map((itm: any) => ({
+        ...itm,
+        material_name: itm.material?.material_name || 'Unknown Material',
+        unit_short_name: itm.material?.unit?.short_name || 'units',
+      }));
+      
+      return { data: formatted as InventoryTransferRequestItem[], error: null };
+    } else {
+      return fetchTransferRequestItemsLocal(requestId);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchTransferRequestItems')) {
+      return fetchTransferRequestItemsLocal(requestId);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchTransferRequestItemsLocal(requestId: string): ServiceResult<InventoryTransferRequestItem[]> {
+  const all = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
+  
+  const filtered = all.filter(itm => itm.transfer_request_id === requestId);
+  const formatted = filtered.map(itm => {
+    const mat = mats.find(m => m.id === itm.material_id);
+    const unt = mat ? units.find(u => u.id === mat.inventory_unit_id) : null;
+    return {
+      ...itm,
+      material_name: mat ? mat.material_name : 'Unknown Material',
+      unit_short_name: unt ? unt.short_name : 'units',
+    };
+  });
+  
+  return { data: formatted, error: null };
+}
+
+export async function createTransferRequest(
+  fromBranchId: string,
+  toBranchId: string,
+  items: { material_id: string; requested_quantity: number }[],
+  remarks?: string
+): Promise<ServiceResult<InventoryTransferRequest>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+    const requestId = Math.random().toString(36).substr(2, 9);
+    const createdBy = 'Owner Staff';
+
+    const headerPayload = {
+      tenant_id,
+      branch_id,
+      from_branch_id: fromBranchId,
+      to_branch_id: toBranchId,
+      request_date: now,
+      status: 'Pending' as const,
+      remarks: remarks || null,
+      created_by: createdBy,
+      approved_by: null,
+      approved_at: null,
+      rejected_by: null,
+      rejected_at: null,
+      updated_at: now
+    };
+
+    if (!forceLocalFallback) {
+      const { data: headerData, error: headerErr } = await supabase
+        .from('inventory_transfer_requests')
+        .insert({ id: requestId, ...headerPayload })
+        .select('*')
+        .single();
+
+      if (headerErr) {
+        if (await handleQueryError(headerErr, 'createTransferRequest')) {
+          return createTransferRequestLocal(requestId, headerPayload, items);
+        }
+        return { data: null, error: headerErr.message };
+      }
+
+      const itemsPayload = items.map(itm => ({
+        tenant_id,
+        branch_id,
+        transfer_request_id: headerData.id,
+        material_id: itm.material_id,
+        requested_quantity: itm.requested_quantity,
+        approved_quantity: null
+      }));
+
+      const { error: itemsErr } = await supabase
+        .from('inventory_transfer_request_items')
+        .insert(itemsPayload);
+
+      if (itemsErr) {
+        return { data: null, error: itemsErr.message };
+      }
+
+      await supabase.from('inventory_transfer_events').insert({
+        tenant_id,
+        branch_id,
+        transfer_request_id: headerData.id,
+        event_type: 'Created',
+        performed_by: createdBy,
+        notes: 'Transfer request raised.'
+      });
+
+      return { data: headerData as InventoryTransferRequest, error: null };
+    } else {
+      return createTransferRequestLocal(requestId, headerPayload, items);
+    }
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Error creating transfer request.' };
+  }
+}
+
+function createTransferRequestLocal(
+  requestId: string,
+  header: any,
+  items: { material_id: string; requested_quantity: number }[]
+): ServiceResult<InventoryTransferRequest> {
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allItems = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+  const allEvents = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  const now = new Date().toISOString();
+  
+  const seq = String(allReqs.length + 1).padStart(4, '0');
+  const reqNumber = `TRF-${new Date().getFullYear()}-${seq}`;
+
+  const newReq: InventoryTransferRequest = {
+    ...header,
+    id: requestId,
+    request_number: reqNumber,
+    created_at: now,
+    updated_at: now
+  };
+
+  const newItems = items.map(itm => ({
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: header.tenant_id,
+    branch_id: header.branch_id,
+    transfer_request_id: requestId,
+    material_id: itm.material_id,
+    requested_quantity: itm.requested_quantity,
+    approved_quantity: null,
+    created_at: now
+  }));
+
+  const newEvent: InventoryTransferEvent = {
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: header.tenant_id,
+    branch_id: header.branch_id,
+    transfer_request_id: requestId,
+    event_type: 'Created',
+    performed_by: header.created_by,
+    notes: 'Transfer request raised.',
+    created_at: now
+  };
+
+  allReqs.push(newReq);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, allReqs);
+  
+  allItems.push(...newItems);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, allItems);
+
+  allEvents.push(newEvent);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, allEvents);
+
+  return { data: newReq, error: null };
+}
+
+export async function approveTransferRequest(
+  requestId: string,
+  items: { material_id: string; approved_quantity: number }[],
+  approvedBy: string
+): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+
+    if (!forceLocalFallback) {
+      const { data: reqData, error: reqErr } = await supabase
+        .from('inventory_transfer_requests')
+        .update({
+          status: 'Approved',
+          approved_by: approvedBy,
+          approved_at: now,
+          updated_at: now
+        })
+        .eq('id', requestId)
+        .select('*')
+        .single();
+
+      if (reqErr) {
+        if (await handleQueryError(reqErr, 'approveTransferRequest')) {
+          return approveTransferRequestLocal(requestId, items, approvedBy);
+        }
+        return { data: false, error: reqErr.message };
+      }
+
+      const CK_branch_id = reqData.from_branch_id;
+
+      for (const itm of items) {
+        await supabase
+          .from('inventory_transfer_request_items')
+          .update({ approved_quantity: itm.approved_quantity })
+          .eq('transfer_request_id', requestId)
+          .eq('material_id', itm.material_id);
+
+        const { data: stockLvl } = await supabase
+          .from('inventory_material_stock_levels')
+          .select('*')
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', CK_branch_id)
+          .eq('material_id', itm.material_id)
+          .limit(1);
+
+        const activeLvl = stockLvl && stockLvl.length > 0 ? stockLvl[0] : null;
+
+        if (activeLvl) {
+          const newReserved = (Number(activeLvl.reserved_stock) || 0) + itm.approved_quantity;
+          const current = Number(activeLvl.current_stock) || 0;
+          await supabase
+            .from('inventory_material_stock_levels')
+            .update({
+              reserved_stock: newReserved,
+              available_stock: current - newReserved,
+              updated_at: now
+            })
+            .eq('id', activeLvl.id);
+        } else {
+          await supabase
+            .from('inventory_material_stock_levels')
+            .insert({
+              tenant_id,
+              branch_id: CK_branch_id,
+              material_id: itm.material_id,
+              location_id: 'Main Storage',
+              current_stock: 0,
+              reserved_stock: itm.approved_quantity,
+              available_stock: -itm.approved_quantity
+            });
+        }
+      }
+
+      await supabase.from('inventory_transfer_events').insert({
+        tenant_id,
+        branch_id,
+        transfer_request_id: requestId,
+        event_type: 'Approved',
+        performed_by: approvedBy,
+        notes: `Transfer request approved.`
+      });
+
+      return { data: true, error: null };
+    } else {
+      return approveTransferRequestLocal(requestId, items, approvedBy);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error approving request.' };
+  }
+}
+
+function approveTransferRequestLocal(
+  requestId: string,
+  items: { material_id: string; approved_quantity: number }[],
+  approvedBy: string
+): ServiceResult<boolean> {
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allItems = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+  const allStock = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
+  const allEvents = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  const now = new Date().toISOString();
+
+  const reqIdx = allReqs.findIndex(r => r.id === requestId);
+  if (reqIdx < 0) return { data: false, error: 'Request not found.' };
+
+  const req = allReqs[reqIdx];
+  req.status = 'Approved';
+  req.approved_by = approvedBy;
+  req.approved_at = now;
+  req.updated_at = now;
+
+  for (const itm of items) {
+    const itemIdx = allItems.findIndex(i => i.transfer_request_id === requestId && i.material_id === itm.material_id);
+    if (itemIdx >= 0) {
+      allItems[itemIdx].approved_quantity = itm.approved_quantity;
+    }
+
+    let lvlIdx = allStock.findIndex(l => l.branch_id === req.from_branch_id && l.material_id === itm.material_id);
+    if (lvlIdx >= 0) {
+      const lvl = allStock[lvlIdx];
+      lvl.reserved_stock = (Number(lvl.reserved_stock) || 0) + itm.approved_quantity;
+      lvl.available_stock = (Number(lvl.current_stock) || 0) - lvl.reserved_stock;
+      lvl.updated_at = now;
+    } else {
+      const newLvl: InventoryStockLevel = {
+        id: Math.random().toString(36).substr(2, 9),
+        tenant_id: req.tenant_id,
+        branch_id: req.from_branch_id,
+        material_id: itm.material_id,
+        location_id: 'Main Storage',
+        current_stock: 0,
+        reserved_stock: itm.approved_quantity,
+        available_stock: -itm.approved_quantity,
+        updated_at: now
+      };
+      allStock.push(newLvl);
+    }
+  }
+
+  const newEvent: InventoryTransferEvent = {
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: req.tenant_id,
+    branch_id: req.branch_id,
+    transfer_request_id: requestId,
+    event_type: 'Approved',
+    performed_by: approvedBy,
+    notes: `Transfer request approved.`,
+    created_at: now
+  };
+
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, allReqs);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, allItems);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEVELS, allStock);
+  allEvents.push(newEvent);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, allEvents);
+
+  return { data: true, error: null };
+}
+
+export async function rejectTransferRequest(
+  requestId: string,
+  rejectedBy: string,
+  reason?: string
+): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+
+    if (!forceLocalFallback) {
+      const { error } = await supabase
+        .from('inventory_transfer_requests')
+        .update({
+          status: 'Rejected',
+          rejected_by: rejectedBy,
+          rejected_at: now,
+          updated_at: now
+        })
+        .eq('id', requestId);
+
+      if (error) {
+        if (await handleQueryError(error, 'rejectTransferRequest')) {
+          return rejectTransferRequestLocal(requestId, rejectedBy, reason);
+        }
+        return { data: false, error: error.message };
+      }
+
+      await supabase.from('inventory_transfer_events').insert({
+        tenant_id,
+        branch_id,
+        transfer_request_id: requestId,
+        event_type: 'Rejected',
+        performed_by: rejectedBy,
+        notes: reason || 'Transfer request rejected.'
+      });
+
+      return { data: true, error: null };
+    } else {
+      return rejectTransferRequestLocal(requestId, rejectedBy, reason);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error rejecting request.' };
+  }
+}
+
+function rejectTransferRequestLocal(requestId: string, rejectedBy: string, reason?: string): ServiceResult<boolean> {
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allEvents = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  const now = new Date().toISOString();
+
+  const idx = allReqs.findIndex(r => r.id === requestId);
+  if (idx >= 0) {
+    allReqs[idx].status = 'Rejected';
+    allReqs[idx].rejected_by = rejectedBy;
+    allReqs[idx].rejected_at = now;
+    allReqs[idx].updated_at = now;
+    saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, allReqs);
+  }
+
+  allEvents.push({
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: allReqs[idx]?.tenant_id || '',
+    branch_id: allReqs[idx]?.branch_id || '',
+    transfer_request_id: requestId,
+    event_type: 'Rejected',
+    performed_by: rejectedBy,
+    notes: reason || 'Transfer request rejected.',
+    created_at: now
+  });
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, allEvents);
+
+  return { data: true, error: null };
+}
+
+export async function createDispatch(
+  requestId: string,
+  items: { material_id: string; dispatched_quantity: number }[],
+  remarks?: string,
+  createdBy?: string
+): Promise<ServiceResult<InventoryDispatch>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+    const dispatchId = Math.random().toString(36).substr(2, 9);
+    const author = createdBy || 'Owner Staff';
+
+    if (!forceLocalFallback) {
+      const { data: req, error: reqErr } = await supabase
+        .from('inventory_transfer_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+
+      if (reqErr) {
+        return { data: null, error: `Could not fetch request: ${reqErr.message}` };
+      }
+
+      const { data: reqItems } = await supabase
+        .from('inventory_transfer_request_items')
+        .select('*')
+        .eq('transfer_request_id', requestId);
+
+      const dispatchPayload = {
+        tenant_id,
+        branch_id: req.from_branch_id,
+        transfer_request_id: requestId,
+        from_branch_id: req.from_branch_id,
+        to_branch_id: req.to_branch_id,
+        dispatch_date: now,
+        status: 'Dispatched' as const,
+        remarks: remarks || null,
+        created_by: author,
+        updated_at: now
+      };
+
+      const { data: dispData, error: dispErr } = await supabase
+        .from('inventory_dispatches')
+        .insert({ id: dispatchId, ...dispatchPayload })
+        .select('*')
+        .single();
+
+      if (dispErr) {
+        if (await handleQueryError(dispErr, 'createDispatch')) {
+          return createDispatchLocal(dispatchId, dispatchPayload, items, req, reqItems || []);
+        }
+        return { data: null, error: dispErr.message };
+      }
+
+      const dispatchItemsPayload = [];
+      
+      for (const itm of items) {
+        const { data: stockLvls } = await supabase
+          .from('inventory_material_stock_levels')
+          .select('*')
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', req.from_branch_id)
+          .eq('material_id', itm.material_id);
+
+        const CK_stock = stockLvls && stockLvls.length > 0 ? stockLvls[0] : null;
+
+        if (CK_stock) {
+          const nextReserved = Math.max(0, (Number(CK_stock.reserved_stock) || 0) - itm.dispatched_quantity);
+          const nextCurrent = Math.max(0, (Number(CK_stock.current_stock) || 0) - itm.dispatched_quantity);
+          
+          await supabase
+            .from('inventory_material_stock_levels')
+            .update({
+              reserved_stock: nextReserved,
+              current_stock: nextCurrent,
+              available_stock: nextCurrent - nextReserved,
+              updated_at: now
+            })
+            .eq('id', CK_stock.id);
+        }
+
+        const { data: mat } = await supabase
+          .from('inventory_materials')
+          .select('*')
+          .eq('id', itm.material_id)
+          .single();
+
+        const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
+        const balanceStock = CK_stock ? Math.max(0, Number(CK_stock.current_stock) - itm.dispatched_quantity) : 0;
+
+        await supabase.from('inventory_stock_ledger').insert({
+          tenant_id,
+          branch_id: req.from_branch_id,
+          material_id: itm.material_id,
+          transaction_date: now,
+          transaction_type: 'Transfer Out',
+          reference_type: 'Dispatch Invoice',
+          reference_id: dispatchId,
+          qty_in: 0,
+          qty_out: itm.dispatched_quantity,
+          balance_stock: balanceStock,
+          unit_cost: unitCost,
+          total_value: balanceStock * unitCost,
+          remarks: `Dispatched to branch. Dispatch No: ${dispData.dispatch_number}`,
+          created_by: author
+        });
+
+        dispatchItemsPayload.push({
+          tenant_id,
+          branch_id: req.from_branch_id,
+          dispatch_id: dispData.id,
+          material_id: itm.material_id,
+          dispatched_quantity: itm.dispatched_quantity,
+          received_quantity: null
+        });
+      }
+
+      await supabase.from('inventory_dispatch_items').insert(dispatchItemsPayload);
+
+      let allDispatched = true;
+      for (const ri of (reqItems || [])) {
+        const matchingDisp = items.find(i => i.material_id === ri.material_id);
+        const approved = Number(ri.approved_quantity) || 0;
+        const dispatched = matchingDisp ? matchingDisp.dispatched_quantity : 0;
+        if (dispatched < approved) {
+          allDispatched = false;
+        }
+      }
+
+      const nextStatus = allDispatched ? 'Dispatched' : 'Partially Dispatched';
+      await supabase
+        .from('inventory_transfer_requests')
+        .update({ status: nextStatus, updated_at: now })
+        .eq('id', requestId);
+
+      await supabase.from('inventory_transfer_events').insert({
+        tenant_id,
+        branch_id: req.from_branch_id,
+        transfer_request_id: requestId,
+        event_type: 'Dispatched',
+        performed_by: author,
+        notes: `Items dispatched. Status set to ${nextStatus}.`
+      });
+
+      return { data: dispData as InventoryDispatch, error: null };
+    } else {
+      const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+      const req = allReqs.find(r => r.id === requestId);
+      if (!req) return { data: null, error: 'Request not found locally.' };
+
+      const allReqItems = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+      const reqItems = allReqItems.filter(ri => ri.transfer_request_id === requestId);
+
+      const dispatchPayload = {
+        tenant_id,
+        branch_id: req.from_branch_id,
+        transfer_request_id: requestId,
+        from_branch_id: req.from_branch_id,
+        to_branch_id: req.to_branch_id,
+        dispatch_date: now,
+        status: 'Dispatched' as const,
+        remarks: remarks || null,
+        created_by: author,
+        updated_at: now
+      };
+
+      return createDispatchLocal(dispatchId, dispatchPayload, items, req, reqItems);
+    }
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Error creating dispatch.' };
+  }
+}
+
+function createDispatchLocal(
+  dispatchId: string,
+  payload: any,
+  items: { material_id: string; dispatched_quantity: number }[],
+  req: any,
+  reqItems: any[]
+): ServiceResult<InventoryDispatch> {
+  const allDispatches = getLocalData<InventoryDispatch[]>(LOCAL_STORAGE_KEYS.DISPATCHES, []);
+  const allDispItems = getLocalData<InventoryDispatchItem[]>(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, []);
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allStock = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
+  const allLedger = getLocalData<InventoryStockLedger[]>(LOCAL_STORAGE_KEYS.STOCK_LEDGER, []);
+  const allEvents = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const now = new Date().toISOString();
+
+  const seq = String(allDispatches.length + 1).padStart(4, '0');
+  const dispNumber = `DSP-${new Date().getFullYear()}-${seq}`;
+
+  const newDisp: InventoryDispatch = {
+    ...payload,
+    id: dispatchId,
+    dispatch_number: dispNumber,
+    created_at: now,
+    updated_at: now
+  };
+
+  const newDispItems = items.map(itm => ({
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: payload.tenant_id,
+    branch_id: payload.branch_id,
+    dispatch_id: dispatchId,
+    material_id: itm.material_id,
+    dispatched_quantity: itm.dispatched_quantity,
+    received_quantity: null,
+    created_at: now
+  }));
+
+  for (const itm of items) {
+    const lvlIdx = allStock.findIndex(l => l.branch_id === req.from_branch_id && l.material_id === itm.material_id);
+    let balanceStock = 0;
+    if (lvlIdx >= 0) {
+      const lvl = allStock[lvlIdx];
+      lvl.reserved_stock = Math.max(0, (Number(lvl.reserved_stock) || 0) - itm.dispatched_quantity);
+      lvl.current_stock = Math.max(0, (Number(lvl.current_stock) || 0) - itm.dispatched_quantity);
+      lvl.available_stock = lvl.current_stock - lvl.reserved_stock;
+      lvl.updated_at = now;
+      balanceStock = lvl.current_stock;
+    }
+
+    const mat = mats.find(m => m.id === itm.material_id);
+    const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
+
+    allLedger.push({
+      id: Math.random().toString(36).substr(2, 9),
+      tenant_id: payload.tenant_id,
+      branch_id: req.from_branch_id,
+      material_id: itm.material_id,
+      transaction_date: now,
+      transaction_type: 'Transfer Out',
+      reference_type: 'Dispatch Invoice',
+      reference_id: dispatchId,
+      qty_in: 0,
+      qty_out: itm.dispatched_quantity,
+      balance_stock: balanceStock,
+      unit_cost: unitCost,
+      total_value: balanceStock * unitCost,
+      remarks: `Dispatched to branch. Dispatch No: ${dispNumber}`,
+      created_by: payload.created_by,
+      created_at: now
+    });
+  }
+
+  const reqIdx = allReqs.findIndex(r => r.id === req.id);
+  let allDispatched = true;
+  for (const ri of reqItems) {
+    const matchingDisp = items.find(i => i.material_id === ri.material_id);
+    const approved = Number(ri.approved_quantity) || 0;
+    const dispatched = matchingDisp ? matchingDisp.dispatched_quantity : 0;
+    if (dispatched < approved) {
+      allDispatched = false;
+    }
+  }
+  const nextStatus = allDispatched ? 'Dispatched' : 'Partially Dispatched';
+  if (reqIdx >= 0) {
+    allReqs[reqIdx].status = nextStatus;
+    allReqs[reqIdx].updated_at = now;
+  }
+
+  const newEvent: InventoryTransferEvent = {
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: payload.tenant_id,
+    branch_id: payload.branch_id,
+    transfer_request_id: req.id,
+    event_type: 'Dispatched',
+    performed_by: payload.created_by,
+    notes: `Items dispatched. Status set to ${nextStatus}.`,
+    created_at: now
+  };
+
+  allDispatches.push(newDisp);
+  allDispItems.push(...newDispItems);
+  allEvents.push(newEvent);
+
+  saveLocalData(LOCAL_STORAGE_KEYS.DISPATCHES, allDispatches);
+  saveLocalData(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, allDispItems);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, allReqs);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEVELS, allStock);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEDGER, allLedger);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, allEvents);
+
+  return { data: newDisp, error: null };
+}
+
+export async function receiveDispatch(
+  dispatchId: string,
+  items: { id: string; material_id: string; received_quantity: number; dispatched_quantity: number }[],
+  remarks?: string,
+  receivedBy?: string
+): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+    const author = receivedBy || 'Owner Staff';
+
+    if (!forceLocalFallback) {
+      const { data: disp, error: dispErr } = await supabase
+        .from('inventory_dispatches')
+        .select('*')
+        .eq('id', dispatchId)
+        .single();
+
+      if (dispErr) {
+        return { data: false, error: `Could not fetch dispatch: ${dispErr.message}` };
+      }
+
+      await supabase
+        .from('inventory_dispatches')
+        .update({ status: 'Received', updated_at: now })
+        .eq('id', dispatchId);
+
+      const targetBranchId = disp.to_branch_id;
+
+      for (const itm of items) {
+        await supabase
+          .from('inventory_dispatch_items')
+          .update({ received_quantity: itm.received_quantity })
+          .eq('id', itm.id);
+
+        const { data: stockLvl } = await supabase
+          .from('inventory_material_stock_levels')
+          .select('*')
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', targetBranchId)
+          .eq('material_id', itm.material_id)
+          .limit(1);
+
+        const activeLvl = stockLvl && stockLvl.length > 0 ? stockLvl[0] : null;
+        let newStock = itm.received_quantity;
+
+        if (activeLvl) {
+          newStock = (Number(activeLvl.current_stock) || 0) + itm.received_quantity;
+          const reserved = Number(activeLvl.reserved_stock) || 0;
+          await supabase
+            .from('inventory_material_stock_levels')
+            .update({
+              current_stock: newStock,
+              available_stock: newStock - reserved,
+              updated_at: now
+            })
+            .eq('id', activeLvl.id);
+        } else {
+          await supabase
+            .from('inventory_material_stock_levels')
+            .insert({
+              tenant_id,
+              branch_id: targetBranchId,
+              material_id: itm.material_id,
+              location_id: 'Main Storage',
+              current_stock: itm.received_quantity,
+              reserved_stock: 0,
+              available_stock: itm.received_quantity
+            });
+        }
+
+        const { data: mat } = await supabase
+          .from('inventory_materials')
+          .select('*')
+          .eq('id', itm.material_id)
+          .single();
+
+        const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
+
+        await supabase.from('inventory_stock_ledger').insert({
+          tenant_id,
+          branch_id: targetBranchId,
+          material_id: itm.material_id,
+          transaction_date: now,
+          transaction_type: 'Transfer In',
+          reference_type: 'Receipt Invoice',
+          reference_id: dispatchId,
+          qty_in: itm.received_quantity,
+          qty_out: 0,
+          balance_stock: newStock,
+          unit_cost: unitCost,
+          total_value: newStock * unitCost,
+          remarks: `Received from branch. Dispatch No: ${disp.dispatch_number}`,
+          created_by: author
+        });
+
+        if (itm.received_quantity < itm.dispatched_quantity) {
+          const varianceQty = itm.dispatched_quantity - itm.received_quantity;
+          await supabase.from('inventory_transfer_variances').insert({
+            tenant_id,
+            branch_id: targetBranchId,
+            dispatch_item_id: itm.id,
+            material_id: itm.material_id,
+            dispatched_qty: itm.dispatched_quantity,
+            received_qty: itm.received_quantity,
+            variance_qty: varianceQty,
+            reason: remarks || 'Transit loss'
+          });
+        }
+      }
+
+      if (disp.transfer_request_id) {
+        let allReceived = true;
+        
+        const { data: dispList } = await supabase
+          .from('inventory_dispatches')
+          .select('id')
+          .eq('transfer_request_id', disp.transfer_request_id);
+
+        const dispIds = (dispList || []).map((d: any) => d.id);
+
+        const { data: allDispItems } = await supabase
+          .from('inventory_dispatch_items')
+          .select('*')
+          .in('dispatch_id', dispIds);
+
+        const { data: reqItems } = await supabase
+          .from('inventory_transfer_request_items')
+          .select('*')
+          .eq('transfer_request_id', disp.transfer_request_id);
+
+        for (const ri of (reqItems || [])) {
+          const matchingDispItems = (allDispItems || []).filter((di: any) => di.material_id === ri.material_id);
+          const totalReceived = matchingDispItems.reduce((s, di) => s + (Number(di.received_quantity) || 0), 0);
+          const approved = Number(ri.approved_quantity) || 0;
+          if (totalReceived < approved) {
+            allReceived = false;
+          }
+        }
+
+        const nextStatus = allReceived ? 'Completed' : 'Partially Received';
+        await supabase
+          .from('inventory_transfer_requests')
+          .update({ status: nextStatus, updated_at: now })
+          .eq('id', disp.transfer_request_id);
+
+        await supabase.from('inventory_transfer_events').insert({
+          tenant_id,
+          branch_id: targetBranchId,
+          transfer_request_id: disp.transfer_request_id,
+          event_type: 'Received',
+          performed_by: author,
+          notes: `Goods received. Status set to ${nextStatus}.`
+        });
+      }
+
+      return { data: true, error: null };
+    } else {
+      const allDispatches = getLocalData<InventoryDispatch[]>(LOCAL_STORAGE_KEYS.DISPATCHES, []);
+      const disp = allDispatches.find(d => d.id === dispatchId);
+      if (!disp) return { data: false, error: 'Dispatch not found locally.' };
+
+      return receiveDispatchLocal(dispatchId, items, disp, remarks, author);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error receiving dispatch.' };
+  }
+}
+
+function receiveDispatchLocal(
+  dispatchId: string,
+  items: { id: string; material_id: string; received_quantity: number; dispatched_quantity: number }[],
+  disp: any,
+  remarks?: string,
+  author?: string
+): ServiceResult<boolean> {
+  const allDispatches = getLocalData<InventoryDispatch[]>(LOCAL_STORAGE_KEYS.DISPATCHES, []);
+  const allDispItems = getLocalData<InventoryDispatchItem[]>(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, []);
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allReqItems = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+  const allStock = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
+  const allLedger = getLocalData<InventoryStockLedger[]>(LOCAL_STORAGE_KEYS.STOCK_LEDGER, []);
+  const allVariances = getLocalData<InventoryTransferVariance[]>(LOCAL_STORAGE_KEYS.TRANSFER_VARIANCES, []);
+  const allEvents = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const now = new Date().toISOString();
+
+  const dispIdx = allDispatches.findIndex(d => d.id === dispatchId);
+  if (dispIdx >= 0) {
+    allDispatches[dispIdx].status = 'Received';
+    allDispatches[dispIdx].updated_at = now;
+  }
+
+  const targetBranchId = disp.to_branch_id;
+
+  for (const itm of items) {
+    const itemIdx = allDispItems.findIndex(di => di.id === itm.id);
+    if (itemIdx >= 0) {
+      allDispItems[itemIdx].received_quantity = itm.received_quantity;
+    }
+
+    let lvlIdx = allStock.findIndex(l => l.branch_id === targetBranchId && l.material_id === itm.material_id);
+    let newStock = itm.received_quantity;
+    if (lvlIdx >= 0) {
+      const lvl = allStock[lvlIdx];
+      lvl.current_stock = (Number(lvl.current_stock) || 0) + itm.received_quantity;
+      lvl.available_stock = lvl.current_stock - (Number(lvl.reserved_stock) || 0);
+      lvl.updated_at = now;
+      newStock = lvl.current_stock;
+    } else {
+      const newLvl: InventoryStockLevel = {
+        id: Math.random().toString(36).substr(2, 9),
+        tenant_id: disp.tenant_id,
+        branch_id: targetBranchId,
+        material_id: itm.material_id,
+        location_id: 'Main Storage',
+        current_stock: itm.received_quantity,
+        reserved_stock: 0,
+        available_stock: itm.received_quantity,
+        updated_at: now
+      };
+      allStock.push(newLvl);
+    }
+
+    const mat = mats.find(m => m.id === itm.material_id);
+    const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
+
+    allLedger.push({
+      id: Math.random().toString(36).substr(2, 9),
+      tenant_id: disp.tenant_id,
+      branch_id: targetBranchId,
+      material_id: itm.material_id,
+      transaction_date: now,
+      transaction_type: 'Transfer In',
+      reference_type: 'Receipt Invoice',
+      reference_id: dispatchId,
+      qty_in: itm.received_quantity,
+      qty_out: 0,
+      balance_stock: newStock,
+      unit_cost: unitCost,
+      total_value: newStock * unitCost,
+      remarks: `Received from branch. Dispatch No: ${disp.dispatch_number}`,
+      created_by: author || null,
+      created_at: now
+    });
+
+    if (itm.received_quantity < itm.dispatched_quantity) {
+      allVariances.push({
+        id: Math.random().toString(36).substr(2, 9),
+        tenant_id: disp.tenant_id,
+        branch_id: targetBranchId,
+        dispatch_item_id: itm.id,
+        material_id: itm.material_id,
+        dispatched_qty: itm.dispatched_quantity,
+        received_qty: itm.received_quantity,
+        variance_qty: itm.dispatched_quantity - itm.received_quantity,
+        reason: remarks || 'Transit loss',
+        created_at: now
+      });
+    }
+  }
+
+  if (disp.transfer_request_id) {
+    const matchingDisps = allDispatches.filter(d => d.transfer_request_id === disp.transfer_request_id);
+    const dispIds = matchingDisps.map(d => d.id);
+    const relatedDispItems = allDispItems.filter(di => dispIds.includes(di.dispatch_id));
+    const reqItems = allReqItems.filter(ri => ri.transfer_request_id === disp.transfer_request_id);
+
+    let allReceived = true;
+    for (const ri of reqItems) {
+      const matching = relatedDispItems.filter(di => di.material_id === ri.material_id);
+      const totalReceived = matching.reduce((s, di) => s + (Number(di.received_quantity) || 0), 0);
+      const approved = Number(ri.approved_quantity) || 0;
+      if (totalReceived < approved) {
+        allReceived = false;
+      }
+    }
+
+    const nextStatus = allReceived ? 'Completed' : 'Partially Received';
+    const reqIdx = allReqs.findIndex(r => r.id === disp.transfer_request_id);
+    if (reqIdx >= 0) {
+      allReqs[reqIdx].status = nextStatus;
+      allReqs[reqIdx].updated_at = now;
+    }
+
+    allEvents.push({
+      id: Math.random().toString(36).substr(2, 9),
+      tenant_id: disp.tenant_id,
+      branch_id: targetBranchId,
+      transfer_request_id: disp.transfer_request_id,
+      event_type: 'Received',
+      performed_by: author || 'Owner Staff',
+      notes: `Goods received. Status set to ${nextStatus}.`,
+      created_at: now
+    });
+  }
+
+  saveLocalData(LOCAL_STORAGE_KEYS.DISPATCHES, allDispatches);
+  saveLocalData(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, allDispItems);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, allReqs);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEVELS, allStock);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEDGER, allLedger);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_VARIANCES, allVariances);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, allEvents);
+
+  return { data: true, error: null };
+}
+
+export async function fetchDispatches(branchId?: string): Promise<ServiceResult<InventoryDispatch[]>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const activeBranchId = branchId || branch_id;
+
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_dispatches')
+        .select(`
+          *,
+          from_branch:branches!from_branch_id(name),
+          to_branch:branches!to_branch_id(name)
+        `)
+        .eq('tenant_id', tenant_id)
+        .or(`from_branch_id.eq.${activeBranchId},to_branch_id.eq.${activeBranchId}`)
+        .order('dispatch_date', { ascending: false });
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchDispatches')) {
+          return fetchDispatchesLocal(tenant_id, activeBranchId);
+        }
+        return { data: null, error: error.message };
+      }
+
+      const formatted = (data || []).map((d: any) => ({
+        ...d,
+        from_branch_name: d.from_branch?.name || 'Unknown Branch',
+        to_branch_name: d.to_branch?.name || 'Unknown Branch',
+      }));
+
+      return { data: formatted as InventoryDispatch[], error: null };
+    } else {
+      return fetchDispatchesLocal(tenant_id, activeBranchId);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchDispatches')) {
+      const { tenant_id, branch_id } = getTenantContext();
+      return fetchDispatchesLocal(tenant_id, branchId || branch_id);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchDispatchesLocal(tenantId: string, branchId: string): ServiceResult<InventoryDispatch[]> {
+  const all = getLocalData<InventoryDispatch[]>(LOCAL_STORAGE_KEYS.DISPATCHES, []);
+  const branches = fetchBranchesLocal(tenantId).data || [];
+
+  const filtered = all.filter(d => d.tenant_id === tenantId && (d.from_branch_id === branchId || d.to_branch_id === branchId));
+  const formatted = filtered.map(d => {
+    const fromB = branches.find(b => b.id === d.from_branch_id);
+    const toB = branches.find(b => b.id === d.to_branch_id);
+    return {
+      ...d,
+      from_branch_name: fromB ? fromB.name : 'Unknown Branch',
+      to_branch_name: toB ? toB.name : 'Unknown Branch',
+    };
+  });
+
+  return { data: formatted, error: null };
+}
+
+export async function fetchDispatchItems(dispatchId: string): Promise<ServiceResult<InventoryDispatchItem[]>> {
+  try {
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_dispatch_items')
+        .select(`
+          *,
+          material:inventory_materials(material_name, unit:inventory_units(short_name))
+        `)
+        .eq('dispatch_id', dispatchId);
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchDispatchItems')) {
+          return fetchDispatchItemsLocal(dispatchId);
+        }
+        return { data: null, error: error.message };
+      }
+
+      const formatted = (data || []).map((itm: any) => ({
+        ...itm,
+        material_name: itm.material?.material_name || 'Unknown Material',
+        unit_short_name: itm.material?.unit?.short_name || 'units',
+      }));
+
+      return { data: formatted as InventoryDispatchItem[], error: null };
+    } else {
+      return fetchDispatchItemsLocal(dispatchId);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchDispatchItems')) {
+      return fetchDispatchItemsLocal(dispatchId);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchDispatchItemsLocal(dispatchId: string): ServiceResult<InventoryDispatchItem[]> {
+  const all = getLocalData<InventoryDispatchItem[]>(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
+
+  const filtered = all.filter(di => di.dispatch_id === dispatchId);
+  const formatted = filtered.map(di => {
+    const mat = mats.find(m => m.id === di.material_id);
+    const unt = mat ? units.find(u => u.id === mat.inventory_unit_id) : null;
+    return {
+      ...di,
+      material_name: mat ? mat.material_name : 'Unknown Material',
+      unit_short_name: unt ? unt.short_name : 'units',
+    };
+  });
+
+  return { data: formatted, error: null };
+}
+
+export async function fetchTransferEvents(requestId: string): Promise<ServiceResult<InventoryTransferEvent[]>> {
+  try {
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_transfer_events')
+        .select('*')
+        .eq('transfer_request_id', requestId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchTransferEvents')) {
+          return fetchTransferEventsLocal(requestId);
+        }
+        return { data: null, error: error.message };
+      }
+      return { data: data as InventoryTransferEvent[], error: null };
+    } else {
+      return fetchTransferEventsLocal(requestId);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchTransferEvents')) {
+      return fetchTransferEventsLocal(requestId);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchTransferEventsLocal(requestId: string): ServiceResult<InventoryTransferEvent[]> {
+  const all = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  return { data: all.filter(e => e.transfer_request_id === requestId).sort((a,b) => a.created_at.localeCompare(b.created_at)), error: null };
+}
+
+export async function cancelTransferRequest(
+  requestId: string,
+  cancelledBy: string,
+  reason?: string
+): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const now = new Date().toISOString();
+
+    if (!forceLocalFallback) {
+      const { data: req, error: fetchErr } = await supabase
+        .from('inventory_transfer_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchErr) return { data: false, error: fetchErr.message };
+
+      const { data: reqItems } = await supabase
+        .from('inventory_transfer_request_items')
+        .select('*')
+        .eq('transfer_request_id', requestId);
+
+      const CK_branch_id = req.from_branch_id;
+
+      const { error: updateErr } = await supabase
+        .from('inventory_transfer_requests')
+        .update({ status: 'Cancelled', updated_at: now })
+        .eq('id', requestId);
+
+      if (updateErr) return { data: false, error: updateErr.message };
+
+      if ((req.status === 'Approved' || req.status === 'Partially Dispatched') && reqItems) {
+        const { data: dispatches } = await supabase
+          .from('inventory_dispatches')
+          .select('id')
+          .eq('transfer_request_id', requestId);
+
+        const dispatchIds = (dispatches || []).map((d: any) => d.id);
+        const { data: dispItems } = dispatchIds.length > 0
+          ? await supabase.from('inventory_dispatch_items').select('*').in('dispatch_id', dispatchIds)
+          : { data: [] };
+
+        for (const ri of reqItems) {
+          const approved = Number(ri.approved_quantity) || 0;
+          const matchingDisp = (dispItems || []).filter((di: any) => di.material_id === ri.material_id);
+          const totalDispatched = matchingDisp.reduce((sum, di) => sum + (Number(di.dispatched_quantity) || 0), 0);
+          const remainingReserved = Math.max(0, approved - totalDispatched);
+
+          if (remainingReserved > 0) {
+            const { data: stockLvl } = await supabase
+              .from('inventory_material_stock_levels')
+              .select('*')
+              .eq('tenant_id', tenant_id)
+              .eq('branch_id', CK_branch_id)
+              .eq('material_id', ri.material_id)
+              .limit(1);
+
+            const activeLvl = stockLvl && stockLvl.length > 0 ? stockLvl[0] : null;
+            if (activeLvl) {
+              const nextReserved = Math.max(0, (Number(activeLvl.reserved_stock) || 0) - remainingReserved);
+              await supabase
+                .from('inventory_material_stock_levels')
+                .update({
+                  reserved_stock: nextReserved,
+                  available_stock: (Number(activeLvl.current_stock) || 0) - nextReserved,
+                  updated_at: now
+                })
+                .eq('id', activeLvl.id);
+            }
+          }
+        }
+      }
+
+      await supabase.from('inventory_transfer_events').insert({
+        tenant_id,
+        branch_id: req.from_branch_id,
+        transfer_request_id: requestId,
+        event_type: 'Cancelled',
+        performed_by: cancelledBy,
+        notes: reason || 'Transfer request cancelled.'
+      });
+
+      return { data: true, error: null };
+    } else {
+      return cancelTransferRequestLocal(requestId, cancelledBy, reason);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error cancelling request.' };
+  }
+}
+
+function cancelTransferRequestLocal(
+  requestId: string,
+  cancelledBy: string,
+  reason?: string
+): ServiceResult<boolean> {
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allReqItems = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+  const allStock = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
+  const allEvents = getLocalData<InventoryTransferEvent[]>(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, []);
+  const allDispatches = getLocalData<InventoryDispatch[]>(LOCAL_STORAGE_KEYS.DISPATCHES, []);
+  const allDispItems = getLocalData<InventoryDispatchItem[]>(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, []);
+  const now = new Date().toISOString();
+
+  const reqIdx = allReqs.findIndex(r => r.id === requestId);
+  if (reqIdx < 0) return { data: false, error: 'Request not found.' };
+
+  const req = allReqs[reqIdx];
+  const oldStatus = req.status;
+  req.status = 'Cancelled';
+  req.updated_at = now;
+
+  if (oldStatus === 'Approved' || oldStatus === 'Partially Dispatched') {
+    const reqItems = allReqItems.filter(ri => ri.transfer_request_id === requestId);
+    const dispatches = allDispatches.filter(d => d.transfer_request_id === requestId);
+    const dispatchIds = dispatches.map(d => d.id);
+    const dispItems = allDispItems.filter(di => dispatchIds.includes(di.dispatch_id));
+
+    for (const ri of reqItems) {
+      const approved = Number(ri.approved_quantity) || 0;
+      const matchingDisp = dispItems.filter(di => di.material_id === ri.material_id);
+      const totalDispatched = matchingDisp.reduce((sum, di) => sum + (Number(di.dispatched_quantity) || 0), 0);
+      const remainingReserved = Math.max(0, approved - totalDispatched);
+
+      if (remainingReserved > 0) {
+        let lvlIdx = allStock.findIndex(l => l.branch_id === req.from_branch_id && l.material_id === ri.material_id);
+        if (lvlIdx >= 0) {
+          const lvl = allStock[lvlIdx];
+          lvl.reserved_stock = Math.max(0, (Number(lvl.reserved_stock) || 0) - remainingReserved);
+          lvl.available_stock = (Number(lvl.current_stock) || 0) - lvl.reserved_stock;
+          lvl.updated_at = now;
+        }
+      }
+    }
+  }
+
+  allEvents.push({
+    id: Math.random().toString(36).substr(2, 9),
+    tenant_id: req.tenant_id,
+    branch_id: req.from_branch_id,
+    transfer_request_id: requestId,
+    event_type: 'Cancelled',
+    performed_by: cancelledBy,
+    notes: reason || 'Transfer request cancelled.',
+    created_at: now
+  });
+
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, allReqs);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEVELS, allStock);
+  saveLocalData(LOCAL_STORAGE_KEYS.TRANSFER_EVENTS, allEvents);
+
+  return { data: true, error: null };
+}
+
+export async function fetchRecipes(): Promise<ServiceResult<InventoryRecipe[]>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_recipes')
+        .select('*')
+        .eq('tenant_id', tenant_id)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchRecipes')) {
+          return fetchRecipesLocal(tenant_id);
+        }
+        return { data: null, error: error.message };
+      }
+      return { data: data as InventoryRecipe[], error: null };
+    } else {
+      return fetchRecipesLocal(tenant_id);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchRecipes')) {
+      const tenant = getTenantContext();
+      return fetchRecipesLocal(tenant.tenant_id);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchRecipesLocal(tenantId: string): ServiceResult<InventoryRecipe[]> {
+  const all = getLocalData<InventoryRecipe[]>(LOCAL_STORAGE_KEYS.RECIPES, []);
+  const active = all.filter(r => r.tenant_id === tenantId && r.is_active);
+  return { data: active, error: null };
+}
+
+export async function fetchRecipeItems(recipeId: string): Promise<ServiceResult<InventoryRecipeItem[]>> {
+  try {
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_recipe_items')
+        .select(`
+          *,
+          material:inventory_materials(material_name)
+        `)
+        .eq('recipe_id', recipeId);
+
+      if (error) {
+        if (await handleQueryError(error, 'fetchRecipeItems')) {
+          return fetchRecipeItemsLocal(recipeId);
+        }
+        return { data: null, error: error.message };
+      }
+
+      const formatted = (data || []).map((itm: any) => ({
+        ...itm,
+        material_name: itm.material?.material_name || 'Unknown Material',
+      }));
+
+      return { data: formatted as InventoryRecipeItem[], error: null };
+    } else {
+      return fetchRecipeItemsLocal(recipeId);
+    }
+  } catch (err: any) {
+    if (await handleQueryError(err, 'fetchRecipeItems')) {
+      return fetchRecipeItemsLocal(recipeId);
+    }
+    return { data: null, error: err.message || 'Error occurred.' };
+  }
+}
+
+function fetchRecipeItemsLocal(recipeId: string): ServiceResult<InventoryRecipeItem[]> {
+  const all = getLocalData<InventoryRecipeItem[]>(LOCAL_STORAGE_KEYS.RECIPE_ITEMS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const filtered = all.filter(itm => itm.recipe_id === recipeId);
+  const formatted = filtered.map(itm => {
+    const mat = mats.find(m => m.id === itm.material_id);
+    return {
+      ...itm,
+      material_name: mat ? mat.material_name : 'Unknown Material',
+    };
+  });
+  return { data: formatted, error: null };
+}
+
+export async function saveRecipe(
+  recipe: Partial<InventoryRecipe>,
+  items: { material_id: string; quantity: number }[]
+): Promise<ServiceResult<InventoryRecipe>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+    const recipeId = recipe.id || Math.random().toString(36).substr(2, 9);
+
+    const recipePayload = {
+      tenant_id,
+      branch_id,
+      name: recipe.name || 'Unnamed Recipe',
+      description: recipe.description || null,
+      yield_quantity: Number(recipe.yield_quantity) || 1,
+      yield_unit: recipe.yield_unit || 'portion',
+      cost_snapshot: Number(recipe.cost_snapshot) || 0,
+      version_no: Number(recipe.version_no) || 1,
+      effective_from: recipe.effective_from || now,
+      is_active: recipe.is_active !== false,
+      updated_at: now
+    };
+
+    if (!forceLocalFallback) {
+      const { data: savedRecipe, error: recipeErr } = await supabase
+        .from('inventory_recipes')
+        .upsert({ id: recipe.id || undefined, ...recipePayload })
+        .select('*')
+        .single();
+
+      if (recipeErr) {
+        if (await handleQueryError(recipeErr, 'saveRecipe')) {
+          return saveRecipeLocal(recipeId, recipePayload, items);
+        }
+        return { data: null, error: recipeErr.message };
+      }
+
+      await supabase
+        .from('inventory_recipe_items')
+        .delete()
+        .eq('recipe_id', savedRecipe.id);
+
+      const itemsPayload = items.map(itm => ({
+        recipe_id: savedRecipe.id,
+        material_id: itm.material_id,
+        quantity: itm.quantity
+      }));
+
+      const { error: itemsErr } = await supabase
+        .from('inventory_recipe_items')
+        .insert(itemsPayload);
+
+      if (itemsErr) {
+        return { data: null, error: itemsErr.message };
+      }
+
+      return { data: savedRecipe as InventoryRecipe, error: null };
+    } else {
+      return saveRecipeLocal(recipeId, recipePayload, items);
+    }
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Error saving recipe.' };
+  }
+}
+
+function saveRecipeLocal(
+  recipeId: string,
+  payload: any,
+  items: { material_id: string; quantity: number }[]
+): ServiceResult<InventoryRecipe> {
+  const allRecipes = getLocalData<InventoryRecipe[]>(LOCAL_STORAGE_KEYS.RECIPES, []);
+  const allItems = getLocalData<InventoryRecipeItem[]>(LOCAL_STORAGE_KEYS.RECIPE_ITEMS, []);
+  const now = new Date().toISOString();
+
+  const idx = allRecipes.findIndex(r => r.id === recipeId);
+  let finalRecipe: InventoryRecipe;
+
+  if (idx >= 0) {
+    finalRecipe = { ...allRecipes[idx], ...payload, updated_at: now };
+    allRecipes[idx] = finalRecipe;
+  } else {
+    finalRecipe = { ...payload, id: recipeId, created_at: now, updated_at: now };
+    allRecipes.push(finalRecipe);
+  }
+
+  const remainingItems = allItems.filter(itm => itm.recipe_id !== recipeId);
+  const newItems = items.map(itm => ({
+    id: Math.random().toString(36).substr(2, 9),
+    recipe_id: recipeId,
+    material_id: itm.material_id,
+    quantity: itm.quantity,
+    created_at: now
+  }));
+
+  saveLocalData(LOCAL_STORAGE_KEYS.RECIPES, allRecipes);
+  saveLocalData(LOCAL_STORAGE_KEYS.RECIPE_ITEMS, [...remainingItems, ...newItems]);
+
+  return { data: finalRecipe, error: null };
+}
+
+export async function deleteRecipe(id: string): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    if (!forceLocalFallback) {
+      const { error } = await supabase
+        .from('inventory_recipes')
+        .update({ is_active: false })
+        .eq('id', id)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+
+      if (error) {
+        if (await handleQueryError(error, 'deleteRecipe')) {
+          return deleteRecipeLocal(id);
+        }
+        return { data: false, error: error.message };
+      }
+      return { data: true, error: null };
+    } else {
+      return deleteRecipeLocal(id);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error deleting recipe.' };
+  }
+}
+
+function deleteRecipeLocal(id: string): ServiceResult<boolean> {
+  const all = getLocalData<InventoryRecipe[]>(LOCAL_STORAGE_KEYS.RECIPES, []);
+  const idx = all.findIndex(r => r.id === id);
+  if (idx >= 0) {
+    all[idx].is_active = false;
+    saveLocalData(LOCAL_STORAGE_KEYS.RECIPES, all);
+    return { data: true, error: null };
+  }
+  return { data: false, error: 'Recipe not found.' };
+}
+
+export async function createConsumptionBatch(
+  billId: string,
+  totalCostSnapshot = 0
+): Promise<ServiceResult<InventoryConsumptionBatch>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+    const batchId = Math.random().toString(36).substr(2, 9);
+
+    const batchPayload = {
+      tenant_id,
+      branch_id,
+      bill_id: billId,
+      status: 'Pending' as const,
+      total_cost_snapshot: totalCostSnapshot,
+      created_at: now,
+      processed_at: null
+    };
+
+    if (!forceLocalFallback) {
+      const { data, error } = await supabase
+        .from('inventory_consumption_batches')
+        .insert({ id: batchId, ...batchPayload })
+        .select('*')
+        .single();
+
+      if (error) {
+        if (await handleQueryError(error, 'createConsumptionBatch')) {
+          return createConsumptionBatchLocal(batchId, batchPayload);
+        }
+        return { data: null, error: error.message };
+      }
+      return { data: data as InventoryConsumptionBatch, error: null };
+    } else {
+      return createConsumptionBatchLocal(batchId, batchPayload);
+    }
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Error creating consumption batch.' };
+  }
+}
+
+function createConsumptionBatchLocal(batchId: string, payload: any): ServiceResult<InventoryConsumptionBatch> {
+  const allBatches = getLocalData<InventoryConsumptionBatch[]>(LOCAL_STORAGE_KEYS.CONSUMPTION_BATCHES, []);
+  const newBatch = { ...payload, id: batchId };
+  allBatches.push(newBatch);
+  saveLocalData(LOCAL_STORAGE_KEYS.CONSUMPTION_BATCHES, allBatches);
+  return { data: newBatch, error: null };
+}
+
+export async function processConsumptionBatch(batchId: string): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const now = new Date().toISOString();
+
+    if (!forceLocalFallback) {
+      const { data: batch, error: batchErr } = await supabase
+        .from('inventory_consumption_batches')
+        .select('*')
+        .eq('id', batchId)
+        .single();
+
+      if (batchErr) return { data: false, error: batchErr.message };
+      if (batch.status === 'Processed') return { data: true, error: null };
+
+      const { data: billItems, error: itemsErr } = await supabase
+        .from('bill_items')
+        .select('product_id, quantity')
+        .eq('bill_id', batch.bill_id);
+
+      if (itemsErr) return { data: false, error: itemsErr.message };
+      if (!billItems || billItems.length === 0) {
+        await supabase
+          .from('inventory_consumption_batches')
+          .update({ status: 'Processed', processed_at: now })
+          .eq('id', batchId);
+        return { data: true, error: null };
+      }
+
+      const productIds = billItems.map((bi: any) => bi.product_id);
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, name, recipe_id, inventory_tracking_enabled')
+        .in('id', productIds);
+
+      const trackingEnabledProducts = (products || []).filter((p: any) => p.inventory_tracking_enabled && p.recipe_id);
+
+      if (trackingEnabledProducts.length === 0) {
+        await supabase
+          .from('inventory_consumption_batches')
+          .update({ status: 'Processed', processed_at: now })
+          .eq('id', batchId);
+        return { data: true, error: null };
+      }
+
+      const recipeIds = trackingEnabledProducts.map((p: any) => p.recipe_id);
+
+      const { data: recipes } = await supabase
+        .from('inventory_recipes')
+        .select('*')
+        .in('id', recipeIds);
+
+      const { data: recipeItems } = await supabase
+        .from('inventory_recipe_items')
+        .select('*')
+        .in('recipe_id', recipeIds);
+
+      const jobsToInsert = [];
+      let totalCost = 0;
+
+      for (const bi of billItems) {
+        const prod = trackingEnabledProducts.find((p: any) => p.id === bi.product_id);
+        if (!prod) continue;
+
+        const recipe = (recipes || []).find((r: any) => r.id === prod.recipe_id);
+        if (!recipe) continue;
+
+        const itemsForRecipe = (recipeItems || []).filter((ri: any) => ri.recipe_id === recipe.id);
+
+        for (const ri of itemsForRecipe) {
+          const qtyToDeduct = (Number(bi.quantity) / (Number(recipe.yield_quantity) || 1)) * Number(ri.quantity);
+
+          if (qtyToDeduct > 0) {
+            jobsToInsert.push({
+              tenant_id,
+              branch_id,
+              batch_id: batchId,
+              material_id: ri.material_id,
+              quantity_to_deduct: qtyToDeduct,
+              status: 'Pending' as const
+            });
+          }
+        }
+      }
+
+      if (jobsToInsert.length === 0) {
+        await supabase
+          .from('inventory_consumption_batches')
+          .update({ status: 'Processed', processed_at: now })
+          .eq('id', batchId);
+        return { data: true, error: null };
+      }
+
+      const { data: insertedJobs, error: jobsInsertErr } = await supabase
+        .from('inventory_consumption_jobs')
+        .insert(jobsToInsert)
+        .select('*');
+
+      if (jobsInsertErr) return { data: false, error: jobsInsertErr.message };
+
+      for (const job of (insertedJobs || [])) {
+        try {
+          const { data: stockLevels } = await supabase
+            .from('inventory_material_stock_levels')
+            .select('*')
+            .eq('tenant_id', tenant_id)
+            .eq('branch_id', branch_id)
+            .eq('material_id', job.material_id)
+            .limit(1);
+
+          const activeLvl = stockLevels && stockLevels.length > 0 ? stockLevels[0] : null;
+          let nextStock = 0;
+
+          if (activeLvl) {
+            nextStock = Math.max(0, (Number(activeLvl.current_stock) || 0) - Number(job.quantity_to_deduct));
+            const reserved = Number(activeLvl.reserved_stock) || 0;
+            await supabase
+              .from('inventory_material_stock_levels')
+              .update({
+                current_stock: nextStock,
+                available_stock: nextStock - reserved,
+                updated_at: now
+              })
+              .eq('id', activeLvl.id);
+          } else {
+            nextStock = -Number(job.quantity_to_deduct);
+            await supabase
+              .from('inventory_material_stock_levels')
+              .insert({
+                tenant_id,
+                branch_id,
+                material_id: job.material_id,
+                location_id: 'Main Storage',
+                current_stock: nextStock,
+                reserved_stock: 0,
+                available_stock: nextStock
+              });
+          }
+
+          const { data: mat } = await supabase
+            .from('inventory_materials')
+            .select('average_cost, material_name')
+            .eq('id', job.material_id)
+            .single();
+
+          const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
+          totalCost += Number(job.quantity_to_deduct) * unitCost;
+
+          await supabase.from('inventory_stock_ledger').insert({
+            tenant_id,
+            branch_id,
+            material_id: job.material_id,
+            transaction_date: now,
+            transaction_type: 'Recipe Consumption',
+            reference_type: 'Sales Bill Batch',
+            reference_id: batchId,
+            qty_in: 0,
+            qty_out: job.quantity_to_deduct,
+            balance_stock: nextStock,
+            unit_cost: unitCost,
+            total_value: nextStock * unitCost,
+            remarks: `Recipe consumption for POS bill. Batch: ${batchId}`,
+            created_by: 'System Worker'
+          });
+
+          await supabase
+            .from('inventory_consumption_jobs')
+            .update({
+              status: 'Processed',
+              processed_at: now,
+              processed_by: 'System Worker'
+            })
+            .eq('id', job.id);
+
+        } catch (jobErr: any) {
+          console.error(`Error processing consumption job ${job.id}:`, jobErr);
+          await supabase
+            .from('inventory_consumption_jobs')
+            .update({
+              status: 'Failed',
+              attempt_count: (Number(job.attempt_count) || 0) + 1,
+              error_message: jobErr.message || 'Job deduction failed',
+              last_attempt_at: now
+            })
+            .eq('id', job.id);
+        }
+      }
+
+      await supabase
+        .from('inventory_consumption_batches')
+        .update({
+          status: 'Processed',
+          total_cost_snapshot: totalCost,
+          processed_at: now
+        })
+        .eq('id', batchId);
+
+      return { data: true, error: null };
+
+    } else {
+      return processConsumptionBatchLocal(batchId);
+    }
+  } catch (err: any) {
+    return { data: false, error: err.message || 'Error processing batch.' };
+  }
+}
+
+function processConsumptionBatchLocal(batchId: string): ServiceResult<boolean> {
+  const allBatches = getLocalData<InventoryConsumptionBatch[]>(LOCAL_STORAGE_KEYS.CONSUMPTION_BATCHES, []);
+  const allJobs = getLocalData<InventoryConsumptionJob[]>(LOCAL_STORAGE_KEYS.CONSUMPTION_JOBS, []);
+  const allRecipes = getLocalData<InventoryRecipe[]>(LOCAL_STORAGE_KEYS.RECIPES, []);
+  const allRecipeItems = getLocalData<InventoryRecipeItem[]>(LOCAL_STORAGE_KEYS.RECIPE_ITEMS, []);
+  const allStock = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
+  const allLedger = getLocalData<InventoryStockLedger[]>(LOCAL_STORAGE_KEYS.STOCK_LEDGER, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const now = new Date().toISOString();
+
+  const bIdx = allBatches.findIndex(b => b.id === batchId);
+  if (bIdx < 0) return { data: false, error: 'Batch not found locally.' };
+  if (allBatches[bIdx].status === 'Processed') return { data: true, error: null };
+
+  const activeRecipe = allRecipes.find(r => r.is_active);
+  let totalCost = 0;
+
+  if (activeRecipe) {
+    const items = allRecipeItems.filter(itm => itm.recipe_id === activeRecipe.id);
+    for (const ri of items) {
+      const qtyToDeduct = ri.quantity;
+      const job: InventoryConsumptionJob = {
+        id: Math.random().toString(36).substr(2, 9),
+        tenant_id: activeRecipe.tenant_id,
+        branch_id: activeRecipe.branch_id,
+        batch_id: batchId,
+        material_id: ri.material_id,
+        quantity_to_deduct: qtyToDeduct,
+        status: 'Processed',
+        attempt_count: 1,
+        last_attempt_at: now,
+        processed_by: 'System Worker',
+        retry_after: null,
+        error_message: null,
+        created_at: now,
+        processed_at: now
+      };
+      allJobs.push(job);
+
+      let lvlIdx = allStock.findIndex(l => l.branch_id === activeRecipe.branch_id && l.material_id === ri.material_id);
+      let balanceStock = 0;
+      if (lvlIdx >= 0) {
+        const lvl = allStock[lvlIdx];
+        lvl.current_stock = Math.max(0, (Number(lvl.current_stock) || 0) - qtyToDeduct);
+        lvl.available_stock = lvl.current_stock - (Number(lvl.reserved_stock) || 0);
+        lvl.updated_at = now;
+        balanceStock = lvl.current_stock;
+      } else {
+        const newLvl: InventoryStockLevel = {
+          id: Math.random().toString(36).substr(2, 9),
+          tenant_id: activeRecipe.tenant_id,
+          branch_id: activeRecipe.branch_id,
+          material_id: ri.material_id,
+          location_id: 'Main Storage',
+          current_stock: -qtyToDeduct,
+          reserved_stock: 0,
+          available_stock: -qtyToDeduct,
+          updated_at: now
+        };
+        allStock.push(newLvl);
+        balanceStock = -qtyToDeduct;
+      }
+
+      const mat = mats.find(m => m.id === ri.material_id);
+      const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
+      totalCost += qtyToDeduct * unitCost;
+
+      allLedger.push({
+        id: Math.random().toString(36).substr(2, 9),
+        tenant_id: activeRecipe.tenant_id,
+        branch_id: activeRecipe.branch_id,
+        material_id: ri.material_id,
+        transaction_date: now,
+        transaction_type: 'Recipe Consumption',
+        reference_type: 'Sales Bill Batch',
+        reference_id: batchId,
+        qty_in: 0,
+        qty_out: qtyToDeduct,
+        balance_stock: balanceStock,
+        unit_cost: unitCost,
+        total_value: balanceStock * unitCost,
+        remarks: `Recipe consumption for POS bill. Batch: ${batchId}`,
+        created_by: 'System Worker',
+        created_at: now
+      });
+    }
+  }
+
+  allBatches[bIdx].status = 'Processed';
+  allBatches[bIdx].total_cost_snapshot = totalCost;
+  allBatches[bIdx].processed_at = now;
+
+  saveLocalData(LOCAL_STORAGE_KEYS.CONSUMPTION_BATCHES, allBatches);
+  saveLocalData(LOCAL_STORAGE_KEYS.CONSUMPTION_JOBS, allJobs);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEVELS, allStock);
+  saveLocalData(LOCAL_STORAGE_KEYS.STOCK_LEDGER, allLedger);
+
+  return { data: true, error: null };
+}
+
