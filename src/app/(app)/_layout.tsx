@@ -1,6 +1,7 @@
 import { Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing } from 'react-native';
+import { UIContext } from '@/lib/pos/ui-context';
 
 import { colors } from '@/lib/pos/brand';
 import { CURRENT_ROLE } from '@/lib/pos/session-context';
@@ -56,7 +57,7 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   billing: '/billing',
 };
 
-function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
+function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }: any) {
   const activeTabNames = APP_TAB_ROUTE_NAMES.filter(name =>
     roleTabs.some((tab: any) => tab.name === name)
   );
@@ -70,6 +71,26 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const widthAnim = useRef(new Animated.Value(0)).current;
   const hasInitialPosition = useRef(false);
+
+  // Hide / show animation for the tab bar
+  const hideAnim = useRef(new Animated.Value(0)).current; // 0 = visible, 1 = hidden
+  useEffect(() => {
+    Animated.timing(hideAnim, {
+      toValue: tabBarHidden ? 1 : 0,
+      duration: 280,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [tabBarHidden, hideAnim]);
+
+  const tabBarTranslateY = hideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 120], // slide down out of view
+  });
+  const tabBarOpacity = hideAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 0.4, 0],
+  });
 
   // Trigger smooth layout animations on active tab index switch
   useEffect(() => {
@@ -115,6 +136,13 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
   }, [activeTabName, tabLayouts]);
 
   return (
+    <Animated.View
+      pointerEvents={tabBarHidden ? 'none' : 'auto'}
+      style={{
+        transform: [{ translateY: tabBarTranslateY }],
+        opacity: tabBarOpacity,
+      }}
+    >
     <View style={{
       flexDirection: 'row',
       backgroundColor: '#FFFFFF',
@@ -228,6 +256,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs }: any) {
         );
       })}
     </View>
+    </Animated.View>
   );
 }
 
@@ -236,6 +265,7 @@ export default function AppTabLayout() {
   const initialRouteName = getInitialRouteNameForRole(CURRENT_ROLE);
   const segments = useSegments();
   const pathname = usePathname();
+  const [tabBarHidden, setTabBarHidden] = useState(false);
 
   const segmentsRef = useRef(segments);
   useEffect(() => {
@@ -315,9 +345,10 @@ export default function AppTabLayout() {
   }, [roleTabs]);
 
   return (
+    <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>
     <Tabs
       initialRouteName={initialRouteName}
-      tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} />}
+      tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
       screenOptions={{
         headerShown: false,
       }}
@@ -354,5 +385,6 @@ export default function AppTabLayout() {
         );
       })}
     </Tabs>
+    </UIContext.Provider>
   );
 }

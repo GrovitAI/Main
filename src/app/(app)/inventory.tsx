@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   FlatList,
   Image,
   Modal,
@@ -51,6 +53,9 @@ import {
   MoreVertical,
   Download,
   BookOpen,
+  PanelLeft,
+  PanelLeftClose,
+  ChevronLeft,
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -170,6 +175,37 @@ function SidebarDecoration() {
       <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: '#ffffff' }} />
       <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
       <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: '#ffffff' }} />
+    </View>
+  );
+}
+
+function SidebarLabel({
+  expanded,
+  children,
+  style,
+}: {
+  expanded: boolean;
+  children: React.ReactNode;
+  style?: object;
+}) {
+  if (Platform.OS !== 'web') {
+    return expanded ? <>{children}</> : null;
+  }
+  return (
+    <View
+      style={[
+        {
+          overflow: 'hidden',
+        } as any,
+        {
+          maxWidth: expanded ? 200 : 0,
+          opacity: expanded ? 1 : 0,
+          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease',
+        } as any,
+        style,
+      ]}
+    >
+      {children}
     </View>
   );
 }
@@ -392,6 +428,27 @@ export default function InventoryScreen() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMasterExpanded, setIsMasterExpanded] = useState(false);
+
+  // Sidebar collapse state
+  // sidebarPinned = user clicked the pin to keep it open
+  // sidebarHovered = mouse is over the rail
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const sidebarExpanded = sidebarPinned || sidebarHovered;
+  const SIDEBAR_COLLAPSED_W = 52;
+  const SIDEBAR_EXPANDED_W = 180;
+  // On web: CSS transition handles animation (compositor-driven, no JS stutter)
+  // On native: keep Animated fallback
+  const sidebarAnim = useRef(new Animated.Value(SIDEBAR_COLLAPSED_W)).current;
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Animated.timing(sidebarAnim, {
+      toValue: sidebarExpanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W,
+      duration: 240,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [sidebarExpanded]);
 
   // ─── DATA STATES ───────────────────────────────────────────────────────────
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
@@ -4761,33 +4818,73 @@ export default function InventoryScreen() {
 
   return (
     <View className="flex-1 bg-slate-50 flex-row">
-      {/* LEFT SIDEBAR (Web/Tablet view) */}
+      {/* LEFT SIDEBAR (Web/Tablet view) — auto-collapses to icon rail */}
       {width >= 768 && activeTab !== 'record_purchase' && (
-        <View style={{ width: 180, minWidth: 180, maxWidth: 180, overflow: 'hidden' }} className="flex-col h-full">
+        <View
+          style={[
+            Platform.OS === 'web'
+              ? ({
+                  width: sidebarExpanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W,
+                  minWidth: SIDEBAR_COLLAPSED_W,
+                  maxWidth: SIDEBAR_EXPANDED_W,
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  flexDirection: 'column',
+                  height: '100%',
+                  transition: 'width 240ms cubic-bezier(0.4,0,0.2,1)',
+                  willChange: 'width',
+                } as any)
+              : {
+                  width: sidebarAnim as any,
+                  minWidth: SIDEBAR_COLLAPSED_W,
+                  maxWidth: SIDEBAR_EXPANDED_W,
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  flexDirection: 'column' as const,
+                  height: '100%',
+                }
+          ]}
+          {...(Platform.OS === 'web' ? {
+            onMouseEnter: () => setSidebarHovered(true),
+            onMouseLeave: () => setSidebarHovered(false),
+          } : {})}
+        >
           <LinearGradient
             colors={['#0251b8', '#013b8c', '#012f70']}
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
           />
           <SidebarDecoration />
 
-          <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 28, paddingBottom: 24, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
+          {/* Logo area — shrinks to just the icon when collapsed */}
+          <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 20, paddingBottom: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center', overflow: 'hidden' }}>
             <Image
               source={leLabanLogo}
-              style={{ height: 48, width: 75, resizeMode: 'contain', opacity: 0.96 }}
+              style={{
+                height: sidebarExpanded ? 40 : 32,
+                width: sidebarExpanded ? 64 : 32,
+                resizeMode: 'contain',
+                opacity: sidebarExpanded ? 0.96 : 0.9,
+                ...(Platform.OS === 'web'
+                  ? { transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1)' }
+                  : {}),
+              } as any}
               accessibilityLabel="Le Leban logo"
             />
-            <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
-              Inventory Center
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-              <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
-              <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
-                Online
+            <SidebarLabel expanded={sidebarExpanded} style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4, whiteSpace: 'nowrap' } as any}>
+                Inventory Center
               </Text>
-            </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
+                <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' } as any}>
+                  Online
+                </Text>
+              </View>
+            </SidebarLabel>
           </View>
 
-          <ScrollView className="flex-1 px-3 py-4 gap-1" showsVerticalScrollIndicator={false}>
+          {/* Nav items */}
+          <ScrollView style={{ flex: 1, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
             {/* Dashboard */}
             <Pressable
               onPress={() => {
@@ -4796,49 +4893,39 @@ export default function InventoryScreen() {
               }}
               style={({ hovered, pressed }: any) => [
                 {
-                  borderRadius: 14,
-                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginHorizontal: 6,
+                  marginBottom: 4,
                   height: 40,
                   flexDirection: 'row',
                   alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  paddingLeft: Platform.OS === 'web' ? (SIDEBAR_COLLAPSED_W - 16) / 2 : (sidebarExpanded ? 10 : (SIDEBAR_COLLAPSED_W - 16) / 2),
+                  paddingRight: 4,
                   gap: 8,
-                  marginBottom: 6,
+                  ...(Platform.OS === 'web' ? { transition: 'padding 240ms cubic-bezier(0.4,0,0.2,1)' } : {}),
                 },
                 activeTab === 'dashboard' && {
-                  borderTopWidth: 1,
-                  borderTopColor: 'rgba(255,255,255,0.10)',
-                  shadowColor: '#000000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 12,
-                  elevation: 2,
+                  backgroundColor: 'rgba(58,120,220,0.9)',
                 },
                 activeTab !== 'dashboard' && hovered && {
                   backgroundColor: 'rgba(255,255,255,0.08)',
-                  transform: [{ translateX: 2 }],
                 },
-                pressed && {
-                  opacity: 0.85,
-                  transform: [{ scale: 0.98 }]
-                }
+                pressed && { opacity: 0.85 }
               ]}
             >
               {activeTab === 'dashboard' && (
                 <LinearGradient
                   colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12 }}
                 />
               )}
-              <BarChart3 size={14} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: activeTab === 'dashboard' ? '600' : '500',
-                  color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
-                }}
-              >
-                Dashboard
-              </Text>
+              <BarChart3 size={16} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
+              <SidebarLabel expanded={sidebarExpanded}>
+                <Text style={{ fontSize: 11, fontWeight: activeTab === 'dashboard' ? '600' : '500', color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' } as any}>
+                  Dashboard
+                </Text>
+              </SidebarLabel>
             </Pressable>
 
             {/* Master Collapsible Group Header */}
@@ -4846,43 +4933,59 @@ export default function InventoryScreen() {
               onPress={() => setIsMasterExpanded(!isMasterExpanded)}
               style={({ hovered, pressed }: any) => [
                 {
-                  borderRadius: 14,
-                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  marginHorizontal: 6,
+                  marginBottom: 4,
                   height: 40,
                   flexDirection: 'row',
                   alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  paddingLeft: Platform.OS === 'web' ? (SIDEBAR_COLLAPSED_W - 16) / 2 : (sidebarExpanded ? 10 : (SIDEBAR_COLLAPSED_W - 16) / 2),
+                  paddingRight: 4,
                   gap: 8,
-                  marginBottom: 6,
+                  ...(Platform.OS === 'web' ? { transition: 'padding 240ms cubic-bezier(0.4,0,0.2,1)' } : {}),
                 },
-                hovered && {
-                  backgroundColor: 'rgba(255,255,255,0.08)',
-                },
-                pressed && {
-                  opacity: 0.85,
-                }
+                hovered && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                pressed && { opacity: 0.85 }
               ]}
             >
-              <Database size={14} color="rgba(255, 255, 255, 0.8)" />
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: '500',
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  flex: 1,
-                }}
-              >
-                Master Setup
-              </Text>
-              {isMasterExpanded ? (
-                <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" />
-              ) : (
-                <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" />
-              )}
+              <Database size={16} color="rgba(255, 255, 255, 0.75)" />
+              <SidebarLabel expanded={sidebarExpanded} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '500', color: 'rgba(255, 255, 255, 0.8)', flex: 1, whiteSpace: 'nowrap' } as any}>
+                  Master Setup
+                </Text>
+                {isMasterExpanded ? (
+                  <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" />
+                ) : (
+                  <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" />
+                )}
+              </SidebarLabel>
             </Pressable>
 
             {/* Master Sub-items */}
             {isMasterExpanded && (
-              <View style={{ paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.12)', marginLeft: 16, marginBottom: 8, gap: 4 }}>
+              <View
+                style={[
+                  Platform.OS === 'web'
+                    ? ({
+                        paddingLeft: sidebarExpanded ? 12 : 0,
+                        borderLeftWidth: sidebarExpanded ? 1 : 0,
+                        borderLeftColor: sidebarExpanded ? 'rgba(255,255,255,0.12)' : 'transparent',
+                        marginLeft: sidebarExpanded ? 22 : 0,
+                        marginBottom: 6,
+                        gap: 2,
+                        transition: 'padding-left 240ms, margin-left 240ms, border-color 240ms',
+                      } as any)
+                    : {
+                        paddingLeft: sidebarExpanded ? 12 : 0,
+                        borderLeftWidth: sidebarExpanded ? 1 : 0,
+                        borderLeftColor: sidebarExpanded ? 'rgba(255,255,255,0.12)' : 'transparent',
+                        marginLeft: sidebarExpanded ? 22 : 0,
+                        marginBottom: 6,
+                        gap: 2,
+                      }
+                ]}
+              >
                 {[
                   { id: 'materials', label: 'Raw Materials', icon: Boxes },
                   { id: 'suppliers', label: 'Suppliers', icon: User },
@@ -4900,35 +5003,36 @@ export default function InventoryScreen() {
                       }}
                       style={({ hovered, pressed }: any) => [
                         {
-                          borderRadius: 10,
-                          paddingHorizontal: 8,
+                          borderRadius: sidebarExpanded ? 10 : 8,
+                          marginHorizontal: sidebarExpanded ? 0 : 6,
                           height: 32,
                           flexDirection: 'row',
                           alignItems: 'center',
+                          justifyContent: 'flex-start',
+                          paddingLeft: sidebarExpanded ? 8 : 14,
                           gap: 6,
                           marginBottom: 2,
+                          ...(Platform.OS === 'web' ? { transition: 'padding-left 240ms, margin 240ms' } : {}),
                         },
                         isActive && {
-                          backgroundColor: 'rgba(58,120,220,0.3)',
-                          borderLeftWidth: 2,
-                          borderLeftColor: '#3399ff',
+                          backgroundColor: sidebarExpanded ? 'rgba(58,120,220,0.3)' : 'rgba(58,120,220,0.4)',
+                          ...(sidebarExpanded ? {
+                            borderLeftWidth: 2,
+                            borderLeftColor: '#3399ff',
+                          } : {}),
                         },
                         !isActive && hovered && {
-                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          backgroundColor: sidebarExpanded ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.07)'
                         },
                         pressed && { opacity: 0.85 }
                       ]}
                     >
                       <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
-                      <Text
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: isActive ? '600' : '500',
-                          color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
-                        }}
-                      >
-                        {sub.label}
-                      </Text>
+                      <SidebarLabel expanded={sidebarExpanded}>
+                        <Text style={{ fontSize: 10.5, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)', whiteSpace: 'nowrap' } as any}>
+                          {sub.label}
+                        </Text>
+                      </SidebarLabel>
                     </Pressable>
                   );
                 })}
@@ -4955,62 +5059,66 @@ export default function InventoryScreen() {
                   }}
                   style={({ hovered, pressed }: any) => [
                     {
-                      borderRadius: 14,
-                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      marginHorizontal: 6,
+                      marginBottom: 4,
                       height: 40,
                       flexDirection: 'row',
                       alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      paddingLeft: Platform.OS === 'web' ? (SIDEBAR_COLLAPSED_W - 16) / 2 : (sidebarExpanded ? 10 : (SIDEBAR_COLLAPSED_W - 16) / 2),
+                      paddingRight: 4,
                       gap: 8,
-                      marginBottom: 6,
+                      ...(Platform.OS === 'web' ? { transition: 'padding 240ms cubic-bezier(0.4,0,0.2,1)' } : {}),
                     },
-                    isActive && {
-                      borderTopWidth: 1,
-                      borderTopColor: 'rgba(255,255,255,0.10)',
-                      shadowColor: '#000000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.08,
-                      shadowRadius: 12,
-                      elevation: 2,
-                    },
-                    !isActive && hovered && {
-                      backgroundColor: 'rgba(255,255,255,0.08)',
-                      transform: [{ translateX: 2 }],
-                    },
-                    pressed && {
-                      opacity: 0.85,
-                      transform: [{ scale: 0.98 }]
-                    }
+                    isActive && { backgroundColor: 'rgba(58,120,220,0.9)' },
+                    !isActive && hovered && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                    pressed && { opacity: 0.85 }
                   ]}
                 >
                   {isActive && (
                     <LinearGradient
                       colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12 }}
                     />
                   )}
-                  <IconComponent size={14} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: isActive ? '600' : '500',
-                      color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
-                    }}
-                  >
-                    {item.label}
-                  </Text>
+                  <IconComponent size={16} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
+                  <SidebarLabel expanded={sidebarExpanded}>
+                    <Text style={{ fontSize: 11, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' } as any}>
+                      {item.label}
+                    </Text>
+                  </SidebarLabel>
                 </Pressable>
               );
             })}
           </ScrollView>
 
-          <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', backgroundColor: '#002040' }}>
-            <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', fontWeight: '600', textAlign: 'center' }}>
-              ABC Branch
-            </Text>
-            <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 2 }}>
-              © 2026 Le Leban • v2.4.0
-            </Text>
-          </View>
+          <Pressable
+            onPress={() => setSidebarPinned((v) => !v)}
+            style={({ hovered }: any) => ({
+              padding: 12,
+              borderTopWidth: 1,
+              borderTopColor: 'rgba(255,255,255,0.08)',
+              backgroundColor: '#002040',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              opacity: hovered ? 1 : 0.85,
+            })}
+            accessibilityLabel={sidebarPinned ? 'Collapse sidebar' : 'Pin sidebar open'}
+          >
+            <SidebarLabel expanded={sidebarExpanded}>
+              <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.3, whiteSpace: 'nowrap' } as any}>
+                {sidebarPinned ? 'PINNED OPEN' : 'AUTO-HIDE'}
+              </Text>
+            </SidebarLabel>
+            {sidebarPinned ? (
+              <PanelLeftClose size={14} color="rgba(255,255,255,0.55)" />
+            ) : (
+              <PanelLeft size={14} color="rgba(255,255,255,0.55)" />
+            )}
+          </Pressable>
         </View>
       )}
 

@@ -1,8 +1,30 @@
-import { FlatList, Image, Pressable, Text, View } from 'react-native';
-import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich } from 'lucide-react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  Animated,
+  Easing,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from 'react-native';
+import {
+  CakeSlice,
+  Coffee,
+  CupSoda,
+  GlassWater,
+  LayoutGrid,
+  CirclePlus,
+  Sandwich,
+  PanelLeft,
+  PanelLeftClose,
+} from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Category } from '@/lib/pos/products-service';
+
+// ─── Types ──────────────────────────────────────────────────────────────────────
 
 type SidebarProps = {
   categories: Category[];
@@ -15,30 +37,52 @@ type CategoryTabItem = {
   name: string;
 };
 
+// ─── Constants ───────────────────────────────────────────────────────────────────
+
+const COLLAPSED_W = 52;
+const EXPANDED_W = 180;
+
 /* eslint-disable @typescript-eslint/no-require-imports */
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
-function getCategoryIcon(name: string, isActive: boolean) {
-  const color = '#ffffff'; 
-  const size = 16;
-  const opacity = isActive ? 0.95 : 0.8;
+// ─── Helpers ─────────────────────────────────────────────────────────────────────
 
-  const lowerName = name.toLowerCase();
-  if (lowerName === 'all') return <LayoutGrid color={color} size={size} style={{ opacity }} />;
-  if (lowerName.includes('signature') || lowerName.includes('cake')) return <CakeSlice color={color} size={size} style={{ opacity }} />;
-  if (lowerName.includes('kunafa')) return <Sandwich color={color} size={size} style={{ opacity }} />;
-  if (lowerName.includes('cup') && !lowerName.includes('drink')) return <CupSoda color={color} size={size} style={{ opacity }} />;
-  if (lowerName.includes('drink') || lowerName.includes('shake')) return <GlassWater color={color} size={size} style={{ opacity }} />;
-  if (lowerName.includes('hot') || lowerName.includes('beverage')) return <Coffee color={color} size={size} style={{ opacity }} />;
-  if (lowerName.includes('add')) return <CirclePlus color={color} size={size} style={{ opacity }} />;
-  
-  return <LayoutGrid color={color} size={size} style={{ opacity }} />;
+function getCategoryIcon(name: string, isActive: boolean) {
+  const color = '#ffffff';
+  const size = 18;
+  const opacity = isActive ? 1 : 0.75;
+
+  const lower = name.toLowerCase();
+  if (lower === 'all') return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('signature') || lower.includes('cake'))
+    return <CakeSlice color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('kunafa')) return <Sandwich color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('cup') && !lower.includes('drink'))
+    return <CupSoda color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('drink') || lower.includes('shake'))
+    return <GlassWater color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('hot') || lower.includes('beverage'))
+    return <Coffee color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('add')) return <CirclePlus color={color} size={size} style={{ opacity } as any} />;
+  return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
 }
+
+// ─── Decoration ──────────────────────────────────────────────────────────────────
 
 function SidebarDecoration() {
   return (
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 180, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
-      {/* Abstract overlapping curves/circles */}
+    <View
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 180,
+        opacity: 0.08,
+        pointerEvents: 'none',
+        overflow: 'hidden',
+      } as any}
+    >
       <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: '#ffffff' }} />
       <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
       <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: '#ffffff' }} />
@@ -46,123 +90,276 @@ function SidebarDecoration() {
   );
 }
 
-function SidebarLogoSection() {
+// ─── Smooth label wrapper ─────────────────────────────────────────────────────────
+// Always rendered in DOM — uses CSS opacity/maxWidth transition so text fades in
+// instead of popping, eliminating the layout-jump stutter.
+
+function SidebarLabel({
+  expanded,
+  children,
+  style,
+}: {
+  expanded: boolean;
+  children: React.ReactNode;
+  style?: object;
+}) {
+  if (Platform.OS !== 'web') {
+    // Native fallback: simple conditional render is fine
+    return expanded ? <>{children}</> : null;
+  }
   return (
-    <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 28, paddingBottom: 32, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
-      <Image
-        source={leLabanLogo}
-        style={{ height: 60, width: 94, resizeMode: 'contain', opacity: 0.96 }}
-        accessibilityLabel="Le Leban logo"
-      />
-      <Text style={{ fontSize: 12, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4 }}>
-        Main Branch
-      </Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-        <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
-        <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
-          Online
-        </Text>
-      </View>
+    <View
+      style={[
+        {
+          overflow: 'hidden',
+          // CSS transition on maxWidth + opacity gives smooth fade-slide
+        } as any,
+        {
+          maxWidth: expanded ? 200 : 0,
+          opacity: expanded ? 1 : 0,
+          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease',
+        } as any,
+        style,
+      ]}
+    >
+      {children}
     </View>
   );
 }
 
-function SidebarNavigation({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
-  const tabs: CategoryTabItem[] = [
-    { id: null, name: 'All Items' },
-    ...categories.map((category) => ({ id: category.id, name: category.name })),
-  ];
-
-  return (
-    <FlatList
-      data={tabs}
-      keyExtractor={(item) => item.id ?? 'all'}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ gap: 10, marginTop: 18, paddingHorizontal: 14, paddingBottom: 24 }}
-      renderItem={({ item }) => {
-        const isActive = selectedCategoryId === item.id;
-
-        return (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onSelectCategory(item.id)}
-            style={({ hovered, pressed }) => [
-              {
-                borderRadius: 16,
-                paddingHorizontal: 14,
-                height: 44,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                // Web transition
-                ...({ transition: 'all 180ms ease' } as any)
-              },
-              isActive && {
-                borderTopWidth: 1,
-                borderTopColor: 'rgba(255,255,255,0.10)',
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
-                elevation: 2,
-              },
-              !isActive && hovered && {
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                transform: [{ translateX: 2 }],
-              },
-              pressed && {
-                opacity: 0.85,
-                transform: [{ scale: 0.98 }]
-              }
-            ]}
-          >
-            {isActive && (
-              <LinearGradient
-                colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16 }}
-              />
-            )}
-            {getCategoryIcon(item.name, isActive)}
-            <Text
-              style={{
-                fontSize: 13,
-                lineHeight: 16,
-                fontWeight: isActive ? '600' : '500',
-                color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
-                flex: 1,
-              }}
-              numberOfLines={2}
-            >
-              {item.name}
-            </Text>
-          </Pressable>
-        );
-      }}
-    />
-  );
-}
+// ─── Main Sidebar ─────────────────────────────────────────────────────────────────
 
 export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: SidebarProps) {
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const expanded = pinned || hovered;
+
+  // On web: use pure CSS transition on width (compositor-driven, no JS jank)
+  // On native: use Animated.Value as fallback
+  const widthAnim = React.useRef(new Animated.Value(COLLAPSED_W)).current;
+  useEffect(() => {
+    if (Platform.OS === 'web') return; // web uses CSS, not this
+    Animated.timing(widthAnim, {
+      toValue: expanded ? EXPANDED_W : COLLAPSED_W,
+      duration: 240,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [expanded, widthAnim]);
+
+  const tabs: CategoryTabItem[] = [
+    { id: null, name: 'All Items' },
+    ...categories.map((c) => ({ id: c.id, name: c.name })),
+  ];
+
+  // Container style: CSS transition on web, Animated value on native
+  const containerStyle =
+    Platform.OS === 'web'
+      ? ({
+          width: expanded ? EXPANDED_W : COLLAPSED_W,
+          minWidth: COLLAPSED_W,
+          maxWidth: EXPANDED_W,
+          overflow: 'hidden',
+          flexShrink: 0,
+          flexDirection: 'column',
+          transition: 'width 240ms cubic-bezier(0.4,0,0.2,1)',
+          willChange: 'width',
+        } as any)
+      : {
+          width: widthAnim,
+          minWidth: COLLAPSED_W,
+          maxWidth: EXPANDED_W,
+          overflow: 'hidden',
+          flexShrink: 0,
+          flexDirection: 'column' as const,
+        };
+
+  const Container = Platform.OS === 'web' ? View : Animated.View;
+
   return (
-    <View style={{ width: 180, minWidth: 180, maxWidth: 180, borderRadius: 0, overflow: 'hidden' }}>
-      {/* Background */}
+    <Container
+      style={containerStyle}
+      // Web hover listeners
+      {...(Platform.OS === 'web'
+        ? {
+            onMouseEnter: () => setHovered(true),
+            onMouseLeave: () => setHovered(false),
+          }
+        : {})}
+    >
+      {/* Background gradient */}
       <LinearGradient
         colors={['#0251b8', '#013b8c', '#012f70']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
-      
-      {/* Subtle Pattern */}
       <SidebarDecoration />
 
-      <SidebarLogoSection />
-      
-      <View style={{ flex: 1 }}>
-        <SidebarNavigation
-          categories={categories}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={onSelectCategory}
+      {/* Logo area */}
+      <View
+        style={{
+          width: '100%',
+          paddingTop: 22,
+          paddingBottom: 20,
+          paddingHorizontal: 10,
+          borderBottomWidth: 1,
+          borderBottomColor: 'rgba(255,255,255,0.12)',
+          alignItems: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        <Image
+          source={leLabanLogo}
+          style={{
+            height: expanded ? 52 : 32,
+            width: expanded ? 84 : 32,
+            resizeMode: 'contain',
+            opacity: 0.96,
+            ...(Platform.OS === 'web'
+              ? { transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1)' }
+              : {}),
+          } as any}
+          accessibilityLabel="Le Leban logo"
         />
+        <SidebarLabel expanded={expanded} style={{ alignItems: 'center' }}>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: '700',
+              letterSpacing: -0.3,
+              color: '#FFFFFF',
+              marginTop: 4,
+              whiteSpace: 'nowrap',
+            } as any}
+          >
+            Main Branch
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
+            <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }}>
+              Online
+            </Text>
+          </View>
+        </SidebarLabel>
       </View>
-    </View>
+
+      {/* Category list */}
+      <FlatList
+        data={tabs}
+        keyExtractor={(item) => item.id ?? 'all'}
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          gap: 6,
+          paddingTop: 12,
+          paddingHorizontal: 6,
+          paddingBottom: 16,
+        }}
+        renderItem={({ item }) => {
+          const isActive = selectedCategoryId === item.id;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => onSelectCategory(item.id)}
+              style={({ hovered: h, pressed }: any) => [
+                {
+                  borderRadius: 14,
+                  height: 44,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                  paddingLeft: Platform.OS === 'web'
+                    ? (expanded ? 12 : (COLLAPSED_W - 18) / 2)
+                    : (expanded ? 12 : (COLLAPSED_W - 18) / 2),
+                  paddingRight: 4,
+                  gap: 0,
+                  overflow: 'hidden',
+                  ...(Platform.OS === 'web'
+                    ? { transition: 'padding-left 240ms cubic-bezier(0.4,0,0.2,1)' }
+                    : {}),
+                },
+                isActive && {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 10,
+                  elevation: 3,
+                },
+                !isActive && h && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              {isActive && (
+                <LinearGradient
+                  colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    borderRadius: 14,
+                  }}
+                />
+              )}
+
+              {/* Icon — always visible */}
+              <View style={{ width: 18, alignItems: 'center', flexShrink: 0 }}>
+                {getCategoryIcon(item.name, isActive)}
+              </View>
+
+              {/* Label — fades in via CSS, no layout jump */}
+              <SidebarLabel expanded={expanded} style={{ flex: 1, marginLeft: 10 }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    lineHeight: 15,
+                    fontWeight: isActive ? '600' : '500',
+                    color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
+                    whiteSpace: 'nowrap',
+                  } as any}
+                  numberOfLines={1}
+                >
+                  {item.name}
+                </Text>
+              </SidebarLabel>
+            </Pressable>
+          );
+        }}
+      />
+
+      {/* Pin / collapse footer */}
+      <Pressable
+        onPress={() => setPinned((v) => !v)}
+        accessibilityLabel={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+        style={({ hovered: h }: any) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 12,
+          paddingVertical: 12,
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(255,255,255,0.08)',
+          backgroundColor: '#002040',
+          opacity: h ? 1 : 0.8,
+          gap: 6,
+        })}
+      >
+        <SidebarLabel expanded={expanded}>
+          <Text
+            style={{
+              fontSize: 8,
+              fontWeight: '700',
+              letterSpacing: 0.4,
+              color: 'rgba(255,255,255,0.4)',
+              whiteSpace: 'nowrap',
+            } as any}
+          >
+            {pinned ? 'PINNED' : 'AUTO-HIDE'}
+          </Text>
+        </SidebarLabel>
+        {pinned ? (
+          <PanelLeftClose size={14} color="rgba(255,255,255,0.5)" />
+        ) : (
+          <PanelLeft size={14} color="rgba(255,255,255,0.5)" />
+        )}
+      </Pressable>
+    </Container>
   );
 }
