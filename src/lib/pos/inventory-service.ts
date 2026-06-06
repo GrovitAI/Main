@@ -2952,6 +2952,11 @@ function fetchBranchesLocal(tenantId: string): ServiceResult<Branch[]> {
   return { data: all.filter(b => b.tenant_id === tenantId), error: null };
 }
 
+const isUuid = (val: string | null | undefined): boolean => {
+  if (!val) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+};
+
 export async function fetchTransferRequests(branchId?: string): Promise<ServiceResult<InventoryTransferRequest[]>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
@@ -2960,14 +2965,10 @@ export async function fetchTransferRequests(branchId?: string): Promise<ServiceR
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_transfer_requests')
-        .select(`
-          *,
-          from_branch:branches!from_branch_id(name),
-          to_branch:branches!to_branch_id(name)
-        `)
+        .select('*')
         .eq('tenant_id', tenant_id)
-        .or(`from_branch_id.eq.${activeBranchId},to_branch_id.eq.${activeBranchId}`)
-        .order('request_date', { ascending: false });
+        .or(`supplying_branch_id.eq.${activeBranchId},requesting_branch_id.eq.${activeBranchId}`)
+        .order('created_at', { ascending: false });
 
       if (error) {
         if (await handleQueryError(error, 'fetchTransferRequests')) {
@@ -2976,10 +2977,32 @@ export async function fetchTransferRequests(branchId?: string): Promise<ServiceR
         return { data: null, error: error.message };
       }
       
+      const { data: branchData } = await supabase
+        .from('branches')
+        .select('id, name')
+        .eq('tenant_id', tenant_id);
+
+      const branchMap = new Map((branchData || []).map((b: any) => [b.id, b.name]));
+
       const formatted = (data || []).map((r: any) => ({
-        ...r,
-        from_branch_name: r.from_branch?.name || 'Unknown Branch',
-        to_branch_name: r.to_branch?.name || 'Unknown Branch',
+        id: r.id,
+        tenant_id: r.tenant_id,
+        branch_id: r.requesting_branch_id,
+        request_number: r.request_number,
+        from_branch_id: r.supplying_branch_id,
+        to_branch_id: r.requesting_branch_id,
+        request_date: r.created_at,
+        status: r.status,
+        remarks: r.notes,
+        created_by: 'System User',
+        approved_by: r.approved_by,
+        approved_at: r.approved_at,
+        rejected_by: r.rejected_by,
+        rejected_at: r.rejected_at,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        from_branch_name: branchMap.get(r.supplying_branch_id) || 'Unknown Branch',
+        to_branch_name: branchMap.get(r.requesting_branch_id) || 'Unknown Branch',
       }));
       
       return { data: formatted as InventoryTransferRequest[], error: null };
@@ -3015,7 +3038,7 @@ function fetchTransferRequestsLocal(tenantId: string, branchId: string): Service
 
 export async function fetchTransferRequestItems(requestId: string): Promise<ServiceResult<InventoryTransferRequestItem[]>> {
   try {
-    const { tenant_id } = getTenantContext();
+    const { tenant_id, branch_id } = getTenantContext();
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_transfer_request_items')
@@ -3023,7 +3046,7 @@ export async function fetchTransferRequestItems(requestId: string): Promise<Serv
           *,
           material:inventory_materials(material_name, unit:inventory_units(short_name))
         `)
-        .eq('transfer_request_id', requestId);
+        .eq('request_id', requestId);
 
       if (error) {
         if (await handleQueryError(error, 'fetchTransferRequestItems')) {
@@ -3033,7 +3056,15 @@ export async function fetchTransferRequestItems(requestId: string): Promise<Serv
       }
       
       const formatted = (data || []).map((itm: any) => ({
-        ...itm,
+        id: itm.id,
+        tenant_id,
+        branch_id,
+        transfer_request_id: itm.request_id,
+        material_id: itm.material_id,
+        requested_quantity: Number(itm.requested_qty) || 0,
+        approved_quantity: itm.approved_qty !== null ? Number(itm.approved_qty) : null,
+        received_quantity: itm.received_qty !== null ? Number(itm.received_qty) : null,
+        created_at: itm.created_at || new Date().toISOString(),
         material_name: itm.material?.material_name || 'Unknown Material',
         unit_short_name: itm.material?.unit?.short_name || 'units',
       }));
@@ -3083,17 +3114,10 @@ export async function createTransferRequest(
 
     const headerPayload = {
       tenant_id,
-      branch_id,
-      from_branch_id: fromBranchId,
-      to_branch_id: toBranchId,
-      request_date: now,
+      requesting_branch_id: toBranchId,
+      supplying_branch_id: fromBranchId,
       status: 'Pending' as const,
-      remarks: remarks || null,
-      created_by: createdBy,
-      approved_by: null,
-      approved_at: null,
-      rejected_by: null,
-      rejected_at: null,
+      notes: remarks || null,
       updated_at: now
     };
 
@@ -3112,12 +3136,11 @@ export async function createTransferRequest(
       }
 
       const itemsPayload = items.map(itm => ({
-        tenant_id,
-        branch_id,
-        transfer_request_id: headerData.id,
+        request_id: headerData.id,
         material_id: itm.material_id,
-        requested_quantity: itm.requested_quantity,
-        approved_quantity: null
+        requested_qty: itm.requested_quantity,
+        approved_qty: null,
+        received_qty: null
       }));
 
       const { error: itemsErr } = await supabase
@@ -3130,14 +3153,33 @@ export async function createTransferRequest(
 
       await supabase.from('inventory_transfer_events').insert({
         tenant_id,
-        branch_id,
+        branch_id: toBranchId,
         transfer_request_id: headerData.id,
         event_type: 'Created',
         performed_by: createdBy,
         notes: 'Transfer request raised.'
       });
 
-      return { data: headerData as InventoryTransferRequest, error: null };
+      const returnedRequest: InventoryTransferRequest = {
+        id: headerData.id,
+        tenant_id: headerData.tenant_id,
+        branch_id: headerData.requesting_branch_id,
+        request_number: headerData.request_number,
+        from_branch_id: headerData.supplying_branch_id,
+        to_branch_id: headerData.requesting_branch_id,
+        request_date: headerData.created_at,
+        status: headerData.status,
+        remarks: headerData.notes,
+        created_by: createdBy,
+        approved_by: null,
+        approved_at: null,
+        rejected_by: null,
+        rejected_at: null,
+        created_at: headerData.created_at,
+        updated_at: headerData.updated_at
+      };
+
+      return { data: returnedRequest, error: null };
     } else {
       return createTransferRequestLocal(requestId, headerPayload, items);
     }
@@ -3209,13 +3251,14 @@ export async function approveTransferRequest(
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const now = new Date().toISOString();
+    const approvedByUuid = isUuid(approvedBy) ? approvedBy : tenant_id;
 
     if (!forceLocalFallback) {
       const { data: reqData, error: reqErr } = await supabase
         .from('inventory_transfer_requests')
         .update({
           status: 'Approved',
-          approved_by: approvedBy,
+          approved_by: approvedByUuid,
           approved_at: now,
           updated_at: now
         })
@@ -3230,13 +3273,13 @@ export async function approveTransferRequest(
         return { data: false, error: reqErr.message };
       }
 
-      const CK_branch_id = reqData.from_branch_id;
+      const CK_branch_id = reqData.supplying_branch_id;
 
       for (const itm of items) {
         await supabase
           .from('inventory_transfer_request_items')
-          .update({ approved_quantity: itm.approved_quantity })
-          .eq('transfer_request_id', requestId)
+          .update({ approved_qty: itm.approved_quantity })
+          .eq('request_id', requestId)
           .eq('material_id', itm.material_id);
 
         const { data: stockLvl } = await supabase
@@ -3277,7 +3320,7 @@ export async function approveTransferRequest(
 
       await supabase.from('inventory_transfer_events').insert({
         tenant_id,
-        branch_id,
+        branch_id: reqData.supplying_branch_id,
         transfer_request_id: requestId,
         event_type: 'Approved',
         performed_by: approvedBy,
@@ -3369,13 +3412,22 @@ export async function rejectTransferRequest(
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const now = new Date().toISOString();
+    const rejectedByUuid = isUuid(rejectedBy) ? rejectedBy : tenant_id;
 
     if (!forceLocalFallback) {
+      const { data: reqData, error: fetchErr } = await supabase
+        .from('inventory_transfer_requests')
+        .select('supplying_branch_id')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchErr) return { data: false, error: fetchErr.message };
+
       const { error } = await supabase
         .from('inventory_transfer_requests')
         .update({
           status: 'Rejected',
-          rejected_by: rejectedBy,
+          rejected_by: rejectedByUuid,
           rejected_at: now,
           updated_at: now
         })
@@ -3390,7 +3442,7 @@ export async function rejectTransferRequest(
 
       await supabase.from('inventory_transfer_events').insert({
         tenant_id,
-        branch_id,
+        branch_id: reqData.supplying_branch_id,
         transfer_request_id: requestId,
         event_type: 'Rejected',
         performed_by: rejectedBy,
@@ -3461,30 +3513,34 @@ export async function createDispatch(
       const { data: reqItems } = await supabase
         .from('inventory_transfer_request_items')
         .select('*')
-        .eq('transfer_request_id', requestId);
-
-      const dispatchPayload = {
-        tenant_id,
-        branch_id: req.from_branch_id,
-        transfer_request_id: requestId,
-        from_branch_id: req.from_branch_id,
-        to_branch_id: req.to_branch_id,
-        dispatch_date: now,
-        status: 'Dispatched' as const,
-        remarks: remarks || null,
-        created_by: author,
-        updated_at: now
-      };
+        .eq('request_id', requestId);
 
       const { data: dispData, error: dispErr } = await supabase
         .from('inventory_dispatches')
-        .insert({ id: dispatchId, ...dispatchPayload })
+        .insert({
+          id: dispatchId,
+          request_id: requestId,
+          dispatched_at: now,
+          status: 'Dispatched'
+        })
         .select('*')
         .single();
 
       if (dispErr) {
         if (await handleQueryError(dispErr, 'createDispatch')) {
-          return createDispatchLocal(dispatchId, dispatchPayload, items, req, reqItems || []);
+          const localPayload = {
+            tenant_id,
+            branch_id: req.supplying_branch_id,
+            transfer_request_id: requestId,
+            from_branch_id: req.supplying_branch_id,
+            to_branch_id: req.requesting_branch_id,
+            dispatch_date: now,
+            status: 'Dispatched' as const,
+            remarks: remarks || null,
+            created_by: author,
+            updated_at: now
+          };
+          return createDispatchLocal(dispatchId, localPayload, items, req, reqItems || []);
         }
         return { data: null, error: dispErr.message };
       }
@@ -3496,7 +3552,7 @@ export async function createDispatch(
           .from('inventory_material_stock_levels')
           .select('*')
           .eq('tenant_id', tenant_id)
-          .eq('branch_id', req.from_branch_id)
+          .eq('branch_id', req.supplying_branch_id)
           .eq('material_id', itm.material_id);
 
         const CK_stock = stockLvls && stockLvls.length > 0 ? stockLvls[0] : null;
@@ -3527,7 +3583,7 @@ export async function createDispatch(
 
         await supabase.from('inventory_stock_ledger').insert({
           tenant_id,
-          branch_id: req.from_branch_id,
+          branch_id: req.supplying_branch_id,
           material_id: itm.material_id,
           transaction_date: now,
           transaction_type: 'Transfer Out',
@@ -3543,12 +3599,9 @@ export async function createDispatch(
         });
 
         dispatchItemsPayload.push({
-          tenant_id,
-          branch_id: req.from_branch_id,
           dispatch_id: dispData.id,
           material_id: itm.material_id,
-          dispatched_quantity: itm.dispatched_quantity,
-          received_quantity: null
+          quantity: itm.dispatched_quantity
         });
       }
 
@@ -3557,7 +3610,7 @@ export async function createDispatch(
       let allDispatched = true;
       for (const ri of (reqItems || [])) {
         const matchingDisp = items.find(i => i.material_id === ri.material_id);
-        const approved = Number(ri.approved_quantity) || 0;
+        const approved = Number(ri.approved_qty) || 0;
         const dispatched = matchingDisp ? matchingDisp.dispatched_quantity : 0;
         if (dispatched < approved) {
           allDispatched = false;
@@ -3572,14 +3625,30 @@ export async function createDispatch(
 
       await supabase.from('inventory_transfer_events').insert({
         tenant_id,
-        branch_id: req.from_branch_id,
+        branch_id: req.supplying_branch_id,
         transfer_request_id: requestId,
         event_type: 'Dispatched',
         performed_by: author,
         notes: `Items dispatched. Status set to ${nextStatus}.`
       });
 
-      return { data: dispData as InventoryDispatch, error: null };
+      const returnedDispatch: InventoryDispatch = {
+        id: dispData.id,
+        tenant_id: tenant_id,
+        branch_id: req.supplying_branch_id,
+        dispatch_number: dispData.dispatch_number,
+        transfer_request_id: requestId,
+        from_branch_id: req.supplying_branch_id,
+        to_branch_id: req.requesting_branch_id,
+        dispatch_date: dispData.dispatched_at,
+        status: dispData.status,
+        remarks: remarks || null,
+        created_by: author,
+        created_at: dispData.dispatched_at,
+        updated_at: dispData.dispatched_at
+      };
+
+      return { data: returnedDispatch, error: null };
     } else {
       const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
       const req = allReqs.find(r => r.id === requestId);
@@ -3736,7 +3805,10 @@ export async function receiveDispatch(
     if (!forceLocalFallback) {
       const { data: disp, error: dispErr } = await supabase
         .from('inventory_dispatches')
-        .select('*')
+        .select(`
+          *,
+          request:inventory_transfer_requests(*)
+        `)
         .eq('id', dispatchId)
         .single();
 
@@ -3746,16 +3818,26 @@ export async function receiveDispatch(
 
       await supabase
         .from('inventory_dispatches')
-        .update({ status: 'Received', updated_at: now })
+        .update({ status: 'Received', received_at: now })
         .eq('id', dispatchId);
 
-      const targetBranchId = disp.to_branch_id;
+      const targetBranchId = disp.request.requesting_branch_id;
 
       for (const itm of items) {
+        // Update request item received_qty
+        const { data: reqItem } = await supabase
+          .from('inventory_transfer_request_items')
+          .select('received_qty')
+          .eq('request_id', disp.request_id)
+          .eq('material_id', itm.material_id)
+          .single();
+        
+        const prevReceived = reqItem ? Number(reqItem.received_qty) || 0 : 0;
         await supabase
-          .from('inventory_dispatch_items')
-          .update({ received_quantity: itm.received_quantity })
-          .eq('id', itm.id);
+          .from('inventory_transfer_request_items')
+          .update({ received_qty: prevReceived + itm.received_quantity })
+          .eq('request_id', disp.request_id)
+          .eq('material_id', itm.material_id);
 
         const { data: stockLvl } = await supabase
           .from('inventory_material_stock_levels')
@@ -3833,13 +3915,13 @@ export async function receiveDispatch(
         }
       }
 
-      if (disp.transfer_request_id) {
+      if (disp.request_id) {
         let allReceived = true;
         
         const { data: dispList } = await supabase
           .from('inventory_dispatches')
           .select('id')
-          .eq('transfer_request_id', disp.transfer_request_id);
+          .eq('request_id', disp.request_id);
 
         const dispIds = (dispList || []).map((d: any) => d.id);
 
@@ -3851,12 +3933,12 @@ export async function receiveDispatch(
         const { data: reqItems } = await supabase
           .from('inventory_transfer_request_items')
           .select('*')
-          .eq('transfer_request_id', disp.transfer_request_id);
+          .eq('request_id', disp.request_id);
 
         for (const ri of (reqItems || [])) {
           const matchingDispItems = (allDispItems || []).filter((di: any) => di.material_id === ri.material_id);
           const totalReceived = matchingDispItems.reduce((s, di) => s + (Number(di.received_quantity) || 0), 0);
-          const approved = Number(ri.approved_quantity) || 0;
+          const approved = Number(ri.approved_qty) || 0;
           if (totalReceived < approved) {
             allReceived = false;
           }
@@ -3866,12 +3948,12 @@ export async function receiveDispatch(
         await supabase
           .from('inventory_transfer_requests')
           .update({ status: nextStatus, updated_at: now })
-          .eq('id', disp.transfer_request_id);
+          .eq('id', disp.request_id);
 
         await supabase.from('inventory_transfer_events').insert({
           tenant_id,
           branch_id: targetBranchId,
-          transfer_request_id: disp.transfer_request_id,
+          transfer_request_id: disp.request_id,
           event_type: 'Received',
           performed_by: author,
           notes: `Goods received. Status set to ${nextStatus}.`
@@ -4040,12 +4122,8 @@ export async function fetchDispatches(branchId?: string): Promise<ServiceResult<
         .from('inventory_dispatches')
         .select(`
           *,
-          from_branch:branches!from_branch_id(name),
-          to_branch:branches!to_branch_id(name)
-        `)
-        .eq('tenant_id', tenant_id)
-        .or(`from_branch_id.eq.${activeBranchId},to_branch_id.eq.${activeBranchId}`)
-        .order('dispatch_date', { ascending: false });
+          request:inventory_transfer_requests(*)
+        `);
 
       if (error) {
         if (await handleQueryError(error, 'fetchDispatches')) {
@@ -4054,11 +4132,42 @@ export async function fetchDispatches(branchId?: string): Promise<ServiceResult<
         return { data: null, error: error.message };
       }
 
-      const formatted = (data || []).map((d: any) => ({
-        ...d,
-        from_branch_name: d.from_branch?.name || 'Unknown Branch',
-        to_branch_name: d.to_branch?.name || 'Unknown Branch',
-      }));
+      const filtered = (data || []).filter((d: any) => {
+        const req = d.request;
+        if (!req) return false;
+        if (req.tenant_id !== tenant_id) return false;
+        return req.requesting_branch_id === activeBranchId || req.supplying_branch_id === activeBranchId;
+      });
+
+      filtered.sort((a: any, b: any) => b.dispatched_at.localeCompare(a.dispatched_at));
+
+      const { data: branchData } = await supabase
+        .from('branches')
+        .select('id, name')
+        .eq('tenant_id', tenant_id);
+
+      const branchMap = new Map((branchData || []).map((b: any) => [b.id, b.name]));
+
+      const formatted = filtered.map((d: any) => {
+        const req = d.request;
+        return {
+          id: d.id,
+          tenant_id: tenant_id,
+          branch_id: req.supplying_branch_id,
+          dispatch_number: d.dispatch_number,
+          transfer_request_id: d.request_id,
+          from_branch_id: req.supplying_branch_id,
+          to_branch_id: req.requesting_branch_id,
+          dispatch_date: d.dispatched_at,
+          status: d.status,
+          remarks: req.notes,
+          created_by: 'System User',
+          created_at: d.dispatched_at,
+          updated_at: d.dispatched_at,
+          from_branch_name: branchMap.get(req.supplying_branch_id) || 'Unknown Branch',
+          to_branch_name: branchMap.get(req.requesting_branch_id) || 'Unknown Branch',
+        };
+      });
 
       return { data: formatted as InventoryDispatch[], error: null };
     } else {
@@ -4093,6 +4202,7 @@ function fetchDispatchesLocal(tenantId: string, branchId: string): ServiceResult
 
 export async function fetchDispatchItems(dispatchId: string): Promise<ServiceResult<InventoryDispatchItem[]>> {
   try {
+    const { tenant_id, branch_id } = getTenantContext();
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_dispatch_items')
@@ -4109,8 +4219,31 @@ export async function fetchDispatchItems(dispatchId: string): Promise<ServiceRes
         return { data: null, error: error.message };
       }
 
+      const { data: dispData } = await supabase
+        .from('inventory_dispatches')
+        .select('request_id')
+        .eq('id', dispatchId)
+        .single();
+
+      let reqItemsMap = new Map();
+      if (dispData?.request_id) {
+        const { data: reqItems } = await supabase
+          .from('inventory_transfer_request_items')
+          .select('material_id, received_qty')
+          .eq('request_id', dispData.request_id);
+        
+        reqItemsMap = new Map((reqItems || []).map((ri: any) => [ri.material_id, ri.received_qty]));
+      }
+
       const formatted = (data || []).map((itm: any) => ({
-        ...itm,
+        id: itm.id,
+        tenant_id,
+        branch_id,
+        dispatch_id: itm.dispatch_id,
+        material_id: itm.material_id,
+        dispatched_quantity: Number(itm.quantity) || 0,
+        received_quantity: reqItemsMap.has(itm.material_id) ? Number(reqItemsMap.get(itm.material_id)) : null,
+        created_at: new Date().toISOString(),
         material_name: itm.material?.material_name || 'Unknown Material',
         unit_short_name: itm.material?.unit?.short_name || 'units',
       }));
@@ -4199,9 +4332,9 @@ export async function cancelTransferRequest(
       const { data: reqItems } = await supabase
         .from('inventory_transfer_request_items')
         .select('*')
-        .eq('transfer_request_id', requestId);
+        .eq('request_id', requestId);
 
-      const CK_branch_id = req.from_branch_id;
+      const CK_branch_id = req.supplying_branch_id;
 
       const { error: updateErr } = await supabase
         .from('inventory_transfer_requests')
@@ -4214,7 +4347,7 @@ export async function cancelTransferRequest(
         const { data: dispatches } = await supabase
           .from('inventory_dispatches')
           .select('id')
-          .eq('transfer_request_id', requestId);
+          .eq('request_id', requestId);
 
         const dispatchIds = (dispatches || []).map((d: any) => d.id);
         const { data: dispItems } = dispatchIds.length > 0
@@ -4222,9 +4355,9 @@ export async function cancelTransferRequest(
           : { data: [] };
 
         for (const ri of reqItems) {
-          const approved = Number(ri.approved_quantity) || 0;
+          const approved = Number(ri.approved_qty) || 0;
           const matchingDisp = (dispItems || []).filter((di: any) => di.material_id === ri.material_id);
-          const totalDispatched = matchingDisp.reduce((sum, di) => sum + (Number(di.dispatched_quantity) || 0), 0);
+          const totalDispatched = matchingDisp.reduce((sum, di) => sum + (Number(di.quantity) || 0), 0);
           const remainingReserved = Math.max(0, approved - totalDispatched);
 
           if (remainingReserved > 0) {
@@ -4254,7 +4387,7 @@ export async function cancelTransferRequest(
 
       await supabase.from('inventory_transfer_events').insert({
         tenant_id,
-        branch_id: req.from_branch_id,
+        branch_id: req.supplying_branch_id,
         transfer_request_id: requestId,
         event_type: 'Cancelled',
         performed_by: cancelledBy,
@@ -4339,10 +4472,13 @@ export async function fetchRecipes(): Promise<ServiceResult<InventoryRecipe[]>> 
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_recipes')
-        .select('*')
+        .select(`
+          *,
+          products(name)
+        `)
         .eq('tenant_id', tenant_id)
         .eq('is_active', true)
-        .order('name', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) {
         if (await handleQueryError(error, 'fetchRecipes')) {
@@ -4350,7 +4486,27 @@ export async function fetchRecipes(): Promise<ServiceResult<InventoryRecipe[]>> 
         }
         return { data: null, error: error.message };
       }
-      return { data: data as InventoryRecipe[], error: null };
+
+      const formatted = (data || []).map((r: any) => {
+        const prodName = r.products?.[0]?.name || 'Unnamed Recipe';
+        return {
+          id: r.id,
+          tenant_id: r.tenant_id,
+          branch_id: '',
+          name: prodName,
+          description: null,
+          yield_quantity: Number(r.yield_quantity) || 1,
+          yield_unit: r.yield_unit || 'portion',
+          cost_snapshot: Number(r.cost_snapshot) || 0,
+          version_no: Number(r.version_no) || 1,
+          effective_from: r.effective_from,
+          is_active: r.is_active,
+          created_at: r.created_at,
+          updated_at: r.updated_at
+        };
+      });
+
+      return { data: formatted as InventoryRecipe[], error: null };
     } else {
       return fetchRecipesLocal(tenant_id);
     }
@@ -4429,9 +4585,6 @@ export async function saveRecipe(
 
     const recipePayload = {
       tenant_id,
-      branch_id,
-      name: recipe.name || 'Unnamed Recipe',
-      description: recipe.description || null,
       yield_quantity: Number(recipe.yield_quantity) || 1,
       yield_unit: recipe.yield_unit || 'portion',
       cost_snapshot: Number(recipe.cost_snapshot) || 0,
@@ -4450,7 +4603,13 @@ export async function saveRecipe(
 
       if (recipeErr) {
         if (await handleQueryError(recipeErr, 'saveRecipe')) {
-          return saveRecipeLocal(recipeId, recipePayload, items);
+          const localPayload = {
+            branch_id,
+            name: recipe.name || 'Unnamed Recipe',
+            description: recipe.description || null,
+            ...recipePayload
+          };
+          return saveRecipeLocal(recipeId, localPayload, items);
         }
         return { data: null, error: recipeErr.message };
       }
@@ -4474,9 +4633,31 @@ export async function saveRecipe(
         return { data: null, error: itemsErr.message };
       }
 
-      return { data: savedRecipe as InventoryRecipe, error: null };
+      const returnedRecipe: InventoryRecipe = {
+        id: savedRecipe.id,
+        tenant_id: savedRecipe.tenant_id,
+        branch_id: '',
+        name: recipe.name || 'Unnamed Recipe',
+        description: recipe.description || null,
+        yield_quantity: Number(savedRecipe.yield_quantity) || 1,
+        yield_unit: savedRecipe.yield_unit || 'portion',
+        cost_snapshot: Number(savedRecipe.cost_snapshot) || 0,
+        version_no: Number(savedRecipe.version_no) || 1,
+        effective_from: savedRecipe.effective_from,
+        is_active: savedRecipe.is_active,
+        created_at: savedRecipe.created_at,
+        updated_at: savedRecipe.updated_at
+      };
+
+      return { data: returnedRecipe, error: null };
     } else {
-      return saveRecipeLocal(recipeId, recipePayload, items);
+      const localPayload = {
+        branch_id,
+        name: recipe.name || 'Unnamed Recipe',
+        description: recipe.description || null,
+        ...recipePayload
+      };
+      return saveRecipeLocal(recipeId, localPayload, items);
     }
   } catch (err: any) {
     return { data: null, error: err.message || 'Error saving recipe.' };
@@ -4526,8 +4707,7 @@ export async function deleteRecipe(id: string): Promise<ServiceResult<boolean>> 
         .from('inventory_recipes')
         .update({ is_active: false })
         .eq('id', id)
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id);
+        .eq('tenant_id', tenant_id);
 
       if (error) {
         if (await handleQueryError(error, 'deleteRecipe')) {
