@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   Text,
   View,
   Alert,
@@ -197,6 +198,113 @@ export function OrderPanel({
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color="#0D6CE0" size="large" />
         </View>
+      ) : Platform.OS === 'web' ? (
+        <ScrollView
+          style={{ flex: 1, marginTop: 2 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {items.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 10 }}>
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Text style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>
+                  Add items to this order
+                </Text>
+              </View>
+              
+              {heldOrders && heldOrders.length > 0 && (
+                <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#EEF2F7', paddingTop: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
+                    Held Carts ({heldOrders.length})
+                  </Text>
+                  
+                  <View style={{ flex: 1 }}>
+                    {heldOrders.map((item) => {
+                      const itemsCount = itemCountByOrderId[item.id] ?? 0;
+                      const elapsed = getElapsedLabel(item.created_at);
+                      return (
+                        <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' }}>
+                          <View>
+                            <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
+                              Draft Order
+                            </Text>
+                            <Text style={{ fontSize: 10, color: '#6B7280', marginTop: 1 }}>
+                              {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {elapsed}
+                            </Text>
+                          </View>
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => onResumeOrder(item.id)}
+                            style={{ height: 28, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#E8F2FA', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#0D6CE0' }}>Resume</Text>
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              {items.map((item) => {
+                const isItemEditable = canEdit && !item.kot_sent;
+                return (
+                  <View key={item.id} style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F9FAFB', opacity: item.kot_sent ? 0.85 : 1 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#F5F8FC', marginRight: 8 }} />
+                    
+                    <View style={{ flex: 1, marginRight: 4 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', letterSpacing: -0.1, color: '#013b8c' }} numberOfLines={1}>
+                        {item.product_name} {item.kot_sent && <Text style={{ fontSize: 10, fontWeight: '600', color: '#10B981' }}>(Sent)</Text>}
+                      </Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0B5FB3', marginTop: 1 }}>
+                        {formatCurrency(item.qty * item.price)}
+                      </Text>
+                    </View>
+
+                    <View 
+                      style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center', 
+                        height: 30, 
+                        borderRadius: 10, 
+                        backgroundColor: isItemEditable ? '#F4F8FD' : '#E2E8F0', 
+                        paddingHorizontal: 2,
+                        opacity: isItemEditable ? 1 : 0.85
+                      }}
+                    >
+                      <Pressable
+                        disabled={!isItemEditable || isMutating}
+                        onPress={() => onDecrementItem(item.id)}
+                        style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: isItemEditable ? '#FFFFFF' : '#CBD5E1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 }}
+                      >
+                        <Minus color={isItemEditable ? '#4B5563' : '#4B5563'} size={10} />
+                      </Pressable>
+                      <Text style={{ width: 20, textAlign: 'center', fontSize: 12, fontWeight: '800', color: isItemEditable ? '#111827' : '#4B5563' }}>
+                        {item.qty}
+                      </Text>
+                      <Pressable
+                        disabled={!isItemEditable || isMutating}
+                        onPress={() => onIncrementItem(item.id)}
+                        style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: isItemEditable ? '#FFFFFF' : '#CBD5E1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 }}
+                      >
+                        <Plus color={isItemEditable ? '#4B5563' : '#4B5563'} size={10} />
+                      </Pressable>
+                    </View>
+     
+                    <Pressable
+                      disabled={!isItemEditable || isMutating}
+                      onPress={() => onRemoveItem(item.id)}
+                      style={{ marginLeft: 6, padding: 2, opacity: isItemEditable ? 1 : 0.85 }}
+                    >
+                      <Trash2 color={isItemEditable ? '#EF4444' : '#94A3B8'} size={14} opacity={isItemEditable ? 0.6 : 0.4} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
       ) : (
         <FlatList
           data={items}

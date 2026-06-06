@@ -91,8 +91,6 @@ function SidebarDecoration() {
 }
 
 // ─── Smooth label wrapper ─────────────────────────────────────────────────────────
-// Always rendered in DOM — uses CSS opacity/maxWidth transition so text fades in
-// instead of popping, eliminating the layout-jump stutter.
 
 function SidebarLabel({
   expanded,
@@ -104,7 +102,6 @@ function SidebarLabel({
   style?: any;
 }) {
   if (Platform.OS !== 'web') {
-    // Native fallback: simple conditional render is fine
     return expanded ? <>{children}</> : null;
   }
 
@@ -115,7 +112,7 @@ function SidebarLabel({
   const cleanedStyle = { ...flattened };
   delete cleanedStyle.marginLeft;
   delete cleanedStyle.marginRight;
-  delete cleanedStyle.flex; // avoid flex layout thrashing during transition
+  delete cleanedStyle.flex;
 
   return (
     <View
@@ -128,7 +125,7 @@ function SidebarLabel({
           opacity: expanded ? 1 : 0,
           marginLeft: expanded ? currentMarginLeft : 0,
           marginRight: expanded ? currentMarginRight : 0,
-          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease, margin-left 240ms cubic-bezier(0.4,0,0.2,1), margin-right 240ms cubic-bezier(0.4,0,0.2,1)',
+          transition: 'max-width 200ms cubic-bezier(0.4,0,0.2,1), opacity 150ms ease, margin-left 200ms cubic-bezier(0.4,0,0.2,1), margin-right 200ms cubic-bezier(0.4,0,0.2,1)',
         } as any,
         cleanedStyle,
       ]}
@@ -145,14 +142,13 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
   const [hovered, setHovered] = useState(false);
   const expanded = pinned || hovered;
 
-  // On web: use pure CSS transition on width (compositor-driven, no JS jank)
   // On native: use Animated.Value as fallback
   const widthAnim = React.useRef(new Animated.Value(COLLAPSED_W)).current;
   useEffect(() => {
-    if (Platform.OS === 'web') return; // web uses CSS, not this
+    if (Platform.OS === 'web') return;
     Animated.timing(widthAnim, {
       toValue: expanded ? EXPANDED_W : COLLAPSED_W,
-      duration: 240,
+      duration: 200,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
       useNativeDriver: false,
     }).start();
@@ -163,34 +159,30 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
     ...categories.map((c) => ({ id: c.id, name: c.name })),
   ];
 
-  // Container style: CSS transition on web, Animated value on native
   const containerStyle =
     Platform.OS === 'web'
       ? ({
           width: expanded ? EXPANDED_W : COLLAPSED_W,
           minWidth: COLLAPSED_W,
           maxWidth: EXPANDED_W,
-          overflow: 'hidden',
           flexShrink: 0,
           flexDirection: 'column',
-          transition: 'width 240ms cubic-bezier(0.4,0,0.2,1)',
+          height: '100%',
+          transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
           willChange: 'width',
         } as any)
       : {
           width: widthAnim,
           minWidth: COLLAPSED_W,
           maxWidth: EXPANDED_W,
-          overflow: 'hidden',
           flexShrink: 0,
           flexDirection: 'column' as const,
+          height: '100%',
         };
 
-  const Container = Platform.OS === 'web' ? View : Animated.View;
-
   return (
-    <Container
+    <View
       style={containerStyle}
-      // Web hover listeners
       {...(Platform.OS === 'web'
         ? {
             onMouseEnter: () => setHovered(true),
@@ -226,7 +218,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
             resizeMode: 'contain',
             opacity: 0.96,
             ...(Platform.OS === 'web'
-              ? { transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1)' }
+              ? { transition: 'width 200ms cubic-bezier(0.4,0,0.2,1), height 200ms cubic-bezier(0.4,0,0.2,1)' }
               : {}),
           } as any}
           accessibilityLabel="Le Leban logo"
@@ -365,6 +357,6 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           <PanelLeft size={14} color="rgba(255,255,255,0.5)" />
         )}
       </Pressable>
-    </Container>
+    </View>
   );
 }
