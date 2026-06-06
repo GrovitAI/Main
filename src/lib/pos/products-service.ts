@@ -19,6 +19,8 @@ export type Product = {
   price: number;
   is_available: boolean | null;
   is_active: boolean;
+  recipe_id?: string | null;
+  inventory_tracking_enabled?: boolean;
 };
 
 export async function getCategories(): Promise<ServiceResult<Category[]>> {

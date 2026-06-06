@@ -4,6 +4,7 @@ import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, 
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
+import { fetchRecipes, type InventoryRecipe } from '@/lib/pos/inventory-service';
 
 type ProductFormInput = {
   id?: string;
@@ -11,6 +12,8 @@ type ProductFormInput = {
   price: string;
   category_id: string;
   is_available: boolean;
+  inventory_tracking_enabled: boolean;
+  recipe_id: string;
 };
 
 const initialFormInput: ProductFormInput = {
@@ -18,6 +21,8 @@ const initialFormInput: ProductFormInput = {
   price: '',
   category_id: '',
   is_available: true,
+  inventory_tracking_enabled: false,
+  recipe_id: '',
 };
 
 type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'status-on' | 'status-off';
@@ -33,6 +38,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
 
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [recipes, setRecipes] = useState<InventoryRecipe[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   
   const [loading, setLoading] = useState(true);
@@ -68,9 +74,10 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
     setLoading(true);
     setError(null);
     try {
-      const [catsRes, prodsRes] = await Promise.all([
+      const [catsRes, prodsRes, recipesRes] = await Promise.all([
         getCategories(),
-        fetchActiveProducts()
+        fetchActiveProducts(),
+        fetchRecipes()
       ]);
 
       if (catsRes.error) {
@@ -83,6 +90,10 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
         setError(prodsRes.error);
       } else if (prodsRes.data) {
         setProducts(prodsRes.data);
+      }
+
+      if (recipesRes.data) {
+        setRecipes(recipesRes.data);
       }
     } catch {
       setError('Connection failure. Unable to synchronize POS menu data.');
@@ -159,6 +170,8 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       price: String(product.price),
       category_id: product.category_id ?? (categories.length > 0 ? categories[0].id : ''),
       is_available: product.is_available ?? true,
+      inventory_tracking_enabled: product.inventory_tracking_enabled ?? false,
+      recipe_id: product.recipe_id ?? '',
     });
     setIsEditMode(true);
     setFormError(null);
@@ -190,6 +203,8 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       price: parsedPrice,
       category_id: formInput.category_id,
       is_available: formInput.is_available,
+      inventory_tracking_enabled: formInput.inventory_tracking_enabled,
+      recipe_id: formInput.recipe_id || null,
     };
 
     if (isEditMode && formInput.id) {
@@ -657,6 +672,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               
               // Ellipsis action menu popup toggler
               const isMenuOpen = activeMenuId === item.id;
+              const linkedRecipe = recipes.find(r => r.id === item.recipe_id);
 
               return (
                 <View className="flex-1 flex-row items-center justify-between p-3.5 mb-3 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 76 }}>
@@ -678,12 +694,45 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                       </View>
 
                       {/* Dot Availability Indicator */}
-                      <View className="flex-row items-center gap-1.5 mt-1">
+                      <View className="flex-row items-center gap-1.5 mt-1 flex-wrap">
                         <View className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                         <Text className={`text-[9px] font-extrabold uppercase ${isAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
                           {isAvailable ? 'Available' : 'Unavailable'}
                         </Text>
+                        {item.inventory_tracking_enabled && (
+                          <View className="bg-blue-50 border border-blue-100 rounded px-1 py-0.5">
+                            <Text className="text-[8px] font-black text-blue-700 uppercase">Tracked</Text>
+                          </View>
+                        )}
                       </View>
+
+                      {/* Margin analysis badges */}
+                      {linkedRecipe && (
+                        <View className="flex-row items-center gap-1 mt-1.5 flex-wrap">
+                          <View className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">
+                            <Text className="text-[8px] font-semibold text-slate-500">Cost: ₹{linkedRecipe.cost_snapshot.toFixed(2)}</Text>
+                          </View>
+                          {(() => {
+                            const marginAmt = item.price - linkedRecipe.cost_snapshot;
+                            const marginPct = item.price > 0 ? (marginAmt / item.price) * 100 : 0;
+                            const isMarginHealthy = marginPct >= 50;
+                            return (
+                              <>
+                                <View className={`border rounded px-1.5 py-0.5 ${isMarginHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+                                  <Text className={`text-[8px] font-black ${isMarginHealthy ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                    Margin: ₹{marginAmt.toFixed(2)}
+                                  </Text>
+                                </View>
+                                <View className={`border rounded px-1.5 py-0.5 ${isMarginHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+                                  <Text className={`text-[8px] font-black ${isMarginHealthy ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                    {marginPct.toFixed(1)}%
+                                  </Text>
+                                </View>
+                              </>
+                            );
+                          })()}
+                        </View>
+                      )}
                     </View>
                   </View>
 
@@ -862,6 +911,52 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                           </Pressable>
                         );
                       })}
+                    </View>
+                  </View>
+
+                  {/* Recipe Linking & Inventory Tracking Settings */}
+                  <View className="w-full px-2 border-t border-slate-100 pt-4 mt-2">
+                    <Text className="text-xs font-black text-text-primary mb-3">Inventory Settings</Text>
+                    
+                    <View className="flex-row items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl mb-4 h-12">
+                      <View>
+                        <Text className="text-xs font-bold text-slate-800">Inventory Tracking</Text>
+                        <Text className="text-[10px] text-slate-500 font-semibold">Deduct ingredients stock upon sales</Text>
+                      </View>
+                      <Switch
+                        value={formInput.inventory_tracking_enabled}
+                        onValueChange={(val) => setFormInput(prev => ({ ...prev, inventory_tracking_enabled: val }))}
+                        trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                        thumbColor={formInput.inventory_tracking_enabled ? colors.primary : '#f4f3f4'}
+                        style={{ transform: [{ scale: 0.8 }] }}
+                      />
+                    </View>
+
+                    <View className="w-full mb-2">
+                      <Text className="text-xs font-bold text-text-primary mb-2">Linked Recipe</Text>
+                      <View className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                        <select
+                          value={formInput.recipe_id}
+                          onChange={(e) => setFormInput(prev => ({ ...prev, recipe_id: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            padding: 12,
+                            fontSize: 12,
+                            border: 'none',
+                            outline: 'none',
+                            backgroundColor: '#FFFFFF',
+                            fontWeight: '600',
+                            color: colors.textPrimary
+                          }}
+                        >
+                          <option value="">-- No Linked Recipe --</option>
+                          {recipes.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.recipe_name || r.name} ({r.recipe_code}) - Cost: ₹{(r.cost_snapshot || 0).toFixed(2)}
+                            </option>
+                          ))}
+                        </select>
+                      </View>
                     </View>
                   </View>
                 </View>

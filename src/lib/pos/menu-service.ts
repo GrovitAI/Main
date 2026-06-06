@@ -68,7 +68,7 @@ export async function toggleProductAvailability(
  * Creates a new product under the current tenant and branch.
  */
 export async function addProduct(
-  input: Pick<MenuProduct, 'name' | 'price' | 'category_id' | 'is_available'>
+  input: Pick<MenuProduct, 'name' | 'price' | 'category_id' | 'is_available' | 'inventory_tracking_enabled' | 'recipe_id'>
 ): Promise<ServiceResult<MenuProduct>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
@@ -81,6 +81,8 @@ export async function addProduct(
       category_id: input.category_id,
       is_available: input.is_available,
       is_active: true,
+      inventory_tracking_enabled: !!input.inventory_tracking_enabled,
+      recipe_id: input.recipe_id || null,
     };
 
     const { data, error } = await supabase
@@ -104,7 +106,7 @@ export async function addProduct(
  */
 export async function updateProduct(
   productId: string,
-  input: Pick<MenuProduct, 'name' | 'price' | 'category_id' | 'is_available'>
+  input: Pick<MenuProduct, 'name' | 'price' | 'category_id' | 'is_available' | 'inventory_tracking_enabled' | 'recipe_id'>
 ): Promise<ServiceResult<MenuProduct>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
@@ -114,6 +116,8 @@ export async function updateProduct(
       price: Number(input.price),
       category_id: input.category_id,
       is_available: input.is_available,
+      inventory_tracking_enabled: !!input.inventory_tracking_enabled,
+      recipe_id: input.recipe_id || null,
     };
 
     const { data, error } = await supabase

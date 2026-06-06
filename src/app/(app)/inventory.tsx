@@ -50,6 +50,7 @@ import {
   Store,
   MoreVertical,
   Download,
+  BookOpen,
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -94,6 +95,8 @@ import {
   fetchDispatchItems,
   fetchTransferEvents,
   fetchDispatches,
+  fetchStockLedger,
+  fetchRecipes,
   type InventoryCategory,
   type InventoryUnit,
   type InventorySupplier,
@@ -112,7 +115,11 @@ import {
   type InventoryDispatchItem,
   type InventoryTransferVariance,
   type InventoryTransferEvent,
+  type InventoryStockLedger,
+  type InventoryRecipe,
 } from '@/lib/pos/inventory-service';
+import RecipeManagement from '@/components/inventory/RecipeManagement';
+import { getProducts, type Product } from '@/lib/pos/products-service';
 
 // ─── LOGO ASSET LOAD ─────────────────────────────────────────────────────────
 
@@ -128,6 +135,7 @@ type TabName =
   | 'suppliers'
   | 'wastage'
   | 'transfers'
+  | 'recipes'
   | 'reports'
   | 'alerts'
   | 'units'
@@ -147,6 +155,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'suppliers', label: 'Suppliers', icon: User },
   { id: 'wastage', label: 'Wastage', icon: Trash2 },
   { id: 'transfers', label: 'Transfers', icon: RefreshCw },
+  { id: 'recipes', label: 'Recipes', icon: BookOpen },
   { id: 'reports', label: 'Reports', icon: TrendingUp },
   { id: 'alerts', label: 'Alerts', icon: ShieldAlert },
   { id: 'units', label: 'Units', icon: Database },
@@ -395,6 +404,10 @@ export default function InventoryScreen() {
   const [adjustments, setAdjustments] = useState<InventoryAdjustment[]>([]);
   const [auditLogs, setAuditLogs] = useState<InventoryAuditLog[]>([]);
   const [alerts, setAlerts] = useState<InventoryAlert[]>([]);
+  const [stockLedger, setStockLedger] = useState<InventoryStockLedger[]>([]);
+  const [recipes, setRecipes] = useState<InventoryRecipe[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [reportsSubTab, setReportsSubTab] = useState<'valuation' | 'margins' | 'variance'>('valuation');
 
   // ─── FILTER STATES ─────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -548,7 +561,24 @@ export default function InventoryScreen() {
     try {
       initializeLocalSeeder();
 
-      const [kpiRes, matRes, catRes, unitRes, supRes, purRes, wstRes, adjRes, audRes, alrtRes, branchRes, reqRes, dispRes] = await Promise.all([
+      const [
+        kpiRes,
+        matRes,
+        catRes,
+        unitRes,
+        supRes,
+        purRes,
+        wstRes,
+        adjRes,
+        audRes,
+        alrtRes,
+        branchRes,
+        reqRes,
+        dispRes,
+        ledgerRes,
+        recipesRes,
+        prodsRes
+      ] = await Promise.all([
         fetchInventoryDashboardKPIs(),
         fetchMaterials(targetBranchId),
         fetchCategories(),
@@ -562,6 +592,9 @@ export default function InventoryScreen() {
         fetchBranches(),
         fetchTransferRequests(targetBranchId),
         fetchDispatches(targetBranchId),
+        fetchStockLedger(),
+        fetchRecipes(),
+        getProducts()
       ]);
 
       if (kpiRes.data) setKpis(kpiRes.data);
@@ -577,6 +610,9 @@ export default function InventoryScreen() {
       if (branchRes.data) setDbBranches(branchRes.data);
       if (reqRes.data) setTransferRequests(reqRes.data);
       if (dispRes.data) setDispatchesList(dispRes.data);
+      if (ledgerRes.data) setStockLedger(ledgerRes.data);
+      if (recipesRes.data) setRecipes(recipesRes.data);
+      if (prodsRes.data) setProducts(prodsRes.data);
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to fetch inventory records.');
     } finally {
@@ -4071,51 +4107,364 @@ export default function InventoryScreen() {
   };
 
   const renderReports = () => {
-    return (
-      <View className="flex-col gap-6">
-        <View className="flex-row justify-between flex-wrap gap-4">
-          <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Stock Valuation by Category</Text>
-            {categories.map((c) => {
-              const catMats = materials.filter((m) => m.category_id === c.id);
-              const val = catMats.reduce((acc, curr) => acc + curr.current_stock * curr.average_cost, 0);
-              const totalVal = materials.reduce((acc, curr) => acc + curr.current_stock * curr.average_cost, 0) || 1;
-              const pct = Math.round((val / totalVal) * 100);
-              return (
-                <View key={c.id} className="mb-4">
-                  <View className="flex-row justify-between mb-1.5">
-                    <Text className="text-xs font-semibold text-slate-600">{c.category_name}</Text>
-                    <Text className="text-xs font-bold text-slate-800">
-                      ₹{val.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({pct}%)
-                    </Text>
-                  </View>
-                  <View className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <View className="bg-blue-600 h-full" style={{ width: `${pct}%` }} />
-                  </View>
+    // Helper to render Valuation & Wastage (the existing reports)
+    const renderValuation = () => (
+      <View className="flex-row justify-between flex-wrap gap-4">
+        <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
+          <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Stock Valuation by Category</Text>
+          {categories.map((c) => {
+            const catMats = materials.filter((m) => m.category_id === c.id);
+            const val = catMats.reduce((acc, curr) => acc + curr.current_stock * curr.average_cost, 0);
+            const totalVal = materials.reduce((acc, curr) => acc + curr.current_stock * curr.average_cost, 0) || 1;
+            const pct = Math.round((val / totalVal) * 100);
+            return (
+              <View key={c.id} className="mb-4">
+                <View className="flex-row justify-between mb-1.5">
+                  <Text className="text-xs font-semibold text-slate-600">{c.category_name}</Text>
+                  <Text className="text-xs font-bold text-slate-800">
+                    ₹{val.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({pct}%)
+                  </Text>
                 </View>
-              );
-            })}
+                <View className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <View className="bg-blue-600 h-full" style={{ width: `${pct}%` }} />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
+          <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage Leakage Analysis</Text>
+          <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
+            <View>
+              <Text className="text-[9px] font-black text-rose-800 uppercase">Monthly Leakage</Text>
+              <Text className="text-2xl font-black text-rose-900 mt-1">
+                ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString() : '1,440'}
+              </Text>
+            </View>
+            <View className="bg-rose-100 rounded-xl p-2">
+              <AlertTriangle size={20} color="#dc2626" />
+            </View>
+          </View>
+          <Text className="text-xs text-slate-500 leading-relaxed font-medium">
+            Leakage primarily consists of Spoilage (62.5%) and Expirations (24.3%). We advise adjusting reorder levels
+            to maintain optimal raw meat and dairy stocks.
+          </Text>
+        </View>
+      </View>
+    );
+
+    // Helper to render Margin Analysis Dashboard
+    const renderMarginAnalysis = () => {
+      // Find products that have recipes linked
+      const marginProducts = products.filter(p => p.recipe_id);
+      
+      // Calculate average margins
+      let totalCost = 0;
+      let totalRetail = 0;
+      let profitProductsCount = 0;
+      let lowMarginProductsCount = 0;
+
+      const items = marginProducts.map(p => {
+        const recipe = recipes.find(r => r.id === p.recipe_id);
+        const recipeCost = recipe ? recipe.cost_snapshot : 0;
+        const marginAmt = p.price - recipeCost;
+        const marginPct = p.price > 0 ? (marginAmt / p.price) * 100 : 0;
+        
+        totalCost += recipeCost;
+        totalRetail += p.price;
+        if (marginPct >= 50) profitProductsCount++;
+        else lowMarginProductsCount++;
+
+        return {
+          ...p,
+          recipeCost,
+          marginAmt,
+          marginPct
+        };
+      });
+
+      const avgFoodCostPct = totalRetail > 0 ? (totalCost / totalRetail) * 100 : 0;
+      const avgMarginPct = totalRetail > 0 ? ((totalRetail - totalCost) / totalRetail) * 100 : 0;
+
+      return (
+        <View className="flex-col gap-6">
+          {/* Summary Cards */}
+          <View className="flex-row gap-4 flex-wrap">
+            <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+              <Text className="text-slate-500 font-semibold text-xs">Target Food Cost %</Text>
+              <Text className="text-2xl font-black text-slate-800 mt-1 font-mono">{avgFoodCostPct.toFixed(1)}%</Text>
+              <Text className="text-[10px] text-slate-400 mt-1">Lower is better (ideal: 25-35%)</Text>
+            </View>
+            <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+              <Text className="text-slate-500 font-semibold text-xs">Average Profit Margin %</Text>
+              <Text className={`text-2xl font-black mt-1 font-mono ${avgMarginPct >= 60 ? 'text-emerald-600' : 'text-amber-500'}`}>
+                {avgMarginPct.toFixed(1)}%
+              </Text>
+              <Text className="text-[10px] text-slate-400 mt-1">Higher is better (target: &gt;60%)</Text>
+            </View>
+            <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+              <Text className="text-slate-500 font-semibold text-xs">Healthy Margin Products</Text>
+              <Text className="text-2xl font-black text-emerald-600 mt-1 font-mono">{profitProductsCount}</Text>
+              <Text className="text-[10px] text-slate-400 mt-1">Products with margin &gt;= 50%</Text>
+            </View>
+            <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+              <Text className="text-slate-500 font-semibold text-xs">Low Margin Warning</Text>
+              <Text className={`text-2xl font-black mt-1 font-mono ${lowMarginProductsCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                {lowMarginProductsCount}
+              </Text>
+              <Text className="text-[10px] text-slate-400 mt-1">Products with margin &lt; 50%</Text>
+            </View>
           </View>
 
-          <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage Leakage Analysis</Text>
-            <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
-              <View>
-                <Text className="text-[9px] font-black text-rose-800 uppercase">Monthly Leakage</Text>
-                <Text className="text-2xl font-black text-rose-900 mt-1">
-                  ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString() : '1,440'}
-                </Text>
+          {/* Table */}
+          <View className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+            <Text className="text-sm font-black text-slate-800 mb-4 uppercase tracking-wider">Product Cost & Profitability Ledger</Text>
+            {items.length === 0 ? (
+              <View className="py-12 items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl">
+                <Text className="text-slate-400 text-xs font-semibold">No products currently linked to recipe schemas.</Text>
               </View>
-              <View className="bg-rose-100 rounded-xl p-2">
-                <AlertTriangle size={20} color="#dc2626" />
+            ) : (
+              <View className="border border-slate-200 rounded-2xl overflow-hidden">
+                <View className="flex-row bg-slate-50 p-3 border-b border-slate-200">
+                  <Text className="flex-[2] text-[10px] font-black text-slate-500 uppercase">Product</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Retail Price</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Recipe Cost</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Margin</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Margin %</Text>
+                </View>
+                <FlatList
+                  data={items}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => {
+                    const isHealthy = item.marginPct >= 50;
+                    return (
+                      <View className="flex-row p-3 border-b border-slate-100 items-center">
+                        <Text className="flex-[2] text-xs font-bold text-slate-800">{item.name}</Text>
+                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">₹{item.price.toFixed(2)}</Text>
+                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">₹{item.recipeCost.toFixed(2)}</Text>
+                        <Text className={`flex-1 text-xs font-bold text-right font-mono ${isHealthy ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          ₹{item.marginAmt.toFixed(2)}
+                        </Text>
+                        <View className="flex-1 items-end justify-center">
+                          <View className={`px-2 py-0.5 rounded border ${isHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                            <Text className={`text-[10px] font-mono font-black ${isHealthy ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {item.marginPct.toFixed(1)}%
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  }}
+                />
               </View>
-            </View>
-            <Text className="text-xs text-slate-500 leading-relaxed font-medium">
-              Leakage primarily consists of Spoilage (62.5%) and Expirations (24.3%). We advise adjusting reorder levels
-              to maintain optimal raw meat and dairy stocks.
-            </Text>
+            )}
           </View>
         </View>
+      );
+    };
+
+    // Helper to render Theoretical vs Actual Variance Report
+    const renderVarianceReport = () => {
+      // Aggregate consumption and variance for each material
+      const items = materials.map(m => {
+        const branchLedger = stockLedger.filter(l => l.branch_id === simulatedBranchId && l.material_id === m.id);
+
+        // Theoretical: Recipe Consumption qty_out
+        const theoreticalQty = branchLedger
+          .filter(l => l.transaction_type === 'Recipe Consumption')
+          .reduce((acc, curr) => acc + (curr.qty_out || 0), 0);
+
+        // Actual: Recipe Consumption + Wastage + manual Stock audit adjustments + Transfers Out
+        const recipeCons = theoreticalQty;
+        const wastageCons = branchLedger
+          .filter(l => l.transaction_type === 'Wastage')
+          .reduce((acc, curr) => acc + (curr.qty_out || 0), 0);
+        const adjustmentDeductions = branchLedger
+          .filter(l => l.transaction_type === 'Adjustment')
+          .reduce((acc, curr) => acc + (curr.qty_out || 0) - (curr.qty_in || 0), 0);
+        const transferDeductions = branchLedger
+          .filter(l => l.transaction_type === 'Transfer Out')
+          .reduce((acc, curr) => acc + (curr.qty_out || 0), 0);
+
+        const actualQty = recipeCons + wastageCons + adjustmentDeductions + transferDeductions;
+        const varianceQty = actualQty - theoreticalQty;
+        const costImpact = varianceQty * (m.average_cost || 0);
+
+        return {
+          ...m,
+          theoreticalQty,
+          actualQty,
+          varianceQty,
+          costImpact
+        };
+      }).filter(itm => itm.theoreticalQty > 0 || itm.actualQty > 0);
+
+      const totalLossImpact = items.reduce((acc, curr) => acc + (curr.costImpact > 0 ? curr.costImpact : 0), 0);
+
+      return (
+        <View className="flex-col gap-6">
+          {/* Summary KPIs */}
+          <View className="flex-row gap-4 flex-wrap">
+            <View className="flex-1 min-w-[240px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
+              <View className="p-3 bg-rose-50 border border-rose-100 rounded-2xl">
+                <AlertTriangle size={20} color="#dc2626" />
+              </View>
+              <View>
+                <Text className="text-slate-500 font-semibold text-xs">Total Variance Cost Impact</Text>
+                <Text className="text-2xl font-black text-rose-600 mt-1 font-mono">₹{totalLossImpact.toFixed(2)}</Text>
+                <Text className="text-[10px] text-slate-400 mt-1 font-medium">Financial value of inventory discrepancies</Text>
+              </View>
+            </View>
+            <View className="flex-1 min-w-[240px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
+              <View className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                <Check size={20} color="#16a34a" />
+              </View>
+              <View>
+                <Text className="text-slate-500 font-semibold text-xs">Discrepancy Materials Count</Text>
+                <Text className="text-2xl font-black text-slate-800 mt-1 font-mono">
+                  {items.filter(itm => Math.abs(itm.varianceQty) > 0.01).length}
+                </Text>
+                <Text className="text-[10px] text-slate-400 mt-1 font-medium">Ingredients with physical deviations</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Variance Ledger Table */}
+          <View className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+            <Text className="text-sm font-black text-slate-800 mb-4 uppercase tracking-wider">Theoretical vs Actual Variance Register</Text>
+            {items.length === 0 ? (
+              <View className="py-12 items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl">
+                <Text className="text-slate-400 text-xs font-semibold">No physical or theoretical consumption recorded for this branch.</Text>
+              </View>
+            ) : (
+              <View className="border border-slate-200 rounded-2xl overflow-hidden">
+                <View className="flex-row bg-slate-50 p-3 border-b border-slate-200">
+                  <Text className="flex-[2] text-[10px] font-black text-slate-500 uppercase">Ingredient</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Theoretical</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Actual</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Variance</Text>
+                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Cost Impact</Text>
+                </View>
+                <FlatList
+                  data={items}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => {
+                    const hasDiscrepancy = Math.abs(item.varianceQty) > 0.01;
+                    return (
+                      <View className="flex-row p-3 border-b border-slate-100 items-center">
+                        <View className="flex-[2]">
+                          <Text className="text-xs font-bold text-slate-800">{item.material_name}</Text>
+                          <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1 py-0.5 rounded uppercase self-start mt-1">
+                            {item.material_code}
+                          </Text>
+                        </View>
+                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">
+                          {item.theoreticalQty.toFixed(2)} {item.unit_short_name}
+                        </Text>
+                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">
+                          {item.actualQty.toFixed(2)} {item.unit_short_name}
+                        </Text>
+                        <Text className={`flex-1 text-xs font-bold text-right font-mono ${item.varianceQty > 0.01 ? 'text-rose-600' : 'text-slate-600'}`}>
+                          {item.varianceQty > 0 ? '+' : ''}{item.varianceQty.toFixed(2)} {item.unit_short_name}
+                        </Text>
+                        <Text className={`flex-1 text-xs font-bold text-right font-mono ${item.costImpact > 0.01 ? 'text-rose-600' : 'text-slate-600'}`}>
+                          ₹{item.costImpact.toFixed(2)}
+                        </Text>
+                      </View>
+                    );
+                  }}
+                />
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    };
+
+    return (
+      <View className="flex-col gap-6">
+        {/* Branch Simulator & Reports Sub-Tab switcher */}
+        <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-1 flex-row items-center justify-between flex-wrap gap-3">
+          <View className="flex-row items-center gap-4 flex-wrap">
+            <View className="flex-row items-center">
+              <View className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-2" />
+              <Text className="text-xs font-black text-slate-700 uppercase tracking-wider">Reports Branch:</Text>
+            </View>
+            <View className="flex-row gap-2">
+              <Pressable
+                onPress={() => setSimulatedBranchId('bbbbbbbb-0000-0000-0000-000000000001')}
+                className={`px-3 py-1.5 rounded-xl border ${
+                  simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001'
+                    ? 'bg-blue-600 border-blue-600'
+                    : 'bg-white border-slate-200'
+                }`}
+                style={{ minHeight: 40 }}
+              >
+                <Text className={`text-[11px] font-bold ${simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'}`}>
+                  Main Restaurant
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setSimulatedBranchId('cccccccc-0000-0000-0000-000000000001')}
+                className={`px-3 py-1.5 rounded-xl border ${
+                  simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001'
+                    ? 'bg-blue-600 border-blue-600'
+                    : 'bg-white border-slate-200'
+                }`}
+                style={{ minHeight: 40 }}
+              >
+                <Text className={`text-[11px] font-bold ${simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'}`}>
+                  Central Kitchen
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View className="flex-row gap-1">
+            <Pressable
+              onPress={() => setReportsSubTab('valuation')}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                reportsSubTab === 'valuation'
+                  ? 'bg-primary border-primary text-white'
+                  : 'bg-white border-slate-200 text-text-secondary active:bg-slate-50'
+              }`}
+            >
+              <Text className={`text-[10px] font-bold ${reportsSubTab === 'valuation' ? 'text-white' : 'text-text-secondary'}`}>
+                Valuation & Wastage
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setReportsSubTab('margins')}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                reportsSubTab === 'margins'
+                  ? 'bg-primary border-primary text-white'
+                  : 'bg-white border-slate-200 text-text-secondary active:bg-slate-50'
+              }`}
+            >
+              <Text className={`text-[10px] font-bold ${reportsSubTab === 'margins' ? 'text-white' : 'text-text-secondary'}`}>
+                Margin Analysis
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setReportsSubTab('variance')}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                reportsSubTab === 'variance'
+                  ? 'bg-primary border-primary text-white'
+                  : 'bg-white border-slate-200 text-text-secondary active:bg-slate-50'
+              }`}
+            >
+              <Text className={`text-[10px] font-bold ${reportsSubTab === 'variance' ? 'text-white' : 'text-text-secondary'}`}>
+                Variance Report
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Dynamic sub tab layout content */}
+        {reportsSubTab === 'valuation' && renderValuation()}
+        {reportsSubTab === 'margins' && renderMarginAnalysis()}
+        {reportsSubTab === 'variance' && renderVarianceReport()}
       </View>
     );
   };
@@ -4327,6 +4676,10 @@ export default function InventoryScreen() {
     );
   };
 
+  const renderRecipes = () => {
+    return <RecipeManagement />;
+  };
+
   const renderActiveTabPanel = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -4341,6 +4694,8 @@ export default function InventoryScreen() {
         return renderWastage();
       case 'transfers':
         return renderTransfers();
+      case 'recipes':
+        return renderRecipes();
       case 'reports':
         return renderReports();
       case 'alerts':
@@ -4378,6 +4733,8 @@ export default function InventoryScreen() {
         return 'Maintain controls on spoils and ingredient losses';
       case 'transfers':
         return 'Ledger adjustments and internal branch transfers';
+      case 'recipes':
+        return 'Standardize menu recipe details, cost breakdown and margins';
       case 'reports':
         return 'Deep analytics and monthly margin metrics';
       case 'alerts':

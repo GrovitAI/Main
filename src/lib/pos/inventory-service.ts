@@ -4485,7 +4485,8 @@ export async function fetchRecipes(): Promise<ServiceResult<InventoryRecipe[]>> 
           created_at,
           updated_at,
           yield_quantity,
-          yield_unit
+          yield_unit,
+          cost_snapshot
         `)
         .eq('tenant_id', tenant_id)
         .eq('is_active', true)
@@ -4604,6 +4605,7 @@ export async function saveRecipe(
       is_active: recipe.is_active !== false,
       yield_quantity: Number(recipe.yield_quantity) || 1,
       yield_unit: recipe.yield_unit || 'portion',
+      cost_snapshot: Number(recipe.cost_snapshot) || 0,
       updated_at: now
     };
 
@@ -4694,7 +4696,7 @@ function saveRecipeLocal(
     description: null,
     yield_quantity: Number(payload.yield_quantity) || 1,
     yield_unit: payload.yield_unit || 'portion',
-    cost_snapshot: 0,
+    cost_snapshot: Number(payload.cost_snapshot) || 0,
     version_no: 1,
     effective_from: now,
     is_active: payload.is_active,
