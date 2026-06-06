@@ -342,6 +342,9 @@ export type InventoryRecipe = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  recipe_code: string;
+  recipe_name: string;
+  menu_item_id: string | null;
 };
 
 export type InventoryRecipeItem = {
@@ -4473,12 +4476,20 @@ export async function fetchRecipes(): Promise<ServiceResult<InventoryRecipe[]>> 
       const { data, error } = await supabase
         .from('inventory_recipes')
         .select(`
-          *,
-          products(name)
+          id,
+          tenant_id,
+          recipe_code,
+          recipe_name,
+          menu_item_id,
+          is_active,
+          created_at,
+          updated_at,
+          yield_quantity,
+          yield_unit
         `)
         .eq('tenant_id', tenant_id)
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('recipe_name', { ascending: true });
 
       if (error) {
         if (await handleQueryError(error, 'fetchRecipes')) {
@@ -4488,21 +4499,23 @@ export async function fetchRecipes(): Promise<ServiceResult<InventoryRecipe[]>> 
       }
 
       const formatted = (data || []).map((r: any) => {
-        const prodName = r.products?.[0]?.name || 'Unnamed Recipe';
         return {
           id: r.id,
           tenant_id: r.tenant_id,
           branch_id: '',
-          name: prodName,
+          name: r.recipe_name || 'Unnamed Recipe',
           description: null,
           yield_quantity: Number(r.yield_quantity) || 1,
           yield_unit: r.yield_unit || 'portion',
           cost_snapshot: Number(r.cost_snapshot) || 0,
           version_no: Number(r.version_no) || 1,
-          effective_from: r.effective_from,
+          effective_from: r.effective_from || r.created_at,
           is_active: r.is_active,
           created_at: r.created_at,
-          updated_at: r.updated_at
+          updated_at: r.updated_at,
+          recipe_code: r.recipe_code || '',
+          recipe_name: r.recipe_name || 'Unnamed Recipe',
+          menu_item_id: r.menu_item_id || null
         };
       });
 
@@ -4579,18 +4592,18 @@ export async function saveRecipe(
   items: { material_id: string; quantity: number }[]
 ): Promise<ServiceResult<InventoryRecipe>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id } = getTenantContext();
     const now = new Date().toISOString();
     const recipeId = recipe.id || Math.random().toString(36).substr(2, 9);
 
     const recipePayload = {
       tenant_id,
+      recipe_code: recipe.recipe_code || '',
+      recipe_name: recipe.recipe_name || recipe.name || 'Unnamed Recipe',
+      menu_item_id: recipe.menu_item_id || null,
+      is_active: recipe.is_active !== false,
       yield_quantity: Number(recipe.yield_quantity) || 1,
       yield_unit: recipe.yield_unit || 'portion',
-      cost_snapshot: Number(recipe.cost_snapshot) || 0,
-      version_no: Number(recipe.version_no) || 1,
-      effective_from: recipe.effective_from || now,
-      is_active: recipe.is_active !== false,
       updated_at: now
     };
 
@@ -4604,9 +4617,6 @@ export async function saveRecipe(
       if (recipeErr) {
         if (await handleQueryError(recipeErr, 'saveRecipe')) {
           const localPayload = {
-            branch_id,
-            name: recipe.name || 'Unnamed Recipe',
-            description: recipe.description || null,
             ...recipePayload
           };
           return saveRecipeLocal(recipeId, localPayload, items);
@@ -4637,24 +4647,24 @@ export async function saveRecipe(
         id: savedRecipe.id,
         tenant_id: savedRecipe.tenant_id,
         branch_id: '',
-        name: recipe.name || 'Unnamed Recipe',
-        description: recipe.description || null,
+        name: savedRecipe.recipe_name || 'Unnamed Recipe',
+        description: null,
         yield_quantity: Number(savedRecipe.yield_quantity) || 1,
         yield_unit: savedRecipe.yield_unit || 'portion',
         cost_snapshot: Number(savedRecipe.cost_snapshot) || 0,
         version_no: Number(savedRecipe.version_no) || 1,
-        effective_from: savedRecipe.effective_from,
+        effective_from: savedRecipe.effective_from || savedRecipe.created_at || now,
         is_active: savedRecipe.is_active,
-        created_at: savedRecipe.created_at,
-        updated_at: savedRecipe.updated_at
+        created_at: savedRecipe.created_at || now,
+        updated_at: savedRecipe.updated_at || now,
+        recipe_code: savedRecipe.recipe_code || '',
+        recipe_name: savedRecipe.recipe_name || 'Unnamed Recipe',
+        menu_item_id: savedRecipe.menu_item_id || null
       };
 
       return { data: returnedRecipe, error: null };
     } else {
       const localPayload = {
-        branch_id,
-        name: recipe.name || 'Unnamed Recipe',
-        description: recipe.description || null,
         ...recipePayload
       };
       return saveRecipeLocal(recipeId, localPayload, items);
@@ -4676,11 +4686,30 @@ function saveRecipeLocal(
   const idx = allRecipes.findIndex(r => r.id === recipeId);
   let finalRecipe: InventoryRecipe;
 
+  const alignedRecipe = {
+    id: recipeId,
+    tenant_id: payload.tenant_id,
+    branch_id: '',
+    name: payload.recipe_name || 'Unnamed Recipe',
+    description: null,
+    yield_quantity: Number(payload.yield_quantity) || 1,
+    yield_unit: payload.yield_unit || 'portion',
+    cost_snapshot: 0,
+    version_no: 1,
+    effective_from: now,
+    is_active: payload.is_active,
+    created_at: idx >= 0 ? allRecipes[idx].created_at : now,
+    updated_at: now,
+    recipe_code: payload.recipe_code || '',
+    recipe_name: payload.recipe_name || 'Unnamed Recipe',
+    menu_item_id: payload.menu_item_id || null
+  };
+
   if (idx >= 0) {
-    finalRecipe = { ...allRecipes[idx], ...payload, updated_at: now };
+    finalRecipe = alignedRecipe;
     allRecipes[idx] = finalRecipe;
   } else {
-    finalRecipe = { ...payload, id: recipeId, created_at: now, updated_at: now };
+    finalRecipe = alignedRecipe;
     allRecipes.push(finalRecipe);
   }
 
@@ -4701,7 +4730,7 @@ function saveRecipeLocal(
 
 export async function deleteRecipe(id: string): Promise<ServiceResult<boolean>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id } = getTenantContext();
     if (!forceLocalFallback) {
       const { error } = await supabase
         .from('inventory_recipes')
@@ -4729,6 +4758,7 @@ function deleteRecipeLocal(id: string): ServiceResult<boolean> {
   const idx = all.findIndex(r => r.id === id);
   if (idx >= 0) {
     all[idx].is_active = false;
+    all[idx].updated_at = new Date().toISOString();
     saveLocalData(LOCAL_STORAGE_KEYS.RECIPES, all);
     return { data: true, error: null };
   }
@@ -4757,7 +4787,7 @@ export async function createConsumptionBatch(
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_consumption_batches')
-        .insert({ id: batchId, ...batchPayload })
+        .insert(batchPayload)
         .select('*')
         .single();
 
@@ -4801,7 +4831,7 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
 
       const { data: billItems, error: itemsErr } = await supabase
         .from('bill_items')
-        .select('product_id, quantity')
+        .select('product_id, qty')
         .eq('bill_id', batch.bill_id);
 
       if (itemsErr) return { data: false, error: itemsErr.message };
@@ -4833,7 +4863,7 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
 
       const { data: recipes } = await supabase
         .from('inventory_recipes')
-        .select('*')
+        .select('id, tenant_id, recipe_code, recipe_name, menu_item_id, is_active, yield_quantity, yield_unit')
         .in('id', recipeIds);
 
       const { data: recipeItems } = await supabase
@@ -4854,7 +4884,7 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         const itemsForRecipe = (recipeItems || []).filter((ri: any) => ri.recipe_id === recipe.id);
 
         for (const ri of itemsForRecipe) {
-          const qtyToDeduct = (Number(bi.quantity) / (Number(recipe.yield_quantity) || 1)) * Number(ri.quantity);
+          const qtyToDeduct = (Number(ri.quantity) / (Number(recipe.yield_quantity) || 1)) * Number(bi.qty);
 
           if (qtyToDeduct > 0) {
             jobsToInsert.push({
@@ -5011,7 +5041,7 @@ function processConsumptionBatchLocal(batchId: string): ServiceResult<boolean> {
   if (activeRecipe) {
     const items = allRecipeItems.filter(itm => itm.recipe_id === activeRecipe.id);
     for (const ri of items) {
-      const qtyToDeduct = ri.quantity;
+      const qtyToDeduct = (Number(ri.quantity) / (Number(activeRecipe.yield_quantity) || 1)) * 1;
       const job: InventoryConsumptionJob = {
         id: Math.random().toString(36).substr(2, 9),
         tenant_id: activeRecipe.tenant_id,

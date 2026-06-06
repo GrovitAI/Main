@@ -1102,6 +1102,28 @@ export async function settleOrderById(
       throw new Error(`Unable to mark order as paid: ${updateErr.message}`);
     }
 
+    // Trigger recipe consumption asynchronously without blocking the checkout response
+    if (bill && bill.id) {
+      void (async () => {
+        try {
+          const { createConsumptionBatch, processConsumptionBatch } = await import('./inventory-service');
+          console.log(`[Grovit] Triggering recipe consumption batch for bill ${bill.id}`);
+          const batchResult = await createConsumptionBatch(bill.id);
+          if (batchResult.error) {
+            console.error('[Grovit] createConsumptionBatch error:', batchResult.error);
+          }
+          if (batchResult.data) {
+            const procResult = await processConsumptionBatch(batchResult.data.id);
+            if (procResult.error) {
+              console.error('[Grovit] processConsumptionBatch error:', procResult.error);
+            }
+          }
+        } catch (err) {
+          console.error('[Grovit] Async consumption batch trigger failed:', err);
+        }
+      })();
+    }
+
     return { data: updatedOrder as OpenOrder, error: null };
   } catch (err: any) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
