@@ -4940,6 +4940,7 @@ export default function InventoryScreen() {
               { id: 'purchases', label: 'Purchases', icon: Truck },
               { id: 'wastage', label: 'Wastage', icon: Trash2 },
               { id: 'transfers', label: 'Transfers', icon: RefreshCw },
+              { id: 'recipes', label: 'Recipes', icon: BookOpen },
               { id: 'reports', label: 'Reports', icon: TrendingUp },
               { id: 'alerts', label: 'Alerts', icon: ShieldAlert }
             ].map((item) => {
@@ -5253,6 +5254,7 @@ export default function InventoryScreen() {
                 { id: 'purchases', label: 'Purchases', icon: Truck },
                 { id: 'wastage', label: 'Wastage', icon: Trash2 },
                 { id: 'transfers', label: 'Transfers', icon: RefreshCw },
+                { id: 'recipes', label: 'Recipes', icon: BookOpen },
                 { id: 'reports', label: 'Reports', icon: TrendingUp },
                 { id: 'alerts', label: 'Alerts', icon: ShieldAlert }
               ].map((item) => {
