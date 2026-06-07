@@ -14,7 +14,9 @@ import { getTenantContext } from './tenant-context';
 
 export interface ImportRow {
   'Material Code'?: string | number;
+  'Material Code*'?: string | number;
   'Material Name'?: string;
+  'Material Name*'?: string;
   'Category'?: string;
   'Unit'?: string;
   'Reorder Level'?: string | number;
@@ -81,9 +83,10 @@ export async function validateImportRows(rows: ImportRow[]): Promise<ValidationS
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    const rawCode = row['Material Code'];
+    const rawCode = row['Material Code*'] !== undefined ? row['Material Code*'] : row['Material Code'];
     const materialCode = rawCode !== undefined && rawCode !== null ? String(rawCode).trim() : '';
-    const materialName = row['Material Name'] ? String(row['Material Name']).trim() : '';
+    const rawName = row['Material Name*'] !== undefined ? row['Material Name*'] : row['Material Name'];
+    const materialName = rawName !== undefined && rawName !== null ? String(rawName).trim() : '';
     const categoryName = row['Category'] ? String(row['Category']).trim() : '';
     const unitName = row['Unit'] ? String(row['Unit']).trim() : '';
     const reorderLevel = Number(row['Reorder Level']) || 0;
