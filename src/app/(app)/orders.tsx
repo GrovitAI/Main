@@ -948,11 +948,11 @@ export default function OrdersScreen() {
 
                 if (printerName) {
                   const receiptText = buildReceiptText(orderName, null, printItems, totalAmount);
-                  const printSuccess = await printReceipt(printerName, receiptText);
-                  if (printSuccess) {
+                  const printResult = await printReceipt(printerName, receiptText);
+                  if (printResult.success) {
                     showToast('Bill settled & receipt printed.');
                   } else {
-                    showToast('Bill settled successfully. (Print failed)');
+                    showToast(`Bill settled successfully. (Print failed: ${printResult.error || 'unknown error'})`);
                   }
                 }
               } catch (printErr) {

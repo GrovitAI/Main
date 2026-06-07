@@ -42,7 +42,7 @@ export async function getPrinters(): Promise<string[]> {
 /**
  * Sends a thermal receipt print job to the designated printer.
  */
-export async function printReceipt(printerName: string, content: string): Promise<boolean> {
+export async function printReceipt(printerName: string, content: string): Promise<{ success: boolean; error?: string }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds print socket timeout
   try {
@@ -59,11 +59,17 @@ export async function printReceipt(printerName: string, content: string): Promis
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    return res.ok;
-  } catch (err) {
+    if (res.ok) {
+      return { success: true };
+    } else {
+      const data = await res.json().catch(() => ({}));
+      return { success: false, error: data.details || data.error || `HTTP ${res.status}` };
+    }
+  } catch (err: any) {
     clearTimeout(timeoutId);
+    const msg = err.name === 'AbortError' ? 'Connection timed out' : err.message || String(err);
     console.warn('[PrintService] Thermal print request failed:', err);
-    return false;
+    return { success: false, error: msg };
   }
 }
 

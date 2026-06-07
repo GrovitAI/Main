@@ -94,6 +94,59 @@ export default function SettingsScreen() {
     }
   };
 
+  const [localTesting, setLocalTesting] = useState(false);
+  const [localDrawerKicking, setLocalDrawerKicking] = useState(false);
+
+  const handleLocalTestPrint = async () => {
+    if (!selectedLocalPrinter) return;
+    setLocalTesting(true);
+    setFormError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch('http://localhost:4545/test-print', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ printerName: selectedLocalPrinter }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.details || data.error || 'Failed to print test receipt');
+      }
+      setSuccessMsg(`Test print sent to "${selectedLocalPrinter}" successfully!`);
+    } catch (err: any) {
+      setFormError(err.message || String(err));
+    } finally {
+      setLocalTesting(false);
+    }
+  };
+
+  const handleLocalOpenDrawer = async () => {
+    if (!selectedLocalPrinter) return;
+    setLocalDrawerKicking(true);
+    setFormError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await fetch('http://localhost:4545/open-cash-drawer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ printerName: selectedLocalPrinter }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.details || data.error || 'Failed to open cash drawer');
+      }
+      setSuccessMsg(`Cash drawer kick sent via "${selectedLocalPrinter}"!`);
+    } catch (err: any) {
+      setFormError(err.message || String(err));
+    } finally {
+      setLocalDrawerKicking(false);
+    }
+  };
+
   const loadPrinters = async () => {
     setLoading(true);
     const res = await fetchPrinters();
@@ -508,13 +561,39 @@ export default function SettingsScreen() {
                       </View>
 
                       {selectedLocalPrinter ? (
-                        <Pressable 
-                          onPress={() => handleSelectLocalPrinter(null)}
-                          className="px-4 py-2 border border-rose-200 bg-rose-50 rounded-xl active:bg-rose-100 h-10 items-center justify-center flex-row gap-1.5"
-                        >
-                          <Trash2 size={13} color="#dc2626" />
-                          <Text className="text-[11px] font-extrabold text-rose-700">Clear</Text>
-                        </Pressable>
+                        <View className="flex-row gap-2">
+                          <Pressable 
+                            onPress={handleLocalTestPrint}
+                            disabled={localTesting || localDrawerKicking}
+                            className="px-3.5 border border-slate-200 bg-white rounded-xl active:bg-slate-50 h-10 items-center justify-center flex-row gap-1.5"
+                          >
+                            {localTesting ? (
+                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.75 }] }} />
+                            ) : (
+                              <Text className="text-[11px] font-bold text-slate-700">Test Print</Text>
+                            )}
+                          </Pressable>
+
+                          <Pressable 
+                            onPress={handleLocalOpenDrawer}
+                            disabled={localTesting || localDrawerKicking}
+                            className="px-3.5 border border-slate-200 bg-white rounded-xl active:bg-slate-50 h-10 items-center justify-center flex-row gap-1.5"
+                          >
+                            {localDrawerKicking ? (
+                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.75 }] }} />
+                            ) : (
+                              <Text className="text-[11px] font-bold text-slate-700">Open Drawer</Text>
+                            )}
+                          </Pressable>
+
+                          <Pressable 
+                            onPress={() => handleSelectLocalPrinter(null)}
+                            className="px-3.5 border border-rose-200 bg-rose-50 rounded-xl active:bg-rose-100 h-10 items-center justify-center flex-row gap-1.5"
+                          >
+                            <Trash2 size={13} color="#dc2626" />
+                            <Text className="text-[11px] font-extrabold text-rose-700">Clear</Text>
+                          </Pressable>
+                        </View>
                       ) : null}
                     </View>
                   )}
