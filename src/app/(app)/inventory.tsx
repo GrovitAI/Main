@@ -125,6 +125,15 @@ import {
 } from '@/lib/pos/inventory-service';
 import RecipeManagement from '@/components/inventory/RecipeManagement';
 import { getProducts, type Product } from '@/lib/pos/products-service';
+import * as XLSX from 'xlsx';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  validateImportRows,
+  importRawMaterials,
+  type ImportRow,
+  type ValidatedImportRow,
+  type ValidationSummary
+} from '@/lib/pos/material-import-service';
 
 // ─── LOGO ASSET LOAD ─────────────────────────────────────────────────────────
 
@@ -505,6 +514,11 @@ export default function InventoryScreen() {
   const [isWastageModalOpen, setIsWastageModalOpen] = useState(false);
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
 
+  // ─── EXCEL IMPORT STATES ────────────────────────────────────────────────────
+  const [importSummary, setImportSummary] = useState<ValidationSummary | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
   // ─── CENTRAL KITCHEN & TRANSFERS STATES ─────────────────────────────────────
   const [simulatedBranchId, setSimulatedBranchId] = useState<string>(BRANCH_ID);
   const [dbBranches, setDbBranches] = useState<Branch[]>([]);
@@ -735,7 +749,122 @@ export default function InventoryScreen() {
     return materials.filter((m) => m.current_stock <= m.reorder_level && m.current_stock > 0);
   }, [materials]);
 
-  // ─── ACTION HANDLERS ───────────────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    try {
+      const templateData = [
+        {
+          'Material Code': 'MAT04',
+          'Material Name': 'Premium Tahini Spreads',
+          'Category': 'Pastes & Grains',
+          'Unit': 'KG',
+          'Reorder Level': 15,
+          'Average Cost': 480,
+          'Preferred Supplier': 'Modern Foods Distributing'
+        },
+        {
+          'Material Code': 'MAT05',
+          'Material Name': 'Fresh Whole Milk',
+          'Category': 'Dairy & Cheese',
+          'Unit': 'L',
+          'Reorder Level': 20,
+          'Average Cost': 70,
+          'Preferred Supplier': 'Le Jardin Farms'
+        }
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Raw Materials');
+
+      if (Platform.OS === 'web') {
+        XLSX.writeFile(wb, 'grovit_raw_materials_template.xlsx');
+      } else {
+        Alert.alert('Info', 'Excel template download is supported on the web version.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Failed to generate template: ' + (err.message || err));
+    }
+  };
+
+  const handleImportExcelClick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv'
+        ],
+        copyToCacheDirectory: true
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      if (Platform.OS === 'web') {
+        const file = asset.file;
+        if (!file) {
+          Alert.alert('Error', 'Unable to access the selected file.');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const data = e.target?.result;
+            if (!data) {
+              Alert.alert('Error', 'File content is empty.');
+              return;
+            }
+
+            const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json<ImportRow>(worksheet);
+
+            if (json.length === 0) {
+              Alert.alert('Error', 'The uploaded Excel file contains no data rows.');
+              return;
+            }
+
+            const summary = await validateImportRows(json);
+            setImportSummary(summary);
+            setIsImportModalOpen(true);
+          } catch (err: any) {
+            Alert.alert('Error', 'Failed to parse Excel file: ' + (err.message || err));
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        Alert.alert('Info', 'Excel import is currently supported on the web version.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'File picker error: ' + (err.message || err));
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!importSummary || isImporting) return;
+    setIsImporting(true);
+
+    try {
+      const result = await importRawMaterials(importSummary.rows);
+      if (result.error) {
+        Alert.alert('Import Failed', result.error);
+      } else if (result.data) {
+        Alert.alert('Import Success', `Successfully imported ${result.data.count} raw materials.`);
+        setIsImportModalOpen(false);
+        setImportSummary(null);
+        await loadAllData(false, simulatedBranchId);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'An unexpected error occurred: ' + (err.message || err));
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const handleOpenMaterialModal = (material?: InventoryMaterial) => {
     setModalError(null);
@@ -2087,6 +2216,22 @@ export default function InventoryScreen() {
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
                 <Text className="text-[11px] font-bold text-slate-600">Adjust</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleDownloadTemplate}
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs flex-row items-center gap-1"
+              >
+                <Download size={12} color="#475569" />
+                <Text className="text-[11px] font-bold text-slate-600">Download Template</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleImportExcelClick}
+                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs flex-row items-center gap-1"
+              >
+                <Upload size={12} color="#475569" />
+                <Text className="text-[11px] font-bold text-slate-600">Import Excel</Text>
               </Pressable>
 
               <Pressable
@@ -5795,6 +5940,201 @@ export default function InventoryScreen() {
                 <Text className="text-xs font-bold text-slate-600">Close</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Excel Import Preview Modal */}
+      <Modal visible={isImportModalOpen} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center p-6">
+          <View className="bg-white w-[95%] md:w-[70%] lg:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%] flex-col">
+            
+            {/* Header */}
+            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <View className="flex-row items-center gap-2">
+                <Upload size={18} color="#0251b8" />
+                <Text className="text-base font-black text-slate-900">
+                  Excel Import Verification & Dry-run
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setIsImportModalOpen(false);
+                  setImportSummary(null);
+                }}
+              >
+                <X size={20} color="#64748b" />
+              </Pressable>
+            </View>
+
+            {/* Summary Cards */}
+            {importSummary && (
+              <View className="flex-row gap-3 mb-4 flex-wrap">
+                <View className="flex-1 min-w-[100px] bg-slate-50 border border-slate-100 rounded-2xl p-3 items-center">
+                  <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Rows</Text>
+                  <Text className="text-lg font-black text-slate-800 mt-1">{importSummary.totalRows}</Text>
+                </View>
+                <View className="flex-1 min-w-[100px] bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3 items-center">
+                  <Text className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">To Create</Text>
+                  <Text className="text-lg font-black text-emerald-700 mt-1">{importSummary.createCount}</Text>
+                </View>
+                <View className="flex-1 min-w-[100px] bg-blue-50/70 border border-blue-100 rounded-2xl p-3 items-center">
+                  <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest">To Update</Text>
+                  <Text className="text-lg font-black text-blue-700 mt-1">{importSummary.updateCount}</Text>
+                </View>
+                <View className="flex-1 min-w-[100px] bg-rose-50/70 border border-rose-100 rounded-2xl p-3 items-center">
+                  <Text className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Errors</Text>
+                  <Text className="text-lg font-black text-rose-700 mt-1">{importSummary.errorRows}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Warnings Alert Banner for Suppliers/etc. */}
+            {importSummary && importSummary.rows.some(r => r.warnings.length > 0) && (
+              <View className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 gap-1">
+                <View className="flex-row items-center gap-1.5 mb-1">
+                  <AlertTriangle size={15} color="#d97706" />
+                  <Text className="text-xs font-black text-amber-800">
+                    Import Warnings Notification
+                  </Text>
+                </View>
+                <Text className="text-[11px] text-amber-700 font-medium">
+                  Missing categories & units will be auto-created during execution. Suppliers will NOT be auto-created; rows referencing missing suppliers will be imported without supplier associations.
+                </Text>
+              </View>
+            )}
+
+            {/* Table Details */}
+            <View className="flex-1 overflow-hidden border border-slate-200 rounded-2xl mb-4 bg-slate-50/30">
+              <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+                <View className="flex-col min-w-[850px] p-3">
+                  
+                  {/* Table Header */}
+                  <View className="flex-row border-b border-slate-200 pb-2 mb-2 px-2">
+                    <View style={{ width: '12%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Code</Text></View>
+                    <View style={{ width: '22%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Name</Text></View>
+                    <View style={{ width: '13%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Category</Text></View>
+                    <View style={{ width: '8%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Unit</Text></View>
+                    <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Reorder</Text></View>
+                    <View style={{ width: '10%', alignItems: 'flex-end' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Cost</Text></View>
+                    <View style={{ width: '13%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Supplier</Text></View>
+                    <View style={{ width: '12%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Action</Text></View>
+                  </View>
+
+                  {/* Table Body */}
+                  <ScrollView className="max-h-[300px] flex-1">
+                    {importSummary && importSummary.rows.map((row, idx) => {
+                      const isError = row.status === 'invalid';
+                      const isUpdate = row.action === 'update';
+                      
+                      let actionBadgeColor = 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                      let actionBadgeText = 'Create';
+                      
+                      if (isError) {
+                        actionBadgeColor = 'bg-rose-50 border-rose-200 text-rose-700';
+                        actionBadgeText = 'Error';
+                      } else if (isUpdate) {
+                        actionBadgeColor = 'bg-blue-50 border-blue-200 text-blue-700';
+                        actionBadgeText = 'Update';
+                      }
+
+                      return (
+                        <View key={idx} className="flex-row items-start py-2 border-b border-slate-100 px-2 rounded-xl">
+                          <View style={{ width: '12%' }} className="pr-1">
+                            <Text className={`text-xs font-bold ${isError ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {row.materialCode || 'N/A'}
+                            </Text>
+                          </View>
+                          <View style={{ width: '22%' }} className="pr-2">
+                            <Text className={`text-xs font-semibold ${isError ? 'text-slate-400' : 'text-slate-800'}`}>
+                              {row.materialName || 'N/A'}
+                            </Text>
+                            {isError && row.errors.map((e, eIdx) => (
+                              <Text key={eIdx} className="text-[9px] text-rose-600 font-bold mt-0.5">
+                                • {e}
+                              </Text>
+                            ))}
+                          </View>
+                          <View style={{ width: '13%' }} className="pr-2">
+                            <Text className="text-xs text-slate-600 font-medium">{row.categoryName || 'N/A'}</Text>
+                            {!row.categoryId && row.categoryName && (
+                              <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
+                                <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ width: '8%' }} className="pr-1">
+                            <Text className="text-xs text-slate-600 font-medium">{row.unitName || 'N/A'}</Text>
+                            {!row.unitId && row.unitName && (
+                              <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
+                                <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ width: '10%', alignItems: 'center' }}>
+                            <Text className="text-xs text-slate-700 font-semibold">{row.reorderLevel}</Text>
+                          </View>
+                          <View style={{ width: '10%', alignItems: 'flex-end' }} className="pr-1">
+                            <Text className="text-xs text-slate-700 font-semibold">Rs.{row.averageCost.toFixed(2)}</Text>
+                          </View>
+                          <View style={{ width: '13%' }} className="pr-1">
+                            <Text className="text-xs text-slate-600 font-medium truncate">{row.preferredSupplierName || 'N/A'}</Text>
+                            {!row.supplierId && row.preferredSupplierName && (
+                              <View className="bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md self-start mt-0.5">
+                                <Text className="text-[8px] text-rose-700 font-extrabold">Not Found</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ width: '12%', alignItems: 'center' }}>
+                            <View className={`px-2 py-0.5 rounded-full border ${actionBadgeColor}`}>
+                              <Text className="text-[9px] font-black uppercase">{actionBadgeText}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Actions Footer */}
+            <View className="flex-row justify-end border-t border-slate-100 pt-4 gap-3">
+              <Pressable
+                onPress={() => {
+                  setIsImportModalOpen(false);
+                  setImportSummary(null);
+                }}
+                className="bg-slate-100 border border-slate-200 py-2.5 px-6 rounded-xl active:scale-95 shadow-xs"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-slate-600">Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleExecuteImport}
+                disabled={isImporting || !importSummary || importSummary.validRows === 0}
+                className={`py-2.5 px-6 rounded-xl flex-row items-center justify-center gap-1.5 active:scale-95 shadow-xs ${
+                  !importSummary || importSummary.validRows === 0
+                    ? 'bg-slate-200 border border-slate-200'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                style={{ minHeight: 44 }}
+              >
+                {isImporting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Check size={14} color="white" strokeWidth={3} />
+                    <Text className="text-xs font-bold text-white">
+                      Confirm Import ({importSummary ? importSummary.validRows : 0} Rows)
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+
           </View>
         </View>
       </Modal>

@@ -43,6 +43,7 @@ export default function SettingsScreen() {
   const [loadingLocalPrinters, setLoadingLocalPrinters] = useState(false);
   const [selectedLocalPrinter, setSelectedLocalPrinter] = useState<string | null>(null);
   const [showPrinterDropdown, setShowPrinterDropdown] = useState(false);
+  const [receiptFooter, setReceiptFooter] = useState('');
 
   // Accordion state
   const [expandedPrinterId, setExpandedPrinterId] = useState<string | null>(null);
@@ -165,6 +166,8 @@ export default function SettingsScreen() {
     if (typeof window !== 'undefined' && window.localStorage) {
       const stored = window.localStorage.getItem('billingPrinter');
       setSelectedLocalPrinter(stored);
+      const storedFooter = window.localStorage.getItem('receiptFooter') || '* Thank you for your visit! *';
+      setReceiptFooter(storedFooter);
     }
     checkAgentStatus();
     loadPrinters();
@@ -515,8 +518,8 @@ export default function SettingsScreen() {
                       </Text>
                     </View>
                   ) : (
-                    <View className="flex-row items-center gap-3">
-                      <View className="flex-1 relative" style={{ zIndex: 999 }}>
+                    <View className="flex-row items-center gap-3" style={{ zIndex: showPrinterDropdown ? 1000 : 1, overflow: 'visible' }}>
+                      <View className="flex-1 relative" style={{ zIndex: 1000, overflow: 'visible' }}>
                         {/* Selector UI (Dropdown) */}
                         <Pressable 
                           onPress={() => setShowPrinterDropdown(!showPrinterDropdown)}
@@ -597,6 +600,23 @@ export default function SettingsScreen() {
                       ) : null}
                     </View>
                   )}
+
+                  {/* Configurable Receipt Footer Input */}
+                  <View className="border-t border-slate-100 pt-4 mt-4 w-full">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Receipt Footer Message</Text>
+                    <TextInput
+                      value={receiptFooter}
+                      onChangeText={(text) => {
+                        setReceiptFooter(text);
+                        if (typeof window !== 'undefined' && window.localStorage) {
+                          window.localStorage.setItem('receiptFooter', text);
+                        }
+                      }}
+                      placeholder="e.g., * Thank you for your visit! *"
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-semibold"
+                      style={{ minHeight: 40 }}
+                    />
+                  </View>
                 </View>
               )}
             </View>

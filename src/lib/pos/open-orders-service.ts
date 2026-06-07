@@ -1082,6 +1082,13 @@ export async function settleOrderById(
     const paidAt = new Date().toISOString();
     const generatedInvoiceNumber = getNextBillNumber();
 
+    const needsOrderNumber = !order.order_name || order.order_name.toLowerCase().includes('draft') || !order.order_name.startsWith('Order #');
+    let nextOrderName = order.order_name;
+    if (needsOrderNumber) {
+      const nextOrderNum = getNextOrderNumber();
+      nextOrderName = `Order #${nextOrderNum}`;
+    }
+
     const { data: updatedOrder, error: updateErr } = await supabase
       .from('open_orders')
       .update({
@@ -1090,6 +1097,7 @@ export async function settleOrderById(
         completed_at: paidAt,
         invoice_number: generatedInvoiceNumber,
         payment_method: paymentType,
+        order_name: nextOrderName,
       })
       .eq('id', orderId)
       .eq('tenant_id', tenant_id)

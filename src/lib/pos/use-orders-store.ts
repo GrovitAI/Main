@@ -63,7 +63,7 @@ type OrdersState = {
   holdOrder: () => Promise<void>;
   saveKot: () => Promise<boolean>;
   saveAndPrint: () => Promise<boolean>;
-  settleBill: (paymentType?: string) => Promise<boolean>;
+  settleBill: (paymentType?: string) => Promise<{ data: OpenOrder | null; error: string | null }>;
   cancelOrder: () => Promise<void>;
   enterEditMode: () => void;
   discardChanges: () => Promise<void>;
@@ -918,13 +918,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
     const nextKotNumber = getNextKotNumber();
-
-    let nextOrderNum = 0;
-    let nextOrderName = activeOrder.order_name;
-    if (wasDraft) {
-      nextOrderNum = getNextOrderNumber();
-      nextOrderName = `Order #${nextOrderNum}`;
-    }
+    const nextOrderName = activeOrder.order_name;
 
     const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
 
@@ -1157,11 +1151,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return true;
     }
 
-    // Assign Order number if transitioning from draft/open to operational unpaid order
-    if (wasDraft) {
-      nextOrderNum = getNextOrderNumber();
-      nextOrderName = `Order #${nextOrderNum}`;
-    }
+    // No client-side order number generation here
 
     // Let's handle KOT if there are unsent items
     let nextKotNumber = 0;
@@ -1364,92 +1354,73 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   settleBill: async (paymentType = 'cash') => {
     const snapshot = get();
     const activeOrderId = snapshot.activeOrderId;
-    if (!activeOrderId) return false;
+    if (!activeOrderId) {
+      return { data: null, error: 'No active order selected.' };
+    }
 
     console.time('settleBill');
     set({ isMutating: true, error: null });
 
-    const { tenant_id, branch_id } = getTenantContext();
-    const paidAt = new Date().toISOString();
-    const generatedInvoiceNumber = getNextBillNumber();
-
-    // Print Final Bill (F8 Settlement)
-    const activeOrder = snapshot.orders.find((o) => o.id === activeOrderId);
-    const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
-    const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
-
-    printerService.printBill(
-      orderName,
-      generatedInvoiceNumber,
-      snapshot.activeOrderItems,
-      totalAmount,
-      true // isFinal = true
-    );
-
-    // OPTIMISTIC UPDATE: remove settled order, update summaries, and reset cart immediately
-    set((state) => {
-      const nextBillPrinted = { ...state.billPrintedByOrderId };
-      delete nextBillPrinted[activeOrderId];
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextBillPrinted));
+    try {
+      // 1. Await database write confirmation
+      const result = await settleOrderById(activeOrderId, paymentType);
+      
+      if (result.error || !result.data) {
+        throw new Error(result.error ?? 'Database settlement failed.');
       }
-      return {
-        orders: state.orders.filter((o) => o.id !== activeOrderId),
-        summaries: state.summaries.map((s) =>
-          s.order.id === activeOrderId
-            ? {
-                ...s,
-                order: {
-                  ...s.order,
-                  status: 'paid' as const,
-                  paid_at: paidAt,
-                  invoice_number: generatedInvoiceNumber,
-                },
-              }
-            : s
-        ),
-        activeOrderId: null,
-        activeOrderItems: [],
-        isWorkspaceEmpty: true,
-        isEditingUnpaid: false,
-        hasUnsavedChanges: false,
-        isMutating: false,
-        billPrintedByOrderId: nextBillPrinted,
-      };
-    });
 
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.removeItem('grovit_active_order_id');
-    }
+      const settledOrder = result.data;
+      const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
 
-    // Background Database Persistence
-    (async () => {
-      try {
-        const { error } = await settleOrderById(activeOrderId, paymentType);
+      // 2. Direct network printer call (F8 direct print) using DB values
+      printerService.printBill(
+        settledOrder.order_name,
+        settledOrder.invoice_number,
+        snapshot.activeOrderItems,
+        totalAmount,
+        true, // isFinal = true
+        settledOrder.payment_method
+      );
 
-        if (error) {
-          throw new Error(error);
+      // 3. Clear UI & Update summaries
+      set((state) => {
+        const nextBillPrinted = { ...state.billPrintedByOrderId };
+        delete nextBillPrinted[activeOrderId];
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextBillPrinted));
         }
-        console.log('[useOrdersStore] Background settleBill success!');
-      } catch (dbErr: any) {
-        console.error('[useOrdersStore] Background settleBill failed, rolling back:', dbErr);
-        // Rollback
-        set({
-          orders: snapshot.orders,
-          summaries: snapshot.summaries,
-          activeOrderId: snapshot.activeOrderId,
-          activeOrderItems: snapshot.activeOrderItems,
-          isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
-          isEditingUnpaid: snapshot.isEditingUnpaid,
-          hasUnsavedChanges: snapshot.hasUnsavedChanges,
-          error: 'Connection issue. Bill was not settled. Please check internet and try again.',
-        });
-      } finally {
-        console.timeEnd('settleBill');
-      }
-    })();
+        return {
+          orders: state.orders.filter((o) => o.id !== activeOrderId),
+          summaries: state.summaries.map((s) =>
+            s.order.id === activeOrderId
+              ? {
+                  ...s,
+                  order: settledOrder,
+                }
+              : s
+          ),
+          activeOrderId: null,
+          activeOrderItems: [],
+          isWorkspaceEmpty: true,
+          isEditingUnpaid: false,
+          hasUnsavedChanges: false,
+          isMutating: false,
+          billPrintedByOrderId: nextBillPrinted,
+        };
+      });
 
-    return true;
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('grovit_active_order_id');
+      }
+
+      return { data: settledOrder, error: null };
+    } catch (err: any) {
+      console.error('[useOrdersStore] Settle bill failed:', err);
+      set({ isMutating: false, error: err.message || 'Settlement failed.' });
+      return { data: null, error: err.message || 'Settlement failed.' };
+    } finally {
+      console.timeEnd('settleBill');
+    }
   },
 
   cancelOrder: async () => {

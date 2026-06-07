@@ -926,7 +926,8 @@ export default function OrdersScreen() {
             }
 
             // 3. Printing asynchronously after successful save
-            const orderName = settlingOrder.order.order_name || `Order #${settlingOrder.order.id}`;
+            const updatedOrder = result.data;
+            const orderName = updatedOrder?.order_name || settlingOrder.order.order_name || `Order #${settlingOrder.order.id}`;
             const totalAmount = settlingOrder.totalAmount;
             
             const productNameById = useOrdersStore.getState().productNameById;
@@ -947,7 +948,9 @@ export default function OrdersScreen() {
                   : null;
 
                 if (printerName) {
-                  const receiptText = buildReceiptText(orderName, null, printItems, totalAmount);
+                  const invoiceNumber = updatedOrder?.invoice_number || null;
+                  const paymentMethod = updatedOrder?.payment_method || null;
+                  const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod);
                   const printResult = await printReceipt(printerName, receiptText);
                   if (printResult.success) {
                     showToast('Bill settled & receipt printed.');

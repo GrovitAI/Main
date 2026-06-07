@@ -19,14 +19,15 @@ export const printerService = {
     invoiceNumber: string | null | undefined,
     items: PosOrderItem[],
     totalAmount: number,
-    isFinal = false
+    isFinal = false,
+    paymentMethod?: string | null
   ) => {
     if (isFinal) {
-      newPrinterService.printSettlementBill(orderName, invoiceNumber, items, totalAmount).catch(err => {
+      newPrinterService.printBill(orderName, invoiceNumber, items, totalAmount, true, paymentMethod).catch(err => {
         console.warn('Deferred printSettlementBill failure:', err);
       });
     } else {
-      newPrinterService.printBill(orderName, invoiceNumber, items, totalAmount).catch(err => {
+      newPrinterService.printBill(orderName, invoiceNumber, items, totalAmount, false, paymentMethod).catch(err => {
         console.warn('Deferred printBill failure:', err);
       });
     }

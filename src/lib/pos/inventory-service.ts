@@ -2633,6 +2633,42 @@ function recordAuditLogLocal(
   saveLocalData(LOCAL_STORAGE_KEYS.AUDIT_LOGS, all);
 }
 
+export async function recordAuditLog(
+  module: 'materials' | 'purchases' | 'adjustments' | 'suppliers' | 'wastage' | 'categories' | 'units',
+  recordId: string,
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'ADJUST' | 'WASTAGE',
+  oldVal: any,
+  newVal: any
+): Promise<void> {
+  const tenant = getTenantContext();
+  const logEntry = {
+    tenant_id: tenant.tenant_id,
+    branch_id: tenant.branch_id,
+    module_name: module,
+    record_id: recordId,
+    action_type: action,
+    old_value: oldVal ? JSON.parse(JSON.stringify(oldVal)) : null,
+    new_value: newVal ? JSON.parse(JSON.stringify(newVal)) : null,
+    performed_by: 'Owner Staff',
+    created_at: new Date().toISOString(),
+  };
+
+  if (!forceLocalFallback) {
+    try {
+      const { error } = await supabase.from('inventory_audit_logs').insert(logEntry);
+      if (error) {
+        console.warn('[Audit Log] DB write failed, recording locally:', error);
+        recordAuditLogLocal(module, recordId, action, oldVal, newVal);
+      }
+    } catch (err) {
+      console.warn('[Audit Log] DB write threw error, recording locally:', err);
+      recordAuditLogLocal(module, recordId, action, oldVal, newVal);
+    }
+  } else {
+    recordAuditLogLocal(module, recordId, action, oldVal, newVal);
+  }
+}
+
 
 // ─── 12. ALERTS ──────────────────────────────────────────────────────────────
 

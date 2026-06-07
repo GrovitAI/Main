@@ -671,7 +671,12 @@ export default function PosBillingScreen() {
             : null;
 
           if (printerName) {
-            const receiptText = buildReceiptText(orderName, invoiceNumber, items, totalAmount);
+            // Retrieve updated order details from store to get the assigned order number!
+            const updatedOrder = useOrdersStore.getState().orders.find((o) => o.id === currentOrderId);
+            const updatedOrderName = updatedOrder?.order_name || orderName;
+            const updatedInvoiceNumber = updatedOrder?.invoice_number || invoiceNumber;
+
+            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount);
             const printResult = await printReceipt(printerName, receiptText);
             if (printResult.success) {
               showToast('Provisional bill printed successfully.');
@@ -743,8 +748,6 @@ export default function PosBillingScreen() {
   const confirmSettlement = useCallback(async (paymentType: string = 'cash') => {
     setActiveAction('settle');
     // 1. Capture order details before settleBill wipes the active cart state
-    const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
-    const invoiceNumber = null;
     const items = activeOrderItems.map((item) => ({
       name: item.item_name || 'Item',
       qty: item.qty,
@@ -753,11 +756,13 @@ export default function PosBillingScreen() {
     const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
 
     // 2. Perform DB write
-    const success = await settleBill(paymentType);
+    const result = await settleBill(paymentType);
+    const success = !!(result && !result.error && result.data);
     
     // 3. Printing asynchronously after successful save
-    if (success) {
+    if (success && result.data) {
       showToast('Bill settled successfully.');
+      const updatedOrder = result.data;
       
       void (async () => {
         try {
@@ -766,7 +771,13 @@ export default function PosBillingScreen() {
             : null;
 
           if (printerName) {
-            const receiptText = buildReceiptText(orderName, invoiceNumber, items, totalAmount);
+            const receiptText = buildReceiptText(
+              updatedOrder.order_name,
+              updatedOrder.invoice_number,
+              items,
+              totalAmount,
+              updatedOrder.payment_method
+            );
             const printResult = await printReceipt(printerName, receiptText);
             if (printResult.success) {
               showToast('Bill settled & receipt printed.');
@@ -778,9 +789,11 @@ export default function PosBillingScreen() {
           console.warn('[Print] Silent thermal printing failed:', printErr);
         }
       })();
+    } else {
+      showToast(result?.error || 'Settlement failed. Please try again.');
     }
     return success;
-  }, [settleBill, activeOrder, activeOrderId, activeOrderItems, showToast]);
+  }, [settleBill, activeOrderItems, showToast]);
 
   // Guard Modals mapping
   const activeModalConfig = useMemo(() => {
