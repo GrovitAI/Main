@@ -410,7 +410,7 @@ export default function SettingsScreen() {
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
             
             {/* Local Print Agent Profile Card */}
-            <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs gap-4">
+            <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs gap-4" style={{ zIndex: showPrinterDropdown ? 50 : 1 }}>
               <View className="flex-row items-center justify-between flex-wrap gap-4">
                 <View className="flex-row items-center gap-3.5">
                   <View className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl w-11 h-11 items-center justify-center">
