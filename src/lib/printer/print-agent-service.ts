@@ -1,4 +1,4 @@
-const PRINT_AGENT_URL = 'http://localhost:3210';
+const PRINT_AGENT_URL = 'http://localhost:4545';
 
 export interface PrintPayload {
   ip: string;
