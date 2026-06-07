@@ -648,11 +648,43 @@ export default function PosBillingScreen() {
       return;
     }
     setActiveAction('save_print');
+    
+    // Capture order details before saveAndPrint updates the active state
+    const currentOrderId = activeOrderId;
+    const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
+    const invoiceNumber = activeOrder?.invoice_number;
+    const items = activeOrderItems.map((item) => ({
+      name: item.product_name || item.item_name || 'Item',
+      qty: item.qty,
+      price: item.price,
+    }));
+    const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
+
     const success = await saveAndPrint();
     if (success) {
       showToast('Provisional bill printed.');
+      
+      void (async () => {
+        try {
+          const printerName = typeof window !== 'undefined' && window.localStorage
+            ? window.localStorage.getItem('billingPrinter')
+            : null;
+
+          if (printerName) {
+            const receiptText = buildReceiptText(orderName, invoiceNumber, items, totalAmount);
+            const printSuccess = await printReceipt(printerName, receiptText);
+            if (printSuccess) {
+              showToast('Provisional bill printed successfully.');
+            } else {
+              showToast('Provisional bill saved. (Print failed)');
+            }
+          }
+        } catch (printErr) {
+          console.warn('[Print] Silent provisional printing failed:', printErr);
+        }
+      })();
     }
-  }, [isMutating, activeOrderItems.length, saveAndPrint, showToast]);
+  }, [isMutating, activeOrderId, activeOrder, activeOrderItems, saveAndPrint, showToast]);
 
   // Cancel order handler
   const handleCancelClick = useCallback(() => {
