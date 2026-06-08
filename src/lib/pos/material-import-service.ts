@@ -262,9 +262,11 @@ export async function importRawMaterials(
         if (unitsMap.has(key)) {
           finalUnitId = unitsMap.get(key) || null;
         } else {
+          const cleanUnit = row.unitName.trim();
           const unitRes = await saveUnit({
-            unit_name: row.unitName,
-            short_name: row.unitName.substring(0, 5).toLowerCase()
+            unit_name: cleanUnit,
+            unit_code: cleanUnit.toUpperCase(),
+            short_name: cleanUnit.toLowerCase()
           });
           if (unitRes.data && !unitRes.error) {
             finalUnitId = unitRes.data.id;
