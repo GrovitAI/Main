@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions } from 'react-native';
-import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft } from 'lucide-react-native';
+import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
 import { fetchRecipes, type InventoryRecipe } from '@/lib/pos/inventory-service';
+import * as XLSX from 'xlsx';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  validateProductImportRows,
+  importMenuProducts,
+  type ProductImportRow,
+  type ValidatedProductRow,
+  type ProductValidationSummary
+} from '@/lib/pos/menu-import-service';
 
 type ProductFormInput = {
   id?: string;
@@ -68,6 +77,11 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const [formInput, setFormInput] = useState<ProductFormInput>(initialFormInput);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Excel Import states
+  const [importSummary, setImportSummary] = useState<ProductValidationSummary | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Load Categories & Products
   const loadData = async () => {
@@ -146,6 +160,119 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       // Rollback
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, price: previousPrice } : p));
       Alert.alert('Pricing Update Failed', res.error);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    try {
+      const templateData = [
+        {
+          'Product Name*': 'Pistachio Cheesecake',
+          'Price*': 350,
+          'Category Name*': 'Signature Desserts',
+          'Inventory Tracking Enabled': 'Yes',
+          'Linked Recipe Code': 'REC01'
+        },
+        {
+          'Product Name*': 'Nutella Milkshake',
+          'Price*': 220,
+          'Category Name*': 'Milkshakes & Drinks',
+          'Inventory Tracking Enabled': 'No',
+          'Linked Recipe Code': ''
+        }
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Product Menu');
+
+      if (Platform.OS === 'web') {
+        XLSX.writeFile(wb, 'grovit_product_menu_template.xlsx');
+      } else {
+        Alert.alert('Info', 'Excel template download is supported on the web version.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Failed to generate template: ' + (err.message || err));
+    }
+  };
+
+  const handleImportExcelClick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv'
+        ],
+        copyToCacheDirectory: true
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      if (Platform.OS === 'web') {
+        const file = asset.file;
+        if (!file) {
+          Alert.alert('Error', 'Unable to access the selected file.');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const data = e.target?.result;
+            if (!data) {
+              Alert.alert('Error', 'File content is empty.');
+              return;
+            }
+
+            const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json<ProductImportRow>(worksheet);
+
+            if (json.length === 0) {
+              Alert.alert('Error', 'The uploaded Excel file contains no data rows.');
+              return;
+            }
+
+            const summary = await validateProductImportRows(json);
+            setImportSummary(summary);
+            setIsImportModalOpen(true);
+          } catch (err: any) {
+            Alert.alert('Error', 'Failed to parse Excel file: ' + (err.message || err));
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        Alert.alert('Info', 'Excel import is currently supported on the web version.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'File picker error: ' + (err.message || err));
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (!importSummary || isImporting) return;
+    setIsImporting(true);
+
+    try {
+      const result = await importMenuProducts(importSummary.rows);
+      if (result.error) {
+        Alert.alert('Import Failed', result.error);
+      } else if (result.data) {
+        Alert.alert('Import Success', `Successfully imported ${result.data.count} menu products.`);
+        setIsImportModalOpen(false);
+        setImportSummary(null);
+        await loadData();
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'An unexpected error occurred: ' + (err.message || err));
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -364,14 +491,34 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
           </View>
         </View>
 
-        <Pressable
-          className="flex-row items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary active:opacity-90 shadow-sm"
-          style={{ height: 42 }}
-          onPress={handleOpenAdd}
-        >
-          <Plus size={16} color="white" />
-          <Text className="text-white font-extrabold text-sm">Add New Item</Text>
-        </Pressable>
+        <View className="flex-row items-center gap-2 flex-wrap">
+          <Pressable
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 active:bg-slate-50 shadow-xs"
+            style={{ height: 42 }}
+            onPress={handleDownloadTemplate}
+          >
+            <Download size={14} color="#475569" />
+            <Text className="text-slate-700 font-extrabold text-xs">Download Template</Text>
+          </Pressable>
+
+          <Pressable
+            className="flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 active:bg-slate-50 shadow-xs"
+            style={{ height: 42 }}
+            onPress={handleImportExcelClick}
+          >
+            <Upload size={14} color="#475569" />
+            <Text className="text-slate-700 font-extrabold text-xs">Import Excel</Text>
+          </Pressable>
+
+          <Pressable
+            className="flex-row items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary active:opacity-90 shadow-sm"
+            style={{ height: 42 }}
+            onPress={handleOpenAdd}
+          >
+            <Plus size={16} color="white" />
+            <Text className="text-white font-extrabold text-sm">Add New Item</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* 📊 4 Analytics Metrics Row */}
@@ -829,6 +976,188 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               );
             }}
           />
+        )}
+
+        {/* Excel Product Import Preview Modal */}
+        {isImportModalOpen && (
+          <View className="absolute inset-0 bg-overlay flex-1 items-center justify-center p-6 rounded-2xl z-50">
+            <View className="bg-white w-full max-w-4xl rounded-2xl border border-border shadow-panel p-6 justify-between flex-col" style={{ maxHeight: '90%' }}>
+              
+              <View className="flex-1 flex-col overflow-hidden">
+                {/* Header */}
+                <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
+                  <View className="flex-row items-center gap-2">
+                    <Upload size={18} color={colors.primary} />
+                    <Text className="text-base font-black text-slate-900">
+                      Product Excel Import Verification & Dry-run
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      setIsImportModalOpen(false);
+                      setImportSummary(null);
+                    }}
+                  >
+                    <X size={20} color="#64748b" />
+                  </Pressable>
+                </View>
+
+                {/* Summary cards */}
+                {importSummary && (
+                  <View className="flex-row gap-3 mb-4 flex-wrap">
+                    <View className="flex-1 min-w-[100px] bg-slate-50 border border-slate-100 rounded-2xl p-3 items-center">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Rows</Text>
+                      <Text className="text-lg font-black text-slate-800 mt-1">{importSummary.totalRows}</Text>
+                    </View>
+                    <View className="flex-1 min-w-[100px] bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3 items-center">
+                      <Text className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">To Create</Text>
+                      <Text className="text-lg font-black text-emerald-700 mt-1">{importSummary.createCount}</Text>
+                    </View>
+                    <View className="flex-1 min-w-[100px] bg-blue-50/70 border border-blue-100 rounded-2xl p-3 items-center">
+                      <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest">To Update</Text>
+                      <Text className="text-lg font-black text-blue-700 mt-1">{importSummary.updateCount}</Text>
+                    </View>
+                    <View className="flex-1 min-w-[100px] bg-rose-50/70 border border-rose-100 rounded-2xl p-3 items-center">
+                      <Text className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Errors</Text>
+                      <Text className="text-lg font-black text-rose-700 mt-1">{importSummary.errorRows}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Warnings Alert Banner for Recipes/etc. */}
+                {importSummary && importSummary.rows.some(r => r.warnings.length > 0) && (
+                  <View className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 gap-1">
+                    <View className="flex-row items-center gap-1.5 mb-1">
+                      <AlertCircle size={15} color="#d97706" />
+                      <Text className="text-xs font-black text-amber-800">
+                        Import Warnings Notification
+                      </Text>
+                    </View>
+                    <Text className="text-[11px] text-amber-700 font-medium">
+                      Missing product categories will be auto-created during execution. Recipes will NOT be auto-created; rows referencing missing recipe codes will be imported without recipe links.
+                    </Text>
+                  </View>
+                )}
+
+                {/* Table Details */}
+                <View className="flex-1 overflow-hidden border border-slate-200 rounded-2xl mb-4 bg-slate-50/30 flex-col">
+                  
+                  {/* Table Header */}
+                  <View className="flex-row border-b border-slate-200 p-3 bg-slate-50/50">
+                    <View style={{ width: '25%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Product Name</Text></View>
+                    <View style={{ width: '12%', alignItems: 'flex-end' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Price</Text></View>
+                    <View style={{ width: '20%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Category Assignment</Text></View>
+                    <View style={{ width: '15%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Tracking</Text></View>
+                    <View style={{ width: '16%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Recipe Link</Text></View>
+                    <View style={{ width: '12%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Action</Text></View>
+                  </View>
+
+                  {/* Table Body */}
+                  <FlatList
+                    data={importSummary ? importSummary.rows : []}
+                    keyExtractor={(item, idx) => String(idx)}
+                    showsVerticalScrollIndicator={true}
+                    renderItem={({ item: row }) => {
+                      const isError = row.status === 'invalid';
+                      const isUpdate = row.action === 'update';
+                      
+                      let actionBadgeColor = 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                      let actionBadgeText = 'Create';
+                      
+                      if (isError) {
+                        actionBadgeColor = 'bg-rose-50 border-rose-200 text-rose-700';
+                        actionBadgeText = 'Error';
+                      } else if (isUpdate) {
+                        actionBadgeColor = 'bg-blue-50 border-blue-200 text-blue-700';
+                        actionBadgeText = 'Update';
+                      }
+
+                      return (
+                        <View className="flex-row items-start py-2.5 border-b border-slate-100 px-3 hover:bg-slate-50/50">
+                          <View style={{ width: '25%' }} className="pr-2">
+                            <Text className={`text-xs font-semibold ${isError ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                              {row.productName || 'N/A'}
+                            </Text>
+                            {isError && row.errors.map((e, eIdx) => (
+                              <Text key={eIdx} className="text-[9px] text-rose-600 font-bold mt-0.5">
+                                • {e}
+                              </Text>
+                            ))}
+                          </View>
+                          <View style={{ width: '12%', alignItems: 'flex-end' }} className="pr-3">
+                            <Text className="text-xs text-slate-700 font-black font-mono">₹{row.price.toFixed(2)}</Text>
+                          </View>
+                          <View style={{ width: '20%' }} className="pr-2">
+                            <Text className="text-xs text-slate-600 font-semibold">{row.categoryName || 'N/A'}</Text>
+                            {!row.categoryId && row.categoryName && (
+                              <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
+                                <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ width: '15%' }}>
+                            <Text className="text-xs text-slate-500 font-bold uppercase">
+                              {row.inventoryTrackingEnabled ? 'Enabled' : 'Disabled'}
+                            </Text>
+                          </View>
+                          <View style={{ width: '16%' }} className="pr-1">
+                            <Text className="text-xs text-slate-600 font-medium truncate">{row.linkedRecipeCode || 'N/A'}</Text>
+                            {!row.recipeId && row.linkedRecipeCode && (
+                              <View className="bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md self-start mt-0.5">
+                                <Text className="text-[8px] text-rose-700 font-extrabold">Not Linked</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ width: '12%', alignItems: 'center' }}>
+                            <View className={`px-2.5 py-0.5 rounded-full border ${actionBadgeColor}`}>
+                              <Text className="text-[9px] font-black uppercase">{actionBadgeText}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    }}
+                  />
+                </View>
+              </View>
+
+              {/* Actions Footer */}
+              <View className="flex-row justify-end border-t border-slate-100 pt-4 gap-3">
+                <Pressable
+                  onPress={() => {
+                    setIsImportModalOpen(false);
+                    setImportSummary(null);
+                  }}
+                  className="bg-slate-100 border border-slate-200 py-2.5 px-6 rounded-xl active:scale-95 shadow-xs"
+                  style={{ minHeight: 44 }}
+                >
+                  <Text className="text-xs font-bold text-slate-600">Cancel</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleExecuteImport}
+                  disabled={isImporting || !importSummary || importSummary.validRows === 0}
+                  className={`py-2.5 px-6 rounded-xl flex-row items-center justify-center gap-1.5 active:scale-95 shadow-xs ${
+                    !importSummary || importSummary.validRows === 0
+                      ? 'bg-slate-200 border border-slate-200'
+                      : 'bg-primary active:opacity-90'
+                  }`}
+                  style={{ minHeight: 44 }}
+                >
+                  {isImporting ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <Check size={14} color="white" strokeWidth={3} />
+                      <Text className="text-xs font-bold text-white">
+                        Confirm Import ({importSummary ? importSummary.validRows : 0} Rows)
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+
+            </View>
+          </View>
         )}
 
         {/* Slide-out/Form Panel Overlay */}
