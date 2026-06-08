@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal } from 'react-native';
 import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
@@ -979,9 +979,9 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
         )}
 
         {/* Excel Product Import Preview Modal */}
-        {isImportModalOpen && (
-          <View className="absolute inset-0 bg-overlay flex-1 items-center justify-center p-6 rounded-2xl z-50">
-            <View className="bg-white w-full max-w-4xl rounded-2xl border border-border shadow-panel p-6 justify-between flex-col" style={{ maxHeight: '90%' }}>
+        <Modal visible={isImportModalOpen} animationType="fade" transparent>
+          <View className="flex-1 bg-black/50 justify-center items-center p-6">
+            <View className="bg-white w-[95%] md:w-[85%] lg:w-[75%] rounded-3xl border border-border shadow-panel p-6 justify-between flex-col" style={{ maxHeight: '90%' }}>
               
               <View className="flex-1 flex-col overflow-hidden">
                 {/* Header */}
@@ -1089,11 +1089,11 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                           </View>
                           <View style={{ width: '20%' }} className="pr-2">
                             <Text className="text-xs text-slate-600 font-semibold">{row.categoryName || 'N/A'}</Text>
-                            {!row.categoryId && row.categoryName && (
+                            {!row.categoryId && !!row.categoryName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
                                 <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
                               </View>
-                            )}
+                            ) : null}
                           </View>
                           <View style={{ width: '15%' }}>
                             <Text className="text-xs text-slate-500 font-bold uppercase">
@@ -1102,11 +1102,11 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                           </View>
                           <View style={{ width: '16%' }} className="pr-1">
                             <Text className="text-xs text-slate-600 font-medium truncate">{row.linkedRecipeCode || 'N/A'}</Text>
-                            {!row.recipeId && row.linkedRecipeCode && (
+                            {!row.recipeId && !!row.linkedRecipeCode ? (
                               <View className="bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md self-start mt-0.5">
                                 <Text className="text-[8px] text-rose-700 font-extrabold">Not Linked</Text>
                               </View>
-                            )}
+                            ) : null}
                           </View>
                           <View style={{ width: '12%', alignItems: 'center' }}>
                             <View className={`px-2.5 py-0.5 rounded-full border ${actionBadgeColor}`}>
@@ -1158,12 +1158,12 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
 
             </View>
           </View>
-        )}
+        </Modal>
 
         {/* Slide-out/Form Panel Overlay */}
-        {isModalOpen && (
-          <View className="absolute inset-0 bg-overlay flex-1 items-center justify-center p-6 rounded-2xl">
-            <View className="bg-white w-full max-w-lg rounded-2xl border border-border shadow-panel p-6 justify-between" style={{ minHeight: 400 }}>
+        <Modal visible={isModalOpen} animationType="fade" transparent>
+          <View className="flex-1 bg-black/50 justify-center items-center p-6">
+            <View className="bg-white w-[95%] md:w-[70%] lg:w-[50%] max-w-lg rounded-3xl border border-border shadow-panel p-6 justify-between" style={{ minHeight: 400 }}>
               
               <View>
                 <View className="flex-row items-center gap-2 border-b border-border pb-3 mb-5">
@@ -1317,7 +1317,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
 
             </View>
           </View>
-        )}
+        </Modal>
 
       </View>
     </View>

@@ -6057,19 +6057,19 @@ export default function InventoryScreen() {
                           </View>
                           <View style={{ width: '13%' }} className="pr-2">
                             <Text className="text-xs text-slate-600 font-medium">{row.categoryName || 'N/A'}</Text>
-                            {!row.categoryId && row.categoryName && (
+                            {!row.categoryId && !!row.categoryName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
                                 <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
                               </View>
-                            )}
+                            ) : null}
                           </View>
                           <View style={{ width: '8%' }} className="pr-1">
                             <Text className="text-xs text-slate-600 font-medium">{row.unitName || 'N/A'}</Text>
-                            {!row.unitId && row.unitName && (
+                            {!row.unitId && !!row.unitName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
                                 <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
                               </View>
-                            )}
+                            ) : null}
                           </View>
                           <View style={{ width: '10%', alignItems: 'center' }}>
                             <Text className="text-xs text-slate-700 font-semibold">{row.reorderLevel}</Text>
@@ -6079,11 +6079,11 @@ export default function InventoryScreen() {
                           </View>
                           <View style={{ width: '13%' }} className="pr-1">
                             <Text className="text-xs text-slate-600 font-medium truncate">{row.preferredSupplierName || 'N/A'}</Text>
-                            {!row.supplierId && row.preferredSupplierName && (
+                            {!row.supplierId && !!row.preferredSupplierName ? (
                               <View className="bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md self-start mt-0.5">
                                 <Text className="text-[8px] text-rose-700 font-extrabold">Not Found</Text>
                               </View>
-                            )}
+                            ) : null}
                           </View>
                           <View style={{ width: '12%', alignItems: 'center' }}>
                             <View className={`px-2 py-0.5 rounded-full border ${actionBadgeColor}`}>
