@@ -5059,9 +5059,14 @@ export default function InventoryScreen() {
                   paddingLeft: Platform.OS === 'web' ? 12 : (sidebarExpanded ? 10 : 12),
                   paddingRight: 4,
                   gap: 0,
+                  overflow: 'hidden',
                 },
                 activeTab === 'dashboard' && {
-                  backgroundColor: 'rgba(58,120,220,0.9)',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 10,
+                  elevation: 3,
                 },
                 activeTab !== 'dashboard' && hovered && {
                   backgroundColor: 'rgba(255,255,255,0.08)',
@@ -5166,14 +5171,15 @@ export default function InventoryScreen() {
                           paddingLeft: sidebarExpanded ? 8 : 14,
                           gap: 0,
                           marginBottom: 2,
+                          overflow: 'hidden',
                           ...(Platform.OS === 'web' ? { transition: 'padding-left 240ms, margin 240ms' } : {}),
                         },
                         isActive && {
-                          backgroundColor: sidebarExpanded ? 'rgba(58,120,220,0.3)' : 'rgba(58,120,220,0.4)',
-                          ...(sidebarExpanded ? {
-                            borderLeftWidth: 2,
-                            borderLeftColor: '#3399ff',
-                          } : {}),
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.08,
+                          shadowRadius: 6,
+                          elevation: 2,
                         },
                         !isActive && hovered && {
                           backgroundColor: sidebarExpanded ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.07)'
@@ -5181,6 +5187,12 @@ export default function InventoryScreen() {
                         pressed && { opacity: 0.85 }
                       ]}
                     >
+                      {isActive && (
+                        <LinearGradient
+                          colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: sidebarExpanded ? 10 : 8 }}
+                        />
+                      )}
                       <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
                       <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 6 }}>
                         <Text style={{ fontSize: 10.5, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)', whiteSpace: 'nowrap' } as any}>
@@ -5223,8 +5235,15 @@ export default function InventoryScreen() {
                       paddingLeft: Platform.OS === 'web' ? 12 : (sidebarExpanded ? 10 : 12),
                       paddingRight: 4,
                       gap: 0,
+                      overflow: 'hidden',
                     },
-                    isActive && { backgroundColor: 'rgba(58,120,220,0.9)' },
+                    isActive && {
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 10,
+                      elevation: 3,
+                    },
                     !isActive && hovered && { backgroundColor: 'rgba(255,255,255,0.08)' },
                     pressed && { opacity: 0.85 }
                   ]}
@@ -5387,6 +5406,7 @@ export default function InventoryScreen() {
                     alignItems: 'center',
                     gap: 8,
                     marginBottom: 6,
+                    overflow: 'hidden',
                   },
                   activeTab === 'dashboard' && {
                     borderTopWidth: 1,
@@ -5484,15 +5504,24 @@ export default function InventoryScreen() {
                             alignItems: 'center',
                             gap: 6,
                             marginBottom: 2,
+                            overflow: 'hidden',
                           },
                           isActive && {
-                            backgroundColor: 'rgba(58,120,220,0.3)',
-                            borderLeftWidth: 2,
-                            borderLeftColor: '#3399ff',
+                            shadowColor: '#000000',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 6,
+                            elevation: 2,
                           },
                           pressed && { opacity: 0.85 }
                         ]}
                       >
+                        {isActive && (
+                          <LinearGradient
+                            colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 10 }}
+                          />
+                        )}
                         <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
                         <Text
                           style={{
@@ -5536,10 +5565,9 @@ export default function InventoryScreen() {
                         alignItems: 'center',
                         gap: 8,
                         marginBottom: 6,
+                        overflow: 'hidden',
                       },
                       isActive && {
-                        borderTopWidth: 1,
-                        borderTopColor: 'rgba(255,255,255,0.10)',
                         shadowColor: '#000000',
                         shadowOffset: { width: 0, height: 4 },
                         shadowOpacity: 0.08,
