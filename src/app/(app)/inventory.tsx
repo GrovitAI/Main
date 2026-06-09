@@ -5077,7 +5077,7 @@ export default function InventoryScreen() {
               {activeTab === 'dashboard' && (
                 <LinearGradient
                   colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12 }}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12, zIndex: -1 }}
                 />
               )}
               <BarChart3 size={16} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
@@ -5190,7 +5190,7 @@ export default function InventoryScreen() {
                       {isActive && (
                         <LinearGradient
                           colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: sidebarExpanded ? 10 : 8 }}
+                          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: sidebarExpanded ? 10 : 8, zIndex: -1 }}
                         />
                       )}
                       <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
@@ -5251,7 +5251,7 @@ export default function InventoryScreen() {
                   {isActive && (
                     <LinearGradient
                       colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12 }}
+                      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12, zIndex: -1 }}
                     />
                   )}
                   <IconComponent size={16} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
@@ -5426,7 +5426,7 @@ export default function InventoryScreen() {
                 {activeTab === 'dashboard' && (
                   <LinearGradient
                     colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, zIndex: -1 }}
                   />
                 )}
                 <BarChart3 size={14} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
@@ -5519,7 +5519,7 @@ export default function InventoryScreen() {
                         {isActive && (
                           <LinearGradient
                             colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 10 }}
+                            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 10, zIndex: -1 }}
                           />
                         )}
                         <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
@@ -5583,7 +5583,7 @@ export default function InventoryScreen() {
                     {isActive && (
                       <LinearGradient
                         colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14 }}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, zIndex: -1 }}
                       />
                     )}
                     <IconComponent size={14} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
