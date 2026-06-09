@@ -116,18 +116,19 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
         widthAnim.setValue(layout.width);
         hasInitialPosition.current = true;
       } else {
-        // Snappy, organic cubic-bezier curve similar to modern device UI physics
         Animated.parallel([
-          Animated.timing(slideAnim, {
+          Animated.spring(slideAnim, {
             toValue: layout.x,
-            duration: 280,
-            easing: Easing.bezier(0.16, 1, 0.3, 1), // easeOutExpo feel
+            stiffness: 160,
+            damping: 20,
+            mass: 0.8,
             useNativeDriver: false,
           }),
-          Animated.timing(widthAnim, {
+          Animated.spring(widthAnim, {
             toValue: layout.width,
-            duration: 280,
-            easing: Easing.bezier(0.16, 1, 0.3, 1),
+            stiffness: 160,
+            damping: 20,
+            mass: 0.8,
             useNativeDriver: false,
           }),
         ]).start();
@@ -179,7 +180,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
             width: widthAnim,
             height: 44,
             borderRadius: 16,
-            backgroundColor: '#F1F5F9', // Subtle, premium neutral filled background
+            backgroundColor: colors.primary, // Brand blue highlighted covering
             zIndex: 1,
           }}
         />
@@ -239,12 +240,12 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
             } as any)}
           >
             <TabIcon
-              color={isFocused ? '#0F172A' : '#64748B'}
+              color={isFocused ? '#FFFFFF' : '#64748B'}
               size={isFocused ? 18 : 17}
               style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
             />
             <Text style={{
-              color: isFocused ? '#0F172A' : '#64748B',
+              color: isFocused ? '#FFFFFF' : '#64748B',
               fontWeight: isFocused ? '700' : '500',
               fontSize: isFocused ? 12 : 11.5,
               marginLeft: isFocused ? 8 : 6,
