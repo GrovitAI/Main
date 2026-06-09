@@ -4887,7 +4887,12 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         .select('id, name, recipe_id, inventory_tracking_enabled')
         .in('id', productIds);
 
-      const trackingEnabledProducts = (products || []).filter((p: any) => p.inventory_tracking_enabled && p.recipe_id);
+      // Check if global inventory tracking is enabled (POS settings preference)
+      const isGlobalTrackingEnabled = typeof window !== 'undefined' && window.localStorage
+        ? window.localStorage.getItem('globalInventoryTracking') !== 'false'
+        : true;
+
+      const trackingEnabledProducts = (products || []).filter((p: any) => isGlobalTrackingEnabled && p.recipe_id);
 
       if (trackingEnabledProducts.length === 0) {
         await supabase

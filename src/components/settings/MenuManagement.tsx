@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal } from 'react-native';
+import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView } from 'react-native';
 import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
@@ -82,6 +82,21 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const [importSummary, setImportSummary] = useState<ProductValidationSummary | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Global Inventory Tracking State
+  const [globalTracking, setGlobalTracking] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem('globalInventoryTracking') !== 'false';
+    }
+    return true;
+  });
+
+  const handleToggleGlobalTracking = (val: boolean) => {
+    setGlobalTracking(val);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('globalInventoryTracking', String(val));
+    }
+  };
 
   // Load Categories & Products
   const loadData = async () => {
@@ -733,6 +748,19 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                 </View>
               )}
             </View>
+
+            {/* Global Inventory Tracking Setting */}
+            <View className="flex-row items-center gap-1.5 px-2 bg-slate-50 border border-slate-200 rounded-xl" style={{ height: 34 }}>
+              <Text className="text-[11px] font-extrabold text-slate-600">Track Inventory</Text>
+              <Switch
+                value={globalTracking}
+                onValueChange={handleToggleGlobalTracking}
+                trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                thumbColor={globalTracking ? colors.primary : '#f4f3f4'}
+                style={{ transform: [{ scale: 0.65 }] }}
+              />
+            </View>
+
           </View>
         </View>
 
@@ -822,9 +850,9 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               const linkedRecipe = recipes.find(r => r.id === item.recipe_id);
 
               return (
-                <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 60 }}>
+                <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 60, zIndex: isMenuOpen ? 50 : 1 }}>
                   
-                  {/* Left Column: Icon Thumbnail, Name, Category pill & Available Dot */}
+                  {/* Left Column: Icon Thumbnail, Name, Category pill & Available Switch */}
                   <View className="flex-1 mr-2.5 flex-row items-center">
                     
                     {/* Visual Rounded Category Icon Thumbnail */}
@@ -840,10 +868,16 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                         )}
                       </View>
 
-                      {/* Dot Availability Indicator */}
-                      <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
-                        <View className={`w-1.2 h-1.2 rounded-full ${isAvailable ? 'bg-emerald-500' : 'bg-slate-400'}`} style={{ width: 5, height: 5 }} />
-                        <Text className={`text-[8px] font-extrabold uppercase ${isAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {/* Inline Switch Availability Indicator */}
+                      <View className="flex-row items-center gap-1 mt-0.5 flex-wrap">
+                        <Switch
+                          value={isAvailable}
+                          onValueChange={() => handleToggleAvailability(item)}
+                          trackColor={{ false: '#cbd5e1', true: colors.accent }}
+                          thumbColor={isAvailable ? colors.primary : '#f4f3f4'}
+                          style={{ transform: [{ scale: 0.6 }], marginVertical: -4 }}
+                        />
+                        <Text className={`text-[8.5px] font-extrabold uppercase ${isAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
                           {isAvailable ? 'Available' : 'Unavailable'}
                         </Text>
                         {item.inventory_tracking_enabled && (
@@ -1164,23 +1198,24 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
 
         <Modal visible={isModalOpen} animationType="fade" transparent>
           <View className="flex-1 bg-black/50 justify-center items-center p-4">
-            <View className="bg-white w-[90%] md:w-[65%] lg:w-[45%] max-w-lg rounded-3xl border border-border shadow-panel p-4.5 justify-between" style={{ minHeight: 340 }}>
+            <View className="bg-white w-[90%] md:w-[65%] lg:w-[45%] max-w-lg rounded-3xl border border-border shadow-2xl p-5 flex-col" style={{ maxHeight: '90%' }}>
               
-              <View>
-                <View className="flex-row items-center gap-1.5 border-b border-border pb-2 mb-3.5">
-                  <Sparkles size={16} color={colors.primary} />
-                  <Text className="text-base font-black text-text-primary">
-                    {isEditMode ? 'Modify Product Specifications' : 'Create New Menu Product'}
-                  </Text>
+              <View className="flex-row items-center gap-1.5 border-b border-border pb-2.5 mb-3">
+                <Sparkles size={16} color={colors.primary} />
+                <Text className="text-base font-black text-text-primary">
+                  {isEditMode ? 'Modify Product Specifications' : 'Create New Menu Product'}
+                </Text>
+              </View>
+
+              {formError && (
+                <View className="flex-row items-center gap-2 bg-red-50 p-3 border border-red-200 rounded-xl mb-3">
+                  <AlertCircle size={16} color="#dc2626" />
+                  <Text className="text-red-700 font-semibold flex-1 text-xs">{formError}</Text>
                 </View>
+              )}
 
-                {formError && (
-                  <View className="flex-row items-center gap-2 bg-red-50 p-3 border border-red-200 rounded-xl mb-3">
-                    <AlertCircle size={16} color="#dc2626" />
-                    <Text className="text-red-700 font-semibold flex-1 text-xs">{formError}</Text>
-                  </View>
-                )}
-
+              {/* Scrollable Form Body */}
+              <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* Form Input Grid */}
                 <View className="flex-row flex-wrap -mx-1.5">
                   <View className="w-full px-1.5 mb-3">
@@ -1208,8 +1243,9 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                     />
                   </View>
 
-                  <View className="w-full md:w-1/2 px-1.5 mb-3 justify-center">
-                    <View className="flex-row items-center gap-2.5 bg-slate-50 border border-border p-2 rounded-xl h-9">
+                  <View className="w-full md:w-1/2 px-1.5 mb-3">
+                    <Text className="text-[11px] font-bold text-text-primary mb-1.5">Availability Status</Text>
+                    <View className="flex-row items-center gap-2.5 bg-slate-50 border border-border px-3 rounded-xl h-9" style={{ height: 36 }}>
                       <Switch
                         value={formInput.is_available}
                         onValueChange={(val) => setFormInput(prev => ({ ...prev, is_available: val }))}
@@ -1217,7 +1253,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                         thumbColor={formInput.is_available ? colors.primary : '#f4f3f4'}
                         style={{ transform: [{ scale: 0.7 }] }}
                       />
-                      <Text className="text-[11px] font-bold text-text-primary">Instant Availability ON</Text>
+                      <Text className="text-[11px] font-bold text-text-primary">Instant Available ON</Text>
                     </View>
                   </View>
 
@@ -1244,24 +1280,10 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                     </View>
                   </View>
 
-                  {/* Recipe Linking & Inventory Tracking Settings */}
+                  {/* Recipe Association & Settings */}
                   <View className="w-full px-1.5 border-t border-slate-100 pt-3 mt-1">
-                    <Text className="text-[11px] font-black text-text-primary mb-2.5">Inventory Settings</Text>
+                    <Text className="text-[11px] font-black text-text-primary mb-2.5">Recipe Association</Text>
                     
-                    <View className="flex-row items-center justify-between bg-slate-50 border border-slate-200 p-2 rounded-xl mb-3 h-10">
-                      <View>
-                        <Text className="text-[11px] font-bold text-slate-800">Inventory Tracking</Text>
-                        <Text className="text-[9px] text-slate-500 font-semibold">Deduct ingredients stock upon sales</Text>
-                      </View>
-                      <Switch
-                        value={formInput.inventory_tracking_enabled}
-                        onValueChange={(val) => setFormInput(prev => ({ ...prev, inventory_tracking_enabled: val }))}
-                        trackColor={{ false: '#cbd5e1', true: colors.accent }}
-                        thumbColor={formInput.inventory_tracking_enabled ? colors.primary : '#f4f3f4'}
-                        style={{ transform: [{ scale: 0.7 }] }}
-                      />
-                    </View>
-
                     <View className="w-full mb-1.5">
                       <Text className="text-[11px] font-bold text-text-primary mb-1.5">Linked Recipe</Text>
                       <View className="border border-slate-200 rounded-xl overflow-hidden bg-white">
@@ -1290,7 +1312,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                     </View>
                   </View>
                 </View>
-              </View>
+              </ScrollView>
 
               <View className="flex-row gap-3 border-t border-border pt-3 mt-3 justify-end">
                 <Pressable
