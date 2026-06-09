@@ -388,55 +388,63 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+    <View style={{
+      flex: 1,
+      backgroundColor: '#F8FAFC',
+      paddingTop: activeTab === 'menu' ? (Platform.OS === 'ios' ? 36 : 16) : 0
+    }}>
       {/* Modern Premium Page Header */}
-      <View style={{
-        paddingHorizontal: 28,
-        paddingTop: Platform.OS === 'ios' ? 44 : 24,
-        paddingBottom: 20,
-        backgroundColor: '#F8FAFC',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
-        marginBottom: 24,
-      }}>
-        <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{
-            fontSize: 32,
-            fontWeight: '600',
-            color: '#0F172A',
-            fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif',
-            letterSpacing: -0.8
-          }}>
-            Settings
-          </Text>
-          <Text style={{
-            fontSize: 14,
-            fontWeight: '500',
-            color: '#64748B',
-            marginTop: 4,
-            opacity: 0.95
-          }}>
-            Manage operational and system preferences
-          </Text>
-        </View>
+      {activeTab !== 'menu' && (
+        <View style={{
+          paddingHorizontal: 28,
+          paddingTop: Platform.OS === 'ios' ? 44 : 24,
+          paddingBottom: 20,
+          backgroundColor: '#F8FAFC',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottomWidth: 1,
+          borderBottomColor: '#F1F5F9',
+          marginBottom: 24,
+        }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={{
+              fontSize: 32,
+              fontWeight: '600',
+              color: '#0F172A',
+              fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif',
+              letterSpacing: -0.8
+            }}>
+              Settings
+            </Text>
+            <Text style={{
+              fontSize: 14,
+              fontWeight: '500',
+              color: '#64748B',
+              marginTop: 4,
+              opacity: 0.95
+            }}>
+              Manage operational and system preferences
+            </Text>
+          </View>
 
-        {/* Right side branch context badge */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
-            <View className="w-2 h-2 rounded-full bg-emerald-500" />
-            <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
+          {/* Right side branch context badge */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
+              <View className="w-2 h-2 rounded-full bg-emerald-500" />
+              <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
+            </View>
           </View>
         </View>
-      </View>
+      )}
 
       {/* Main Container with generous SaaS padding */}
-      <View className="flex-1 px-8">
+      <View className={`flex-1 ${activeTab === 'menu' ? 'px-4' : 'px-8'}`}>
         
         {/* Segmented SaaS Navigation Tab Bar */}
-        <View className="flex-row bg-slate-100/90 p-1 rounded-2xl mb-8 shadow-xs border border-slate-200/60 self-start">
+        <View className={`flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start ${
+          activeTab === 'menu' ? 'mb-3' : 'mb-8'
+        }`}>
           {[
             { key: 'system', label: 'System Settings', icon: Settings },
             { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
