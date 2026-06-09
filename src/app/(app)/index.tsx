@@ -12,8 +12,12 @@ import {
   Modal,
   Platform,
   Alert,
+  Easing,
+  Animated,
 } from 'react-native';
 import { Search, Plus } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useNavigation } from 'expo-router';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
 
@@ -296,6 +300,152 @@ export default function PosBillingScreen() {
 
   const isInitialLoading =
     (isLoadingOrders && orders.length === 0) || (catalogLoading && allProducts.length === 0);
+
+  // Loading animations & splash states
+  const [loadingFinished, setLoadingFinished] = useState(false);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const loadingFadeAnim = useRef(new Animated.Value(1)).current;
+  const loadingScaleAnim = useRef(new Animated.Value(1)).current;
+  const loadingSpinAnim = useRef(new Animated.Value(0)).current;
+  const loadingDroolAnim = useRef(new Animated.Value(0)).current;
+  const loadingBlinkAnim = useRef(new Animated.Value(1)).current;
+  const loadingBreathingAnim = useRef(new Animated.Value(0)).current;
+  const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Enforce minimum 3 seconds loader display
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let spinLoop: Animated.CompositeAnimation | null = null;
+    spinLoop = Animated.loop(
+      Animated.timing(loadingSpinAnim, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    spinLoop.start();
+    return () => spinLoop?.stop();
+  }, [loadingSpinAnim]);
+
+  useEffect(() => {
+    let droolLoop: Animated.CompositeAnimation | null = null;
+    droolLoop = Animated.loop(
+      Animated.timing(loadingDroolAnim, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+        useNativeDriver: true,
+      })
+    );
+    droolLoop.start();
+    return () => droolLoop?.stop();
+  }, [loadingDroolAnim]);
+
+  useEffect(() => {
+    const blinkSequence = Animated.sequence([
+      Animated.delay(2000 + Math.random() * 2000),
+      Animated.timing(loadingBlinkAnim, {
+        toValue: 0.1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(loadingBlinkAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]);
+    const blinkLoop = Animated.loop(blinkSequence);
+    blinkLoop.start();
+    return () => blinkLoop.stop();
+  }, [loadingBlinkAnim]);
+
+  useEffect(() => {
+    const breatheSequence = Animated.sequence([
+      Animated.timing(loadingBreathingAnim, {
+        toValue: 1,
+        duration: 1500,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+      Animated.timing(loadingBreathingAnim, {
+        toValue: 0,
+        duration: 1500,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+    ]);
+    const breatheLoop = Animated.loop(breatheSequence);
+    breatheLoop.start();
+    return () => breatheLoop.stop();
+  }, [loadingBreathingAnim]);
+
+  useEffect(() => {
+    if (!isInitialLoading && minTimeElapsed && !loadingFinished) {
+      // 1. Splash item scale (explodes outwards)
+      Animated.timing(itemSplashScaleAnim, {
+        toValue: 5,
+        duration: 550,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }).start();
+
+      // 2. Main overlay fade out and scale up
+      Animated.parallel([
+        Animated.timing(loadingFadeAnim, {
+          toValue: 0,
+          duration: 550,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          useNativeDriver: true,
+        }),
+        Animated.timing(loadingScaleAnim, {
+          toValue: 1.15,
+          duration: 550,
+          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setLoadingFinished(true);
+      });
+    }
+  }, [isInitialLoading, minTimeElapsed]);
+
+  const kidTranslateY = loadingBreathingAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -3],
+  });
+
+  const kidScaleY = loadingBreathingAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.03],
+  });
+
+  const droolY = loadingDroolAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [120, 175],
+  });
+
+  const droolOpacity = loadingDroolAnim.interpolate({
+    inputRange: [0, 0.1, 0.8, 1],
+    outputRange: [0, 1, 0.8, 0],
+  });
+
+  const droolScale = loadingDroolAnim.interpolate({
+    inputRange: [0, 0.1, 0.8, 1],
+    outputRange: [0.4, 1.1, 0.9, 0.3],
+  });
+
+  const rotateSpin = loadingSpinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -1148,15 +1298,8 @@ export default function PosBillingScreen() {
 
 
 
-  // ─── Loading state ───
-  if (isInitialLoading) {
-    return (
-      <View className="flex-1 items-center justify-center bg-surface-tint">
-        <ActivityIndicator size="large" color={colors.primaryMid} />
-        <Text className="mt-4 text-base font-medium text-text-secondary">Loading POS…</Text>
-      </View>
-    );
-  }
+  // We no longer early-return for isInitialLoading so the POS mounts in the background
+  // and transitions smoothly when loading completes.
 
   // ─── Error state ───
   if ((ordersError || catalogError) && orders.length === 0 && allProducts.length === 0) {
@@ -1621,6 +1764,182 @@ export default function PosBillingScreen() {
             <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>{toastMessage}</Text>
           </View>
         </View>
+      )}
+
+      {/* 🚀 Splash Screen Loading Overlay */}
+      {!loadingFinished && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            zIndex: 999999,
+            opacity: loadingFadeAnim,
+            transform: [{ scale: loadingScaleAnim }],
+          }}
+        >
+          <LinearGradient
+            colors={[colors.primaryNavy, colors.primaryDeep]}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            {/* Custom Svg Cute Kid Drawing */}
+            <Animated.View
+              style={{
+                alignItems: 'center',
+                marginBottom: 10,
+                width: 180,
+                height: 220,
+                transform: [
+                  { translateY: kidTranslateY },
+                  { scaleY: kidScaleY }
+                ]
+              }}
+            >
+              <Svg width="180" height="220" viewBox="0 0 180 220">
+                {/* 1. Bib / Collar */}
+                <Path d="M 50 148 Q 90 178 130 148 Q 135 200 45 200 Z" fill="#E0F2FE" stroke="#BAE6FD" strokeWidth="2" />
+                <Circle cx="90" cy="170" r="4" fill="#0284C7" />
+                
+                {/* 2. Kid Face */}
+                <Circle cx="90" cy="110" r="42" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="3" />
+                
+                {/* 3. Hair (cute brown bangs) */}
+                {/* Back hair */}
+                <Path d="M 40 110 Q 90 40 140 110 Q 155 110 150 90 Q 90 20 30 90 Z" fill="#7C2D12" />
+                {/* Front bangs */}
+                <Path d="M 46 95 Q 70 75 90 92 Q 110 75 134 95 Q 110 65 70 65 Z" fill="#7C2D12" />
+                
+                {/* 4. Cute blushing cheeks */}
+                <Circle cx="62" cy="122" r="7" fill="#FECDD3" opacity="0.9" />
+                <Circle cx="118" cy="122" r="7" fill="#FECDD3" opacity="0.9" />
+                
+                {/* 5. Open Happy Mouth */}
+                <Path d="M 74 122 Q 90 142 106 122 Q 90 116 74 122 Z" fill="#9F1239" />
+                {/* Cute little tongue */}
+                <Path d="M 82 128 Q 90 138 98 128 Z" fill="#F43F5E" />
+                
+                {/* Small nose */}
+                <Path d="M 88 112 Q 90 115 92 112" stroke="#FDA4AF" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                
+                {/* Cute ears */}
+                <Circle cx="45" cy="110" r="8" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="2" />
+                <Circle cx="135" cy="110" r="8" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="2" />
+              </Svg>
+
+              {/* 6. Staring Eyes Svg (will blink) */}
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  top: 89,
+                  left: 55,
+                  transform: [{ scaleY: loadingBlinkAnim }],
+                }}
+              >
+                <Svg width="70" height="22" viewBox="0 0 70 22">
+                  <Circle cx="11" cy="11" r="11" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
+                  <Circle cx="15" cy="9" r="6.5" fill="#1E293B" />
+                  <Circle cx="17" cy="6" r="2.5" fill="#FFFFFF" />
+                  
+                  <Circle cx="59" cy="11" r="11" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
+                  <Circle cx="63" cy="9" r="6.5" fill="#1E293B" />
+                  <Circle cx="65" cy="6" r="2.5" fill="#FFFFFF" />
+                </Svg>
+              </Animated.View>
+
+              {/* 💧 Animated Drool Droplet */}
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  left: 95,
+                  top: droolY,
+                  opacity: droolOpacity,
+                  transform: [{ scale: droolScale }],
+                }}
+              >
+                <Svg width="12" height="18" viewBox="0 0 12 18">
+                  <Path d="M6 0 C9 4 11 7.5 11 11.5 C11 14.5 8.75 17 6 17 C3.25 17 1 14.5 1 11.5 C1 7.5 3 4 6 0 Z" fill="#bae6fd" />
+                </Svg>
+              </Animated.View>
+            </Animated.View>
+
+            {/* Spinning Milk Cake Loader */}
+            <View style={{ alignItems: 'center', justifyContent: 'center', marginVertical: 15 }}>
+              {/* Outer Spin Ring */}
+              <Animated.View style={{
+                transform: [{
+                  rotate: rotateSpin
+                }]
+              }}>
+                <Svg width="140" height="140" viewBox="0 0 140 140">
+                  {/* Faint background track */}
+                  <Circle cx="70" cy="70" r="56" stroke="rgba(255,255,255,0.08)" strokeWidth="6.5" fill="none" />
+                  {/* Glowing segment */}
+                  <Circle
+                    cx="70"
+                    cy="70"
+                    r="56"
+                    stroke="#FFFFFF"
+                    strokeWidth="6.5"
+                    strokeLinecap="round"
+                    strokeDasharray="100 250"
+                    fill="none"
+                  />
+                </Svg>
+              </Animated.View>
+
+              {/* Centered Delicious Milk Cake (Splashes when loading complete) */}
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  transform: [{ scale: itemSplashScaleAnim }],
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Svg width="90" height="90" viewBox="0 0 90 90">
+                  {/* Milk puddle base */}
+                  <Path d="M 15 65 Q 45 78 75 65 Q 85 70 70 76 Q 45 82 20 76 Q 5 70 15 65 Z" fill="#BAE6FD" opacity="0.8" />
+                  
+                  {/* Cake body/slice (isometric projection/3D effect) */}
+                  {/* Bottom sponge layer */}
+                  <Path d="M 20 55 L 45 68 L 70 55 L 70 60 L 45 73 L 20 60 Z" fill="#FDE047" />
+                  {/* Middle milk cream layer */}
+                  <Path d="M 20 50 L 45 63 L 70 50 L 70 55 L 45 68 L 20 55 Z" fill="#FFFFFF" />
+                  {/* Top sponge layer */}
+                  <Path d="M 20 45 L 45 58 L 70 45 L 70 50 L 45 63 L 20 50 Z" fill="#FDE047" />
+                  {/* Whipped cream topping */}
+                  <Path d="M 20 45 L 45 58 L 70 45 L 45 38 Z" fill="#FEF08A" />
+                  
+                  {/* Milk drips on the cake side */}
+                  <Path d="M 28 50 Q 32 58 35 50 Q 38 60 41 52" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                  <Path d="M 52 50 Q 55 58 58 50 Q 61 60 64 52" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                  
+                  {/* Bright red cherry on top */}
+                  <Circle cx="45" cy="36" r="6.5" fill="#EF4444" />
+                  {/* Cherry stem */}
+                  <Path d="M 45 30 Q 42 22 48 18" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  
+                  {/* Glowing halo indicator */}
+                  <Circle cx="45" cy="45" r="30" stroke="rgba(255,255,255,0.2)" strokeWidth="1" fill="none" />
+                </Svg>
+              </Animated.View>
+            </View>
+
+            <Text style={{
+              color: '#FFFFFF',
+              fontSize: 16,
+              fontWeight: '700',
+              marginTop: 15,
+              letterSpacing: 0.5,
+              opacity: 0.9,
+              fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
+            }}>
+              Preparing POS Menu...
+            </Text>
+          </LinearGradient>
+        </Animated.View>
       )}
     </View>
   );
