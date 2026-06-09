@@ -159,30 +159,61 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
     ...categories.map((c) => ({ id: c.id, name: c.name })),
   ];
 
-  const containerStyle =
+  const wrapperStyle =
     Platform.OS === 'web'
       ? ({
-          width: expanded ? EXPANDED_W : COLLAPSED_W,
+          width: pinned ? EXPANDED_W : COLLAPSED_W,
           minWidth: COLLAPSED_W,
           maxWidth: EXPANDED_W,
           flexShrink: 0,
+          height: '100%',
+          transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
+          willChange: 'width',
+          zIndex: 100,
+        } as any)
+      : {
+          width: pinned ? EXPANDED_W : COLLAPSED_W,
+          minWidth: COLLAPSED_W,
+          maxWidth: EXPANDED_W,
+          flexShrink: 0,
+          height: '100%',
+        };
+
+  const drawerStyle =
+    Platform.OS === 'web'
+      ? ({
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: expanded ? EXPANDED_W : COLLAPSED_W,
+          minWidth: COLLAPSED_W,
+          maxWidth: EXPANDED_W,
           flexDirection: 'column',
           height: '100%',
           transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
           willChange: 'width',
+          shadowColor: '#001b3a',
+          shadowOffset: { width: 4, height: 0 },
+          shadowOpacity: expanded && !pinned ? 0.25 : 0,
+          shadowRadius: 20,
+          elevation: expanded && !pinned ? 10 : 0,
         } as any)
       : {
+          position: 'absolute' as const,
+          left: 0,
+          top: 0,
+          bottom: 0,
           width: widthAnim,
           minWidth: COLLAPSED_W,
           maxWidth: EXPANDED_W,
-          flexShrink: 0,
           flexDirection: 'column' as const,
           height: '100%',
         };
 
   return (
     <View
-      style={containerStyle}
+      style={wrapperStyle}
       {...(Platform.OS === 'web'
         ? {
             onMouseEnter: () => setHovered(true),
@@ -190,173 +221,175 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           }
         : {})}
     >
-      {/* Background gradient */}
-      <LinearGradient
-        colors={['#0251b8', '#013b8c', '#012f70']}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      <SidebarDecoration />
-
-      {/* Logo area */}
-      <View
-        style={{
-          width: '100%',
-          paddingTop: 22,
-          paddingBottom: 20,
-          paddingHorizontal: 10,
-          borderBottomWidth: 1,
-          borderBottomColor: 'rgba(255,255,255,0.12)',
-          alignItems: 'center',
-          overflow: 'hidden',
-        }}
-      >
-        <Image
-          source={leLabanLogo}
-          style={{
-            height: expanded ? 52 : 32,
-            width: expanded ? 84 : 32,
-            resizeMode: 'contain',
-            opacity: 0.96,
-            ...(Platform.OS === 'web'
-              ? { transition: 'width 200ms cubic-bezier(0.4,0,0.2,1), height 200ms cubic-bezier(0.4,0,0.2,1)' }
-              : {}),
-          } as any}
-          accessibilityLabel="Le Leban logo"
+      <View style={drawerStyle}>
+        {/* Background gradient */}
+        <LinearGradient
+          colors={['#0251b8', '#013b8c', '#012f70']}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
-        <SidebarLabel expanded={expanded} style={{ alignItems: 'center' }}>
-          <Text
-            style={{
-              fontSize: 11,
-              fontWeight: '700',
-              letterSpacing: -0.3,
-              color: '#FFFFFF',
-              marginTop: 4,
-              whiteSpace: 'nowrap',
-            } as any}
-          >
-            Main Branch
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-            <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
-            <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' } as any}>
-              Online
-            </Text>
-          </View>
-        </SidebarLabel>
-      </View>
+        <SidebarDecoration />
 
-      {/* Category list */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        style={{ flex: 1 }}
-        contentContainerStyle={{
-          gap: 6,
-          paddingTop: 12,
-          paddingHorizontal: 6,
-          paddingBottom: 16,
-        }}
-      >
-        {tabs.map((item) => {
-          const isActive = selectedCategoryId === item.id;
-          return (
-            <Pressable
-              key={item.id ?? 'all'}
-              accessibilityRole="button"
-              onPress={() => onSelectCategory(item.id)}
-              style={({ hovered: h, pressed }: any) => [
-                {
-                  borderRadius: 14,
-                  height: 44,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'flex-start',
-                  paddingLeft: 12,
-                  paddingRight: 4,
-                  gap: 0,
-                  overflow: 'hidden',
-                },
-                isActive && {
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 10,
-                  elevation: 3,
-                },
-                !isActive && h && { backgroundColor: 'rgba(255,255,255,0.08)' },
-                pressed && { opacity: 0.85 },
-              ]}
+        {/* Logo area */}
+        <View
+          style={{
+            width: '100%',
+            paddingTop: 22,
+            paddingBottom: 20,
+            paddingHorizontal: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: 'rgba(255,255,255,0.12)',
+            alignItems: 'center',
+            overflow: 'hidden',
+          }}
+        >
+          <Image
+            source={leLabanLogo}
+            style={{
+              height: expanded ? 52 : 32,
+              width: expanded ? 84 : 32,
+              resizeMode: 'contain',
+              opacity: 0.96,
+              ...(Platform.OS === 'web'
+                ? { transition: 'width 200ms cubic-bezier(0.4,0,0.2,1), height 200ms cubic-bezier(0.4,0,0.2,1)' }
+                : {}),
+            } as any}
+            accessibilityLabel="Le Leban logo"
+          />
+          <SidebarLabel expanded={expanded} style={{ alignItems: 'center' }}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: '700',
+                letterSpacing: -0.3,
+                color: '#FFFFFF',
+                marginTop: 4,
+                whiteSpace: 'nowrap',
+              } as any}
             >
-              {isActive && (
-                <LinearGradient
-                  colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                  style={{
-                    position: 'absolute',
-                    top: 0, left: 0, right: 0, bottom: 0,
+              Main Branch
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
+              <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' } as any}>
+                Online
+              </Text>
+            </View>
+          </SidebarLabel>
+        </View>
+
+        {/* Category list */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            gap: 6,
+            paddingTop: 12,
+            paddingHorizontal: 6,
+            paddingBottom: 16,
+          }}
+        >
+          {tabs.map((item) => {
+            const isActive = selectedCategoryId === item.id;
+            return (
+              <Pressable
+                key={item.id ?? 'all'}
+                accessibilityRole="button"
+                onPress={() => onSelectCategory(item.id)}
+                style={({ hovered: h, pressed }: any) => [
+                  {
                     borderRadius: 14,
-                  }}
-                />
-              )}
+                    height: 44,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    paddingLeft: 12,
+                    paddingRight: 4,
+                    gap: 0,
+                    overflow: 'hidden',
+                  },
+                  isActive && {
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 10,
+                    elevation: 3,
+                  },
+                  !isActive && h && { backgroundColor: 'rgba(255,255,255,0.08)' },
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                {isActive && (
+                  <LinearGradient
+                    colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                    style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      borderRadius: 14,
+                    }}
+                  />
+                )}
 
-              {/* Icon — always visible */}
-              <View style={{ width: 18, alignItems: 'center', flexShrink: 0 }}>
-                {getCategoryIcon(item.name, isActive)}
-              </View>
+                {/* Icon — always visible */}
+                <View style={{ width: 18, alignItems: 'center', flexShrink: 0 }}>
+                  {getCategoryIcon(item.name, isActive)}
+                </View>
 
-              {/* Label — fades in via CSS, no layout jump */}
-              <SidebarLabel expanded={expanded} style={{ marginLeft: 10 }}>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    lineHeight: 15,
-                    fontWeight: isActive ? '600' : '500',
-                    color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
-                    whiteSpace: 'nowrap',
-                  } as any}
-                  numberOfLines={1}
-                >
-                  {item.name}
-                </Text>
-              </SidebarLabel>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                {/* Label — fades in via CSS, no layout jump */}
+                <SidebarLabel expanded={expanded} style={{ marginLeft: 10 }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      lineHeight: 15,
+                      fontWeight: isActive ? '600' : '500',
+                      color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
+                      whiteSpace: 'nowrap',
+                    } as any}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+                </SidebarLabel>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
-      {/* Pin / collapse footer */}
-      <Pressable
-        onPress={() => setPinned(!pinned)}
-        accessibilityLabel={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
-        style={({ hovered: h }: any) => ({
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: 12,
-          paddingVertical: 12,
-          borderTopWidth: 1,
-          borderTopColor: 'rgba(255,255,255,0.08)',
-          backgroundColor: '#002040',
-          opacity: h ? 1 : 0.8,
-        })}
-      >
-        <SidebarLabel expanded={expanded} style={{ marginRight: 6 }}>
-          <Text
-            style={{
-              fontSize: 8,
-              fontWeight: '700',
-              letterSpacing: 0.4,
-              color: 'rgba(255,255,255,0.4)',
-              whiteSpace: 'nowrap',
-            } as any}
-          >
-            {pinned ? 'PINNED' : 'AUTO-HIDE'}
-          </Text>
-        </SidebarLabel>
-        {pinned ? (
-          <PanelLeftClose size={14} color="rgba(255,255,255,0.5)" />
-        ) : (
-          <PanelLeft size={14} color="rgba(255,255,255,0.5)" />
-        )}
-      </Pressable>
+        {/* Pin / collapse footer */}
+        <Pressable
+          onPress={() => setPinned(!pinned)}
+          accessibilityLabel={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+          style={({ hovered: h }: any) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 12,
+            paddingVertical: 12,
+            borderTopWidth: 1,
+            borderTopColor: 'rgba(255,255,255,0.08)',
+            backgroundColor: '#002040',
+            opacity: h ? 1 : 0.8,
+          })}
+        >
+          <SidebarLabel expanded={expanded} style={{ marginRight: 6 }}>
+            <Text
+              style={{
+                fontSize: 8,
+                fontWeight: '700',
+                letterSpacing: 0.4,
+                color: 'rgba(255,255,255,0.4)',
+                whiteSpace: 'nowrap',
+              } as any}
+            >
+              {pinned ? 'PINNED' : 'AUTO-HIDE'}
+            </Text>
+          </SidebarLabel>
+          {pinned ? (
+            <PanelLeftClose size={14} color="rgba(255,255,255,0.5)" />
+          ) : (
+            <PanelLeft size={14} color="rgba(255,255,255,0.5)" />
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 }
