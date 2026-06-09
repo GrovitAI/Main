@@ -486,7 +486,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const categoryCount = categories.length;
 
   return (
-    <View className="flex-1 bg-surface-tint p-3 rounded-2xl">
+    <View className="flex-1 bg-surface-tint p-3 rounded-none">
       
       {/* 🚀 Header Area with Back button & "+ Add New Item" */}
       <View className="flex-row items-center justify-between pb-3 mb-3 flex-wrap gap-2">

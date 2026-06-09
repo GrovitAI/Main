@@ -391,7 +391,7 @@ export default function SettingsScreen() {
     <View style={{
       flex: 1,
       backgroundColor: '#F8FAFC',
-      paddingTop: activeTab === 'menu' ? (Platform.OS === 'ios' ? 36 : 16) : 0
+      paddingTop: activeTab === 'menu' ? (Platform.OS === 'ios' ? 36 : (Platform.OS === 'android' ? 16 : 0)) : 0
     }}>
       {/* Modern Premium Page Header */}
       {activeTab !== 'menu' && (
@@ -439,36 +439,36 @@ export default function SettingsScreen() {
       )}
 
       {/* Main Container with generous SaaS padding */}
-      <View className={`flex-1 ${activeTab === 'menu' ? 'px-4' : 'px-8'}`}>
+      <View className={`flex-1 ${activeTab === 'menu' ? 'px-0 mb-0' : 'px-8'}`}>
         
         {/* Segmented SaaS Navigation Tab Bar */}
-        <View className={`flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start ${
-          activeTab === 'menu' ? 'mb-3' : 'mb-8'
-        }`}>
-          {[
-            { key: 'system', label: 'System Settings', icon: Settings },
-            { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
-            { key: 'menu', label: 'Menu Catalog Manager', icon: BookOpen }
-          ].map((tab) => {
-            const isSel = activeTab === tab.key;
-            const Icon = tab.icon;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key as any)}
-                className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
-                  isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
-                }`}
-                style={isSel ? { elevation: 1 } : {}}
-              >
-                <Icon size={14} color={isSel ? '#0F172A' : '#64748B'} />
-                <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {activeTab !== 'menu' && (
+          <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start mb-8">
+            {[
+              { key: 'system', label: 'System Settings', icon: Settings },
+              { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
+              { key: 'menu', label: 'Menu Catalog Manager', icon: BookOpen }
+            ].map((tab) => {
+              const isSel = activeTab === tab.key;
+              const Icon = tab.icon;
+              return (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => setActiveTab(tab.key as any)}
+                  className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
+                    isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
+                  }`}
+                  style={isSel ? { elevation: 1 } : {}}
+                >
+                  <Icon size={14} color={isSel ? '#0F172A' : '#64748B'} />
+                  <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         {activeTab === 'printers' ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
@@ -1127,7 +1127,7 @@ export default function SettingsScreen() {
             </View>
           </ScrollView>
         ) : (
-          <MenuManagement onBack={() => setActiveTab('printers')} />
+          <MenuManagement onBack={() => setActiveTab('system')} />
         )}
       </View>
     </View>
