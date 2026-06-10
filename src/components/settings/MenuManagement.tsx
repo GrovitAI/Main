@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView } from 'react-native';
-import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download } from 'lucide-react-native';
+import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download, Trash2 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
@@ -69,6 +69,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const [inlinePriceId, setInlinePriceId] = useState<string | null>(null);
   const [inlinePriceValue, setInlinePriceValue] = useState('');
 
+
   // Three-dot Ellipsis active menus state
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
@@ -82,6 +83,9 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const [importSummary, setImportSummary] = useState<ProductValidationSummary | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Popover Action modal state
+  const [selectedProductForMenu, setSelectedProductForMenu] = useState<MenuProduct | null>(null);
 
   // Global Inventory Tracking State
   const [globalTracking, setGlobalTracking] = useState(() => {
@@ -374,14 +378,14 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
     }
   };
 
-  // Soft Delete / Archive with touch-safe warning
-  const handleArchive = (product: MenuProduct) => {
+  // Soft Delete with touch-safe confirmation warning
+  const handleDeleteProduct = (product: MenuProduct) => {
     setActiveMenuId(null);
-    const executeArchive = async () => {
+    const executeDelete = async () => {
       setLoading(true);
       const res = await archiveProduct(product.id);
       if (res.error) {
-        Alert.alert('Archive Failed', res.error);
+        Alert.alert('Delete Failed', res.error);
       } else {
         loadData();
       }
@@ -389,17 +393,17 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
     };
 
     if (Platform.OS === 'web') {
-      const confirmWeb = window.confirm(`Archive “${product.name}”?\n\nThis product will disappear from POS\nbut remain in sales history.`);
+      const confirmWeb = window.confirm(`Delete "${product.name}"?\n\nThis product will be removed from your active POS menu.`);
       if (confirmWeb) {
-        executeArchive();
+        executeDelete();
       }
     } else {
       Alert.alert(
-        `Archive “${product.name}”?`,
-        `This product will disappear from POS\nbut remain in sales history.`,
+        `Delete "${product.name}"?`,
+        `This product will be removed from your active POS menu.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Archive', style: 'destructive', onPress: executeArchive },
+          { text: 'Delete', style: 'destructive', onPress: executeDelete },
         ]
       );
     }
@@ -845,12 +849,10 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               const isInlineEditingPrice = inlinePriceId === item.id;
               const isAvailable = item.is_available ?? false;
               
-              // Ellipsis action menu popup toggler
-              const isMenuOpen = activeMenuId === item.id;
               const linkedRecipe = recipes.find(r => r.id === item.recipe_id);
 
               return (
-                <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 60, zIndex: isMenuOpen ? 50 : 1 }}>
+                <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 60 }}>
                   
                   {/* Left Column: Icon Thumbnail, Name, Category pill & Available Switch */}
                   <View className="flex-1 mr-2.5 flex-row items-center">
@@ -958,7 +960,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                   </View>
 
                   {/* Right Column: High Density Compact Icon Buttons */}
-                  <View className="flex-row items-center gap-1 z-10">
+                  <View className="flex-row items-center gap-1">
                     
                     {/* Pencil Edit button */}
                     <Pressable
@@ -970,42 +972,13 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                     </Pressable>
 
                     {/* Ellipsis Vertical options activator */}
-                    <View className="relative">
-                      <Pressable
-                        className="bg-white border border-slate-200 active:bg-slate-50 rounded-xl items-center justify-center shadow-xs"
-                        style={{ width: 30, height: 30 }}
-                        onPress={() => {
-                          setActiveMenuId(isMenuOpen ? null : item.id);
-                        }}
-                      >
-                        <MoreVertical size={12} color={colors.textSecondary} />
-                      </Pressable>
-
-                      {/* Mini contextual popup dropdown menu */}
-                      {isMenuOpen && (
-                        <View className="absolute right-0 top-8 bg-white border border-slate-200 shadow-xl rounded-2xl p-1 w-[150px] z-50">
-                          <Pressable
-                            onPress={() => handleToggleAvailability(item)}
-                            className="p-2 rounded-xl active:bg-slate-50 flex-row items-center gap-1.5"
-                          >
-                            <Check size={10} color={isAvailable ? '#f59e0b' : '#10b981'} />
-                            <Text className="text-[10px] font-bold text-text-primary">
-                              {isAvailable ? 'Out of Stock' : 'Mark Available'}
-                            </Text>
-                          </Pressable>
-                          
-                          <Pressable
-                            onPress={() => handleArchive(item)}
-                            className="p-2 rounded-xl active:bg-rose-50 flex-row items-center gap-1.5 border-t border-slate-100"
-                          >
-                            <Archive size={10} color="#dc2626" />
-                            <Text className="text-[10px] font-bold text-red-600">
-                              Archive Product
-                            </Text>
-                          </Pressable>
-                        </View>
-                      )}
-                    </View>
+                    <Pressable
+                      className="bg-white border border-slate-200 active:bg-slate-50 rounded-xl items-center justify-center shadow-xs"
+                      style={{ width: 30, height: 30 }}
+                      onPress={() => setSelectedProductForMenu(item)}
+                    >
+                      <MoreVertical size={12} color={colors.textSecondary} />
+                    </Pressable>
                   </View>
 
                 </View>
@@ -1340,6 +1313,95 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
 
             </View>
           </View>
+        </Modal>
+
+        {/* Contextual Options Action Modal */}
+        <Modal
+          visible={selectedProductForMenu !== null}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSelectedProductForMenu(null)}
+        >
+          <Pressable 
+            style={{ flex: 1, backgroundColor: 'rgba(0, 45, 90, 0.45)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+            onPress={() => setSelectedProductForMenu(null)}
+          >
+            <Pressable 
+              onPress={(e) => {
+                // Absorbs clicks inside the dialog so they don't trigger backdrop close
+                e.stopPropagation?.();
+              }}
+              style={{ width: '100%', maxWidth: 320, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 }}
+            >
+              
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: 4, textAlign: 'center' }}>
+                {selectedProductForMenu?.name}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '500', color: colors.textSecondary, marginBottom: 16, textAlign: 'center' }}>
+                Select an option below
+              </Text>
+
+              <View style={{ gap: 8 }}>
+                {/* Option 1: Edit Details */}
+                <Pressable
+                  onPress={() => {
+                    if (selectedProductForMenu) {
+                      handleOpenEdit(selectedProductForMenu);
+                    }
+                    setSelectedProductForMenu(null);
+                  }}
+                  className="flex-row items-center justify-center gap-2 p-3 rounded-xl border border-slate-200 active:bg-slate-50"
+                >
+                  <Edit2 size={13} color={colors.textSecondary} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>
+                    Edit Details
+                  </Text>
+                </Pressable>
+
+                {/* Option 2: Availability */}
+                <Pressable
+                  onPress={() => {
+                    if (selectedProductForMenu) {
+                      void handleToggleAvailability(selectedProductForMenu);
+                    }
+                    setSelectedProductForMenu(null);
+                  }}
+                  className="flex-row items-center justify-center gap-2 p-3 rounded-xl border border-slate-200 active:bg-slate-50"
+                >
+                  <Check size={13} color={selectedProductForMenu?.is_available ? '#f59e0b' : '#10b981'} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>
+                    {selectedProductForMenu?.is_available ? 'Mark Out of Stock' : 'Mark Available'}
+                  </Text>
+                </Pressable>
+
+                {/* Option 3: Delete */}
+                <Pressable
+                  onPress={() => {
+                    if (selectedProductForMenu) {
+                      handleDeleteProduct(selectedProductForMenu);
+                    }
+                    setSelectedProductForMenu(null);
+                  }}
+                  className="flex-row items-center justify-center gap-2 p-3 rounded-xl bg-red-50 border border-red-100 active:bg-red-100"
+                >
+                  <Trash2 size={13} color="#dc2626" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#dc2626' }}>
+                    Delete Item
+                  </Text>
+                </Pressable>
+
+                {/* Close / Cancel Button */}
+                <Pressable
+                  onPress={() => setSelectedProductForMenu(null)}
+                  className="p-3 rounded-xl items-center justify-center active:bg-slate-50 mt-2"
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>
+                    Cancel
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
       </View>
