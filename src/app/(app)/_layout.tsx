@@ -72,8 +72,8 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
   const widthAnim = useRef(new Animated.Value(0)).current;
   const hasInitialPosition = useRef(false);
 
-  // Hide / show animation for the tab bar
-  const hideAnim = useRef(new Animated.Value(0)).current; // 0 = visible, 1 = hidden
+  // Hide / show animation for the tab bar (initialize to 1 if already hidden on mount)
+  const hideAnim = useRef(new Animated.Value(tabBarHidden ? 1 : 0)).current; // 0 = visible, 1 = hidden
   useEffect(() => {
     Animated.timing(hideAnim, {
       toValue: tabBarHidden ? 1 : 0,
@@ -266,7 +266,10 @@ export default function AppTabLayout() {
   const initialRouteName = getInitialRouteNameForRole(CURRENT_ROLE);
   const segments = useSegments();
   const pathname = usePathname();
-  const [tabBarHidden, setTabBarHidden] = useState(false);
+  // Pre-hide the tab bar on reload if the initial screen is the POS billing screen (which plays the splash video)
+  const cleanPath = (pathname || '').split('?')[0].replace(/^\/|\/$/g, '').toLowerCase();
+  const isInitialPathLoading = cleanPath === '' || cleanPath === 'index' || cleanPath === '(app)' || cleanPath === '(app)/index';
+  const [tabBarHidden, setTabBarHidden] = useState(isInitialPathLoading);
 
   const segmentsRef = useRef(segments);
   useEffect(() => {

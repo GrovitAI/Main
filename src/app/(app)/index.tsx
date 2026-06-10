@@ -41,6 +41,7 @@ import {
 } from '@/lib/pos/products-service';
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
 import { seedDevDatabase } from '@/lib/pos/dev-seed';
+import { useTabBarHidden } from '@/lib/pos/ui-context';
 
 const TABLET_BREAKPOINT = 768;
 
@@ -304,6 +305,15 @@ export default function PosBillingScreen() {
 
   // Loading animations & splash states
   const [loadingFinished, setLoadingFinished] = useState(false);
+  const [isModalMounted, setIsModalMounted] = useState(false);
+
+  useEffect(() => {
+    setIsModalMounted(true);
+  }, []);
+
+  // Hide the tab bar when initial loading screen is active
+  useTabBarHidden(!loadingFinished);
+
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
   const loadingFadeAnim = useRef(new Animated.Value(1)).current;
   const loadingScaleAnim = useRef(new Animated.Value(1)).current;
@@ -1469,7 +1479,16 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View className="flex-1 flex-row" style={{ backgroundColor: '#F5F8FC' }}>
+    <View style={{ flex: 1, backgroundColor: '#0F2744' }}>
+      <View
+        className="flex-1 flex-row"
+        style={{
+          flex: 1,
+          flexDirection: 'row',
+          backgroundColor: '#F5F8FC',
+          opacity: (!loadingFinished && !isModalMounted) ? 0 : 1,
+        }}
+      >
       {/* Popover click outside backdrop */}
       {popoverVisible && (
         <Pressable
@@ -1718,6 +1737,8 @@ export default function PosBillingScreen() {
           </View>
         </View>
       )}
+
+      </View>
 
       {/* 🚀 Splash Screen Loading Overlay */}
       {!loadingFinished && (
