@@ -409,27 +409,6 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
     }
   };
 
-  // Helper for rendering high-quality category icons on visual thumbnails
-  const renderProductImage = (catId: string) => {
-    const defaultColor = 'bg-slate-100 border-slate-200';
-    if (!catId) return <View className={`w-10 h-10 rounded-xl justify-center items-center mr-2.5 border ${defaultColor}`}><Tag size={13} color={colors.textSecondary} /></View>;
-
-    const index = catId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4;
-    const icons = [
-      { bg: 'bg-emerald-50 border-emerald-100', icon: <Coffee size={14} color="#059669" /> },
-      { bg: 'bg-rose-50 border-rose-100', icon: <Sparkles size={14} color="#e11d48" /> },
-      { bg: 'bg-amber-50 border-amber-100', icon: <Layers size={14} color="#d97706" /> },
-      { bg: 'bg-violet-50 border-violet-100', icon: <Tag size={14} color="#7c3aed" /> },
-    ];
-
-    const schema = icons[index] ?? { bg: defaultColor, icon: <Tag size={14} color={colors.textSecondary} /> };
-    return (
-      <View className={`w-10 h-10 rounded-xl justify-center items-center mr-2.5 border ${schema.bg}`}>
-        {schema.icon}
-      </View>
-    );
-  };
-
   // Dynamic Category color-coding maps
   const getCategoryColorSchema = (catId: string) => {
     const defaultSchema = { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700' };
@@ -854,12 +833,9 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               return (
                 <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 60 }}>
                   
-                  {/* Left Column: Icon Thumbnail, Name, Category pill & Available Switch */}
+                  {/* Left Column: Name, Category pill & Available Switch */}
                   <View className="flex-1 mr-2.5 flex-row items-center">
                     
-                    {/* Visual Rounded Category Icon Thumbnail */}
-                    {renderProductImage(item.category_id ?? '')}
-
                     <View className="flex-1 flex-col justify-center">
                       <View className="flex-row items-center gap-1.5 flex-wrap">
                         <Text className="font-bold text-[12.5px] text-text-primary select-all">{item.name}</Text>
