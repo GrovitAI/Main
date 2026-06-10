@@ -66,6 +66,12 @@ function padLine(left: string, right: string, width: number): string {
   return left + ' '.repeat(spacesNeeded) + right;
 }
 
+function centerTextLocal(text: string, width: number): string {
+  if (text.length >= width) return text.substring(0, width);
+  const spaces = Math.floor((width - text.length) / 2);
+  return ' '.repeat(spaces) + text + ' '.repeat(width - text.length - spaces);
+}
+
 /**
  * Generates formatting layout width based on the paper size.
  */
@@ -176,37 +182,91 @@ export const printerService = {
   printKot: async (kotNumber: number, items: { name: string; quantity: number }[]): Promise<void> => {
     try {
       const res = await fetchPrinters();
+      let kitchenPrinters: any[] = [];
       if (res.error || !res.data) {
         console.warn('[Printer] Unable to load printers for KOT:', res.error);
-        return;
+      } else {
+        kitchenPrinters = res.data.filter(p => p.is_active && p.printer_role === 'kitchen');
       }
 
-      const kitchenPrinters = res.data.filter(p => p.is_active && p.printer_role === 'kitchen');
-      if (kitchenPrinters.length === 0) {
-        console.log('[Printer] No active kitchen printers configured.');
-        return;
+      if (kitchenPrinters.length > 0) {
+        for (const printer of kitchenPrinters) {
+          const width = getLineWidth(printer.paper_width);
+          const divider = '-'.repeat(width) + '\n';
+
+          const lines: string[] = [
+            '\x1Ba\x01', // Center
+            '\x1B!\x18', // Bold double height
+            '     KITCHEN TICKET     \n\n',
+            '\x1B!\x00', // Reset
+            '\x1Ba\x00', // Left
+            `KOT Number: #${kotNumber}\n`,
+            `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`,
+            divider,
+            padLine('Qty & Item', '', width) + '\n',
+            divider,
+            ...items.map(item => `${item.quantity}x ${item.name}\n`),
+            divider,
+          ];
+
+          await printRawToPrinter(printer, lines);
+        }
+      } else {
+        console.log('[Printer] No active network kitchen printers configured.');
       }
 
-      for (const printer of kitchenPrinters) {
-        const width = getLineWidth(printer.paper_width);
-        const divider = '-'.repeat(width) + '\n';
+      // 2. Local OS Printer (if configured in localStorage)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const localPrinter = window.localStorage.getItem('billingPrinter');
+        if (localPrinter) {
+          const width = 32; // standard 58mm width
+          const divider = '='.repeat(width);
+          const dashedDivider = '-'.repeat(width);
 
-        const lines: string[] = [
-          '\x1Ba\x01', // Center
-          '\x1B!\x18', // Bold double height
-          '     KITCHEN TICKET     \n\n',
-          '\x1B!\x00', // Reset
-          '\x1Ba\x00', // Left
-          `KOT Number: #${kotNumber}\n`,
-          `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`,
-          divider,
-          padLine('Qty & Item', '', width) + '\n',
-          divider,
-          ...items.map(item => `${item.quantity}x ${item.name}\n`),
-          divider,
-        ];
+          const lines: string[] = [];
+          lines.push(centerTextLocal('*** KITCHEN TICKET ***', width));
+          lines.push(divider);
+          lines.push(padLine(`KOT Number: #${kotNumber}`, '', width));
+          
+          const formattedDate = new Date().toLocaleDateString('en-GB');
+          const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+          lines.push(padLine('Date:', `${formattedDate} ${formattedTime}`, width));
+          lines.push(divider);
+          
+          lines.push(padLine('Qty & Item', '', width));
+          lines.push(dashedDivider);
+          
+          items.forEach((item) => {
+            lines.push(padLine(`${item.quantity}x`, item.name, width));
+          });
 
-        await printRawToPrinter(printer, lines);
+          lines.push(divider);
+          lines.push('\n\n\n\n'); // Safe paper feed spacing
+
+          const content = lines.join('\n');
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 4000);
+          try {
+            await fetch('http://localhost:4545/print', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                printerName: localPrinter,
+                type: 'bill',
+                content,
+              }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            console.log('[Printer] Local KOT print job submitted successfully.');
+          } catch (localErr) {
+            clearTimeout(timeoutId);
+            console.warn('[Printer] Failed to print local KOT:', localErr);
+          }
+        }
       }
     } catch (err) {
       console.warn('[Printer] printKot caught error (ignored to avoid blocking POS):', err);
