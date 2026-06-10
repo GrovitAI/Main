@@ -447,6 +447,7 @@ export default function InventoryScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [isMasterExpanded, setIsMasterExpanded] = useState(false);
 
   // Sidebar collapse state
@@ -5315,12 +5316,19 @@ export default function InventoryScreen() {
 
             <View className="flex-row items-center gap-4">
               <View className="relative">
-                <Pressable className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-full items-center justify-center active:scale-95">
+                <Pressable
+                  onPress={() => setShowNotifications(true)}
+                  className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-full items-center justify-center active:scale-95"
+                >
                   <Bell size={18} color="#475569" />
                 </Pressable>
-                <View className="absolute top-0 right-0 bg-red-500 rounded-full w-4 h-4 items-center justify-center border border-white">
-                  <Text className="text-[8px] font-black text-white leading-none">3</Text>
-                </View>
+                {lowStockMaterials.length > 0 && (
+                  <View className="absolute top-0 right-0 bg-red-500 rounded-full w-4 h-4 items-center justify-center border border-white">
+                    <Text className="text-[8px] font-black text-white leading-none">
+                      {lowStockMaterials.length > 9 ? '9+' : lowStockMaterials.length}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View className="flex-row items-center gap-2 border-l border-slate-200 pl-4">
@@ -5603,6 +5611,97 @@ export default function InventoryScreen() {
           </View>
           <Pressable className="flex-1" onPress={() => setIsMobileMenuOpen(false)} />
         </View>
+      </Modal>
+
+      {/* ─── NOTIFICATIONS MODAL ──────────────────────────────────────────── */}
+      <Modal
+        visible={showNotifications}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowNotifications(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(15,39,68,0.35)' }}
+          onPress={() => setShowNotifications(false)}
+        >
+          <Pressable
+            onPress={(e) => { e.stopPropagation?.(); }}
+            style={{
+              position: 'absolute',
+              top: 64,
+              right: 24,
+              width: 340,
+              backgroundColor: '#FFFFFF',
+              borderRadius: 20,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.15,
+              shadowRadius: 24,
+              elevation: 12,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Bell size={15} color="#0f2744" />
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f2744' }}>Notifications</Text>
+                {lowStockMaterials.length > 0 && (
+                  <View style={{ backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>{lowStockMaterials.length}</Text>
+                  </View>
+                )}
+              </View>
+              <Pressable onPress={() => setShowNotifications(false)} style={{ padding: 4 }}>
+                <X size={16} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            {/* Body */}
+            {lowStockMaterials.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center' }}>
+                  <Bell size={20} color="#22c55e" />
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155' }}>All clear!</Text>
+                <Text style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>No low stock alerts at this time.</Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                <View style={{ padding: 10, gap: 6 }}>
+                  {lowStockMaterials.map((m) => (
+                    <Pressable
+                      key={m.id}
+                      onPress={() => { setShowNotifications(false); setActiveTab('alerts'); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 12, padding: 12 }}
+                    >
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Bell size={14} color="#D97706" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }} numberOfLines={1}>{m.material_name}</Text>
+                        <Text style={{ fontSize: 10, color: '#B45309', marginTop: 1 }}>
+                          Stock: {m.current_stock} {m.unit_short_name ?? ''} — Reorder at {m.reorder_level} {m.unit_short_name ?? ''}
+                        </Text>
+                      </View>
+                      <View style={{ backgroundColor: '#F59E0B', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase' }}>Low</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+
+            {/* Footer */}
+            <Pressable
+              onPress={() => { setShowNotifications(false); setActiveTab('alerts'); }}
+              style={{ margin: 10, marginTop: 4, backgroundColor: '#0f2744', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>View All Alerts →</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ─── MODAL DIALOGS ─────────────────────────────────────────────────── */}
