@@ -2025,7 +2025,10 @@ export default function InventoryScreen() {
       <View className="flex-1 flex-col gap-4">
         
         {/* ─── 3. ADVANCED FILTERS CONSOLE ───────────────────────────────────── */}
-        <View className="bg-white border border-slate-200 rounded-2xl p-4 gap-3 shadow-xs">
+        <View 
+          className="bg-white border border-slate-200 rounded-2xl p-4 gap-3 shadow-xs"
+          style={{ zIndex: (isCategoryDropdownOpen || isLocationDropdownOpen) ? 100 : 10, position: 'relative' }}
+        >
           
           {/* Row 1: Status pills */}
           <View className="flex-row items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">

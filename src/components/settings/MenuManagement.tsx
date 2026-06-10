@@ -574,7 +574,10 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       <View className="flex-1 bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
         
         {/* 🔍 Wide Search & Dropdown Filters Bar */}
-        <View className="flex-col lg:flex-row gap-3 mb-4 items-stretch lg:items-center">
+        <View 
+          className="flex-col lg:flex-row gap-3 mb-4 items-stretch lg:items-center"
+          style={{ zIndex: (showCategoryDropdown || showAvailabilityDropdown || showSortDropdown) ? 100 : 10, position: 'relative' }}
+        >
           {/* Search Box */}
           <View className="flex-1 flex-row items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5" style={{ height: 34 }}>
             <Search size={12} color={colors.textSecondary} className="mr-1.5" />
