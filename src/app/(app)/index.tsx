@@ -15,7 +15,7 @@ import {
   Easing,
   Animated,
 } from 'react-native';
-import { Search, Plus } from 'lucide-react-native';
+import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useNavigation } from 'expo-router';
@@ -304,6 +304,8 @@ export default function PosBillingScreen() {
   // Loading animations & splash states
   const [loadingFinished, setLoadingFinished] = useState(false);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const loadingProgress = useRef(new Animated.Value(0)).current;
   const loadingFadeAnim = useRef(new Animated.Value(1)).current;
   const loadingScaleAnim = useRef(new Animated.Value(1)).current;
   const loadingSpinAnim = useRef(new Animated.Value(0)).current;
@@ -312,12 +314,34 @@ export default function PosBillingScreen() {
   const loadingBreathingAnim = useRef(new Animated.Value(0)).current;
   const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Enforce minimum 3 seconds loader display
+  // Enforce minimum 3 seconds loader display and animate progress bar
   useEffect(() => {
+    Animated.timing(loadingProgress, {
+      toValue: 1,
+      duration: 3000,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+
     const timer = setTimeout(() => {
       setMinTimeElapsed(true);
     }, 3000);
-    return () => clearTimeout(timer);
+
+    const startTime = Date.now();
+    const duration = 3000;
+    const progressInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(100, Math.floor((elapsed / duration) * 100));
+      setProgressPercent(pct);
+      if (pct >= 100) {
+        clearInterval(progressInterval);
+      }
+    }, 30);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(progressInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -446,6 +470,39 @@ export default function PosBillingScreen() {
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
+
+  const dessertHoverY = loadingBreathingAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-6, 6],
+  });
+
+  const renderCheckItem = (label: string, sub: string, checked: boolean) => {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 160 }}>
+        {checked ? (
+          <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#22C55E', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '900', marginTop: -1 }}>✓</Text>
+          </View>
+        ) : (
+          <Animated.View style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            borderWidth: 2,
+            borderColor: 'rgba(51, 153, 255, 0.2)',
+            borderTopColor: '#3399ff',
+            transform: [{
+              rotate: rotateSpin
+            }]
+          }} />
+        )}
+        <View style={{ alignItems: 'flex-start' }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' }}>{label}</Text>
+          <Text style={{ color: checked ? '#A3E635' : '#94A3B8', fontSize: 9.5, fontWeight: '600', marginTop: 1 }}>{sub}</Text>
+        </View>
+      </View>
+    );
+  };
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -1781,163 +1838,333 @@ export default function PosBillingScreen() {
           }}
         >
           <LinearGradient
-            colors={[colors.primaryNavy, colors.primaryDeep]}
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+            colors={[colors.primaryNavy, colors.primaryDeep, colors.primaryNavy]}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 40, paddingHorizontal: 20 }}
           >
-            {/* Custom Svg Cute Kid Drawing */}
-            <Animated.View
-              style={{
+            {/* Top Logo & Header */}
+            <View style={{ alignItems: 'center', marginTop: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {/* Logo Icon: Rounded blue gradient square with stylized white "A" */}
+                <View style={{ width: 42, height: 42, borderRadius: 12, overflow: 'hidden' }}>
+                  <LinearGradient colors={['#3399ff', '#0066b2']} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width="24" height="24" viewBox="0 0 24 24">
+                      <Path d="M12 3 L20 18 L16 18 L12 10 L8 18 L4 18 Z" fill="#FFFFFF" />
+                      <Circle cx="12" cy="14" r="2.5" fill="#FFFFFF" />
+                    </Svg>
+                  </LinearGradient>
+                </View>
+                <Text style={{ fontSize: 24, fontWeight: '900', letterSpacing: 0.5 }}>
+                  <Text style={{ color: '#FFFFFF' }}>LE LEBAN </Text>
+                  <Text style={{ color: '#3399ff' }}>POS</Text>
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                <View style={{ width: 16, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600', letterSpacing: 0.5 }}>
+                  Preparing Today's Service
+                </Text>
+                <View style={{ width: 16, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' }} />
+              </View>
+            </View>
+
+            {/* Central Section: Orbit, Character, Dessert and Outline Icons */}
+            <View style={{
+              width: 320,
+              height: 320,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              {/* Floating outlines around orbit */}
+              <View style={{ position: 'absolute', top: 35, left: 35, opacity: 0.15 }}>
+                <Soup size={26} color="#FFFFFF" />
+              </View>
+              <View style={{ position: 'absolute', top: 35, right: 35, opacity: 0.15 }}>
+                <GlassWater size={26} color="#FFFFFF" />
+              </View>
+              <View style={{ position: 'absolute', bottom: 45, left: 35, opacity: 0.15 }}>
+                <Leaf size={26} color="#FFFFFF" />
+              </View>
+              <View style={{ position: 'absolute', bottom: 45, right: 35, opacity: 0.15 }}>
+                <ChefHat size={26} color="#FFFFFF" />
+              </View>
+
+              {/* Orbit Dotted Circle Track */}
+              <View style={{ position: 'absolute', width: 280, height: 280, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width="280" height="280" viewBox="0 0 280 280">
+                  <Circle cx="140" cy="140" r="125" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeDasharray="5 7" fill="none" />
+                </Svg>
+              </View>
+
+              {/* Rotating Nodes Wrapper (Native animated rotation) */}
+              <Animated.View style={{
+                position: 'absolute',
+                width: 280,
+                height: 280,
+                transform: [{ rotate: rotateSpin }]
+              }}>
+                {/* Glowing Node 1 (Top-Right at ~45 deg) */}
+                <View style={{
+                  position: 'absolute',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: '#3399ff',
+                  left: 223,
+                  top: 47,
+                  shadowColor: '#3399ff',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 1,
+                  shadowRadius: 6,
+                  elevation: 5,
+                }} />
+
+                {/* Glowing Node 2 (Left at ~180 deg) */}
+                <View style={{
+                  position: 'absolute',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: '#3399ff',
+                  left: 10,
+                  top: 135,
+                  shadowColor: '#3399ff',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 1,
+                  shadowRadius: 6,
+                  elevation: 5,
+                }} />
+
+                {/* Glowing Node 3 (Bottom-Right at ~300 deg) */}
+                <View style={{
+                  position: 'absolute',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: '#3399ff',
+                  left: 197,
+                  top: 243,
+                  shadowColor: '#3399ff',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 1,
+                  shadowRadius: 6,
+                  elevation: 5,
+                }} />
+              </Animated.View>
+
+              {/* Kid Chef SVG with hands cupping face */}
+              <Animated.View style={{
+                position: 'absolute',
                 alignItems: 'center',
-                marginBottom: 10,
                 width: 180,
-                height: 220,
+                height: 200,
+                bottom: 30,
                 transform: [
                   { translateY: kidTranslateY },
                   { scaleY: kidScaleY }
                 ]
-              }}
-            >
-              <Svg width="180" height="220" viewBox="0 0 180 220">
-                {/* 1. Bib / Collar */}
-                <Path d="M 50 148 Q 90 178 130 148 Q 135 200 45 200 Z" fill="#E0F2FE" stroke="#BAE6FD" strokeWidth="2" />
-                <Circle cx="90" cy="170" r="4" fill="#0284C7" />
-                
-                {/* 2. Kid Face */}
-                <Circle cx="90" cy="110" r="42" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="3" />
-                
-                {/* 3. Hair (cute brown bangs) */}
-                {/* Back hair */}
-                <Path d="M 40 110 Q 90 40 140 110 Q 155 110 150 90 Q 90 20 30 90 Z" fill="#7C2D12" />
-                {/* Front bangs */}
-                <Path d="M 46 95 Q 70 75 90 92 Q 110 75 134 95 Q 110 65 70 65 Z" fill="#7C2D12" />
-                
-                {/* 4. Cute blushing cheeks */}
-                <Circle cx="62" cy="122" r="7" fill="#FECDD3" opacity="0.9" />
-                <Circle cx="118" cy="122" r="7" fill="#FECDD3" opacity="0.9" />
-                
-                {/* 5. Open Happy Mouth */}
-                <Path d="M 74 122 Q 90 142 106 122 Q 90 116 74 122 Z" fill="#9F1239" />
-                {/* Cute little tongue */}
-                <Path d="M 82 128 Q 90 138 98 128 Z" fill="#F43F5E" />
-                
-                {/* Small nose */}
-                <Path d="M 88 112 Q 90 115 92 112" stroke="#FDA4AF" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                
-                {/* Cute ears */}
-                <Circle cx="45" cy="110" r="8" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="2" />
-                <Circle cx="135" cy="110" r="8" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="2" />
-              </Svg>
+              }}>
+                <Svg width="180" height="200" viewBox="0 0 180 200">
+                  {/* White Chef Coat / Uniform */}
+                  <Path d="M 40 142 L 140 142 L 152 200 L 28 200 Z" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1.5" />
+                  {/* Blue double-breasted buttons */}
+                  <Circle cx="76" cy="164" r="3" fill="#0066b2" />
+                  <Circle cx="104" cy="164" r="3" fill="#0066b2" />
+                  <Circle cx="76" cy="178" r="3" fill="#0066b2" />
+                  <Circle cx="104" cy="178" r="3" fill="#0066b2" />
+                  {/* Blue collar trim */}
+                  <Path d="M 54 142 Q 90 166 126 142" fill="none" stroke="#0066b2" strokeWidth="4.5" strokeLinecap="round" />
 
-              {/* 6. Staring Eyes Svg (will blink) */}
-              <Animated.View
-                style={{
-                  position: 'absolute',
-                  top: 89,
-                  left: 55,
-                  transform: [{ scaleY: loadingBlinkAnim }],
-                }}
-              >
-                <Svg width="70" height="22" viewBox="0 0 70 22">
-                  <Circle cx="11" cy="11" r="11" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
-                  <Circle cx="15" cy="9" r="6.5" fill="#1E293B" />
-                  <Circle cx="17" cy="6" r="2.5" fill="#FFFFFF" />
-                  
-                  <Circle cx="59" cy="11" r="11" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
-                  <Circle cx="63" cy="9" r="6.5" fill="#1E293B" />
-                  <Circle cx="65" cy="6" r="2.5" fill="#FFFFFF" />
+                  {/* Face skin */}
+                  <Circle cx="90" cy="105" r="40" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="2.5" />
+
+                  {/* Cute ears */}
+                  <Circle cx="47" cy="105" r="7.5" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1.5" />
+                  <Circle cx="133" cy="105" r="7.5" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1.5" />
+
+                  {/* Swept Brown Hair */}
+                  <Path d="M 45 105 Q 90 38 135 105 Q 148 105 144 87 Q 90 20 36 87 Z" fill="#7C2D12" />
+                  <Path d="M 48 91 Q 70 72 90 88 Q 110 72 132 91 Q 110 62 70 62 Z" fill="#7C2D12" />
+
+                  {/* Blushing cheeks */}
+                  <Circle cx="64" cy="116" r="6.5" fill="#FECDD3" opacity="0.9" />
+                  <Circle cx="116" cy="116" r="6.5" fill="#FECDD3" opacity="0.9" />
+
+                  {/* Open happy mouth */}
+                  <Path d="M 76 117 Q 90 135 104 117 Q 90 112 76 117 Z" fill="#9F1239" />
+                  {/* Tongue */}
+                  <Path d="M 83 122 Q 90 131 97 122 Z" fill="#F43F5E" />
+
+                  {/* Nose */}
+                  <Path d="M 88 107 Q 90 109 92 107" stroke="#FDA4AF" strokeWidth="2" strokeLinecap="round" fill="none" />
+
+                  {/* Arms in white chef coat sleeve */}
+                  <Path d="M 32 195 Q 46 150 60 120" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" fill="none" />
+                  <Path d="M 148 195 Q 134 150 120 120" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" fill="none" />
+                  {/* Cute chubby hands cupping the cheeks */}
+                  <Circle cx="60" cy="118" r="9" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1" />
+                  <Circle cx="120" cy="118" r="9" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1" />
+                  {/* Cute finger lines */}
+                  <Path d="M 55 113 Q 58 107 62 113 M 58 111 Q 61 105 65 111" stroke="#FDA4AF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  <Path d="M 125 113 Q 122 107 118 113 M 122 111 Q 119 105 115 111" stroke="#FDA4AF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
                 </Svg>
-              </Animated.View>
 
-              {/* 💧 Animated Drool Droplet */}
-              <Animated.View
-                style={{
+                {/* Staring/Blinking Eyes Svg */}
+                <Animated.View style={{
                   position: 'absolute',
-                  left: 95,
+                  top: 88,
+                  left: 55,
+                  transform: [{ scaleY: loadingBlinkAnim }]
+                }}>
+                  <Svg width="70" height="22" viewBox="0 0 70 22">
+                    <Circle cx="12" cy="11" r="9" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
+                    <Circle cx="12" cy="7" r="5.5" fill="#1E293B" />
+                    <Circle cx="12.5" cy="4.5" r="2" fill="#FFFFFF" />
+
+                    <Circle cx="58" cy="11" r="9" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
+                    <Circle cx="58" cy="7" r="5.5" fill="#1E293B" />
+                    <Circle cx="58.5" cy="4.5" r="2" fill="#FFFFFF" />
+                  </Svg>
+                </Animated.View>
+
+                {/* Drool droplet */}
+                <Animated.View style={{
+                  position: 'absolute',
+                  left: 98,
                   top: droolY,
                   opacity: droolOpacity,
-                  transform: [{ scale: droolScale }],
-                }}
-              >
-                <Svg width="12" height="18" viewBox="0 0 12 18">
-                  <Path d="M6 0 C9 4 11 7.5 11 11.5 C11 14.5 8.75 17 6 17 C3.25 17 1 14.5 1 11.5 C1 7.5 3 4 6 0 Z" fill="#bae6fd" />
-                </Svg>
+                  transform: [{ scale: droolScale }]
+                }}>
+                  <Svg width="10" height="15" viewBox="0 0 10 15">
+                    <Path d="M 5 0 C 7.5 3.3 9.2 6.3 9.2 9.6 C 9.2 12.1 7.3 14.2 5 14.2 C 2.7 14.2 0.8 12.1 0.8 9.6 C 0.8 6.3 2.5 3.3 5 0 Z" fill="#93C5FD" />
+                  </Svg>
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
 
-            {/* Spinning Milk Cake Loader */}
-            <View style={{ alignItems: 'center', justifyContent: 'center', marginVertical: 15 }}>
-              {/* Outer Spin Ring */}
+              {/* Hovering Dessert (Milk Cake) Plate */}
               <Animated.View style={{
-                transform: [{
-                  rotate: rotateSpin
-                }]
+                position: 'absolute',
+                top: 25,
+                alignItems: 'center',
+                transform: [
+                  { scale: itemSplashScaleAnim },
+                  { translateY: dessertHoverY }
+                ]
               }}>
-                <Svg width="140" height="140" viewBox="0 0 140 140">
-                  {/* Faint background track */}
-                  <Circle cx="70" cy="70" r="56" stroke="rgba(255,255,255,0.08)" strokeWidth="6.5" fill="none" />
-                  {/* Glowing segment */}
-                  <Circle
-                    cx="70"
-                    cy="70"
-                    r="56"
-                    stroke="#FFFFFF"
-                    strokeWidth="6.5"
-                    strokeLinecap="round"
-                    strokeDasharray="100 250"
-                    fill="none"
-                  />
-                </Svg>
-              </Animated.View>
+                <Svg width="100" height="70" viewBox="0 0 100 70">
+                  {/* Plate/Bowl */}
+                  <Path d="M 10 40 C 10 58, 90 58, 90 40 C 90 28, 10 28, 10 40 Z" fill="#FFFFFF" stroke="rgba(51, 153, 255, 0.3)" strokeWidth="1.5" />
+                  <Path d="M 15 41 C 15 53, 85 53, 85 41" fill="none" stroke="#E2E8F0" strokeWidth="1" />
+                  {/* "LLEBAN" branding text on bowl */}
+                  <Path d="M 36 46 C 44 49, 56 49, 64 46" fill="none" stroke="#0066b2" strokeWidth="1.2" />
 
-              {/* Centered Delicious Milk Cake (Splashes when loading complete) */}
-              <Animated.View
-                style={{
-                  position: 'absolute',
-                  transform: [{ scale: itemSplashScaleAnim }],
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Svg width="90" height="90" viewBox="0 0 90 90">
-                  {/* Milk puddle base */}
-                  <Path d="M 15 65 Q 45 78 75 65 Q 85 70 70 76 Q 45 82 20 76 Q 5 70 15 65 Z" fill="#BAE6FD" opacity="0.8" />
-                  
-                  {/* Cake body/slice (isometric projection/3D effect) */}
+                  {/* Cake Slice */}
                   {/* Bottom sponge layer */}
-                  <Path d="M 20 55 L 45 68 L 70 55 L 70 60 L 45 73 L 20 60 Z" fill="#FDE047" />
-                  {/* Middle milk cream layer */}
-                  <Path d="M 20 50 L 45 63 L 70 50 L 70 55 L 45 68 L 20 55 Z" fill="#FFFFFF" />
+                  <Path d="M 25 34 L 50 46 L 75 34 L 75 39 L 50 51 L 25 39 Z" fill="#FDE047" />
+                  {/* Middle cream layer */}
+                  <Path d="M 25 29 L 50 41 L 75 29 L 75 34 L 50 46 L 25 39 Z" fill="#FFFFFF" />
                   {/* Top sponge layer */}
-                  <Path d="M 20 45 L 45 58 L 70 45 L 70 50 L 45 63 L 20 50 Z" fill="#FDE047" />
-                  {/* Whipped cream topping */}
-                  <Path d="M 20 45 L 45 58 L 70 45 L 45 38 Z" fill="#FEF08A" />
-                  
-                  {/* Milk drips on the cake side */}
-                  <Path d="M 28 50 Q 32 58 35 50 Q 38 60 41 52" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                  <Path d="M 52 50 Q 55 58 58 50 Q 61 60 64 52" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-                  
-                  {/* Bright red cherry on top */}
-                  <Circle cx="45" cy="36" r="6.5" fill="#EF4444" />
-                  {/* Cherry stem */}
-                  <Path d="M 45 30 Q 42 22 48 18" stroke="#78350F" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  
-                  {/* Glowing halo indicator */}
-                  <Circle cx="45" cy="45" r="30" stroke="rgba(255,255,255,0.2)" strokeWidth="1" fill="none" />
+                  <Path d="M 25 24 L 50 36 L 75 24 L 75 29 L 50 41 L 25 34 Z" fill="#FDE047" />
+                  {/* Whipped Cream topping */}
+                  <Path d="M 25 24 L 50 36 L 75 24 L 50 18 Z" fill="#FEF08A" />
+
+                  {/* Cream drips */}
+                  <Path d="M 33 29 Q 36 34 39 29" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  <Path d="M 61 29 Q 64 34 67 29" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+
+                  {/* Cherry on top */}
+                  <Circle cx="50" cy="16" r="4.5" fill="#EF4444" />
+                  <Path d="M 50 11.5 Q 47 6 52 3" stroke="#78350F" strokeWidth="1" strokeLinecap="round" fill="none" />
+
+                  {/* Steam lines */}
+                  <Path d="M 42 6 Q 44 0 42 -6" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  <Path d="M 50 8 Q 52 2 50 -4" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  <Path d="M 58 6 Q 60 0 58 -6" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
                 </Svg>
               </Animated.View>
             </View>
 
-            <Text style={{
-              color: '#FFFFFF',
-              fontSize: 16,
-              fontWeight: '700',
-              marginTop: 15,
-              letterSpacing: 0.5,
-              opacity: 0.9,
-              fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
+            {/* Bottom Section: Progress bar, checklist container, and footer */}
+            <View style={{ width: '100%', alignItems: 'center' }}>
+              <Text style={{
+                color: '#FFFFFF',
+                fontSize: 26,
+                fontWeight: '700',
+                textAlign: 'center',
+                fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
+              }}>
+                Milk cake smells amazing...
+              </Text>
+              <Text style={{
+                color: '#3399ff',
+                fontSize: 16,
+                fontWeight: '600',
+                marginTop: 6,
+                textAlign: 'center',
+                fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
+              }}>
+                Almost ready!
+              </Text>
+
+              {/* Progress Bar and Percentage Count */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15, width: '100%', maxWidth: 420, marginTop: 22 }}>
+                <View style={{ flex: 1, height: 10, backgroundColor: 'rgba(0, 45, 90, 0.6)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(51, 153, 255, 0.15)' }}>
+                  <Animated.View style={{
+                    height: '100%',
+                    width: loadingProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                    backgroundColor: '#3399ff',
+                    borderRadius: 5,
+                  }} />
+                </View>
+                <Text style={{ color: '#3399ff', fontSize: 16, fontWeight: '800', width: 45, textAlign: 'right' }}>
+                  {progressPercent}%
+                </Text>
+              </View>
+
+              {/* Boot Status Checklist Panel */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: 'rgba(15, 39, 68, 0.4)',
+                borderWidth: 1,
+                borderColor: 'rgba(51, 153, 255, 0.15)',
+                borderRadius: 16,
+                paddingVertical: 14,
+                paddingHorizontal: 20,
+                width: '100%',
+                maxWidth: 680,
+                marginTop: 25,
+                gap: 15,
+              }}>
+                {renderCheckItem('Menu Loaded', progressPercent >= 28 ? '120 items' : 'Loading...', progressPercent >= 28)}
+                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                {renderCheckItem('Inventory Synced', progressPercent >= 56 ? '98% updated' : 'Syncing...', progressPercent >= 56)}
+                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                {renderCheckItem('Printers Connected', progressPercent >= 84 ? '3 devices' : 'Connecting...', progressPercent >= 84)}
+                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                {renderCheckItem('Kitchen Display', progressPercent >= 98 ? 'Ready' : 'Starting up...', progressPercent >= 98)}
+              </View>
+            </View>
+
+            {/* Branded Footer */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              opacity: 0.7,
+              marginBottom: 10,
             }}>
-              Preparing POS Menu...
-            </Text>
+              <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12, fontWeight: '500' }}>
+                💙 Thank you for choosing Le Leban POS
+              </Text>
+              <View style={{ width: 1, height: 12, backgroundColor: 'rgba(255, 255, 255, 0.3)' }} />
+              <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12, fontWeight: '500' }}>
+                Powering great restaurants 🚀
+              </Text>
+            </View>
           </LinearGradient>
         </Animated.View>
       )}
