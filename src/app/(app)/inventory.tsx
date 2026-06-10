@@ -562,8 +562,8 @@ export default function InventoryScreen() {
   const [purchasePaymentMode, setPurchasePaymentMode] = useState('UPI');
   const [purchaseTransportCharges, setPurchaseTransportCharges] = useState('0');
   const [purchaseRemarks, setPurchaseRemarks] = useState('');
-  const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; unit_price: string; gst: string; unit_short_name?: string }[]>([
-    { material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' },
+  const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; pack_size: string; unit_price: string; gst: string; unit_short_name?: string }[]>([
+    { material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' },
   ]);
   const [purchaseLocation, setPurchaseLocation] = useState('Dry Storage');
   const [purchaseInvoiceDate, setPurchaseInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1169,7 +1169,7 @@ export default function InventoryScreen() {
     setModalError(null);
     setPurchaseSupplierId('');
     setPurchaseInvoiceNum('');
-    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
+    setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
     setPurchaseTransportCharges('0');
     setPurchaseRemarks('');
     setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
@@ -1464,13 +1464,16 @@ export default function InventoryScreen() {
         !itm.quantity ||
         isNaN(Number(itm.quantity)) ||
         Number(itm.quantity) <= 0 ||
+        !itm.pack_size ||
+        isNaN(Number(itm.pack_size)) ||
+        Number(itm.pack_size) <= 0 ||
         !itm.unit_price ||
         isNaN(Number(itm.unit_price)) ||
         Number(itm.unit_price) <= 0
     );
 
     if (invalidItems) {
-      setModalError('Please enter valid Raw Material, Quantity (> 0), and Unit Price (> 0) for all items.');
+      setModalError('Please enter valid Raw Material, Quantity (> 0), Pack Size (> 0), and Unit Price (> 0) for all items.');
       return;
     }
 
@@ -1501,18 +1504,23 @@ export default function InventoryScreen() {
 
       const finalItems = purchaseItems
         .filter((itm) => itm.material_id && Number(itm.quantity) > 0)
-        .map((itm) => ({
-          material_id: itm.material_id,
-          quantity: Number(itm.quantity),
-          unit_price: Number(itm.unit_price),
-          line_total: Number(itm.quantity) * Number(itm.unit_price) * (1 + (Number(itm.gst || '0') / 100)),
-        }));
+        .map((itm) => {
+          const packSizeVal = Number(itm.pack_size) || 1;
+          const convertedQty = Number(itm.quantity) * packSizeVal;
+          const convertedUnitPrice = Number(itm.unit_price) / packSizeVal;
+          return {
+            material_id: itm.material_id,
+            quantity: convertedQty,
+            unit_price: convertedUnitPrice,
+            line_total: Number(itm.quantity) * Number(itm.unit_price) * (1 + (Number(itm.gst || '0') / 100)),
+          };
+        });
 
       const res = await createPurchase(headerPayload, finalItems, purchaseLocation);
       if (res.error) throw new Error(res.error);
       setActiveTab('purchases');
       setPurchaseSupplierId('');
-      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
+      setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
       setPurchaseRemarks('');
       setPurchaseInvoiceNum('');
       setPurchaseTransportCharges('0');
@@ -1613,7 +1621,7 @@ export default function InventoryScreen() {
   };
 
   const handleAddPurchaseLine = () => {
-    setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
+    setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
   };
 
   const handleUpdatePurchaseLine = (idx: number, key: string, value: string) => {
@@ -1622,7 +1630,7 @@ export default function InventoryScreen() {
     setPurchaseItems(next);
   };
 
-  const handleUpdatePurchaseLineMulti = (idx: number, fields: Partial<{ material_id: string; quantity: string; unit_price: string; gst: string; unit_short_name: string }>) => {
+  const handleUpdatePurchaseLineMulti = (idx: number, fields: Partial<{ material_id: string; quantity: string; pack_size: string; unit_price: string; gst: string; unit_short_name: string }>) => {
     const next = [...purchaseItems];
     next[idx] = { ...next[idx], ...fields };
     setPurchaseItems(next);
@@ -1630,7 +1638,7 @@ export default function InventoryScreen() {
 
   const handleRemovePurchaseLine = (idx: number) => {
     if (purchaseItems.length === 1) {
-      setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
+      setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
       return;
     }
     setPurchaseItems(purchaseItems.filter((_, i) => i !== idx));
@@ -3033,6 +3041,7 @@ export default function InventoryScreen() {
                       return {
                         material_id: line.material_id,
                         quantity: String(line.quantity),
+                        pack_size: '1',
                         unit_price: String(line.unit_price),
                         gst: '0',
                         unit_short_name: mat?.unit_short_name ?? '',
@@ -3040,7 +3049,7 @@ export default function InventoryScreen() {
                     });
                     setPurchaseItems(mappedLines);
                   } else {
-                    setPurchaseItems([{ material_id: '', quantity: '', unit_price: '', gst: '0', unit_short_name: '' }]);
+                    setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
                   }
                   // Navigate then close modal
                   setActiveTab('record_purchase');
@@ -3596,28 +3605,31 @@ export default function InventoryScreen() {
 
             {/* Structured Columns Header */}
             <View className="flex-row border-b border-slate-100 pb-2 px-1">
-              <View style={{ width: '20%' }} className="pr-4">
+              <View style={{ width: '18%' }} className="pr-4">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">RAW MATERIAL</Text>
               </View>
-              <View style={{ width: '10%' }} className="items-center justify-center pr-3">
+              <View style={{ width: '8%' }} className="items-center justify-center pr-3">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">UNIT</Text>
               </View>
-              <View style={{ width: '11%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">QUANTITY</Text>
+              <View style={{ width: '9%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">QTY</Text>
               </View>
-              <View style={{ width: '12%' }} className="items-center justify-center pr-3">
+              <View style={{ width: '10%' }} className="items-center justify-center pr-3">
+                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">PACK SIZE</Text>
+              </View>
+              <View style={{ width: '10%' }} className="items-center justify-center pr-3">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">RATE (₹)</Text>
               </View>
-              <View style={{ width: '11%' }} className="items-center justify-center pr-3">
+              <View style={{ width: '9%' }} className="items-center justify-center pr-3">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST (%)</Text>
               </View>
-              <View style={{ width: '13%' }} className="items-center justify-center pr-3">
+              <View style={{ width: '12%' }} className="items-center justify-center pr-3">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST AMOUNT (₹)</Text>
               </View>
-              <View style={{ width: '16%' }} className="items-center justify-center pr-3">
+              <View style={{ width: '18%' }} className="items-center justify-center pr-3">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">AMOUNT (₹)</Text>
               </View>
-              <View style={{ width: '7%' }} className="items-center justify-center">
+              <View style={{ width: '6%' }} className="items-center justify-center">
                 <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">ACTION</Text>
               </View>
             </View>
@@ -3651,7 +3663,7 @@ export default function InventoryScreen() {
                   >
                     
                     {/* Raw Material Select Dropdown */}
-                    <View style={{ width: '20%', zIndex: openLineMatDropdownIdx === idx ? 10000 : 1 }} className="relative pr-4">
+                    <View style={{ width: '18%', zIndex: openLineMatDropdownIdx === idx ? 10000 : 1 }} className="relative pr-4">
                       <Pressable
                         onPress={() => {
                           setOpenLineMatDropdownIdx(openLineMatDropdownIdx === idx ? null : idx);
@@ -3666,7 +3678,7 @@ export default function InventoryScreen() {
                       >
                         <View className="flex-col flex-1 pr-1">
                           <Text className="text-[11px] font-bold text-slate-700 truncate">
-                            {selectedMat ? selectedMat.material_name : 'Select raw material'}
+                            {selectedMat ? selectedMat.material_name : 'Select'}
                           </Text>
                           {selectedMat && (
                             <Text className="text-[9px] text-slate-400 font-bold mt-0.5">
@@ -3705,7 +3717,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Unit Box (Dropdown) */}
-                    <View style={{ width: '10%', zIndex: openLineUnitDropdownIdx === idx ? 10000 : 1 }} className="items-center justify-center relative pr-3">
+                    <View style={{ width: '8%', zIndex: openLineUnitDropdownIdx === idx ? 10000 : 1 }} className="items-center justify-center relative pr-3">
                       <Pressable
                         onPress={() => {
                           setOpenLineUnitDropdownIdx(openLineUnitDropdownIdx === idx ? null : idx);
@@ -3749,7 +3761,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Quantity input */}
-                    <View style={{ width: '11%' }} className="items-center justify-center pr-3">
+                    <View style={{ width: '9%' }} className="items-center justify-center pr-3">
                       <TextInput
                         value={itm.quantity}
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
@@ -3759,8 +3771,19 @@ export default function InventoryScreen() {
                       />
                     </View>
 
+                    {/* Pack Size input */}
+                    <View style={{ width: '10%' }} className="items-center justify-center pr-3">
+                      <TextInput
+                        value={itm.pack_size}
+                        onChangeText={(val) => handleUpdatePurchaseLine(idx, 'pack_size', val)}
+                        placeholder="1.00"
+                        keyboardType="numeric"
+                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                      />
+                    </View>
+
                     {/* Rate / price input */}
-                    <View style={{ width: '12%' }} className="items-center justify-center pr-3">
+                    <View style={{ width: '10%' }} className="items-center justify-center pr-3">
                       <TextInput
                         value={itm.unit_price}
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
@@ -3771,7 +3794,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* GST dropdown */}
-                    <View style={{ width: '11%', zIndex: openLineGstDropdownIdx === idx ? 10000 : 1 }} className="items-center justify-center relative pr-3">
+                    <View style={{ width: '9%', zIndex: openLineGstDropdownIdx === idx ? 10000 : 1 }} className="items-center justify-center relative pr-3">
                       <Pressable
                         onPress={() => {
                           setOpenLineGstDropdownIdx(openLineGstDropdownIdx === idx ? null : idx);
@@ -3811,7 +3834,7 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* GST Amount Column */}
-                    <View style={{ width: '13%' }} className="items-center justify-center pr-3">
+                    <View style={{ width: '12%' }} className="items-center justify-center pr-3">
                       <View className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-center shadow-xs">
                         <Text className="text-[11px] font-bold text-slate-500">
                           {gstAmount.toFixed(2)}
@@ -3820,14 +3843,14 @@ export default function InventoryScreen() {
                     </View>
 
                     {/* Amount Column */}
-                    <View style={{ width: '16%' }} className="items-center justify-center pr-3">
+                    <View style={{ width: '18%' }} className="items-center justify-center pr-3">
                       <Text className="text-xs font-black text-slate-800 text-center">
                         {amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
 
                     {/* Row Trash Remove item */}
-                    <View style={{ width: '7%' }} className="items-center justify-center">
+                    <View style={{ width: '6%' }} className="items-center justify-center">
                       <Pressable
                         onPress={() => handleRemovePurchaseLine(idx)}
                         className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
@@ -3873,7 +3896,7 @@ export default function InventoryScreen() {
         {/* 2. Total Quantity */}
         <View className="flex-1 items-center justify-center">
           <Text className="text-xs font-black text-slate-700">
-            {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0), 0).toFixed(2)}
+            {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.pack_size) || 1), 0).toFixed(2)}
           </Text>
           <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
         </View>
