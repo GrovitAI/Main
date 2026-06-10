@@ -1479,7 +1479,7 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#021a37' }}>
+    <View style={{ flex: 1, backgroundColor: colors.primaryNavy }}>
       <View
         className="flex-1 flex-row"
         style={{
@@ -1758,7 +1758,7 @@ export default function PosBillingScreen() {
               zIndex: 999999,
               opacity: loadingFadeAnim,
               transform: [{ scale: loadingScaleAnim }],
-              backgroundColor: '#021a37',
+              backgroundColor: colors.primaryNavy,
               alignItems: 'center',
               justifyContent: 'center',
             }}
