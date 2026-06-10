@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Dimensions,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, {
@@ -68,6 +69,43 @@ export default function AnalyticsScreen() {
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState<AnalyticsDashboard | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Franchise mode & royalty state
+  const [isFranchiseMode, setIsFranchiseMode] = useState(false);
+  const [royaltyRate, setRoyaltyRate] = useState(5.0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const storedFranchise = window.localStorage.getItem('franchiseMode');
+      if (storedFranchise !== null) {
+        setIsFranchiseMode(storedFranchise === 'true');
+      }
+      const storedRate = window.localStorage.getItem('franchiseRoyaltyRate');
+      if (storedRate !== null) {
+        const parsed = parseFloat(storedRate);
+        if (!isNaN(parsed)) setRoyaltyRate(parsed);
+      }
+    }
+  }, []);
+
+  const toggleFranchiseMode = (val: boolean) => {
+    setIsFranchiseMode(val);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('franchiseMode', String(val));
+    }
+  };
+
+  const updateRoyaltyRate = (rate: number) => {
+    // Clamp between 1.0% and 10.0%
+    const clamped = Math.max(1.0, Math.min(10.0, rate));
+    setRoyaltyRate(clamped);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('franchiseRoyaltyRate', String(clamped));
+    }
+  };
+
+  const decreaseRoyaltyRate = () => updateRoyaltyRate(royaltyRate - 0.5);
+  const increaseRoyaltyRate = () => updateRoyaltyRate(royaltyRate + 0.5);
 
   // Dynamic date preset calculations
   const applyPreset = (presetType: typeof preset) => {
@@ -704,6 +742,10 @@ export default function AnalyticsScreen() {
         dashboardData.kpis.totalOrders === 0 &&
         dashboardData.topSellingItems.length === 0);
 
+    const totalSales = kpis?.totalSales || 0;
+    const royaltyAmount = (totalSales * royaltyRate) / 100;
+    const netSales = totalSales - royaltyAmount;
+
     return (
       <View className="space-y-6">
         {/* KPIs ROW */}
@@ -782,6 +824,123 @@ export default function AnalyticsScreen() {
             </View>
           </View>
         )}
+
+        {/* Franchise Royalty Calculator Card */}
+        <View className="bg-white border border-border/60 rounded-2xl p-6 shadow-sm">
+          {/* Header with Switch */}
+          <View className="flex-row items-center justify-between border-b border-border/40 pb-4 mb-4">
+            <View className="flex-row items-center space-x-3">
+              <View className="w-9 h-9 rounded-xl bg-orange-50 items-center justify-center">
+                <Percent size={18} color="#f97316" />
+              </View>
+              <View>
+                <Text className="text-base font-bold text-textPrimary">Franchise Royalty Tracker</Text>
+                <Text className="text-xs text-textSecondary">Calculates franchise partner fees and splits</Text>
+              </View>
+            </View>
+            <View className="flex-row items-center space-x-2">
+              <Text className="text-xs font-bold text-textSecondary">{isFranchiseMode ? 'Franchise Active' : 'Off'}</Text>
+              <Switch
+                value={isFranchiseMode}
+                onValueChange={toggleFranchiseMode}
+                trackColor={{ false: '#e2e8f0', true: colors.primary }}
+                thumbColor={isFranchiseMode ? '#FFFFFF' : '#f4f4f5'}
+              />
+            </View>
+          </View>
+
+          {isFranchiseMode ? (
+            <View>
+              {/* Rate Controls */}
+              <View className="flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+                <View className="flex-row items-center space-x-4">
+                  <Text className="text-sm font-semibold text-textSecondary">Royalty Rate:</Text>
+                  <View className="flex-row items-center bg-surfaceTint rounded-xl p-1 border border-border/40">
+                    <Pressable
+                      onPress={decreaseRoyaltyRate}
+                      className="w-8 h-8 rounded-lg bg-white items-center justify-center border border-border/40 active:bg-surfaceTint"
+                    >
+                      <Text className="text-sm font-bold text-textPrimary">-</Text>
+                    </Pressable>
+                    <Text className="text-sm font-black text-textPrimary px-4">{royaltyRate.toFixed(1)}%</Text>
+                    <Pressable
+                      onPress={increaseRoyaltyRate}
+                      className="w-8 h-8 rounded-lg bg-white items-center justify-center border border-border/40 active:bg-surfaceTint"
+                    >
+                      <Text className="text-sm font-bold text-textPrimary">+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <Text className="text-xs text-textSecondary italic">
+                  Royalty rate can be adjusted from 1.0% to 10.0%.
+                </Text>
+              </View>
+
+              {/* Metrics Split */}
+              <View className="flex-row flex-wrap justify-between gap-4 mb-6">
+                {/* Gross Sales */}
+                <View className="flex-1 min-w-[140px] bg-surfaceTint/40 border border-border/30 rounded-xl p-4">
+                  <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider">Gross Revenue</Text>
+                  <Text className="text-lg font-black text-textPrimary mt-1">
+                    ₹{Math.round(totalSales).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+
+                {/* Royalty Amount */}
+                <View className="flex-1 min-w-[140px] bg-orange-50/40 border border-orange-200/40 rounded-xl p-4">
+                  <Text className="text-[10px] font-bold text-[#f97316] uppercase tracking-wider">Royalty Fee ({royaltyRate.toFixed(1)}%)</Text>
+                  <Text className="text-lg font-black text-[#f97316] mt-1">
+                    - ₹{Math.round(royaltyAmount).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+
+                {/* Net Revenue */}
+                <View className="flex-1 min-w-[140px] bg-green-50/40 border border-green-200/40 rounded-xl p-4">
+                  <Text className="text-[10px] font-bold text-[#10b981] uppercase tracking-wider">Net Store Share ({(100 - royaltyRate).toFixed(1)}%)</Text>
+                  <Text className="text-lg font-black text-[#10b981] mt-1">
+                    ₹{Math.round(netSales).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Visual Split Bar */}
+              <View className="mb-2">
+                <View className="flex-row justify-between mb-1.5">
+                  <Text className="text-[11px] font-bold text-textSecondary">Revenue Allocation Split</Text>
+                  <Text className="text-[11px] font-bold text-textPrimary">
+                    Owner: {(100 - royaltyRate).toFixed(1)}% | Partner: {royaltyRate.toFixed(1)}%
+                  </Text>
+                </View>
+                <View className="w-full h-3 bg-orange-500 rounded-full overflow-hidden flex-row">
+                  <View
+                    style={{ width: `${100 - royaltyRate}%` }}
+                    className="h-full bg-green-500 rounded-l-full"
+                  />
+                  <View
+                    style={{ width: `${royaltyRate}%` }}
+                    className="h-full bg-orange-500 rounded-r-full"
+                  />
+                </View>
+                <View className="flex-row items-center justify-between mt-1.5">
+                  <View className="flex-row items-center space-x-1">
+                    <View className="w-2 h-2 rounded-full bg-green-500" />
+                    <Text className="text-[10px] text-textSecondary font-semibold">Store Share</Text>
+                  </View>
+                  <View className="flex-row items-center space-x-1">
+                    <View className="w-2 h-2 rounded-full bg-orange-500" />
+                    <Text className="text-[10px] text-textSecondary font-semibold">Royalty Fee</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View className="py-4 items-center justify-center bg-surfaceTint/20 rounded-xl border border-dashed border-border/60">
+              <Text className="text-xs text-textSecondary font-semibold text-center px-4">
+                Royalty tracking is currently disabled. Toggle Franchise Mode to track partner fees.
+              </Text>
+            </View>
+          )}
+        </View>
 
         {isDashboardEmpty ? (
           <View className="items-center justify-center py-20 bg-white border border-border/40 rounded-2xl shadow-sm p-6">
