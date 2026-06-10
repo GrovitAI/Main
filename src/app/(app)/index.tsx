@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 import { useNavigation } from 'expo-router';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
 
@@ -309,10 +309,15 @@ export default function PosBillingScreen() {
   const loadingFadeAnim = useRef(new Animated.Value(1)).current;
   const loadingScaleAnim = useRef(new Animated.Value(1)).current;
   const loadingSpinAnim = useRef(new Animated.Value(0)).current;
-  const loadingDroolAnim = useRef(new Animated.Value(0)).current;
-  const loadingBlinkAnim = useRef(new Animated.Value(1)).current;
-  const loadingBreathingAnim = useRef(new Animated.Value(0)).current;
   const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Programmatic cream melting animation values
+  const creamCapAnim = useRef(new Animated.Value(0)).current;
+  const dripCenterAnim = useRef(new Animated.Value(0)).current;
+  const dripLeftAnim = useRef(new Animated.Value(0)).current;
+  const dripRightAnim = useRef(new Animated.Value(0)).current;
+  const wobbleAnim = useRef(new Animated.Value(0)).current;
+  const sparkleAnim = useRef(new Animated.Value(0)).current;
 
   // Enforce minimum 3 seconds loader display and animate progress bar
   useEffect(() => {
@@ -344,6 +349,7 @@ export default function PosBillingScreen() {
     };
   }, []);
 
+  // Endless spinner rotation
   useEffect(() => {
     let spinLoop: Animated.CompositeAnimation | null = null;
     spinLoop = Animated.loop(
@@ -358,58 +364,123 @@ export default function PosBillingScreen() {
     return () => spinLoop?.stop();
   }, [loadingSpinAnim]);
 
+  // Endless sparkles float/fade loop
   useEffect(() => {
-    let droolLoop: Animated.CompositeAnimation | null = null;
-    droolLoop = Animated.loop(
-      Animated.timing(loadingDroolAnim, {
+    let sparkleLoop: Animated.CompositeAnimation | null = null;
+    sparkleLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sparkleAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sparkleAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    sparkleLoop.start();
+    return () => sparkleLoop?.stop();
+  }, [sparkleAnim]);
+
+  // Infinite Programmatic Cream Melting Animation Loop (4.4 seconds total)
+  useEffect(() => {
+    let creamLoop: Animated.CompositeAnimation | null = null;
+    
+    const singleSequence = Animated.sequence([
+      // Stage 1: Clean logo (800ms delay)
+      Animated.delay(800),
+      
+      // Stage 2 & 3: Cream Cap grows & spreads horizontally (700ms)
+      Animated.timing(creamCapAnim, {
         toValue: 1,
-        duration: 1600,
+        duration: 700,
         easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
         useNativeDriver: true,
-      })
-    );
-    droolLoop.start();
-    return () => droolLoop?.stop();
-  }, [loadingDroolAnim]);
+      }),
 
-  useEffect(() => {
-    const blinkSequence = Animated.sequence([
-      Animated.delay(2000 + Math.random() * 2000),
-      Animated.timing(loadingBlinkAnim, {
-        toValue: 0.1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(loadingBlinkAnim, {
-        toValue: 1,
-        duration: 120,
-        useNativeDriver: true,
-      }),
-    ]);
-    const blinkLoop = Animated.loop(blinkSequence);
-    blinkLoop.start();
-    return () => blinkLoop.stop();
-  }, [loadingBlinkAnim]);
+      // Stage 4 & 5: Drips stretch downwards elastically (1300ms)
+      Animated.parallel([
+        Animated.timing(dripCenterAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.bezier(0.34, 1.56, 0.64, 1),
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.delay(150),
+          Animated.timing(dripRightAnim, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.bezier(0.34, 1.56, 0.64, 1),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(250),
+          Animated.timing(dripLeftAnim, {
+            toValue: 1,
+            duration: 850,
+            easing: Easing.bezier(0.34, 1.56, 0.64, 1),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
 
-  useEffect(() => {
-    const breatheSequence = Animated.sequence([
-      Animated.timing(loadingBreathingAnim, {
+      // Drips hang and wobble slightly (400ms)
+      Animated.timing(wobbleAnim, {
         toValue: 1,
-        duration: 1500,
-        easing: Easing.inOut(Easing.sin),
+        duration: 400,
+        easing: Easing.linear,
         useNativeDriver: true,
       }),
-      Animated.timing(loadingBreathingAnim, {
-        toValue: 0,
-        duration: 1500,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-      }),
+
+      // Stage 6: Drips retract and cream disappears (800ms)
+      Animated.parallel([
+        Animated.timing(creamCapAnim, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dripCenterAnim, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dripRightAnim, {
+          toValue: 0,
+          duration: 650,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dripLeftAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(wobbleAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        })
+      ]),
+
+      // Stage 7: Clean pause before repeating loop (400ms)
+      Animated.delay(400),
     ]);
-    const breatheLoop = Animated.loop(breatheSequence);
-    breatheLoop.start();
-    return () => breatheLoop.stop();
-  }, [loadingBreathingAnim]);
+
+    creamLoop = Animated.loop(singleSequence);
+    creamLoop.start();
+
+    return () => creamLoop?.stop();
+  }, [creamCapAnim, dripCenterAnim, dripLeftAnim, dripRightAnim, wobbleAnim]);
 
   useEffect(() => {
     if (!isInitialLoading && minTimeElapsed && !loadingFinished) {
@@ -441,39 +512,9 @@ export default function PosBillingScreen() {
     }
   }, [isInitialLoading, minTimeElapsed]);
 
-  const kidTranslateY = loadingBreathingAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -3],
-  });
-
-  const kidScaleY = loadingBreathingAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.03],
-  });
-
-  const droolY = loadingDroolAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [120, 175],
-  });
-
-  const droolOpacity = loadingDroolAnim.interpolate({
-    inputRange: [0, 0.1, 0.8, 1],
-    outputRange: [0, 1, 0.8, 0],
-  });
-
-  const droolScale = loadingDroolAnim.interpolate({
-    inputRange: [0, 0.1, 0.8, 1],
-    outputRange: [0.4, 1.1, 0.9, 0.3],
-  });
-
   const rotateSpin = loadingSpinAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
-  });
-
-  const dessertHoverY = loadingBreathingAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-6, 6],
   });
 
   const renderCheckItem = (label: string, sub: string, checked: boolean) => {
@@ -1838,287 +1879,242 @@ export default function PosBillingScreen() {
           }}
         >
           <LinearGradient
-            colors={[colors.primaryNavy, colors.primaryDeep, colors.primaryNavy]}
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 40, paddingHorizontal: 20 }}
+            colors={['#0D47A1', '#1976D2', '#0D47A1']}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 45, paddingHorizontal: 20 }}
           >
-            {/* Top Logo & Header */}
-            <View style={{ alignItems: 'center', marginTop: 20 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {/* Logo Icon: Rounded blue gradient square with stylized white "A" */}
-                <View style={{ width: 42, height: 42, borderRadius: 12, overflow: 'hidden' }}>
-                  <LinearGradient colors={['#3399ff', '#0066b2']} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Svg width="24" height="24" viewBox="0 0 24 24">
-                      <Path d="M12 3 L20 18 L16 18 L12 10 L8 18 L4 18 Z" fill="#FFFFFF" />
-                      <Circle cx="12" cy="14" r="2.5" fill="#FFFFFF" />
-                    </Svg>
-                  </LinearGradient>
-                </View>
-                <Text style={{ fontSize: 24, fontWeight: '900', letterSpacing: 0.5 }}>
-                  <Text style={{ color: '#FFFFFF' }}>LE LEBAN </Text>
-                  <Text style={{ color: '#3399ff' }}>POS</Text>
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
-                <View style={{ width: 16, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' }} />
-                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600', letterSpacing: 0.5 }}>
-                  Preparing Today's Service
-                </Text>
-                <View style={{ width: 16, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' }} />
-              </View>
-            </View>
+            {/* Ambient Blurred Background Circles */}
+            <View style={{ position: 'absolute', top: 50, left: -20, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(66, 165, 245, 0.1)', filter: 'blur(20px)' } as any} />
+            <View style={{ position: 'absolute', bottom: 100, right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(25, 118, 210, 0.12)', filter: 'blur(30px)' } as any} />
+            <View style={{ position: 'absolute', top: '40%', right: 20, width: 110, height: 110, borderRadius: 55, backgroundColor: 'rgba(66, 165, 245, 0.08)', filter: 'blur(15px)' } as any} />
 
-            {/* Central Section: Orbit, Character, Dessert and Outline Icons */}
-            <View style={{
-              width: 320,
-              height: 320,
-              alignItems: 'center',
-              justifyContent: 'center',
+            {/* Sparkles */}
+            <Animated.View style={{
+              position: 'absolute',
+              top: 70,
+              left: 80,
+              opacity: sparkleAnim,
+              transform: [{ translateY: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -20] }) }]
             }}>
-              {/* Floating outlines around orbit */}
-              <View style={{ position: 'absolute', top: 35, left: 35, opacity: 0.15 }}>
-                <Soup size={26} color="#FFFFFF" />
-              </View>
-              <View style={{ position: 'absolute', top: 35, right: 35, opacity: 0.15 }}>
-                <GlassWater size={26} color="#FFFFFF" />
-              </View>
-              <View style={{ position: 'absolute', bottom: 45, left: 35, opacity: 0.15 }}>
-                <Leaf size={26} color="#FFFFFF" />
-              </View>
-              <View style={{ position: 'absolute', bottom: 45, right: 35, opacity: 0.15 }}>
-                <ChefHat size={26} color="#FFFFFF" />
-              </View>
+              <Svg width="14" height="14" viewBox="0 0 24 24">
+                <Path d="M12 0 L15 9 L24 12 L15 15 L12 24 L9 15 L0 12 L9 9 Z" fill="#FFFFFF" opacity="0.9" />
+              </Svg>
+            </Animated.View>
 
-              {/* Orbit Dotted Circle Track */}
-              <View style={{ position: 'absolute', width: 280, height: 280, alignItems: 'center', justifyContent: 'center' }}>
-                <Svg width="280" height="280" viewBox="0 0 280 280">
-                  <Circle cx="140" cy="140" r="125" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" strokeDasharray="5 7" fill="none" />
+            <Animated.View style={{
+              position: 'absolute',
+              top: 240,
+              right: 60,
+              opacity: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 0.2] }),
+              transform: [{ translateY: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [5, -15] }) }]
+            }}>
+              <Svg width="18" height="18" viewBox="0 0 24 24">
+                <Path d="M12 0 L15 9 L24 12 L15 15 L12 24 L9 15 L0 12 L9 9 Z" fill="#FFFFFF" opacity="0.95" />
+              </Svg>
+            </Animated.View>
+
+            <Animated.View style={{
+              position: 'absolute',
+              bottom: 120,
+              left: 90,
+              opacity: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [0.1, 0.9] }),
+              transform: [{ translateY: sparkleAnim.interpolate({ inputRange: [0, 1], outputRange: [-5, -25] }) }]
+            }}>
+              <Svg width="12" height="12" viewBox="0 0 24 24">
+                <Path d="M12 0 L15 9 L24 12 L15 15 L12 24 L9 15 L0 12 L9 9 Z" fill="#FFFFFF" opacity="0.85" />
+              </Svg>
+            </Animated.View>
+
+            {/* Spacer to align content */}
+            <View />
+
+            {/* Central Brand Logo Container & Melting Cream */}
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 120, height: 120, position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
+                {/* Ambient glow behind logo */}
+                <View style={{ position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(51, 153, 255, 0.15)', filter: 'blur(15px)' } as any} />
+                
+                {/* Main Logo Circle */}
+                <Svg width="120" height="120" viewBox="0 0 120 120">
+                  <Defs>
+                    <SvgLinearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+                      <Stop offset="0%" stopColor="#1e3a8a" />
+                      <Stop offset="50%" stopColor="#0f172a" />
+                      <Stop offset="100%" stopColor="#172554" />
+                    </SvgLinearGradient>
+                    <SvgLinearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="0">
+                      <Stop offset="0%" stopColor="#f59e0b" />
+                      <Stop offset="50%" stopColor="#fbbf24" />
+                      <Stop offset="100%" stopColor="#d97706" />
+                    </SvgLinearGradient>
+                  </Defs>
+                  {/* Background Circle */}
+                  <Circle cx="60" cy="60" r="54" fill="url(#logoGrad)" stroke="url(#goldGrad)" strokeWidth="2.5" />
+                  {/* Stylized White "A" Logo */}
+                  <Path d="M 60 25 L 85 85 L 72 85 L 60 55 L 48 85 L 35 85 Z" fill="#FFFFFF" opacity="0.95" />
+                  <Circle cx="60" cy="68" r="4.5" fill="#FFFFFF" opacity="0.95" />
                 </Svg>
+
+                {/* 2. Cream Cap (grows from top) */}
+                <Animated.View style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: 120,
+                  height: 120,
+                  transform: [
+                    { translateY: -60 },
+                    { scaleY: creamCapAnim },
+                    { translateY: 60 },
+                    { scaleX: creamCapAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
+                    { translateY: creamCapAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }
+                  ],
+                  opacity: creamCapAnim.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0, 1, 1] })
+                }}>
+                  <Svg width="120" height="120" viewBox="0 0 120 120">
+                    {/* Main Cream Shape covering top half */}
+                    <Path
+                      d="M 10 60 C 10 30, 30 14, 60 14 C 90 14, 110 30, 110 60 C 110 60, 95 65, 80 61 C 65 57, 55 67, 35 62 C 20 57, 10 60, 10 60 Z"
+                      fill="#FFFFFF"
+                    />
+                    {/* Glossy Reflection Highlight */}
+                    <Path
+                      d="M 16 52 C 16 32, 32 18, 60 18 C 88 18, 104 32, 104 52"
+                      fill="none"
+                      stroke="rgba(255, 255, 255, 0.6)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
+                    {/* Soft Blue Shadow Bottom edge */}
+                    <Path
+                      d="M 10 60 C 10 60, 20 57, 35 62 C 55 67, 65 57, 80 61 C 95 65, 110 60, 110 60 C 110 60, 95 62, 80 58 C 65 54, 55 64, 35 59 C 20 54, 10 60, 10 60 Z"
+                      fill="rgba(51, 153, 255, 0.15)"
+                    />
+                  </Svg>
+                </Animated.View>
+
+                {/* 3. Dripping Droplets (Left, Center, Right) */}
+                {/* Left Drip: positioned at x=30, y=58 */}
+                <Animated.View style={{
+                  position: 'absolute',
+                  left: 30,
+                  top: 58,
+                  width: 12,
+                  height: 50,
+                  transform: [
+                    { translateY: -25 },
+                    { scaleY: dripLeftAnim },
+                    { translateY: 25 },
+                    { scaleX: dripLeftAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.65] }) },
+                    { translateY: dripLeftAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) },
+                    { rotate: wobbleAnim.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: ['0deg', '1.5deg', '-1.5deg', '0.7deg', '0deg'] }) }
+                  ],
+                  opacity: creamCapAnim,
+                }}>
+                  <Svg width="12" height="50" viewBox="0 0 12 50">
+                    <Path d="M 0 0 L 12 0 L 12 42 C 12 46.5, 9.3 50, 6 50 C 2.7 50, 0 46.5, 0 42 Z" fill="#FFFFFF" />
+                    <Line x1="2.5" y1="2" x2="2.5" y2="40" stroke="rgba(255, 255, 255, 0.75)" strokeWidth="1.2" strokeLinecap="round" />
+                    <Path d="M 9.5 0 L 12 0 L 12 42 C 12 46.5, 9.3 50, 6 50 Z" fill="rgba(51, 153, 255, 0.1)" />
+                  </Svg>
+                </Animated.View>
+
+                {/* Center Drip: positioned at x=54, y=60 */}
+                <Animated.View style={{
+                  position: 'absolute',
+                  left: 54,
+                  top: 60,
+                  width: 12,
+                  height: 75,
+                  transform: [
+                    { translateY: -37.5 },
+                    { scaleY: dripCenterAnim },
+                    { translateY: 37.5 },
+                    { scaleX: dripCenterAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] }) },
+                    { translateY: dripCenterAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }) },
+                    { rotate: wobbleAnim.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: ['0deg', '-2deg', '2deg', '-1deg', '0deg'] }) }
+                  ],
+                  opacity: creamCapAnim,
+                }}>
+                  <Svg width="12" height="75" viewBox="0 0 12 75">
+                    <Path d="M 0 0 L 12 0 L 12 65 C 12 70.5, 9.3 75, 6 75 C 2.7 75, 0 70.5, 0 65 Z" fill="#FFFFFF" />
+                    <Line x1="2.5" y1="2" x2="2.5" y2="60" stroke="rgba(255, 255, 255, 0.75)" strokeWidth="1.2" strokeLinecap="round" />
+                    <Path d="M 9.5 0 L 12 0 L 12 65 C 12 70.5, 9.3 75, 6 75 Z" fill="rgba(51, 153, 255, 0.1)" />
+                  </Svg>
+                </Animated.View>
+
+                {/* Right Drip: positioned at x=77, y=59 */}
+                <Animated.View style={{
+                  position: 'absolute',
+                  left: 77,
+                  top: 59,
+                  width: 12,
+                  height: 60,
+                  transform: [
+                    { translateY: -30 },
+                    { scaleY: dripRightAnim },
+                    { translateY: 30 },
+                    { scaleX: dripRightAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.6] }) },
+                    { translateY: dripRightAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) },
+                    { rotate: wobbleAnim.interpolate({ inputRange: [0, 0.25, 0.5, 0.75, 1], outputRange: ['0deg', '-1.5deg', '1.5deg', '-0.7deg', '0deg'] }) }
+                  ],
+                  opacity: creamCapAnim,
+                }}>
+                  <Svg width="12" height="60" viewBox="0 0 12 60">
+                    <Path d="M 0 0 L 12 0 L 12 51 C 12 56, 9.3 60, 6 60 C 2.7 60, 0 56, 0 51 Z" fill="#FFFFFF" />
+                    <Line x1="2.5" y1="2" x2="2.5" y2="47" stroke="rgba(255, 255, 255, 0.75)" strokeWidth="1.2" strokeLinecap="round" />
+                    <Path d="M 9.5 0 L 12 0 L 12 51 C 12 56, 9.3 60, 6 60 Z" fill="rgba(51, 153, 255, 0.1)" />
+                  </Svg>
+                </Animated.View>
               </View>
 
-              {/* Rotating Nodes Wrapper (Native animated rotation) */}
+              <Text style={{
+                color: '#FFFFFF',
+                fontSize: 32,
+                fontWeight: '900',
+                letterSpacing: 1.5,
+                marginTop: 35,
+                fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
+              }}>
+                LeLaban
+              </Text>
+              <Text style={{
+                color: 'rgba(255, 255, 255, 0.75)',
+                fontSize: 14,
+                fontWeight: '600',
+                letterSpacing: 0.5,
+                marginTop: 6,
+                fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
+              }}>
+                Crafting pure delight...
+              </Text>
+
+              {/* Continuous Thin Circular Spinner below Tagline */}
               <Animated.View style={{
-                position: 'absolute',
-                width: 280,
-                height: 280,
+                marginTop: 25,
                 transform: [{ rotate: rotateSpin }]
               }}>
-                {/* Glowing Node 1 (Top-Right at ~45 deg) */}
-                <View style={{
-                  position: 'absolute',
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: '#3399ff',
-                  left: 223,
-                  top: 47,
-                  shadowColor: '#3399ff',
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 1,
-                  shadowRadius: 6,
-                  elevation: 5,
-                }} />
-
-                {/* Glowing Node 2 (Left at ~180 deg) */}
-                <View style={{
-                  position: 'absolute',
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: '#3399ff',
-                  left: 10,
-                  top: 135,
-                  shadowColor: '#3399ff',
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 1,
-                  shadowRadius: 6,
-                  elevation: 5,
-                }} />
-
-                {/* Glowing Node 3 (Bottom-Right at ~300 deg) */}
-                <View style={{
-                  position: 'absolute',
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: '#3399ff',
-                  left: 197,
-                  top: 243,
-                  shadowColor: '#3399ff',
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 1,
-                  shadowRadius: 6,
-                  elevation: 5,
-                }} />
-              </Animated.View>
-
-              {/* Kid Chef SVG with hands cupping face */}
-              <Animated.View style={{
-                position: 'absolute',
-                alignItems: 'center',
-                width: 180,
-                height: 200,
-                bottom: 30,
-                transform: [
-                  { translateY: kidTranslateY },
-                  { scaleY: kidScaleY }
-                ]
-              }}>
-                <Svg width="180" height="200" viewBox="0 0 180 200">
-                  {/* White Chef Coat / Uniform */}
-                  <Path d="M 40 142 L 140 142 L 152 200 L 28 200 Z" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1.5" />
-                  {/* Blue double-breasted buttons */}
-                  <Circle cx="76" cy="164" r="3" fill="#0066b2" />
-                  <Circle cx="104" cy="164" r="3" fill="#0066b2" />
-                  <Circle cx="76" cy="178" r="3" fill="#0066b2" />
-                  <Circle cx="104" cy="178" r="3" fill="#0066b2" />
-                  {/* Blue collar trim */}
-                  <Path d="M 54 142 Q 90 166 126 142" fill="none" stroke="#0066b2" strokeWidth="4.5" strokeLinecap="round" />
-
-                  {/* Face skin */}
-                  <Circle cx="90" cy="105" r="40" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="2.5" />
-
-                  {/* Cute ears */}
-                  <Circle cx="47" cy="105" r="7.5" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1.5" />
-                  <Circle cx="133" cy="105" r="7.5" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1.5" />
-
-                  {/* Swept Brown Hair */}
-                  <Path d="M 45 105 Q 90 38 135 105 Q 148 105 144 87 Q 90 20 36 87 Z" fill="#7C2D12" />
-                  <Path d="M 48 91 Q 70 72 90 88 Q 110 72 132 91 Q 110 62 70 62 Z" fill="#7C2D12" />
-
-                  {/* Blushing cheeks */}
-                  <Circle cx="64" cy="116" r="6.5" fill="#FECDD3" opacity="0.9" />
-                  <Circle cx="116" cy="116" r="6.5" fill="#FECDD3" opacity="0.9" />
-
-                  {/* Open happy mouth */}
-                  <Path d="M 76 117 Q 90 135 104 117 Q 90 112 76 117 Z" fill="#9F1239" />
-                  {/* Tongue */}
-                  <Path d="M 83 122 Q 90 131 97 122 Z" fill="#F43F5E" />
-
-                  {/* Nose */}
-                  <Path d="M 88 107 Q 90 109 92 107" stroke="#FDA4AF" strokeWidth="2" strokeLinecap="round" fill="none" />
-
-                  {/* Arms in white chef coat sleeve */}
-                  <Path d="M 32 195 Q 46 150 60 120" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" fill="none" />
-                  <Path d="M 148 195 Q 134 150 120 120" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" fill="none" />
-                  {/* Cute chubby hands cupping the cheeks */}
-                  <Circle cx="60" cy="118" r="9" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1" />
-                  <Circle cx="120" cy="118" r="9" fill="#FFE4E6" stroke="#FDA4AF" strokeWidth="1" />
-                  {/* Cute finger lines */}
-                  <Path d="M 55 113 Q 58 107 62 113 M 58 111 Q 61 105 65 111" stroke="#FDA4AF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  <Path d="M 125 113 Q 122 107 118 113 M 122 111 Q 119 105 115 111" stroke="#FDA4AF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                </Svg>
-
-                {/* Staring/Blinking Eyes Svg */}
-                <Animated.View style={{
-                  position: 'absolute',
-                  top: 88,
-                  left: 55,
-                  transform: [{ scaleY: loadingBlinkAnim }]
-                }}>
-                  <Svg width="70" height="22" viewBox="0 0 70 22">
-                    <Circle cx="12" cy="11" r="9" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
-                    <Circle cx="12" cy="7" r="5.5" fill="#1E293B" />
-                    <Circle cx="12.5" cy="4.5" r="2" fill="#FFFFFF" />
-
-                    <Circle cx="58" cy="11" r="9" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="1" />
-                    <Circle cx="58" cy="7" r="5.5" fill="#1E293B" />
-                    <Circle cx="58.5" cy="4.5" r="2" fill="#FFFFFF" />
-                  </Svg>
-                </Animated.View>
-
-                {/* Drool droplet */}
-                <Animated.View style={{
-                  position: 'absolute',
-                  left: 98,
-                  top: droolY,
-                  opacity: droolOpacity,
-                  transform: [{ scale: droolScale }]
-                }}>
-                  <Svg width="10" height="15" viewBox="0 0 10 15">
-                    <Path d="M 5 0 C 7.5 3.3 9.2 6.3 9.2 9.6 C 9.2 12.1 7.3 14.2 5 14.2 C 2.7 14.2 0.8 12.1 0.8 9.6 C 0.8 6.3 2.5 3.3 5 0 Z" fill="#93C5FD" />
-                  </Svg>
-                </Animated.View>
-              </Animated.View>
-
-              {/* Hovering Dessert (Milk Cake) Plate */}
-              <Animated.View style={{
-                position: 'absolute',
-                top: 25,
-                alignItems: 'center',
-                transform: [
-                  { scale: itemSplashScaleAnim },
-                  { translateY: dessertHoverY }
-                ]
-              }}>
-                <Svg width="100" height="70" viewBox="0 0 100 70">
-                  {/* Plate/Bowl */}
-                  <Path d="M 10 40 C 10 58, 90 58, 90 40 C 90 28, 10 28, 10 40 Z" fill="#FFFFFF" stroke="rgba(51, 153, 255, 0.3)" strokeWidth="1.5" />
-                  <Path d="M 15 41 C 15 53, 85 53, 85 41" fill="none" stroke="#E2E8F0" strokeWidth="1" />
-                  {/* "LLEBAN" branding text on bowl */}
-                  <Path d="M 36 46 C 44 49, 56 49, 64 46" fill="none" stroke="#0066b2" strokeWidth="1.2" />
-
-                  {/* Cake Slice */}
-                  {/* Bottom sponge layer */}
-                  <Path d="M 25 34 L 50 46 L 75 34 L 75 39 L 50 51 L 25 39 Z" fill="#FDE047" />
-                  {/* Middle cream layer */}
-                  <Path d="M 25 29 L 50 41 L 75 29 L 75 34 L 50 46 L 25 39 Z" fill="#FFFFFF" />
-                  {/* Top sponge layer */}
-                  <Path d="M 25 24 L 50 36 L 75 24 L 75 29 L 50 41 L 25 34 Z" fill="#FDE047" />
-                  {/* Whipped Cream topping */}
-                  <Path d="M 25 24 L 50 36 L 75 24 L 50 18 Z" fill="#FEF08A" />
-
-                  {/* Cream drips */}
-                  <Path d="M 33 29 Q 36 34 39 29" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  <Path d="M 61 29 Q 64 34 67 29" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-
-                  {/* Cherry on top */}
-                  <Circle cx="50" cy="16" r="4.5" fill="#EF4444" />
-                  <Path d="M 50 11.5 Q 47 6 52 3" stroke="#78350F" strokeWidth="1" strokeLinecap="round" fill="none" />
-
-                  {/* Steam lines */}
-                  <Path d="M 42 6 Q 44 0 42 -6" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  <Path d="M 50 8 Q 52 2 50 -4" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  <Path d="M 58 6 Q 60 0 58 -6" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                <Svg width="36" height="36" viewBox="0 0 36 36">
+                  <Circle cx="18" cy="18" r="15" stroke="rgba(255,255,255,0.15)" strokeWidth="2" fill="none" />
+                  <Circle cx="18" cy="18" r="15" stroke="#FFFFFF" strokeWidth="2" strokeDasharray="30 70" strokeLinecap="round" fill="none" />
                 </Svg>
               </Animated.View>
             </View>
 
             {/* Bottom Section: Progress bar, checklist container, and footer */}
             <View style={{ width: '100%', alignItems: 'center' }}>
-              <Text style={{
-                color: '#FFFFFF',
-                fontSize: 26,
-                fontWeight: '700',
-                textAlign: 'center',
-                fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
-              }}>
-                Milk cake smells amazing...
-              </Text>
-              <Text style={{
-                color: '#3399ff',
-                fontSize: 16,
-                fontWeight: '600',
-                marginTop: 6,
-                textAlign: 'center',
-                fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif'
-              }}>
-                Almost ready!
-              </Text>
-
               {/* Progress Bar and Percentage Count */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15, width: '100%', maxWidth: 420, marginTop: 22 }}>
-                <View style={{ flex: 1, height: 10, backgroundColor: 'rgba(0, 45, 90, 0.6)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(51, 153, 255, 0.15)' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15, width: '100%', maxWidth: 420 }}>
+                <View style={{ flex: 1, height: 8, backgroundColor: 'rgba(0, 45, 90, 0.4)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)' }}>
                   <Animated.View style={{
                     height: '100%',
                     width: loadingProgress.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', '100%'],
                     }),
-                    backgroundColor: '#3399ff',
+                    backgroundColor: '#FFFFFF',
                     borderRadius: 5,
                   }} />
                 </View>
-                <Text style={{ color: '#3399ff', fontSize: 16, fontWeight: '800', width: 45, textAlign: 'right' }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800', width: 45, textAlign: 'right' }}>
                   {progressPercent}%
                 </Text>
               </View>
@@ -2128,23 +2124,23 @@ export default function PosBillingScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: 'rgba(15, 39, 68, 0.4)',
+                backgroundColor: 'rgba(15, 39, 68, 0.25)',
                 borderWidth: 1,
-                borderColor: 'rgba(51, 153, 255, 0.15)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
                 borderRadius: 16,
                 paddingVertical: 14,
                 paddingHorizontal: 20,
                 width: '100%',
                 maxWidth: 680,
-                marginTop: 25,
+                marginTop: 20,
                 gap: 15,
               }}>
                 {renderCheckItem('Menu Loaded', progressPercent >= 28 ? '120 items' : 'Loading...', progressPercent >= 28)}
-                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
                 {renderCheckItem('Inventory Synced', progressPercent >= 56 ? '98% updated' : 'Syncing...', progressPercent >= 56)}
-                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
                 {renderCheckItem('Printers Connected', progressPercent >= 84 ? '3 devices' : 'Connecting...', progressPercent >= 84)}
-                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
                 {renderCheckItem('Kitchen Display', progressPercent >= 98 ? 'Ready' : 'Starting up...', progressPercent >= 98)}
               </View>
             </View>
@@ -2154,13 +2150,13 @@ export default function PosBillingScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               gap: 8,
-              opacity: 0.7,
-              marginBottom: 10,
+              opacity: 0.65,
+              marginBottom: 5,
             }}>
               <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12, fontWeight: '500' }}>
                 💙 Thank you for choosing Le Leban POS
               </Text>
-              <View style={{ width: 1, height: 12, backgroundColor: 'rgba(255, 255, 255, 0.3)' }} />
+              <View style={{ width: 1, height: 12, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
               <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 12, fontWeight: '500' }}>
                 Powering great restaurants 🚀
               </Text>
