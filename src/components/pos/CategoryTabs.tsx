@@ -25,14 +25,14 @@ function getCategoryIcon(name: string, color: string) {
   const lowerName = name.toLowerCase().trim();
   if (lowerName === 'all' || lowerName === 'all items') return <LayoutGrid color={color} size={size} />;
   
-  // Custom sweet-shop dessert mapping
-  if (lowerName === 'signature') return <Sparkles color={color} size={size} />;
-  if (lowerName === 'salankatia') return <CakeSlice color={color} size={size} />;
-  if (lowerName === 'koushiri' || lowerName === 'koshari') return <Layers color={color} size={size} />;
-  if (lowerName === 'qashtuta') return <IceCream color={color} size={size} />;
+  // Custom sweet-shop dessert mapping (.includes matches substring/variations robustly)
+  if (lowerName.includes('signature')) return <Sparkles color={color} size={size} />;
+  if (lowerName.includes('salankatia')) return <CakeSlice color={color} size={size} />;
+  if (lowerName.includes('koushiri') || lowerName.includes('koshari')) return <Layers color={color} size={size} />;
+  if (lowerName.includes('qashtuta')) return <IceCream color={color} size={size} />;
 
   // General fallbacks
-  if (lowerName.includes('signature') || lowerName.includes('cake')) return <CakeSlice color={color} size={size} />;
+  if (lowerName.includes('cake')) return <CakeSlice color={color} size={size} />;
   if (lowerName.includes('kunafa')) return <Sandwich color={color} size={size} />;
   if (lowerName.includes('cup') && !lowerName.includes('drink')) return <CupSoda color={color} size={size} />;
   if (lowerName.includes('drink') || lowerName.includes('shake')) return <GlassWater color={color} size={size} />;
