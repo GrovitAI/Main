@@ -305,11 +305,8 @@ export default function PosBillingScreen() {
   // Loading animations & splash states
   const [loadingFinished, setLoadingFinished] = useState(false);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
-  const [progressPercent, setProgressPercent] = useState(0);
-  const loadingProgress = useRef(new Animated.Value(0)).current;
   const loadingFadeAnim = useRef(new Animated.Value(1)).current;
   const loadingScaleAnim = useRef(new Animated.Value(1)).current;
-  const loadingSpinAnim = useRef(new Animated.Value(0)).current;
   const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Video player configuration for full-screen loading screen
@@ -329,50 +326,13 @@ export default function PosBillingScreen() {
     }
   }, [videoPlayer]);
 
-  // Enforce minimum 3 seconds loader display and animate progress bar
+  // Enforce minimum 3 seconds loader display
   useEffect(() => {
-    Animated.timing(loadingProgress, {
-      toValue: 1,
-      duration: 3000,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: false,
-    }).start();
-
     const timer = setTimeout(() => {
       setMinTimeElapsed(true);
     }, 3000);
-
-    const startTime = Date.now();
-    const duration = 3000;
-    const progressInterval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const pct = Math.min(100, Math.floor((elapsed / duration) * 100));
-      setProgressPercent(pct);
-      if (pct >= 100) {
-        clearInterval(progressInterval);
-      }
-    }, 30);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(progressInterval);
-    };
+    return () => clearTimeout(timer);
   }, []);
-
-  // Endless spinner rotation
-  useEffect(() => {
-    let spinLoop: Animated.CompositeAnimation | null = null;
-    spinLoop = Animated.loop(
-      Animated.timing(loadingSpinAnim, {
-        toValue: 1,
-        duration: 1200,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    spinLoop.start();
-    return () => spinLoop?.stop();
-  }, [loadingSpinAnim]);
 
   useEffect(() => {
     if (!isInitialLoading && minTimeElapsed && !loadingFinished) {
@@ -403,39 +363,6 @@ export default function PosBillingScreen() {
       });
     }
   }, [isInitialLoading, minTimeElapsed]);
-
-  const rotateSpin = loadingSpinAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  const renderCheckItem = (label: string, sub: string, checked: boolean) => {
-    return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 160 }}>
-        {checked ? (
-          <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#22C55E', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '900', marginTop: -1 }}>✓</Text>
-          </View>
-        ) : (
-          <Animated.View style={{
-            width: 20,
-            height: 20,
-            borderRadius: 10,
-            borderWidth: 2,
-            borderColor: 'rgba(51, 153, 255, 0.2)',
-            borderTopColor: '#3399ff',
-            transform: [{
-              rotate: rotateSpin
-            }]
-          }} />
-        )}
-        <View style={{ alignItems: 'flex-start' }}>
-          <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' }}>{label}</Text>
-          <Text style={{ color: checked ? '#A3E635' : '#94A3B8', fontSize: 9.5, fontWeight: '600', marginTop: 1 }}>{sub}</Text>
-        </View>
-      </View>
-    );
-  };
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -1787,76 +1714,7 @@ export default function PosBillingScreen() {
               nativeControls={false}
             />
 
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 45, paddingHorizontal: 20 }}>
-              {/* Top spacer */}
-              <View />
-
-              {/* Center spacer so the video's main animation shines in the center */}
-              <View />
-
-              {/* Bottom Section: Progress bar, checklist container, and footer */}
-              <View style={{ width: '100%', alignItems: 'center' }}>
-                {/* Progress Bar and Percentage Count */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15, width: '100%', maxWidth: 420 }}>
-                  <View style={{ flex: 1, height: 8, backgroundColor: 'rgba(0, 45, 90, 0.45)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)' }}>
-                    <Animated.View style={{
-                      height: '100%',
-                      width: loadingProgress.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%'],
-                      }),
-                      backgroundColor: '#FFFFFF',
-                      borderRadius: 5,
-                    }} />
-                  </View>
-                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800', width: 45, textAlign: 'right' }}>
-                    {progressPercent}%
-                  </Text>
-                </View>
-
-                {/* Boot Status Checklist Panel */}
-                <View style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: 'rgba(15, 39, 68, 0.35)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(255, 255, 255, 0.15)',
-                  borderRadius: 16,
-                  paddingVertical: 14,
-                  paddingHorizontal: 20,
-                  width: '100%',
-                  maxWidth: 680,
-                  marginTop: 20,
-                  gap: 15,
-                }}>
-                  {renderCheckItem('Menu Loaded', progressPercent >= 28 ? '120 items' : 'Loading...', progressPercent >= 28)}
-                  <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                  {renderCheckItem('Inventory Synced', progressPercent >= 56 ? '98% updated' : 'Syncing...', progressPercent >= 56)}
-                  <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                  {renderCheckItem('Printers Connected', progressPercent >= 84 ? '3 devices' : 'Connecting...', progressPercent >= 84)}
-                  <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                  {renderCheckItem('Kitchen Display', progressPercent >= 98 ? 'Ready' : 'Starting up...', progressPercent >= 98)}
-                </View>
-              </View>
-
-              {/* Branded Footer */}
-              <View style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                opacity: 0.75,
-                marginBottom: 5,
-              }}>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 12, fontWeight: '500' }}>
-                  💙 Thank you for choosing Le Leban POS
-                </Text>
-                <View style={{ width: 1, height: 12, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-                <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 12, fontWeight: '500' }}>
-                  Powering great restaurants 🚀
-                </Text>
-              </View>
-            </View>
+            {/* Overlay contents removed to show only full-screen video */}
           </Animated.View>
         </Modal>
       )}
