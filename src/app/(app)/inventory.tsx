@@ -6381,7 +6381,7 @@ export default function InventoryScreen() {
                   </ScrollView>
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Unit UoM*</Text>
+                  <Text className="text-[10px] font-black text-slate-500 uppercase">Secondary Unit (Stock / Recipes)*</Text>
                   <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
                     {units.map((u) => (
                       <Pressable
@@ -6401,13 +6401,13 @@ export default function InventoryScreen() {
               {/* Primary Purchase Unit & Conversion Factor Section */}
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Purchase Unit</Text>
+                  <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Unit (Purchase)</Text>
                   <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
                     <Pressable
                       onPress={() => setFormMatPrimaryUnit('')}
                       className={`p-2 rounded mb-1 ${!formMatPrimaryUnit ? 'bg-blue-100' : ''}`}
                     >
-                      <Text className="text-[10px] font-bold">Same as Base Unit (UoM)</Text>
+                      <Text className="text-[10px] font-bold">Same as Secondary Unit</Text>
                     </Pressable>
                     {units.map((u) => (
                       <Pressable
@@ -6427,12 +6427,12 @@ export default function InventoryScreen() {
                   <TextInput
                     value={formMatConversionFactor}
                     onChangeText={setFormMatConversionFactor}
-                    placeholder="e.g. 1.5 (Base Units/Pack)"
+                    placeholder="e.g. 1.5 (Secondary/Primary)"
                     keyboardType="numeric"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                   <Text className="text-[8px] font-semibold text-slate-400">
-                    Number of base units (UoM) in one purchase packet/box/can.
+                    Number of secondary units in one primary unit pack.
                   </Text>
                 </View>
               </View>
