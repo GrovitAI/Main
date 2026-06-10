@@ -320,7 +320,7 @@ export default function PosBillingScreen() {
   const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Video player configuration for full-screen loading screen
-  const videoSource = require('../../../assets/Loading_Screen.mp4');
+  const videoSource = require('../../../assets/Loading_Screen2.mp4');
   const videoPlayer = useVideoPlayer(videoSource, (player) => {
     player.muted = true;
     player.loop = true;
@@ -1767,7 +1767,7 @@ export default function PosBillingScreen() {
             <VideoView
               style={{
                 width: '100%',
-                maxWidth: 960,
+                maxWidth: 320, // Small centered size to keep logo animation sharp
                 aspectRatio: 16 / 9,
                 maxHeight: '100%',
               }}
