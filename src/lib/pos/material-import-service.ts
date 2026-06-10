@@ -93,9 +93,6 @@ export async function validateImportRows(rows: ImportRow[]): Promise<ValidationS
     const averageCost = Number(row['Average Cost']) || 0;
     const preferredSupplierName = row['Preferred Supplier'] ? String(row['Preferred Supplier']).trim() : '';
 
-    if (!materialCode) {
-      errors.push("Material Code is required.");
-    }
     if (!materialName) {
       errors.push("Material Name is required.");
     }

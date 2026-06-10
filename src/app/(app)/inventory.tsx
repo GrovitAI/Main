@@ -756,7 +756,6 @@ export default function InventoryScreen() {
     try {
       const templateData = [
         {
-          'Material Code*': 'MAT04',
           'Material Name*': 'Premium Tahini Spreads',
           'Category': 'Pastes & Grains',
           'Unit': 'KG',
@@ -765,7 +764,6 @@ export default function InventoryScreen() {
           'Preferred Supplier': 'Modern Foods Distributing'
         },
         {
-          'Material Code*': 'MAT05',
           'Material Name*': 'Fresh Whole Milk',
           'Category': 'Dairy & Cheese',
           'Unit': 'L',
