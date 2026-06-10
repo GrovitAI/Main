@@ -14,6 +14,7 @@ import {
   Alert,
   Easing,
   Animated,
+  Image,
 } from 'react-native';
 import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -220,8 +221,8 @@ function CustomConfirmModal({ visible, title, description, buttons, onClose }: C
 }
 
 export default function PosBillingScreen() {
-  const { width } = useWindowDimensions();
-  const isTablet = width >= TABLET_BREAKPOINT;
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isTablet = windowWidth >= TABLET_BREAKPOINT;
   const productColumns = isTablet ? 4 : 2;
 
   // ─── Zustand selectors only (high performance) ───
@@ -313,12 +314,22 @@ export default function PosBillingScreen() {
   const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Video player configuration for full-screen loading screen
-  const videoSource = require('../../../assets/Loading_Screen.mp4');
-  const videoPlayer = useVideoPlayer(videoSource, (player) => {
+  const videoAsset = require('../../../assets/Loading_Screen.mp4');
+  const videoSource = Image.resolveAssetSource(videoAsset);
+  const videoPlayer = useVideoPlayer(videoSource?.uri || '', (player) => {
     player.muted = true;
     player.loop = true;
     player.play();
   });
+
+  // Fail-safe to ensure autoplay works on web after mount
+  useEffect(() => {
+    if (videoPlayer) {
+      videoPlayer.muted = true;
+      videoPlayer.loop = true;
+      videoPlayer.play();
+    }
+  }, [videoPlayer]);
 
   // Enforce minimum 3 seconds loader display and animate progress bar
   useEffect(() => {
@@ -1757,11 +1768,13 @@ export default function PosBillingScreen() {
         >
           <Animated.View
             style={{
-              position: 'absolute',
+              position: Platform.OS === 'web' ? 'fixed' : 'absolute',
               left: 0,
               right: 0,
               top: 0,
               bottom: 0,
+              width: windowWidth,
+              height: windowHeight,
               zIndex: 999999,
               opacity: loadingFadeAnim,
               transform: [{ scale: loadingScaleAnim }],
