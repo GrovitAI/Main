@@ -227,6 +227,10 @@ export async function importRawMaterials(
       fetchMaterials(undefined, true)
     ]);
 
+    if (catsRes.error) return { data: null, error: catsRes.error };
+    if (unitsRes.error) return { data: null, error: unitsRes.error };
+    if (matsRes.error) return { data: null, error: matsRes.error };
+
     const categoriesMap = new Map<string, string>();
     (catsRes.data || []).forEach(c => categoriesMap.set(c.category_name.toLowerCase(), c.id));
 
