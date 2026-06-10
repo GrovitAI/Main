@@ -888,7 +888,7 @@ export default function InventoryScreen() {
     } else {
       setEditingMaterial(null);
       setFormMatName('');
-      setFormMatCode('');
+      setFormMatCode('Auto-assigned');
       setFormMatCategory(categories[0]?.id || '');
       setFormMatUnit(units[0]?.id || '');
       setFormMatPrimaryUnit('');
@@ -943,7 +943,7 @@ export default function InventoryScreen() {
       const payload: Partial<InventoryMaterial> = {
         id: editingMaterial?.id,
         material_name: formMatName,
-        material_code: formMatCode || editingMaterial?.material_code,
+        material_code: formMatCode === 'Auto-assigned' ? '' : formMatCode,
         category_id: formMatCategory,
         inventory_unit_id: formMatUnit,
         primary_unit_id: formMatPrimaryUnit || null,
@@ -6345,13 +6345,11 @@ export default function InventoryScreen() {
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Code*</Text>
+                  <Text className="text-[10px] font-black text-slate-500 uppercase">Code</Text>
                   <TextInput
                     value={formMatCode}
-                    onChangeText={setFormMatCode}
-                    placeholder="e.g., MAT05"
-                    editable={!editingMaterial}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
+                    editable={false}
+                    className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 font-bold"
                   />
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">

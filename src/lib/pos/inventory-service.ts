@@ -1330,6 +1330,25 @@ function deleteSupplierLocal(id: string): ServiceResult<boolean> {
 }
 
 
+export function getNextMaterialCode(materials: InventoryMaterial[]): string {
+  let maxNum = 0;
+  for (const m of materials) {
+    if (m.material_code) {
+      const match = m.material_code.match(/^MAT(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+  }
+  const nextNum = maxNum + 1;
+  const padded = String(nextNum).padStart(2, '0');
+  return `MAT${padded}`;
+}
+
+
 // ─── 4. MATERIALS ────────────────────────────────────────────────────────────
 
 export async function fetchMaterials(branchId?: string, includeDeleted = false): Promise<ServiceResult<InventoryMaterial[]>> {
@@ -1445,7 +1464,13 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const id = material.id || Math.random().toString(36).substr(2, 9);
-    const code = material.material_code || `MAT${Math.floor(10 + Math.random() * 90)}`;
+    
+    let code = material.material_code;
+    if (!material.id || !code) {
+      const matsRes = await fetchMaterials(undefined, true);
+      const existing = matsRes.data || [];
+      code = getNextMaterialCode(existing);
+    }
     
     const openingStock = Number(material.opening_stock) || 0;
     const currentStock = material.id ? (Number(material.current_stock) || 0) : openingStock;

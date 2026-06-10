@@ -291,7 +291,7 @@ export async function importRawMaterials(
       // 4. Save/Upsert Material
       const materialPayload: Partial<InventoryMaterial> = {
         id: matchedMaterial?.id || undefined,
-        material_code: row.materialCode,
+        material_code: matchedMaterial ? matchedMaterial.material_code : '',
         material_name: row.materialName,
         category_id: finalCategoryId,
         inventory_unit_id: finalUnitId,
