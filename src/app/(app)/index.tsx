@@ -321,25 +321,45 @@ export default function PosBillingScreen() {
   useEffect(() => {
     if (!videoPlayer) return;
 
-    // Initial play attempt
+    // Configure properties
     videoPlayer.muted = true;
     videoPlayer.loop = true;
-    videoPlayer.play();
 
-    // Periodic check to play the video once the VideoView/video element is actually mounted in the DOM
-    let attempts = 0;
+    // Track state to prevent multiple/competing play() calls which cause browser stutter
+    let hasPlayed = false;
+    const triggerPlay = () => {
+      if (videoPlayer.playing || hasPlayed) return;
+      videoPlayer.play();
+      hasPlayed = true;
+    };
+
+    // 1. Listen for the readyToPlay event to trigger playback instantly and smoothly
+    const subscription = videoPlayer.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay' && !videoPlayer.playing) {
+        triggerPlay();
+      }
+    });
+
+    // 2. Play immediately if the video player status is already ready
+    if (videoPlayer.status === 'readyToPlay') {
+      triggerPlay();
+    } else {
+      videoPlayer.play(); // Initial trigger for native/immediate loading
+    }
+
+    // 3. Gentle fallback interval with a longer interval (800ms) to prevent double play calls
     const interval = setInterval(() => {
-      attempts++;
-      if (videoPlayer.playing || attempts > 25) {
+      if (videoPlayer.playing || hasPlayed) {
         clearInterval(interval);
         return;
       }
-      videoPlayer.muted = true;
-      videoPlayer.loop = true;
       videoPlayer.play();
-    }, 200);
+    }, 800);
 
-    return () => clearInterval(interval);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
   }, [videoPlayer]);
 
   // Enforce minimum 3 seconds loader display
