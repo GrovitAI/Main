@@ -315,6 +315,7 @@ export default function PosBillingScreen() {
   // Video player configuration for full-screen loading screen
   const videoSource = require('../../../assets/Loading_Screen.mp4');
   const videoPlayer = useVideoPlayer(videoSource, (player) => {
+    player.muted = true;
     player.loop = true;
     player.play();
   });
@@ -1748,98 +1749,105 @@ export default function PosBillingScreen() {
 
       {/* 🚀 Splash Screen Loading Overlay */}
       {!loadingFinished && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            zIndex: 999999,
-            opacity: loadingFadeAnim,
-            transform: [{ scale: loadingScaleAnim }],
-            backgroundColor: '#0D47A1',
-          }}
+        <Modal
+          visible={!loadingFinished}
+          transparent={true}
+          animationType="none"
+          statusBarTranslucent={true}
         >
-          {/* Background Video playing the Loading Screen Animation */}
-          <VideoView
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            player={videoPlayer}
-            contentFit="cover"
-            nativeControls={false}
-          />
+          <Animated.View
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              zIndex: 999999,
+              opacity: loadingFadeAnim,
+              transform: [{ scale: loadingScaleAnim }],
+              backgroundColor: '#0D47A1',
+            }}
+          >
+            {/* Background Video playing the Loading Screen Animation */}
+            <VideoView
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+              player={videoPlayer}
+              contentFit="cover"
+              nativeControls={false}
+            />
 
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 45, paddingHorizontal: 20 }}>
-            {/* Top spacer */}
-            <View />
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 45, paddingHorizontal: 20 }}>
+              {/* Top spacer */}
+              <View />
 
-            {/* Center spacer so the video's main animation shines in the center */}
-            <View />
+              {/* Center spacer so the video's main animation shines in the center */}
+              <View />
 
-            {/* Bottom Section: Progress bar, checklist container, and footer */}
-            <View style={{ width: '100%', alignItems: 'center' }}>
-              {/* Progress Bar and Percentage Count */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15, width: '100%', maxWidth: 420 }}>
-                <View style={{ flex: 1, height: 8, backgroundColor: 'rgba(0, 45, 90, 0.45)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)' }}>
-                  <Animated.View style={{
-                    height: '100%',
-                    width: loadingProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0%', '100%'],
-                    }),
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: 5,
-                  }} />
+              {/* Bottom Section: Progress bar, checklist container, and footer */}
+              <View style={{ width: '100%', alignItems: 'center' }}>
+                {/* Progress Bar and Percentage Count */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15, width: '100%', maxWidth: 420 }}>
+                  <View style={{ flex: 1, height: 8, backgroundColor: 'rgba(0, 45, 90, 0.45)', borderRadius: 5, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)' }}>
+                    <Animated.View style={{
+                      height: '100%',
+                      width: loadingProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                      backgroundColor: '#FFFFFF',
+                      borderRadius: 5,
+                    }} />
+                  </View>
+                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800', width: 45, textAlign: 'right' }}>
+                    {progressPercent}%
+                  </Text>
                 </View>
-                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800', width: 45, textAlign: 'right' }}>
-                  {progressPercent}%
-                </Text>
+
+                {/* Boot Status Checklist Panel */}
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: 'rgba(15, 39, 68, 0.35)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255, 255, 255, 0.15)',
+                  borderRadius: 16,
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  width: '100%',
+                  maxWidth: 680,
+                  marginTop: 20,
+                  gap: 15,
+                }}>
+                  {renderCheckItem('Menu Loaded', progressPercent >= 28 ? '120 items' : 'Loading...', progressPercent >= 28)}
+                  <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
+                  {renderCheckItem('Inventory Synced', progressPercent >= 56 ? '98% updated' : 'Syncing...', progressPercent >= 56)}
+                  <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
+                  {renderCheckItem('Printers Connected', progressPercent >= 84 ? '3 devices' : 'Connecting...', progressPercent >= 84)}
+                  <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
+                  {renderCheckItem('Kitchen Display', progressPercent >= 98 ? 'Ready' : 'Starting up...', progressPercent >= 98)}
+                </View>
               </View>
 
-              {/* Boot Status Checklist Panel */}
+              {/* Branded Footer */}
               <View style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                backgroundColor: 'rgba(15, 39, 68, 0.35)',
-                borderWidth: 1,
-                borderColor: 'rgba(255, 255, 255, 0.15)',
-                borderRadius: 16,
-                paddingVertical: 14,
-                paddingHorizontal: 20,
-                width: '100%',
-                maxWidth: 680,
-                marginTop: 20,
-                gap: 15,
+                gap: 8,
+                opacity: 0.75,
+                marginBottom: 5,
               }}>
-                {renderCheckItem('Menu Loaded', progressPercent >= 28 ? '120 items' : 'Loading...', progressPercent >= 28)}
-                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                {renderCheckItem('Inventory Synced', progressPercent >= 56 ? '98% updated' : 'Syncing...', progressPercent >= 56)}
-                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                {renderCheckItem('Printers Connected', progressPercent >= 84 ? '3 devices' : 'Connecting...', progressPercent >= 84)}
-                <View style={{ width: 1, height: 24, backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-                {renderCheckItem('Kitchen Display', progressPercent >= 98 ? 'Ready' : 'Starting up...', progressPercent >= 98)}
+                <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 12, fontWeight: '500' }}>
+                  💙 Thank you for choosing Le Leban POS
+                </Text>
+                <View style={{ width: 1, height: 12, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
+                <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 12, fontWeight: '500' }}>
+                  Powering great restaurants 🚀
+                </Text>
               </View>
             </View>
-
-            {/* Branded Footer */}
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-              opacity: 0.75,
-              marginBottom: 5,
-            }}>
-              <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 12, fontWeight: '500' }}>
-                💙 Thank you for choosing Le Leban POS
-              </Text>
-              <View style={{ width: 1, height: 12, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-              <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 12, fontWeight: '500' }}>
-                Powering great restaurants 🚀
-              </Text>
-            </View>
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </Modal>
       )}
     </View>
   );
