@@ -2116,9 +2116,9 @@ export default function InventoryScreen() {
                         setIsCategoryDropdownOpen(false);
                         setCurrentPage(1);
                       }}
-                      className="px-3 py-1.5 rounded-lg hover:bg-slate-50 active:bg-slate-100"
+                      className={`px-3 py-1.5 rounded-lg ${selectedCategoryFilter === 'all' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
                     >
-                      <Text className="text-[11px] font-semibold text-slate-700">All Categories</Text>
+                      <Text className={`text-[11px] font-bold ${selectedCategoryFilter === 'all' ? 'text-blue-600' : 'text-slate-700'}`}>All Categories</Text>
                     </Pressable>
                     {categories.map((c) => (
                       <Pressable
@@ -2128,9 +2128,9 @@ export default function InventoryScreen() {
                           setIsCategoryDropdownOpen(false);
                           setCurrentPage(1);
                         }}
-                        className="px-3 py-1.5 rounded-lg hover:bg-slate-50 active:bg-slate-100"
+                        className={`px-3 py-1.5 rounded-lg ${selectedCategoryFilter === c.id ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
                       >
-                        <Text className="text-[11px] font-semibold text-slate-700">{c.category_name}</Text>
+                        <Text className={`text-[11px] font-bold ${selectedCategoryFilter === c.id ? 'text-blue-600' : 'text-slate-700'}`}>{c.category_name}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -2161,9 +2161,9 @@ export default function InventoryScreen() {
                           setIsLocationDropdownOpen(false);
                           setCurrentPage(1);
                         }}
-                        className="px-3 py-1.5 rounded-lg hover:bg-slate-50 active:bg-slate-100"
+                        className={`px-3 py-1.5 rounded-lg ${locationFilter === loc ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
                       >
-                        <Text className="text-[11px] font-semibold text-slate-700">
+                        <Text className={`text-[11px] font-bold ${locationFilter === loc ? 'text-blue-600' : 'text-slate-700'}`}>
                           {loc === 'all' ? 'All Locations' : loc}
                         </Text>
                       </Pressable>
@@ -3361,7 +3361,7 @@ export default function InventoryScreen() {
                             purchaseSupplierId === s.id ? 'bg-blue-50/50' : ''
                           }`}
                         >
-                          <Text className="text-xs font-bold text-slate-700">{s.supplier_name}</Text>
+                          <Text className={`text-xs font-bold ${purchaseSupplierId === s.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{s.supplier_name}</Text>
                         </Pressable>
                       ))}
                       {suppliers.length === 0 && (
@@ -3510,7 +3510,7 @@ export default function InventoryScreen() {
                           purchasePaymentMode === mode ? 'bg-blue-50/50' : ''
                         }`}
                       >
-                        <Text className="text-xs font-bold text-slate-700">{mode}</Text>
+                        <Text className={`text-xs font-bold ${purchasePaymentMode === mode ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{mode}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -3565,7 +3565,7 @@ export default function InventoryScreen() {
                           purchaseLocation === loc ? 'bg-blue-50/50' : ''
                         }`}
                       >
-                        <Text className="text-xs font-bold text-slate-700">{loc}</Text>
+                        <Text className={`text-xs font-bold ${purchaseLocation === loc ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{loc}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -3694,7 +3694,7 @@ export default function InventoryScreen() {
                                   itm.material_id === m.id ? 'bg-blue-50/50' : ''
                                 }`}
                               >
-                                <Text className="text-[10px] font-semibold text-slate-700">
+                                <Text className={`text-[10px] font-bold ${itm.material_id === m.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
                                   {m.material_name} ({m.material_code})
                                 </Text>
                               </Pressable>
@@ -3738,7 +3738,7 @@ export default function InventoryScreen() {
                                   (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : ''
                                 }`}
                               >
-                                <Text className="text-[10px] font-semibold text-slate-700">
+                                <Text className={`text-[10px] font-bold ${(itm.unit_short_name || matUnitShort) === u.short_name ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
                                   {u.unit_name} ({u.short_name})
                                 </Text>
                               </Pressable>
@@ -3803,7 +3803,7 @@ export default function InventoryScreen() {
                                 itm.gst === gstVal ? 'bg-blue-50/50' : ''
                               }`}
                             >
-                              <Text className="text-[10px] font-semibold text-slate-700 text-center">{gstVal}%</Text>
+                              <Text className={`text-[10px] font-bold ${itm.gst === gstVal ? 'text-blue-600 font-extrabold' : 'text-slate-700'} text-center`}>{gstVal}%</Text>
                             </Pressable>
                           ))}
                         </View>
