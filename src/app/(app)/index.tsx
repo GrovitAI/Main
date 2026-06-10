@@ -1763,20 +1763,21 @@ export default function PosBillingScreen() {
               justifyContent: 'center',
             }}
           >
-            {/* Background Video playing the Loading Screen Animation */}
+            {/* Full-page HD video — fills the entire #002d5a splash background */}
             <VideoView
               style={{
+                position: Platform.OS === 'web' ? 'absolute' : 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
                 width: '100%',
-                maxWidth: 240, // Small centered size to keep logo animation sharp
-                aspectRatio: 16 / 9,
-                maxHeight: '100%',
+                height: '100%',
               }}
               player={videoPlayer}
-              contentFit="contain"
+              contentFit="cover"
               nativeControls={false}
             />
-
-            {/* Overlay contents removed to show only full-screen video */}
           </Animated.View>
         </Modal>
       )}
