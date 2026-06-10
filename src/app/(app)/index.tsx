@@ -1698,8 +1698,6 @@ export default function PosBillingScreen() {
               right: 0,
               top: 0,
               bottom: 0,
-              width: windowWidth,
-              height: windowHeight,
               zIndex: 999999,
               opacity: loadingFadeAnim,
               transform: [{ scale: loadingScaleAnim }],
