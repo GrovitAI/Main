@@ -1466,10 +1466,19 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
     const id = material.id || Math.random().toString(36).substr(2, 9);
     
     let code = material.material_code;
-    if (!material.id || !code) {
-      const matsRes = await fetchMaterials(undefined, true);
-      const existing = matsRes.data || [];
-      code = getNextMaterialCode(existing);
+    if (!material.id) {
+      if (!code) {
+        const matsRes = await fetchMaterials(undefined, true);
+        const existing = matsRes.data || [];
+        code = getNextMaterialCode(existing);
+      }
+    } else {
+      if (!code) {
+        const matsRes = await fetchMaterials(undefined, true);
+        const existing = matsRes.data || [];
+        const match = existing.find(m => m.id === material.id);
+        code = match ? match.material_code : '';
+      }
     }
     
     const openingStock = Number(material.opening_stock) || 0;

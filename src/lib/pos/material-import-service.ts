@@ -8,7 +8,8 @@ import {
   saveMaterial,
   recordAuditLog,
   InventoryMaterial,
-  ServiceResult
+  ServiceResult,
+  getNextMaterialCode
 } from './inventory-service';
 import { getTenantContext } from './tenant-context';
 
@@ -112,6 +113,11 @@ export async function validateImportRows(rows: ImportRow[]): Promise<ValidationS
           m => m.material_name.toLowerCase() === materialName.toLowerCase()
         );
       }
+    } else if (materialName) {
+      // Fallback to name match if code is not provided
+      matchedMaterial = existingMaterials.find(
+        m => m.material_name.toLowerCase() === materialName.toLowerCase()
+      );
     }
 
     if (errors.length > 0) {
@@ -231,7 +237,7 @@ export async function importRawMaterials(
       unitsMap.set(u.unit_code.toLowerCase(), u.id);
     });
 
-    const existingMaterials = matsRes.data || [];
+    const localMaterials = [...(matsRes.data || [])];
     let importCount = 0;
 
     for (const row of validatedRows) {
@@ -273,22 +279,27 @@ export async function importRawMaterials(
       }
 
       // 3. Find matched material for update or create
-      let matchedMaterial = existingMaterials.find(
+      let matchedMaterial = localMaterials.find(
         m => m.material_code.toLowerCase() === row.materialCode.toLowerCase()
       );
       if (!matchedMaterial && row.materialName) {
-        matchedMaterial = existingMaterials.find(
+        matchedMaterial = localMaterials.find(
           m => m.material_name.toLowerCase() === row.materialName.toLowerCase()
         );
       }
 
       const isUpdate = !!matchedMaterial;
-      const oldMaterialObj = isUpdate ? { ...matchedMaterial } : null;
+      const oldMaterialObj = matchedMaterial ? { ...matchedMaterial } : null;
+
+      let generatedCode = '';
+      if (!matchedMaterial) {
+        generatedCode = getNextMaterialCode(localMaterials);
+      }
 
       // 4. Save/Upsert Material
       const materialPayload: Partial<InventoryMaterial> = {
         id: matchedMaterial?.id || undefined,
-        material_code: matchedMaterial ? matchedMaterial.material_code : '',
+        material_code: matchedMaterial ? matchedMaterial.material_code : generatedCode,
         material_name: row.materialName,
         category_id: finalCategoryId,
         inventory_unit_id: finalUnitId,
@@ -312,6 +323,9 @@ export async function importRawMaterials(
       }
 
       const savedMaterial = saveRes.data;
+      if (!isUpdate) {
+        localMaterials.push(savedMaterial);
+      }
 
       // 5. Write to inventory_audit_logs
       await recordAuditLog(
