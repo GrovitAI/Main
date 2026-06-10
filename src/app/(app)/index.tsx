@@ -1479,7 +1479,7 @@ export default function PosBillingScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F2744' }}>
+    <View style={{ flex: 1, backgroundColor: '#021a37' }}>
       <View
         className="flex-1 flex-row"
         style={{
@@ -1758,22 +1758,21 @@ export default function PosBillingScreen() {
               zIndex: 999999,
               opacity: loadingFadeAnim,
               transform: [{ scale: loadingScaleAnim }],
-              backgroundColor: '#0F2744',
+              backgroundColor: '#021a37',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             {/* Background Video playing the Loading Screen Animation */}
             <VideoView
               style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
                 width: '100%',
-                height: '100%',
+                maxWidth: 960,
+                aspectRatio: 16 / 9,
+                maxHeight: '100%',
               }}
               player={videoPlayer}
-              contentFit="cover"
+              contentFit="contain"
               nativeControls={false}
             />
 
