@@ -14,7 +14,6 @@ import {
   Alert,
   Easing,
   Animated,
-  Image,
 } from 'react-native';
 import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -314,9 +313,8 @@ export default function PosBillingScreen() {
   const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
 
   // Video player configuration for full-screen loading screen
-  const videoAsset = require('../../../assets/Loading_Screen.mp4');
-  const videoSource = Image.resolveAssetSource(videoAsset);
-  const videoPlayer = useVideoPlayer(videoSource?.uri || '', (player) => {
+  const videoSource = require('../../../assets/Loading_Screen.mp4');
+  const videoPlayer = useVideoPlayer(videoSource, (player) => {
     player.muted = true;
     player.loop = true;
     player.play();
