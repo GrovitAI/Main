@@ -598,6 +598,8 @@ export default function InventoryScreen() {
   const [formMatCode, setFormMatCode] = useState('');
   const [formMatCategory, setFormMatCategory] = useState('');
   const [formMatUnit, setFormMatUnit] = useState('');
+  const [formMatPrimaryUnit, setFormMatPrimaryUnit] = useState('');
+  const [formMatConversionFactor, setFormMatConversionFactor] = useState('1');
   const [formMatReorder, setFormMatReorder] = useState('10');
   const [formMatAvgCost, setFormMatAvgCost] = useState('0');
   const [formMatOpening, setFormMatOpening] = useState('0');
@@ -875,6 +877,8 @@ export default function InventoryScreen() {
       setFormMatCode(material.material_code);
       setFormMatCategory(material.category_id || '');
       setFormMatUnit(material.inventory_unit_id || '');
+      setFormMatPrimaryUnit(material.primary_unit_id || '');
+      setFormMatConversionFactor(material.conversion_factor ? String(material.conversion_factor) : '1');
       setFormMatReorder(String(material.reorder_level));
       setFormMatAvgCost(String(material.average_cost));
       setFormMatOpening(String(material.opening_stock));
@@ -887,6 +891,8 @@ export default function InventoryScreen() {
       setFormMatCode('');
       setFormMatCategory(categories[0]?.id || '');
       setFormMatUnit(units[0]?.id || '');
+      setFormMatPrimaryUnit('');
+      setFormMatConversionFactor('1');
       setFormMatReorder('10');
       setFormMatAvgCost('0');
       setFormMatOpening('0');
@@ -914,6 +920,10 @@ export default function InventoryScreen() {
       setModalError('Please select a Unit of Measurement.');
       return;
     }
+    if (formMatConversionFactor.trim() && (isNaN(Number(formMatConversionFactor)) || Number(formMatConversionFactor) <= 0)) {
+      setModalError('Conversion Factor must be a valid number greater than 0.');
+      return;
+    }
     if (!formMatReorder.trim() || isNaN(Number(formMatReorder)) || Number(formMatReorder) < 0) {
       setModalError('Reorder Level must be a valid non-negative number.');
       return;
@@ -936,6 +946,8 @@ export default function InventoryScreen() {
         material_code: formMatCode || editingMaterial?.material_code,
         category_id: formMatCategory,
         inventory_unit_id: formMatUnit,
+        primary_unit_id: formMatPrimaryUnit || null,
+        conversion_factor: formMatConversionFactor ? Number(formMatConversionFactor) : null,
         reorder_level: Number(formMatReorder) || 0,
         average_cost: Number(formMatAvgCost) || 0,
         opening_stock: Number(formMatOpening) || 0,
@@ -3696,9 +3708,12 @@ export default function InventoryScreen() {
                               <Pressable
                                 key={m.id}
                                 onPress={() => {
+                                  const displayUnit = m.primary_unit_short_name || m.unit_short_name || 'units';
+                                  const displayPackSize = m.conversion_factor ? String(m.conversion_factor) : '1';
                                   handleUpdatePurchaseLineMulti(idx, {
                                     material_id: m.id,
-                                    unit_short_name: m.unit_short_name || 'units',
+                                    unit_short_name: displayUnit,
+                                    pack_size: displayPackSize,
                                   });
                                   setOpenLineMatDropdownIdx(null);
                                 }}
@@ -6380,6 +6395,45 @@ export default function InventoryScreen() {
                       </Pressable>
                     ))}
                   </ScrollView>
+                </View>
+              </View>
+
+              {/* Primary Purchase Unit & Conversion Factor Section */}
+              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
+                <View className="flex-1 min-w-[140px] gap-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Purchase Unit</Text>
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                    <Pressable
+                      onPress={() => setFormMatPrimaryUnit('')}
+                      className={`p-2 rounded mb-1 ${!formMatPrimaryUnit ? 'bg-blue-100' : ''}`}
+                    >
+                      <Text className="text-[10px] font-bold">Same as Base Unit (UoM)</Text>
+                    </Pressable>
+                    {units.map((u) => (
+                      <Pressable
+                        key={u.id}
+                        onPress={() => setFormMatPrimaryUnit(u.id)}
+                        className={`p-2 rounded mb-1 ${formMatPrimaryUnit === u.id ? 'bg-blue-100' : ''}`}
+                      >
+                        <Text className="text-[10px] font-bold">
+                          {u.unit_name} ({u.short_name})
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+                <View className="flex-1 min-w-[140px] gap-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase">Conversion Factor</Text>
+                  <TextInput
+                    value={formMatConversionFactor}
+                    onChangeText={setFormMatConversionFactor}
+                    placeholder="e.g. 1.5 (Base Units/Pack)"
+                    keyboardType="numeric"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
+                  />
+                  <Text className="text-[8px] font-semibold text-slate-400">
+                    Number of base units (UoM) in one purchase packet/box/can.
+                  </Text>
                 </View>
               </View>
 

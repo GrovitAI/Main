@@ -81,6 +81,9 @@ export type InventoryMaterial = {
   // Join properties populated for UI
   category_name?: string;
   unit_short_name?: string;
+  primary_unit_id?: string | null;
+  conversion_factor?: number | null;
+  primary_unit_short_name?: string;
 };
 
 export type InventoryStockLevel = {
@@ -389,6 +392,7 @@ export type InventoryConsumptionJob = {
 const LOCAL_STORAGE_KEYS = {
   CATEGORIES: 'grovit_inv_categories_v1',
   UNITS: 'grovit_inv_units_v1',
+  UNIT_CONVERSIONS: 'grovit_inv_unit_conversions_v1',
   SUPPLIERS: 'grovit_inv_suppliers_v1',
   MATERIALS: 'grovit_inv_materials_v1',
   STOCK_LEVELS: 'grovit_inv_stock_levels_v1',
@@ -1360,15 +1364,31 @@ export async function fetchMaterials(branchId?: string): Promise<ServiceResult<I
         .eq('tenant_id', tenant_id)
         .eq('branch_id', targetBranchId);
 
+      const conversions = getLocalData<Record<string, { primary_unit_id: string | null; conversion_factor: number | null }>>(
+        'grovit_inv_unit_conversions_v1',
+        {}
+      );
+      const unitsList = getLocalData<InventoryUnit[]>('grovit_inv_units_v1', []);
+
       // Map stock level sums into materials
       const formatted = (mats || []).map((m: any) => {
         const materialLevels = (stockLvls || []).filter((l: any) => l.material_id === m.id);
         const sumStock = materialLevels.reduce((sum: number, l: any) => sum + (Number(l.current_stock) || 0), 0);
+        const conv = conversions[m.id];
+        
+        // Prioritize Supabase columns if they exist, otherwise fallback to localStorage
+        const dbPrimaryUnitId = m.primary_unit_id !== undefined ? m.primary_unit_id : (conv?.primary_unit_id || null);
+        const dbConversionFactor = m.conversion_factor !== undefined ? m.conversion_factor : (conv?.conversion_factor || null);
+        
+        const primaryUnitObj = dbPrimaryUnitId ? unitsList.find(u => u.id === dbPrimaryUnitId) : null;
         return {
           ...m,
           current_stock: sumStock,
           category_name: m.category?.category_name || 'Uncategorized',
           unit_short_name: m.unit?.short_name || 'units',
+          primary_unit_id: dbPrimaryUnitId,
+          conversion_factor: dbConversionFactor,
+          primary_unit_short_name: primaryUnitObj?.short_name || '',
         };
       });
 
@@ -1390,6 +1410,10 @@ function fetchMaterialsLocal(tenantId: string, branchId: string): ServiceResult<
   const categories = getLocalData<InventoryCategory[]>(LOCAL_STORAGE_KEYS.CATEGORIES, []);
   const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
   const stockLvls = getLocalData<InventoryStockLevel[]>(LOCAL_STORAGE_KEYS.STOCK_LEVELS, []);
+  const conversions = getLocalData<Record<string, { primary_unit_id: string | null; conversion_factor: number | null }>>(
+    'grovit_inv_unit_conversions_v1',
+    {}
+  );
 
   const active = all.filter(m => m.tenant_id === tenantId && !m.deleted_at);
 
@@ -1398,11 +1422,16 @@ function fetchMaterialsLocal(tenantId: string, branchId: string): ServiceResult<
     const unt = units.find(u => u.id === m.inventory_unit_id);
     const materialLevels = stockLvls.filter(l => l.tenant_id === tenantId && l.branch_id === branchId && l.material_id === m.id);
     const sumStock = materialLevels.reduce((sum, l) => sum + (Number(l.current_stock) || 0), 0);
+    const conv = conversions[m.id];
+    const primaryUnitObj = conv?.primary_unit_id ? units.find(u => u.id === conv.primary_unit_id) : null;
     return {
       ...m,
       current_stock: sumStock,
       category_name: cat ? cat.category_name : 'Uncategorized',
       unit_short_name: unt ? unt.short_name : 'units',
+      primary_unit_id: conv?.primary_unit_id || null,
+      conversion_factor: conv?.conversion_factor || null,
+      primary_unit_short_name: primaryUnitObj ? primaryUnitObj.short_name : '',
     };
   });
 
@@ -1421,6 +1450,19 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
     const averageCost = Number(material.average_cost) || 0;
     const lastPurchasePrice = Number(material.last_purchase_price) || averageCost;
     
+    // Save conversions if present
+    if (material.primary_unit_id !== undefined || material.conversion_factor !== undefined) {
+      const conversions = getLocalData<Record<string, { primary_unit_id: string | null; conversion_factor: number | null }>>(
+        'grovit_inv_unit_conversions_v1',
+        {}
+      );
+      conversions[id] = {
+        primary_unit_id: material.primary_unit_id || null,
+        conversion_factor: material.conversion_factor !== undefined ? (material.conversion_factor ? Number(material.conversion_factor) : null) : null,
+      };
+      saveLocalData('grovit_inv_unit_conversions_v1', conversions);
+    }
+
     const fullMaterial = {
       tenant_id,
       branch_id,
@@ -1428,6 +1470,8 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
       material_name: material.material_name || 'Unnamed Material',
       category_id: material.category_id || null,
       inventory_unit_id: material.inventory_unit_id || null,
+      primary_unit_id: material.primary_unit_id !== undefined ? material.primary_unit_id : null,
+      conversion_factor: material.conversion_factor !== undefined ? (material.conversion_factor ? Number(material.conversion_factor) : null) : null,
       opening_stock: openingStock,
       current_stock: currentStock,
       reorder_level: reorderLevel,
