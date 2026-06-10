@@ -19,8 +19,7 @@ type CategoryTabItem = {
 /* eslint-disable @typescript-eslint/no-require-imports */
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
-function getCategoryIcon(name: string, isActive: boolean) {
-  const color = isActive ? '#ffffff' : 'rgba(255,255,255,0.9)'; 
+function getCategoryIcon(name: string, color: string) {
   const size = 18;
 
   const lowerName = name.toLowerCase().trim();
@@ -107,11 +106,11 @@ export function CategoryTabs({
                   // ACTIVE CATEGORY
                   <View className="min-h-[54px] flex-row items-center overflow-hidden rounded-[20px] shadow-sm">
                     <LinearGradient
-                      colors={['#4ca4ff', '#2d85f0']}
+                       colors={['#4ca4ff', '#2d85f0']}
                       className="absolute inset-0"
                     />
                     <View className="w-8 items-center justify-center pl-1">
-                      {getCategoryIcon(item.name, true)}
+                      {getCategoryIcon(item.name, '#ffffff')}
                     </View>
                     <Text
                       className="ml-2 flex-1 text-[12px] font-bold text-white"
@@ -124,7 +123,7 @@ export function CategoryTabs({
                   // INACTIVE CATEGORY
                   <View className="min-h-[54px] flex-row items-center rounded-[20px] px-1">
                     <View className="w-8 items-center justify-center">
-                      {getCategoryIcon(item.name, false)}
+                      {getCategoryIcon(item.name, 'rgba(255,255,255,0.9)')}
                     </View>
                     <Text
                       className="ml-2 flex-1 text-[12px] font-semibold text-white/90"
@@ -160,7 +159,10 @@ export function CategoryTabs({
                 accessibilityRole="button"
                 onPress={() => onSelectCategory(item.id)}
               >
-                <View className="min-h-[36px] items-center justify-center rounded-full bg-primary-navy px-4 py-1.5">
+                <View className="min-h-[36px] flex-row items-center justify-center rounded-full bg-primary-navy px-4 py-1.5">
+                  <View className="mr-1.5">
+                    {getCategoryIcon(item.name, '#ffffff')}
+                  </View>
                   <Text className="text-xs font-bold text-text-on-primary">{item.name}</Text>
                 </View>
               </Pressable>
@@ -171,8 +173,11 @@ export function CategoryTabs({
             <Pressable
               accessibilityRole="button"
               onPress={() => onSelectCategory(item.id)}
-              className="min-h-[36px] justify-center rounded-full border border-border-soft bg-surface-elevated px-4 py-1.5"
+              className="min-h-[36px] flex-row items-center justify-center rounded-full border border-border-soft bg-surface-elevated px-4 py-1.5"
             >
+              <View className="mr-1.5">
+                {getCategoryIcon(item.name, '#6b7280')}
+              </View>
               <Text className="text-xs font-semibold text-text-secondary">{item.name}</Text>
             </Pressable>
           );
@@ -181,3 +186,4 @@ export function CategoryTabs({
     </View>
   );
 }
+
