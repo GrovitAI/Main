@@ -1,5 +1,5 @@
 import { FlatList, Image, Pressable, Text, View } from 'react-native';
-import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich } from 'lucide-react-native';
+import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich, Sparkles, Layers, IceCream } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Category } from '@/lib/pos/products-service';
@@ -23,8 +23,16 @@ function getCategoryIcon(name: string, isActive: boolean) {
   const color = isActive ? '#ffffff' : 'rgba(255,255,255,0.9)'; 
   const size = 18;
 
-  const lowerName = name.toLowerCase();
-  if (lowerName === 'all') return <LayoutGrid color={color} size={size} />;
+  const lowerName = name.toLowerCase().trim();
+  if (lowerName === 'all' || lowerName === 'all items') return <LayoutGrid color={color} size={size} />;
+  
+  // Custom sweet-shop dessert mapping
+  if (lowerName === 'signature') return <Sparkles color={color} size={size} />;
+  if (lowerName === 'salankatia') return <CakeSlice color={color} size={size} />;
+  if (lowerName === 'koushiri' || lowerName === 'koshari') return <Layers color={color} size={size} />;
+  if (lowerName === 'qashtuta') return <IceCream color={color} size={size} />;
+
+  // General fallbacks
   if (lowerName.includes('signature') || lowerName.includes('cake')) return <CakeSlice color={color} size={size} />;
   if (lowerName.includes('kunafa')) return <Sandwich color={color} size={size} />;
   if (lowerName.includes('cup') && !lowerName.includes('drink')) return <CupSoda color={color} size={size} />;
@@ -34,6 +42,7 @@ function getCategoryIcon(name: string, isActive: boolean) {
   
   return <LayoutGrid color={color} size={size} />;
 }
+
 
 export function CategoryTabs({
   categories,
