@@ -64,6 +64,7 @@ interface RecipeItemDraft {
   id?: string;
   material_id: string;
   quantity: string;
+  selected_unit?: string;
 }
 
 interface CompletenessStatus {
@@ -330,6 +331,84 @@ function Autocomplete<T extends { id: string }>({
 }
 
 
+function getUnitConversionMultiplier(enteredUnit: string, baseUnit: string): number {
+  const ent = enteredUnit.toLowerCase().trim();
+  const base = baseUnit.toLowerCase().trim();
+  
+  const isWeightBase = base === 'kg' || base === 'kilogram' || base === 'kilograms';
+  const isWeightGram = base === 'g' || base === 'gram' || base === 'grams';
+  
+  const isVolumeBase = base === 'l' || base === 'litre' || base === 'litres' || base === 'ltr';
+  const isVolumeMl = base === 'ml' || base === 'millilitre' || base === 'millilitres';
+  
+  if (isWeightBase) {
+    if (ent === 'g' || ent === 'gram' || ent === 'grams') return 0.001;
+    return 1;
+  }
+  if (isWeightGram) {
+    if (ent === 'kg' || ent === 'kilogram' || ent === 'kilograms') return 1000;
+    return 1;
+  }
+  
+  if (isVolumeBase) {
+    if (ent === 'ml' || ent === 'millilitre' || ent === 'millilitres') return 0.001;
+    return 1;
+  }
+  if (isVolumeMl) {
+    if (ent === 'l' || ent === 'litre' || ent === 'litres' || ent === 'ltr') return 1000;
+    return 1;
+  }
+  
+  return 1;
+}
+
+function getCompatibleUnitOptions(baseUnit: string): string[] {
+  const base = baseUnit.toLowerCase().trim();
+  const isWeight = base === 'kg' || base === 'kilogram' || base === 'kilograms' || base === 'g' || base === 'gram' || base === 'grams';
+  if (isWeight) {
+    return ['kg', 'g'];
+  }
+  const isVolume = base === 'l' || base === 'litre' || base === 'litres' || base === 'ltr' || base === 'ml' || base === 'millilitre' || base === 'millilitres';
+  if (isVolume) {
+    return ['L', 'ml'];
+  }
+  return [baseUnit];
+}
+
+function formatRecipeQuantity(qty: number, baseUnit: string): string {
+  const base = baseUnit.toLowerCase().trim();
+  if (base === 'l' || base === 'litre' || base === 'litres' || base === 'ltr') {
+    if (qty < 1 && qty > 0) {
+      return `${(qty * 1000).toFixed(0)} ml`;
+    }
+    return `${qty} L`;
+  }
+  if (base === 'kg' || base === 'kilogram' || base === 'kilograms') {
+    if (qty < 1 && qty > 0) {
+      return `${(qty * 1000).toFixed(0)} g`;
+    }
+    return `${qty} kg`;
+  }
+  return `${qty} ${baseUnit}`;
+}
+
+function getInitialDraftQtyAndUnit(qty: number, baseUnit: string): { quantity: string; selected_unit: string } {
+  const base = baseUnit.toLowerCase().trim();
+  if (base === 'l' || base === 'litre' || base === 'litres' || base === 'ltr') {
+    if (qty < 1 && qty > 0) {
+      return { quantity: String(qty * 1000), selected_unit: 'ml' };
+    }
+    return { quantity: String(qty), selected_unit: 'L' };
+  }
+  if (base === 'kg' || base === 'kilogram' || base === 'kilograms') {
+    if (qty < 1 && qty > 0) {
+      return { quantity: String(qty * 1000), selected_unit: 'g' };
+    }
+    return { quantity: String(qty), selected_unit: 'kg' };
+  }
+  return { quantity: String(qty), selected_unit: baseUnit };
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function RecipeManagement() {
@@ -366,6 +445,7 @@ export default function RecipeManagement() {
   const [editYieldQuantity, setEditYieldQuantity] = useState('1');
   const [editYieldUnit, setEditYieldUnit] = useState('portion');
   const [editItems, setEditItems] = useState<RecipeItemDraft[]>([]);
+  const [openLineUnitDropdownIdx, setOpenLineUnitDropdownIdx] = useState<number | null>(null);
   const [editIngredientSearch, setEditIngredientSearch] = useState('');
   const [recipeType] = useState<RecipeType>('MENU_ITEM'); // hidden; PRODUCTION reserved
   const [formError, setFormError] = useState<string | null>(null);
@@ -473,7 +553,11 @@ export default function RecipeManagement() {
       setSelectedRecipeItems(items);
       setEditItems(
         items.length > 0
-          ? items.map((i) => ({ id: i.id, material_id: i.material_id, quantity: String(i.quantity) }))
+          ? items.map((i) => {
+              const mat = materials.find((m) => m.id === i.material_id);
+              const initial = getInitialDraftQtyAndUnit(i.quantity ?? 0, mat?.unit_short_name ?? 'units');
+              return { id: i.id, material_id: i.material_id, quantity: initial.quantity, selected_unit: initial.selected_unit };
+            })
           : [{ material_id: '', quantity: '' }],
       );
     } catch {
@@ -508,7 +592,11 @@ export default function RecipeManagement() {
       setEditYieldUnit(recipe.yield_unit ?? 'portion');
       setEditItems(
         res.data && res.data.length > 0
-          ? res.data.map((i) => ({ material_id: i.material_id, quantity: String(i.quantity) }))
+          ? res.data.map((i) => {
+              const mat = materials.find((m) => m.id === i.material_id);
+              const initial = getInitialDraftQtyAndUnit(i.quantity ?? 0, mat?.unit_short_name ?? 'units');
+              return { material_id: i.material_id, quantity: initial.quantity, selected_unit: initial.selected_unit };
+            })
           : [{ material_id: '', quantity: '' }],
       );
       setFormError(null);
@@ -545,7 +633,19 @@ export default function RecipeManagement() {
   const updateIngredientMaterial = (idx: number, materialId: string) =>
     setEditItems((prev) => {
       const next = [...prev];
-      next[idx] = { ...next[idx], material_id: materialId };
+      const mat = materials.find((m) => m.id === materialId);
+      next[idx] = { 
+        ...next[idx], 
+        material_id: materialId,
+        selected_unit: mat?.unit_short_name || 'units'
+      };
+      return next;
+    });
+
+  const updateIngredientUnit = (idx: number, unit: string) =>
+    setEditItems((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], selected_unit: unit };
       return next;
     });
 
@@ -562,7 +662,13 @@ export default function RecipeManagement() {
     let total = 0;
     const lines = editItems.map((itm) => {
       const mat = materials.find((m) => m.id === itm.material_id);
-      const qty = parseFloat(itm.quantity) || 0;
+      const qtyEntered = parseFloat(itm.quantity) || 0;
+      
+      const baseUnit = mat?.unit_short_name || 'units';
+      const enteredUnit = itm.selected_unit || baseUnit;
+      const multiplier = getUnitConversionMultiplier(enteredUnit, baseUnit);
+      const qty = qtyEntered * multiplier;
+
       const unitCost = mat
         ? costBasis === 'average'
           ? (mat.average_cost ?? 0)
@@ -674,10 +780,16 @@ export default function RecipeManagement() {
     }
 
     setSubmitting(true);
-    const itemsPayload = validItems.map((i) => ({
-      material_id: i.material_id,
-      quantity: parseFloat(i.quantity),
-    }));
+    const itemsPayload = validItems.map((i) => {
+      const mat = materials.find((m) => m.id === i.material_id);
+      const baseUnit = mat?.unit_short_name || 'units';
+      const enteredUnit = i.selected_unit || baseUnit;
+      const multiplier = getUnitConversionMultiplier(enteredUnit, baseUnit);
+      return {
+        material_id: i.material_id,
+        quantity: parseFloat(i.quantity) * multiplier,
+      };
+    });
 
     const recipePayload: Partial<InventoryRecipe> = {
       id: isEditing ? selectedRecipeId ?? undefined : undefined,
@@ -846,7 +958,7 @@ export default function RecipeManagement() {
               <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">
                 Stock
               </Text>
-              <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-right">
+              <Text className="w-20 text-[9px] font-black text-text-secondary uppercase text-right">
                 Qty
               </Text>
               <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-right">
@@ -892,8 +1004,8 @@ export default function RecipeManagement() {
                       <Text className="text-[8px] text-rose-500 font-bold">LOW</Text>
                     )}
                   </View>
-                  <Text className="w-14 text-xs font-bold text-text-secondary text-right font-mono">
-                    {line.qty}
+                  <Text className="w-20 text-xs font-bold text-text-secondary text-right font-mono">
+                    {formatRecipeQuantity(line.qty, mat?.unit_short_name ?? '')}
                   </Text>
                   <Text className="w-14 text-xs font-semibold text-text-secondary text-right font-mono">
                     ₹{line.unitCost.toFixed(2)}
@@ -1215,9 +1327,10 @@ export default function RecipeManagement() {
             {/* Ingredient table header */}
             <View className="flex-row border-b border-slate-100 pb-1 mb-1">
               <Text className="flex-[2] text-[9px] font-black text-text-secondary uppercase">Material</Text>
-              <Text className="w-20 text-[9px] font-black text-text-secondary uppercase text-center">In Stock</Text>
-              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">Qty</Text>
-              <Text className="w-20 text-[9px] font-black text-text-secondary uppercase text-right">Line ₹</Text>
+              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-center">In Stock</Text>
+              <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-right">Qty</Text>
+              <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-center">Unit</Text>
+              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">Line ₹</Text>
               <Text className="w-8" />
             </View>
 
@@ -1226,9 +1339,9 @@ export default function RecipeManagement() {
               const line = liveCostInfo.lines[idx];
               const stock = mat?.current_stock ?? null;
               return (
-                <View key={idx} className="flex-row items-center mb-1.5 gap-1">
+                <View key={idx} className="flex-row items-center mb-1.5 gap-1" style={{ zIndex: 100 - idx }}>
                   {/* Material selector */}
-                  <View className="flex-[2]" style={{ zIndex: 100 - idx }}>
+                  <View className="flex-[2]">
                     <Autocomplete<InventoryMaterial>
                       value={itm.material_id}
                       onChange={(id) => updateIngredientMaterial(idx, id)}
@@ -1240,7 +1353,7 @@ export default function RecipeManagement() {
                   </View>
 
                   {/* Stock badge */}
-                  <View className="w-20 items-center">
+                  <View className="w-16 items-center">
                     {stock !== null ? (
                       <Text
                         className={`text-[10px] font-bold font-mono ${
@@ -1261,12 +1374,49 @@ export default function RecipeManagement() {
                     keyboardType="numeric"
                     placeholder="0"
                     placeholderTextColor="#94a3b8"
-                    className="w-16 border border-slate-200 rounded-lg px-2 text-text-primary text-xs font-bold text-right bg-white"
+                    className="w-14 border border-slate-200 rounded-lg px-2 text-text-primary text-xs font-bold text-right bg-white"
                     style={{ height: 36 }}
                   />
 
+                  {/* Unit Selector */}
+                  <View className="w-14 relative" style={{ zIndex: 1000 }}>
+                    <Pressable
+                      onPress={() => setOpenLineUnitDropdownIdx(openLineUnitDropdownIdx === idx ? null : idx)}
+                      className="flex-row items-center justify-between border border-slate-200 rounded-lg px-2 bg-white active:scale-95"
+                      style={{ height: 36 }}
+                    >
+                      <Text className="text-[10px] font-bold text-slate-600">
+                        {itm.selected_unit || mat?.unit_short_name || 'Unit'}
+                      </Text>
+                      <ChevronDown size={8} color="#64748b" />
+                    </Pressable>
+
+                    {openLineUnitDropdownIdx === idx && mat && (
+                      <View className="absolute top-10 left-0 bg-white border border-slate-200 rounded-lg shadow-lg w-20 p-1 z-[2000]" style={{ zIndex: 2000 }}>
+                        {getCompatibleUnitOptions(mat.unit_short_name || 'units').map((opt) => (
+                          <Pressable
+                            key={opt}
+                            onPress={() => {
+                              updateIngredientUnit(idx, opt);
+                              setOpenLineUnitDropdownIdx(null);
+                            }}
+                            className={`p-1.5 rounded hover:bg-slate-50 active:bg-slate-100 ${
+                              (itm.selected_unit || mat.unit_short_name) === opt ? 'bg-blue-50/50' : ''
+                            }`}
+                          >
+                            <Text className={`text-[10px] font-bold ${
+                              (itm.selected_unit || mat.unit_short_name) === opt ? 'text-blue-600' : 'text-slate-700'
+                            } text-center`}>
+                              {opt}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
                   {/* Line cost */}
-                  <Text className="w-20 text-xs font-black font-mono text-right" style={{ color: colors.primary }}>
+                  <Text className="w-16 text-xs font-black font-mono text-right" style={{ color: colors.primary }}>
                     {line ? `₹${line.lineCost.toFixed(2)}` : '—'}
                   </Text>
 
