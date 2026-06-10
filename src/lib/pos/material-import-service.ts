@@ -66,7 +66,7 @@ export async function validateImportRows(rows: ImportRow[]): Promise<ValidationS
     fetchCategories(),
     fetchUnits(),
     fetchSuppliers(),
-    fetchMaterials()
+    fetchMaterials(undefined, true)
   ]);
 
   const existingCategories = catsRes.data || [];
@@ -221,7 +221,7 @@ export async function importRawMaterials(
     const [catsRes, unitsRes, matsRes] = await Promise.all([
       fetchCategories(),
       fetchUnits(),
-      fetchMaterials()
+      fetchMaterials(undefined, true)
     ]);
 
     const categoriesMap = new Map<string, string>();

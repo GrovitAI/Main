@@ -1332,27 +1332,31 @@ function deleteSupplierLocal(id: string): ServiceResult<boolean> {
 
 // ─── 4. MATERIALS ────────────────────────────────────────────────────────────
 
-export async function fetchMaterials(branchId?: string): Promise<ServiceResult<InventoryMaterial[]>> {
+export async function fetchMaterials(branchId?: string, includeDeleted = false): Promise<ServiceResult<InventoryMaterial[]>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const targetBranchId = branchId || branch_id;
 
     if (!forceLocalFallback) {
       // 1. Fetch materials base catalog
-      const { data: mats, error: matErr } = await supabase
+      let query = supabase
         .from('inventory_materials')
         .select(`
           *,
           category:inventory_categories(category_name),
           unit:inventory_units(short_name)
         `)
-        .eq('tenant_id', tenant_id)
-        .is('deleted_at', null)
-        .order('material_name', { ascending: true });
+        .eq('tenant_id', tenant_id);
+
+      if (!includeDeleted) {
+        query = query.is('deleted_at', null);
+      }
+
+      const { data: mats, error: matErr } = await query.order('material_name', { ascending: true });
 
       if (matErr) {
         if (await handleQueryError(matErr, 'fetchMaterials')) {
-          return fetchMaterialsLocal(tenant_id, targetBranchId);
+          return fetchMaterialsLocal(tenant_id, targetBranchId, includeDeleted);
         }
         return { data: null, error: matErr.message };
       }
@@ -1375,7 +1379,6 @@ export async function fetchMaterials(branchId?: string): Promise<ServiceResult<I
         const materialLevels = (stockLvls || []).filter((l: any) => l.material_id === m.id);
         const sumStock = materialLevels.reduce((sum: number, l: any) => sum + (Number(l.current_stock) || 0), 0);
         const conv = conversions[m.id];
-        
         // Prioritize Supabase columns if they exist, otherwise fallback to localStorage
         const dbPrimaryUnitId = m.primary_unit_id !== undefined ? m.primary_unit_id : (conv?.primary_unit_id || null);
         const dbConversionFactor = m.conversion_factor !== undefined ? m.conversion_factor : (conv?.conversion_factor || null);
@@ -1394,18 +1397,18 @@ export async function fetchMaterials(branchId?: string): Promise<ServiceResult<I
 
       return { data: formatted as InventoryMaterial[], error: null };
     } else {
-      return fetchMaterialsLocal(tenant_id, targetBranchId);
+      return fetchMaterialsLocal(tenant_id, targetBranchId, includeDeleted);
     }
   } catch (err: any) {
     if (await handleQueryError(err, 'fetchMaterials')) {
       const tenant = getTenantContext();
-      return fetchMaterialsLocal(tenant.tenant_id, branchId || tenant.branch_id);
+      return fetchMaterialsLocal(tenant.tenant_id, branchId || tenant.branch_id, includeDeleted);
     }
     return { data: null, error: err.message || 'Error occurred.' };
   }
 }
 
-function fetchMaterialsLocal(tenantId: string, branchId: string): ServiceResult<InventoryMaterial[]> {
+function fetchMaterialsLocal(tenantId: string, branchId: string, includeDeleted = false): ServiceResult<InventoryMaterial[]> {
   const all = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
   const categories = getLocalData<InventoryCategory[]>(LOCAL_STORAGE_KEYS.CATEGORIES, []);
   const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
@@ -1415,7 +1418,7 @@ function fetchMaterialsLocal(tenantId: string, branchId: string): ServiceResult<
     {}
   );
 
-  const active = all.filter(m => m.tenant_id === tenantId && !m.deleted_at);
+  const active = all.filter(m => m.tenant_id === tenantId && (includeDeleted || !m.deleted_at));
 
   const formatted = active.map(m => {
     const cat = categories.find(c => c.id === m.category_id);
