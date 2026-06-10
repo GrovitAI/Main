@@ -250,7 +250,7 @@ export function OrderPanel({
               {items.map((item) => {
                 const isItemEditable = canEdit && !item.kot_sent;
                 return (
-                  <View key={item.id} style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F9FAFB', opacity: item.kot_sent ? 0.85 : 1 }}>
+                  <View key={item.id} style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', opacity: item.kot_sent ? 0.85 : 1 }}>
                     <View style={{ flex: 1, marginRight: 4 }}>
                       <Text style={{ fontSize: 13, fontWeight: '600', letterSpacing: -0.1, color: '#013b8c' }} numberOfLines={1}>
                         {item.product_name} {item.kot_sent && <Text style={{ fontSize: 10, fontWeight: '600', color: '#10B981' }}>(Sent)</Text>}
@@ -358,7 +358,7 @@ export function OrderPanel({
           renderItem={({ item }) => {
             const isItemEditable = canEdit && !item.kot_sent;
             return (
-              <View style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F9FAFB', opacity: item.kot_sent ? 0.85 : 1 }}>
+              <View style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', opacity: item.kot_sent ? 0.85 : 1 }}>
                 <View style={{ flex: 1, marginRight: 4 }}>
                   <Text style={{ fontSize: 13, fontWeight: '600', letterSpacing: -0.1, color: '#013b8c' }} numberOfLines={1}>
                     {item.product_name} {item.kot_sent && <Text style={{ fontSize: 10, fontWeight: '600', color: '#10B981' }}>(Sent)</Text>}
