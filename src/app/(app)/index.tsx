@@ -317,13 +317,29 @@ export default function PosBillingScreen() {
     player.play();
   });
 
-  // Fail-safe to ensure autoplay works on web after mount
+  // Fail-safe to ensure autoplay works on web after mount / page reload
   useEffect(() => {
-    if (videoPlayer) {
+    if (!videoPlayer) return;
+
+    // Initial play attempt
+    videoPlayer.muted = true;
+    videoPlayer.loop = true;
+    videoPlayer.play();
+
+    // Periodic check to play the video once the VideoView/video element is actually mounted in the DOM
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (videoPlayer.playing || attempts > 25) {
+        clearInterval(interval);
+        return;
+      }
       videoPlayer.muted = true;
       videoPlayer.loop = true;
       videoPlayer.play();
-    }
+    }, 200);
+
+    return () => clearInterval(interval);
   }, [videoPlayer]);
 
   // Enforce minimum 3 seconds loader display
