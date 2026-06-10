@@ -19,6 +19,9 @@ import {
   Sandwich,
   PanelLeft,
   PanelLeftClose,
+  Sparkles,
+  Layers,
+  IceCream,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -52,18 +55,23 @@ function getCategoryIcon(name: string, isActive: boolean) {
   const size = 18;
   const opacity = isActive ? 1 : 0.75;
 
-  const lower = name.toLowerCase();
-  if (lower === 'all') return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('signature') || lower.includes('cake'))
-    return <CakeSlice color={color} size={size} style={{ opacity } as any} />;
+  const lower = name.toLowerCase().trim();
+  if (lower === 'all' || lower === 'all items') return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
+  
+  // Custom sweet-shop dessert mapping (.includes matches substring/variations robustly)
+  if (lower.includes('signature')) return <Sparkles color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('salankatia')) return <CakeSlice color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('koushiri') || lower.includes('koshari')) return <Layers color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('qashtuta')) return <IceCream color={color} size={size} style={{ opacity } as any} />;
+
+  // General fallbacks
+  if (lower.includes('cake')) return <CakeSlice color={color} size={size} style={{ opacity } as any} />;
   if (lower.includes('kunafa')) return <Sandwich color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('cup') && !lower.includes('drink'))
-    return <CupSoda color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('drink') || lower.includes('shake'))
-    return <GlassWater color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('hot') || lower.includes('beverage'))
-    return <Coffee color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('cup') && !lower.includes('drink')) return <CupSoda color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('drink') || lower.includes('shake')) return <GlassWater color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('hot') || lower.includes('beverage')) return <Coffee color={color} size={size} style={{ opacity } as any} />;
   if (lower.includes('add')) return <CirclePlus color={color} size={size} style={{ opacity } as any} />;
+  
   return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
 }
 
