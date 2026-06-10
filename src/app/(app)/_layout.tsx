@@ -266,10 +266,18 @@ export default function AppTabLayout() {
   const initialRouteName = getInitialRouteNameForRole(CURRENT_ROLE);
   const segments = useSegments();
   const pathname = usePathname();
-  // Pre-hide the tab bar on reload if the initial screen is the POS billing screen (which plays the splash video)
-  const cleanPath = (pathname || '').split('?')[0].replace(/^\/|\/$/g, '').toLowerCase();
-  const isInitialPathLoading = cleanPath === '' || cleanPath === 'index' || cleanPath === '(app)' || cleanPath === '(app)/index';
-  const [tabBarHidden, setTabBarHidden] = useState(isInitialPathLoading);
+  // tabBarHidden is controlled exclusively by individual screens via useTabBarHidden().
+  // index.tsx sets it to true during the splash video and restores it to false when done.
+  // We use window.location.pathname (available synchronously before Expo Router hydration)
+  // to correctly detect if we booted at the root '/' route — the only case where the
+  // splash video runs and the tab bar should start hidden.
+  const isRootBoot = Platform.OS === 'web' && typeof window !== 'undefined'
+    ? (() => {
+        const p = window.location.pathname.replace(/\/+$/, '') || '/';
+        return p === '/' || p === '/index';
+      })()
+    : true; // on native, always start hidden (splash runs on every boot)
+  const [tabBarHidden, setTabBarHidden] = useState(isRootBoot);
 
   const segmentsRef = useRef(segments);
   useEffect(() => {
