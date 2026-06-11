@@ -1363,7 +1363,8 @@ export async function fetchMaterials(branchId?: string, includeDeleted = false):
         .select(`
           *,
           category:inventory_categories(category_name),
-          unit:inventory_units(short_name)
+          unit:inventory_units!inventory_unit_id(short_name),
+          primary_unit:inventory_units!primary_unit_id(short_name)
         `)
         .eq('tenant_id', tenant_id);
 
@@ -1403,6 +1404,7 @@ export async function fetchMaterials(branchId?: string, includeDeleted = false):
         const dbConversionFactor = m.conversion_factor !== undefined ? m.conversion_factor : (conv?.conversion_factor || null);
         
         const primaryUnitObj = dbPrimaryUnitId ? unitsList.find(u => u.id === dbPrimaryUnitId) : null;
+        const primaryUnitShortName = m.primary_unit?.short_name || (primaryUnitObj?.short_name || '');
         return {
           ...m,
           current_stock: sumStock,
@@ -1410,7 +1412,7 @@ export async function fetchMaterials(branchId?: string, includeDeleted = false):
           unit_short_name: m.unit?.short_name || 'units',
           primary_unit_id: dbPrimaryUnitId,
           conversion_factor: dbConversionFactor,
-          primary_unit_short_name: primaryUnitObj?.short_name || '',
+          primary_unit_short_name: primaryUnitShortName,
         };
       });
 
@@ -3164,7 +3166,7 @@ export async function fetchTransferRequestItems(requestId: string): Promise<Serv
         .from('inventory_transfer_request_items')
         .select(`
           *,
-          material:inventory_materials(material_name, unit:inventory_units(short_name))
+          material:inventory_materials(material_name, unit:inventory_units!inventory_unit_id(short_name))
         `)
         .eq('request_id', requestId);
 
@@ -4328,7 +4330,7 @@ export async function fetchDispatchItems(dispatchId: string): Promise<ServiceRes
         .from('inventory_dispatch_items')
         .select(`
           *,
-          material:inventory_materials(material_name, unit:inventory_units(short_name))
+          material:inventory_materials(material_name, unit:inventory_units!inventory_unit_id(short_name))
         `)
         .eq('dispatch_id', dispatchId);
 
