@@ -59,6 +59,7 @@ import {
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from 'expo-router';
 
 import { BRANCH_ID, getTenantContext } from '@/lib/pos/tenant-context';
 import { colors } from '@/lib/pos/brand';
@@ -439,6 +440,7 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 
 export default function InventoryScreen() {
+  const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const numColumns = width >= 768 ? 2 : 1;
 
@@ -714,6 +716,17 @@ export default function InventoryScreen() {
   }, [simulatedBranchId]);
 
   useEffect(() => {
+    // Silently refresh when screen receives focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadAllData(true, simulatedBranchId);
+    });
+    return unsubscribe;
+  }, [navigation, simulatedBranchId]);
+
+  useEffect(() => {
+    // Refresh silently when changing tabs/panels in inventory to ensure fresh state
+    loadAllData(true, simulatedBranchId);
+
     if (['materials', 'suppliers', 'units', 'categories'].includes(activeTab)) {
       setIsMasterExpanded(true);
     }
