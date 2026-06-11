@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView } from 'react-native';
 import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download, Trash2 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
@@ -80,6 +80,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isFormRecipeDropdownOpen, setIsFormRecipeDropdownOpen] = useState(false);
+  const recipeTriggerRef = useRef<View>(null);
 
   // Excel Import states
   const [importSummary, setImportSummary] = useState<ProductValidationSummary | null>(null);
@@ -1241,6 +1242,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                     <View className="w-full mb-1.5">
                       <Text className="text-[11px] font-bold text-text-primary mb-1.5">Linked Recipe</Text>
                       <Pressable
+                        ref={recipeTriggerRef}
                         onPress={() => setIsFormRecipeDropdownOpen(true)}
                         className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex-row justify-between items-center"
                         style={{ minHeight: 36 }}
@@ -1262,6 +1264,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                         getOptionValue={(r) => r.id}
                         title="Select Recipe"
                         placeholder="Search recipes..."
+                        triggerRef={recipeTriggerRef}
                       />
                     </View>
                   </View>

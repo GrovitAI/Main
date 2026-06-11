@@ -585,6 +585,12 @@ export default function InventoryScreen() {
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
+  // Trigger refs for searchable dropdown alignment
+  const categoryTriggerRef = useRef<View>(null);
+  const unitTriggerRef = useRef<View>(null);
+  const primaryUnitTriggerRef = useRef<View>(null);
+  const supplierTriggerRef = useRef<View>(null);
+
   // New Wastage states
   const [wastageMaterialId, setWastageMaterialId] = useState('');
   const [wastageQty, setWastageQty] = useState('');
@@ -6378,6 +6384,7 @@ export default function InventoryScreen() {
                   <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Category*</Text>
                     <Pressable
+                      ref={categoryTriggerRef}
                       onPress={() => {
                         setIsFormCategoryDropdownOpen(true);
                       }}
@@ -6399,6 +6406,7 @@ export default function InventoryScreen() {
                       getOptionValue={(c) => c.id}
                       title="Select Category"
                       placeholder="Search categories..."
+                      triggerRef={categoryTriggerRef}
                     />
                   </View>
                 </View>
@@ -6435,6 +6443,7 @@ export default function InventoryScreen() {
                   <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Secondary Unit (Stock / Recipes)*</Text>
                     <Pressable
+                      ref={unitTriggerRef}
                       onPress={() => {
                         setIsFormUnitDropdownOpen(true);
                       }}
@@ -6456,6 +6465,7 @@ export default function InventoryScreen() {
                       getOptionValue={(u) => u.id}
                       title="Select Base Unit"
                       placeholder="Search units..."
+                      triggerRef={unitTriggerRef}
                     />
                   </View>
 
@@ -6463,6 +6473,7 @@ export default function InventoryScreen() {
                   <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Unit (Purchase)</Text>
                     <Pressable
+                      ref={primaryUnitTriggerRef}
                       onPress={() => {
                         setIsFormPrimaryUnitDropdownOpen(true);
                       }}
@@ -6484,6 +6495,7 @@ export default function InventoryScreen() {
                       getOptionValue={(u) => u.id}
                       title="Select Primary Unit"
                       placeholder="Search units..."
+                      triggerRef={primaryUnitTriggerRef}
                     />
                   </View>
                 </View>
@@ -6561,6 +6573,7 @@ export default function InventoryScreen() {
                   <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Preferred Supplier</Text>
                     <Pressable
+                      ref={supplierTriggerRef}
                       onPress={() => {
                         setIsFormSupplierDropdownOpen(true);
                       }}
@@ -6582,6 +6595,7 @@ export default function InventoryScreen() {
                       getOptionValue={(s) => s.id}
                       title="Select Supplier"
                       placeholder="Search suppliers..."
+                      triggerRef={supplierTriggerRef}
                     />
                   </View>
                 </View>
