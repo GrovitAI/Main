@@ -4945,6 +4945,8 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         .from('inventory_consumption_batches')
         .select('*')
         .eq('id', batchId)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id)
         .single();
 
       if (batchErr) return { data: false, error: batchErr.message };
@@ -4960,14 +4962,28 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         await supabase
           .from('inventory_consumption_batches')
           .update({ status: 'Processed', processed_at: now })
-          .eq('id', batchId);
+          .eq('id', batchId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
         return { data: true, error: null };
       }
 
-      const productIds = billItems.map((bi: any) => bi.product_id);
+      const productIds = billItems.map((bi: any) => bi.product_id).filter(Boolean);
+      if (productIds.length === 0) {
+        await supabase
+          .from('inventory_consumption_batches')
+          .update({ status: 'Processed', processed_at: now })
+          .eq('id', batchId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
+        return { data: true, error: null };
+      }
+
       const { data: products } = await supabase
         .from('products')
         .select('id, name, recipe_id, inventory_tracking_enabled')
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id)
         .in('id', productIds);
 
       // Check if global inventory tracking is enabled (POS settings preference)
@@ -4975,22 +4991,69 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         ? window.localStorage.getItem('globalInventoryTracking') !== 'false'
         : true;
 
-      const trackingEnabledProducts = (products || []).filter((p: any) => isGlobalTrackingEnabled && p.recipe_id);
+      const recipeIdsFromProducts = (products || [])
+        .map((p: any) => p.recipe_id)
+        .filter(Boolean);
+
+      const recipes: any[] = [];
+      const seenRecipeIds = new Set<string>();
+
+      // Fetch recipes linked by menu_item_id
+      const { data: recipesByMenu } = await supabase
+        .from('inventory_recipes')
+        .select('id, tenant_id, recipe_code, recipe_name, menu_item_id, is_active, yield_quantity, yield_unit')
+        .eq('tenant_id', tenant_id)
+        .eq('is_active', true)
+        .in('menu_item_id', productIds);
+
+      if (recipesByMenu) {
+        for (const r of recipesByMenu) {
+          if (!seenRecipeIds.has(r.id)) {
+            recipes.push(r);
+            seenRecipeIds.add(r.id);
+          }
+        }
+      }
+
+      // Fetch recipes linked directly by recipe_id
+      if (recipeIdsFromProducts.length > 0) {
+        const { data: recipesById } = await supabase
+          .from('inventory_recipes')
+          .select('id, tenant_id, recipe_code, recipe_name, menu_item_id, is_active, yield_quantity, yield_unit')
+          .eq('tenant_id', tenant_id)
+          .eq('is_active', true)
+          .in('id', recipeIdsFromProducts);
+
+        if (recipesById) {
+          for (const r of recipesById) {
+            if (!seenRecipeIds.has(r.id)) {
+              recipes.push(r);
+              seenRecipeIds.add(r.id);
+            }
+          }
+        }
+      }
+
+      const trackingEnabledProducts = (products || []).filter((p: any) => {
+        if (!isGlobalTrackingEnabled) return false;
+        const hasRecipe = recipes.some((r: any) =>
+          (p.recipe_id && r.id === p.recipe_id) ||
+          (r.menu_item_id === p.id)
+        );
+        return hasRecipe;
+      });
 
       if (trackingEnabledProducts.length === 0) {
         await supabase
           .from('inventory_consumption_batches')
           .update({ status: 'Processed', processed_at: now })
-          .eq('id', batchId);
+          .eq('id', batchId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
         return { data: true, error: null };
       }
 
-      const recipeIds = trackingEnabledProducts.map((p: any) => p.recipe_id);
-
-      const { data: recipes } = await supabase
-        .from('inventory_recipes')
-        .select('id, tenant_id, recipe_code, recipe_name, menu_item_id, is_active, yield_quantity, yield_unit')
-        .in('id', recipeIds);
+      const recipeIds = recipes.map((r: any) => r.id);
 
       const { data: recipeItems } = await supabase
         .from('inventory_recipe_items')
@@ -5004,7 +5067,10 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         const prod = trackingEnabledProducts.find((p: any) => p.id === bi.product_id);
         if (!prod) continue;
 
-        const recipe = (recipes || []).find((r: any) => r.id === prod.recipe_id);
+        const recipe = recipes.find((r: any) =>
+          (prod.recipe_id && r.id === prod.recipe_id) ||
+          (r.menu_item_id === prod.id)
+        );
         if (!recipe) continue;
 
         const itemsForRecipe = (recipeItems || []).filter((ri: any) => ri.recipe_id === recipe.id);
@@ -5029,7 +5095,9 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
         await supabase
           .from('inventory_consumption_batches')
           .update({ status: 'Processed', processed_at: now })
-          .eq('id', batchId);
+          .eq('id', batchId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
         return { data: true, error: null };
       }
 
@@ -5063,7 +5131,9 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
                 available_stock: nextStock - reserved,
                 updated_at: now
               })
-              .eq('id', activeLvl.id);
+              .eq('id', activeLvl.id)
+              .eq('tenant_id', tenant_id)
+              .eq('branch_id', branch_id);
           } else {
             nextStock = -Number(job.quantity_to_deduct);
             await supabase
@@ -5083,6 +5153,7 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
             .from('inventory_materials')
             .select('average_cost, material_name')
             .eq('id', job.material_id)
+            .eq('tenant_id', tenant_id)
             .single();
 
           const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
@@ -5112,7 +5183,9 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
               processed_at: now,
               processed_by: 'System Worker'
             })
-            .eq('id', job.id);
+            .eq('id', job.id)
+            .eq('tenant_id', tenant_id)
+            .eq('branch_id', branch_id);
 
         } catch (jobErr: any) {
           console.error(`Error processing consumption job ${job.id}:`, jobErr);
@@ -5124,7 +5197,9 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
               error_message: jobErr.message || 'Job deduction failed',
               last_attempt_at: now
             })
-            .eq('id', job.id);
+            .eq('id', job.id)
+            .eq('tenant_id', tenant_id)
+            .eq('branch_id', branch_id);
         }
       }
 
@@ -5135,7 +5210,9 @@ export async function processConsumptionBatch(batchId: string): Promise<ServiceR
           total_cost_snapshot: totalCost,
           processed_at: now
         })
-        .eq('id', batchId);
+        .eq('id', batchId)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
 
       return { data: true, error: null };
 
