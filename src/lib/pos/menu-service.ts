@@ -73,6 +73,19 @@ export async function addProduct(
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .eq('is_active', true)
+      .ilike('name', input.name.trim())
+      .maybeSingle();
+
+    if (existing) {
+      return { data: null, error: 'A product with this name already exists.' };
+    }
+
     const payload = {
       tenant_id,
       branch_id,
@@ -110,6 +123,20 @@ export async function updateProduct(
 ): Promise<ServiceResult<MenuProduct>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
+
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .eq('is_active', true)
+      .neq('id', productId)
+      .ilike('name', input.name.trim())
+      .maybeSingle();
+
+    if (existing) {
+      return { data: null, error: 'A product with this name already exists.' };
+    }
 
     const payload = {
       name: input.name,

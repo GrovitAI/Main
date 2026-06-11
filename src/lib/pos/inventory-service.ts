@@ -1087,6 +1087,47 @@ function fetchUnitsLocal(tenantId: string): ServiceResult<InventoryUnit[]> {
 export async function saveUnit(unit: Partial<InventoryUnit>): Promise<ServiceResult<InventoryUnit>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
+
+    // Check duplicate unit name or short name
+    if (!forceLocalFallback) {
+      let duplicateQuery = supabase
+        .from('inventory_units')
+        .select('id, unit_name, short_name')
+        .eq('tenant_id', tenant_id)
+        .eq('is_active', true);
+      
+      if (unit.id) {
+        duplicateQuery = duplicateQuery.neq('id', unit.id);
+      }
+      
+      const { data: existingUnits } = await duplicateQuery;
+      const newUnitName = (unit.unit_name || '').toLowerCase().trim();
+      const newShortName = (unit.short_name || '').toLowerCase().trim();
+      if (existingUnits) {
+        const hasDupName = existingUnits.some(u => (u.unit_name || '').toLowerCase().trim() === newUnitName);
+        const hasDupShort = existingUnits.some(u => (u.short_name || '').toLowerCase().trim() === newShortName);
+        if (hasDupName) {
+          return { data: null, error: 'A unit with this name already exists.' };
+        }
+        if (hasDupShort) {
+          return { data: null, error: 'A unit with this abbreviation (short name) already exists.' };
+        }
+      }
+    } else {
+      const allUnits = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
+      const newUnitName = (unit.unit_name || '').toLowerCase().trim();
+      const newShortName = (unit.short_name || '').toLowerCase().trim();
+      const existing = allUnits.filter(u => u.tenant_id === tenant_id && u.is_active && u.id !== unit.id);
+      const hasDupName = existing.some(u => (u.unit_name || '').toLowerCase().trim() === newUnitName);
+      const hasDupShort = existing.some(u => (u.short_name || '').toLowerCase().trim() === newShortName);
+      if (hasDupName) {
+        return { data: null, error: 'A unit with this name already exists.' };
+      }
+      if (hasDupShort) {
+        return { data: null, error: 'A unit with this abbreviation (short name) already exists.' };
+      }
+    }
+
     const id = unit.id || Math.random().toString(36).substr(2, 9);
     const code = unit.unit_code || `UN${Math.floor(10 + Math.random() * 90)}`;
     const dbPayload = {
@@ -1225,6 +1266,37 @@ function fetchSuppliersLocal(tenantId: string): ServiceResult<InventorySupplier[
 export async function saveSupplier(supplier: Partial<InventorySupplier>): Promise<ServiceResult<InventorySupplier>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
+
+    // Check duplicate supplier name
+    if (!forceLocalFallback) {
+      let duplicateQuery = supabase
+        .from('inventory_suppliers')
+        .select('id')
+        .eq('tenant_id', tenant_id)
+        .is('deleted_at', null)
+        .ilike('supplier_name', supplier.supplier_name?.trim() || '');
+
+      if (supplier.id) {
+        duplicateQuery = duplicateQuery.neq('id', supplier.id);
+      }
+
+      const { data: dupSup } = await duplicateQuery.maybeSingle();
+      if (dupSup) {
+        return { data: null, error: 'A supplier with this name already exists.' };
+      }
+    } else {
+      const allSups = getLocalData<InventorySupplier[]>(LOCAL_STORAGE_KEYS.SUPPLIERS, []);
+      const isDup = allSups.some(s =>
+        s.tenant_id === tenant_id &&
+        !s.deleted_at &&
+        s.id !== supplier.id &&
+        s.supplier_name.toLowerCase().trim() === (supplier.supplier_name || '').toLowerCase().trim()
+      );
+      if (isDup) {
+        return { data: null, error: 'A supplier with this name already exists.' };
+      }
+    }
+
     const id = supplier.id || Math.random().toString(36).substr(2, 9);
     const code = supplier.supplier_code || `SUP${Math.floor(10 + Math.random() * 90)}`;
     const fullSupplier = {
@@ -1465,6 +1537,37 @@ function fetchMaterialsLocal(tenantId: string, branchId: string, includeDeleted 
 export async function saveMaterial(material: Partial<InventoryMaterial>): Promise<ServiceResult<InventoryMaterial>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
+
+    // Check duplicate material name
+    if (!forceLocalFallback) {
+      let duplicateQuery = supabase
+        .from('inventory_materials')
+        .select('id')
+        .eq('tenant_id', tenant_id)
+        .is('deleted_at', null)
+        .ilike('material_name', material.material_name?.trim() || '');
+
+      if (material.id) {
+        duplicateQuery = duplicateQuery.neq('id', material.id);
+      }
+
+      const { data: dupMat } = await duplicateQuery.maybeSingle();
+      if (dupMat) {
+        return { data: null, error: 'A material with this name already exists.' };
+      }
+    } else {
+      const allMats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+      const isDup = allMats.some(m =>
+        m.tenant_id === tenant_id &&
+        !m.deleted_at &&
+        m.id !== material.id &&
+        m.material_name.toLowerCase().trim() === (material.material_name || '').toLowerCase().trim()
+      );
+      if (isDup) {
+        return { data: null, error: 'A material with this name already exists.' };
+      }
+    }
+
     const id = material.id || Math.random().toString(36).substr(2, 9);
     
     let code = material.material_code;
