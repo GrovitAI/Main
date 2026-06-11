@@ -5,6 +5,7 @@ import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
 import { fetchRecipes, type InventoryRecipe } from '@/lib/pos/inventory-service';
+import { SearchableDropdown } from '../ui/SearchableDropdown';
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -78,6 +79,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   const [formInput, setFormInput] = useState<ProductFormInput>(initialFormInput);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isFormRecipeDropdownOpen, setIsFormRecipeDropdownOpen] = useState(false);
 
   // Excel Import states
   const [importSummary, setImportSummary] = useState<ProductValidationSummary | null>(null);
@@ -1238,29 +1240,29 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
                     
                     <View className="w-full mb-1.5">
                       <Text className="text-[11px] font-bold text-text-primary mb-1.5">Linked Recipe</Text>
-                      <View className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                        <select
-                          value={formInput.recipe_id}
-                          onChange={(e) => setFormInput(prev => ({ ...prev, recipe_id: e.target.value }))}
-                          style={{
-                            width: '100%',
-                            padding: '8.5px 12px',
-                            fontSize: 11,
-                            border: 'none',
-                            outline: 'none',
-                            backgroundColor: '#FFFFFF',
-                            fontWeight: '600',
-                            color: colors.textPrimary
-                          }}
-                        >
-                          <option value="">-- No Linked Recipe --</option>
-                          {recipes.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.recipe_name || r.name} ({r.recipe_code}) - Cost: ₹{(r.cost_snapshot || 0).toFixed(2)}
-                            </option>
-                          ))}
-                        </select>
-                      </View>
+                      <Pressable
+                        onPress={() => setIsFormRecipeDropdownOpen(true)}
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex-row justify-between items-center"
+                        style={{ minHeight: 36 }}
+                      >
+                        <Text className="text-[11px] text-slate-800 font-semibold">
+                          {recipes.find(r => r.id === formInput.recipe_id)
+                            ? `${recipes.find(r => r.id === formInput.recipe_id)?.recipe_name || recipes.find(r => r.id === formInput.recipe_id)?.name} (${recipes.find(r => r.id === formInput.recipe_id)?.recipe_code})`
+                            : '-- No Linked Recipe --'}
+                        </Text>
+                        <ChevronDown size={14} color="#64748b" />
+                      </Pressable>
+                      <SearchableDropdown
+                        visible={isFormRecipeDropdownOpen}
+                        onClose={() => setIsFormRecipeDropdownOpen(false)}
+                        options={[{ id: '', recipe_name: '-- No Linked Recipe --', name: '', recipe_code: '', tenant_id: '', branch_id: '', description: '', yield_quantity: 0, yield_unit: '', cost_snapshot: 0, version_no: 0, effective_from: '', is_active: false, created_at: '', updated_at: '', menu_item_id: null }, ...recipes]}
+                        selectedValue={formInput.recipe_id}
+                        onSelect={(r) => setFormInput(prev => ({ ...prev, recipe_id: r.id }))}
+                        getOptionLabel={(r) => r.recipe_code ? `${r.recipe_name || r.name} (${r.recipe_code})` : r.recipe_name}
+                        getOptionValue={(r) => r.id}
+                        title="Select Recipe"
+                        placeholder="Search recipes..."
+                      />
                     </View>
                   </View>
                 </View>

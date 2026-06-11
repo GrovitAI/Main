@@ -125,6 +125,7 @@ import {
   type InventoryRecipe,
 } from '@/lib/pos/inventory-service';
 import RecipeManagement from '@/components/inventory/RecipeManagement';
+import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { getProducts, type Product } from '@/lib/pos/products-service';
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
@@ -6374,14 +6375,11 @@ export default function InventoryScreen() {
 
                 <View className="flex-row gap-3 flex-wrap">
                   {/* Category Selector */}
-                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormCategoryDropdownOpen ? 1000 : 1 }}>
+                  <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Category*</Text>
                     <Pressable
                       onPress={() => {
-                        setIsFormCategoryDropdownOpen(!isFormCategoryDropdownOpen);
-                        setIsFormUnitDropdownOpen(false);
-                        setIsFormPrimaryUnitDropdownOpen(false);
-                        setIsFormSupplierDropdownOpen(false);
+                        setIsFormCategoryDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
                       style={{ minHeight: 38 }}
@@ -6391,27 +6389,17 @@ export default function InventoryScreen() {
                       </Text>
                       <ChevronDown size={14} color="#64748b" />
                     </Pressable>
-                    {isFormCategoryDropdownOpen && (
-                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
-                        <ScrollView nestedScrollEnabled={true}>
-                          {categories.map((c) => (
-                            <Pressable
-                              key={c.id}
-                              onPress={() => {
-                                setFormMatCategory(c.id);
-                                setIsFormCategoryDropdownOpen(false);
-                              }}
-                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatCategory === c.id ? 'bg-blue-50/50' : ''}`}
-                            >
-                              <Text className={`text-xs ${formMatCategory === c.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
-                                {c.category_name}
-                              </Text>
-                              {formMatCategory === c.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
+                    <SearchableDropdown
+                      visible={isFormCategoryDropdownOpen}
+                      onClose={() => setIsFormCategoryDropdownOpen(false)}
+                      options={categories}
+                      selectedValue={formMatCategory}
+                      onSelect={(c) => setFormMatCategory(c.id)}
+                      getOptionLabel={(c) => c.category_name}
+                      getOptionValue={(c) => c.id}
+                      title="Select Category"
+                      placeholder="Search categories..."
+                    />
                   </View>
                 </View>
 
@@ -6444,14 +6432,11 @@ export default function InventoryScreen() {
 
                 <View className="flex-row gap-3 flex-wrap">
                   {/* Secondary Unit Selector */}
-                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormUnitDropdownOpen ? 1000 : 1 }}>
+                  <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Secondary Unit (Stock / Recipes)*</Text>
                     <Pressable
                       onPress={() => {
-                        setIsFormUnitDropdownOpen(!isFormUnitDropdownOpen);
-                        setIsFormCategoryDropdownOpen(false);
-                        setIsFormPrimaryUnitDropdownOpen(false);
-                        setIsFormSupplierDropdownOpen(false);
+                        setIsFormUnitDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
                       style={{ minHeight: 38 }}
@@ -6461,38 +6446,25 @@ export default function InventoryScreen() {
                       </Text>
                       <ChevronDown size={14} color="#64748b" />
                     </Pressable>
-                    {isFormUnitDropdownOpen && (
-                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
-                        <ScrollView nestedScrollEnabled={true}>
-                          {units.map((u) => (
-                            <Pressable
-                              key={u.id}
-                              onPress={() => {
-                                setFormMatUnit(u.id);
-                                setIsFormUnitDropdownOpen(false);
-                              }}
-                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatUnit === u.id ? 'bg-blue-50/50' : ''}`}
-                            >
-                              <Text className={`text-xs ${formMatUnit === u.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
-                                {u.unit_name} ({u.short_name})
-                              </Text>
-                              {formMatUnit === u.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
+                    <SearchableDropdown
+                      visible={isFormUnitDropdownOpen}
+                      onClose={() => setIsFormUnitDropdownOpen(false)}
+                      options={units}
+                      selectedValue={formMatUnit}
+                      onSelect={(u) => setFormMatUnit(u.id)}
+                      getOptionLabel={(u) => `${u.unit_name} (${u.short_name})`}
+                      getOptionValue={(u) => u.id}
+                      title="Select Base Unit"
+                      placeholder="Search units..."
+                    />
                   </View>
 
                   {/* Primary Unit Selector */}
-                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormPrimaryUnitDropdownOpen ? 1000 : 1 }}>
+                  <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Unit (Purchase)</Text>
                     <Pressable
                       onPress={() => {
-                        setIsFormPrimaryUnitDropdownOpen(!isFormPrimaryUnitDropdownOpen);
-                        setIsFormCategoryDropdownOpen(false);
-                        setIsFormUnitDropdownOpen(false);
-                        setIsFormSupplierDropdownOpen(false);
+                        setIsFormPrimaryUnitDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
                       style={{ minHeight: 38 }}
@@ -6502,39 +6474,17 @@ export default function InventoryScreen() {
                       </Text>
                       <ChevronDown size={14} color="#64748b" />
                     </Pressable>
-                    {isFormPrimaryUnitDropdownOpen && (
-                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
-                        <ScrollView nestedScrollEnabled={true}>
-                          <Pressable
-                            onPress={() => {
-                              setFormMatPrimaryUnit('');
-                              setIsFormPrimaryUnitDropdownOpen(false);
-                            }}
-                            className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${!formMatPrimaryUnit ? 'bg-blue-50/50' : ''}`}
-                          >
-                            <Text className={`text-xs ${!formMatPrimaryUnit ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
-                              Same as Secondary Unit
-                            </Text>
-                            {!formMatPrimaryUnit && <Check size={12} color="#2563eb" strokeWidth={3} />}
-                          </Pressable>
-                          {units.map((u) => (
-                            <Pressable
-                              key={u.id}
-                              onPress={() => {
-                                setFormMatPrimaryUnit(u.id);
-                                setIsFormPrimaryUnitDropdownOpen(false);
-                              }}
-                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatPrimaryUnit === u.id ? 'bg-blue-50/50' : ''}`}
-                            >
-                              <Text className={`text-xs ${formMatPrimaryUnit === u.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
-                                {u.unit_name} ({u.short_name})
-                              </Text>
-                              {formMatPrimaryUnit === u.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
+                    <SearchableDropdown
+                      visible={isFormPrimaryUnitDropdownOpen}
+                      onClose={() => setIsFormPrimaryUnitDropdownOpen(false)}
+                      options={[{ id: '', unit_name: 'Same as Secondary Unit', short_name: '' }, ...units]}
+                      selectedValue={formMatPrimaryUnit}
+                      onSelect={(u) => setFormMatPrimaryUnit(u.id)}
+                      getOptionLabel={(u) => u.short_name ? `${u.unit_name} (${u.short_name})` : u.unit_name}
+                      getOptionValue={(u) => u.id}
+                      title="Select Primary Unit"
+                      placeholder="Search units..."
+                    />
                   </View>
                 </View>
 
@@ -6608,14 +6558,11 @@ export default function InventoryScreen() {
                   </View>
 
                   {/* Preferred Supplier Selector */}
-                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormSupplierDropdownOpen ? 1000 : 1 }}>
+                  <View className="flex-1 min-w-[140px] gap-1 relative">
                     <Text className="text-[10px] font-black text-slate-500 uppercase">Preferred Supplier</Text>
                     <Pressable
                       onPress={() => {
-                        setIsFormSupplierDropdownOpen(!isFormSupplierDropdownOpen);
-                        setIsFormCategoryDropdownOpen(false);
-                        setIsFormUnitDropdownOpen(false);
-                        setIsFormPrimaryUnitDropdownOpen(false);
+                        setIsFormSupplierDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
                       style={{ minHeight: 38 }}
@@ -6625,39 +6572,17 @@ export default function InventoryScreen() {
                       </Text>
                       <ChevronDown size={14} color="#64748b" />
                     </Pressable>
-                    {isFormSupplierDropdownOpen && (
-                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
-                        <ScrollView nestedScrollEnabled={true}>
-                          <Pressable
-                            onPress={() => {
-                              setFormMatSupplier('');
-                              setIsFormSupplierDropdownOpen(false);
-                            }}
-                            className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${!formMatSupplier ? 'bg-blue-50/50' : ''}`}
-                          >
-                            <Text className={`text-xs ${!formMatSupplier ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
-                              None (Clear preferred supplier)
-                            </Text>
-                            {!formMatSupplier && <Check size={12} color="#2563eb" strokeWidth={3} />}
-                          </Pressable>
-                          {suppliers.map((s) => (
-                            <Pressable
-                              key={s.id}
-                              onPress={() => {
-                                setFormMatSupplier(s.id);
-                                setIsFormSupplierDropdownOpen(false);
-                              }}
-                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatSupplier === s.id ? 'bg-blue-50/50' : ''}`}
-                            >
-                              <Text className={`text-xs ${formMatSupplier === s.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
-                                {s.supplier_name}
-                              </Text>
-                              {formMatSupplier === s.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
+                    <SearchableDropdown
+                      visible={isFormSupplierDropdownOpen}
+                      onClose={() => setIsFormSupplierDropdownOpen(false)}
+                      options={[{ id: '', supplier_name: 'None (Clear preferred supplier)' }, ...suppliers]}
+                      selectedValue={formMatSupplier}
+                      onSelect={(s) => setFormMatSupplier(s.id)}
+                      getOptionLabel={(s) => s.supplier_name}
+                      getOptionValue={(s) => s.id}
+                      title="Select Supplier"
+                      placeholder="Search suppliers..."
+                    />
                   </View>
                 </View>
               </View>
