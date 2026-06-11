@@ -74,7 +74,7 @@ export function SearchableDropdown<T>({
         onPress={onClose}
       >
         {coords && (
-          <View 
+          <Pressable 
             style={{
               position: 'absolute',
               top: topPosition,
@@ -83,25 +83,26 @@ export function SearchableDropdown<T>({
               height: dropdownHeight,
               zIndex: 9999,
             }}
-            className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xl flex-col"
-            onStartShouldSetResponder={() => true}
-            onTouchEnd={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl border border-[#c5d9eb] overflow-hidden shadow-2xl flex-col"
+            onPress={(e) => {
+              e.stopPropagation();
+            }}
           >
             {/* Search Input inside dropdown */}
-            <View className="p-2 border-b border-slate-100 flex-row items-center bg-white">
-              <View className="flex-1 flex-row items-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-                <Search size={12} color="#64748b" className="mr-1.5" />
+            <View className="p-2 border-b border-[#e8f2fa] flex-row items-center bg-white">
+              <View className="flex-1 flex-row items-center bg-[#e8f2fa]/40 border border-[#c5d9eb]/70 rounded-lg px-2.5 py-1">
+                <Search size={12} color="#0066b2" className="mr-1.5" />
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder={placeholder}
-                  placeholderTextColor="#94a3b8"
-                  className="flex-1 text-slate-800 text-[11px] font-semibold h-6 p-0"
+                  placeholderTextColor="#5b6b7c"
+                  className="flex-1 text-[#0f2744] text-[11px] font-semibold h-6 p-0"
                   autoFocus={true}
                 />
                 {searchQuery.length > 0 && (
                   <Pressable onPress={() => setSearchQuery('')} className="p-0.5">
-                    <X size={12} color="#64748b" />
+                    <X size={12} color="#5b6b7c" />
                   </Pressable>
                 )}
               </View>
@@ -112,9 +113,10 @@ export function SearchableDropdown<T>({
               data={filteredOptions}
               keyExtractor={(item) => getOptionValue(item)}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
               ListEmptyComponent={
-                <View className="py-4 items-center justify-center">
-                  <Text className="text-[10px] font-bold text-slate-400">No matches</Text>
+                <View className="py-5 items-center justify-center">
+                  <Text className="text-[10px] font-extrabold text-[#5b6b7c]">No matches found</Text>
                 </View>
               }
               renderItem={({ item }) => {
@@ -130,26 +132,26 @@ export function SearchableDropdown<T>({
                       onClose();
                     }}
                     style={({ pressed }) => ({
-                      minHeight: 36,
+                      minHeight: 40,
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       paddingHorizontal: 12,
                       paddingVertical: 8,
-                      backgroundColor: isSelected ? '#eff6ff' : pressed ? '#f8fafc' : 'transparent',
+                      backgroundColor: isSelected ? '#e8f2fa' : pressed ? '#f0f7fd' : 'transparent',
                       borderBottomWidth: 1,
                       borderBottomColor: '#f8fafc',
                     })}
                   >
-                    <Text className={`text-[11px] ${isSelected ? 'text-blue-600 font-extrabold' : 'text-slate-700 font-semibold'}`}>
+                    <Text className={`text-[11px] ${isSelected ? 'text-[#0066b2] font-black' : 'text-[#0f2744] font-semibold'}`}>
                       {label}
                     </Text>
-                    {isSelected && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                    {isSelected && <Check size={12} color="#0066b2" strokeWidth={3} />}
                   </Pressable>
                 );
               }}
             />
-          </View>
+          </Pressable>
         )}
       </Pressable>
     </Modal>
