@@ -501,6 +501,10 @@ export default function InventoryScreen() {
   // ─── MODAL STATES ──────────────────────────────────────────────────────────
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Partial<InventoryMaterial> | null>(null);
+  const [isFormCategoryDropdownOpen, setIsFormCategoryDropdownOpen] = useState(false);
+  const [isFormUnitDropdownOpen, setIsFormUnitDropdownOpen] = useState(false);
+  const [isFormPrimaryUnitDropdownOpen, setIsFormPrimaryUnitDropdownOpen] = useState(false);
+  const [isFormSupplierDropdownOpen, setIsFormSupplierDropdownOpen] = useState(false);
 
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Partial<InventorySupplier> | null>(null);
@@ -904,6 +908,10 @@ export default function InventoryScreen() {
       setFormMatHsn('');
       setFormMatSupplier(suppliers[0]?.id || '');
     }
+    setIsFormCategoryDropdownOpen(false);
+    setIsFormUnitDropdownOpen(false);
+    setIsFormPrimaryUnitDropdownOpen(false);
+    setIsFormSupplierDropdownOpen(false);
     setIsMaterialModalOpen(true);
   };
 
@@ -6308,7 +6316,7 @@ export default function InventoryScreen() {
       {/* 1. Add/Edit Material Modal */}
       <Modal visible={isMaterialModalOpen} animationType="fade" transparent>
         <View className="flex-1 bg-black/50 justify-center items-center p-6">
-          <View className="bg-white w-[85%] md:w-[50%] rounded-3xl p-6 shadow-2xl">
+          <View className="bg-white w-[85%] md:w-[60%] lg:w-[45%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-base font-black text-slate-900">
                 {editingMaterial ? 'Edit Raw Ingredient' : 'Register New Raw Material'}
@@ -6330,171 +6338,319 @@ export default function InventoryScreen() {
               </View>
             )}
 
-            <ScrollView className="max-h-[400px] pr-2 gap-4">
-              <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Material Name*</Text>
-                <TextInput
-                  value={formMatName}
-                  onChangeText={setFormMatName}
-                  placeholder="e.g., Premium Tahini Paste"
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                />
-              </View>
-
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Code</Text>
+            <ScrollView 
+              className="max-h-[460px] pr-2"
+              contentContainerStyle={{ paddingBottom: 160 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+              {/* SECTION 1: GENERAL DETAILS */}
+              <View className="mb-4 bg-slate-50/50 border border-slate-100 p-4 rounded-2xl gap-3" style={{ zIndex: isFormCategoryDropdownOpen ? 100 : 30, position: 'relative' }}>
+                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">General Details</Text>
+                
+                <View className="gap-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase">Material Name*</Text>
                   <TextInput
-                    value={formMatCode}
-                    editable={false}
-                    className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 font-bold"
+                    value={formMatName}
+                    onChangeText={setFormMatName}
+                    placeholder="e.g., Premium Tahini Paste"
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
+                    style={{ minHeight: 38 }}
                   />
                 </View>
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">SKU Barcode</Text>
-                  <TextInput
-                    value={formMatBarcode}
-                    onChangeText={setFormMatBarcode}
-                    placeholder="e.g., 89012345..."
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
-                </View>
-              </View>
 
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Category*</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {categories.map((c) => (
-                      <Pressable
-                        key={c.id}
-                        onPress={() => setFormMatCategory(c.id)}
-                        className={`p-2 rounded mb-1 ${formMatCategory === c.id ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{c.category_name}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Secondary Unit (Stock / Recipes)*</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {units.map((u) => (
-                      <Pressable
-                        key={u.id}
-                        onPress={() => setFormMatUnit(u.id)}
-                        className={`p-2 rounded mb-1 ${formMatUnit === u.id ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">
-                          {u.unit_name} ({u.short_name})
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
-
-              {/* Primary Purchase Unit & Conversion Factor Section */}
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Unit (Purchase)</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                <View className="flex-row gap-3 flex-wrap">
+                  {/* Category Selector */}
+                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormCategoryDropdownOpen ? 1000 : 1 }}>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Category*</Text>
                     <Pressable
-                      onPress={() => setFormMatPrimaryUnit('')}
-                      className={`p-2 rounded mb-1 ${!formMatPrimaryUnit ? 'bg-blue-100' : ''}`}
+                      onPress={() => {
+                        setIsFormCategoryDropdownOpen(!isFormCategoryDropdownOpen);
+                        setIsFormUnitDropdownOpen(false);
+                        setIsFormPrimaryUnitDropdownOpen(false);
+                        setIsFormSupplierDropdownOpen(false);
+                      }}
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
+                      style={{ minHeight: 38 }}
                     >
-                      <Text className="text-[10px] font-bold">Same as Secondary Unit</Text>
+                      <Text className="text-xs text-slate-800 font-medium">
+                        {categories.find(c => c.id === formMatCategory)?.category_name || 'Select Category'}
+                      </Text>
+                      <ChevronDown size={14} color="#64748b" />
                     </Pressable>
-                    {units.map((u) => (
-                      <Pressable
-                        key={u.id}
-                        onPress={() => setFormMatPrimaryUnit(u.id)}
-                        className={`p-2 rounded mb-1 ${formMatPrimaryUnit === u.id ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">
-                          {u.unit_name} ({u.short_name})
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
+                    {isFormCategoryDropdownOpen && (
+                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
+                        <ScrollView nestedScrollEnabled={true}>
+                          {categories.map((c) => (
+                            <Pressable
+                              key={c.id}
+                              onPress={() => {
+                                setFormMatCategory(c.id);
+                                setIsFormCategoryDropdownOpen(false);
+                              }}
+                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatCategory === c.id ? 'bg-blue-50/50' : ''}`}
+                            >
+                              <Text className={`text-xs ${formMatCategory === c.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                                {c.category_name}
+                              </Text>
+                              {formMatCategory === c.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <View className="flex-1 min-w-[140px] gap-1">
+
+                <View className="flex-row gap-3 flex-wrap">
+                  <View className="flex-1 min-w-[120px] gap-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Code</Text>
+                    <TextInput
+                      value={formMatCode}
+                      editable={false}
+                      className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-500 font-bold"
+                      style={{ minHeight: 38 }}
+                    />
+                  </View>
+                  <View className="flex-1 min-w-[120px] gap-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">SKU Barcode</Text>
+                    <TextInput
+                      value={formMatBarcode}
+                      onChangeText={setFormMatBarcode}
+                      placeholder="e.g., 89012345..."
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-800 font-medium"
+                      style={{ minHeight: 38 }}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* SECTION 2: MEASUREMENT & UNITS */}
+              <View className="mb-4 bg-slate-50/50 border border-slate-100 p-4 rounded-2xl gap-3" style={{ zIndex: (isFormUnitDropdownOpen || isFormPrimaryUnitDropdownOpen) ? 100 : 20, position: 'relative' }}>
+                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Measurement & Units</Text>
+
+                <View className="flex-row gap-3 flex-wrap">
+                  {/* Secondary Unit Selector */}
+                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormUnitDropdownOpen ? 1000 : 1 }}>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Secondary Unit (Stock / Recipes)*</Text>
+                    <Pressable
+                      onPress={() => {
+                        setIsFormUnitDropdownOpen(!isFormUnitDropdownOpen);
+                        setIsFormCategoryDropdownOpen(false);
+                        setIsFormPrimaryUnitDropdownOpen(false);
+                        setIsFormSupplierDropdownOpen(false);
+                      }}
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
+                      style={{ minHeight: 38 }}
+                    >
+                      <Text className="text-xs text-slate-800 font-medium">
+                        {units.find(u => u.id === formMatUnit) ? `${units.find(u => u.id === formMatUnit)?.unit_name} (${units.find(u => u.id === formMatUnit)?.short_name})` : 'Select Base Unit'}
+                      </Text>
+                      <ChevronDown size={14} color="#64748b" />
+                    </Pressable>
+                    {isFormUnitDropdownOpen && (
+                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
+                        <ScrollView nestedScrollEnabled={true}>
+                          {units.map((u) => (
+                            <Pressable
+                              key={u.id}
+                              onPress={() => {
+                                setFormMatUnit(u.id);
+                                setIsFormUnitDropdownOpen(false);
+                              }}
+                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatUnit === u.id ? 'bg-blue-50/50' : ''}`}
+                            >
+                              <Text className={`text-xs ${formMatUnit === u.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                                {u.unit_name} ({u.short_name})
+                              </Text>
+                              {formMatUnit === u.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Primary Unit Selector */}
+                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormPrimaryUnitDropdownOpen ? 1000 : 1 }}>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Unit (Purchase)</Text>
+                    <Pressable
+                      onPress={() => {
+                        setIsFormPrimaryUnitDropdownOpen(!isFormPrimaryUnitDropdownOpen);
+                        setIsFormCategoryDropdownOpen(false);
+                        setIsFormUnitDropdownOpen(false);
+                        setIsFormSupplierDropdownOpen(false);
+                      }}
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
+                      style={{ minHeight: 38 }}
+                    >
+                      <Text className="text-xs text-slate-800 font-medium">
+                        {formMatPrimaryUnit ? `${units.find(u => u.id === formMatPrimaryUnit)?.unit_name} (${units.find(u => u.id === formMatPrimaryUnit)?.short_name})` : 'Same as Secondary Unit'}
+                      </Text>
+                      <ChevronDown size={14} color="#64748b" />
+                    </Pressable>
+                    {isFormPrimaryUnitDropdownOpen && (
+                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
+                        <ScrollView nestedScrollEnabled={true}>
+                          <Pressable
+                            onPress={() => {
+                              setFormMatPrimaryUnit('');
+                              setIsFormPrimaryUnitDropdownOpen(false);
+                            }}
+                            className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${!formMatPrimaryUnit ? 'bg-blue-50/50' : ''}`}
+                          >
+                            <Text className={`text-xs ${!formMatPrimaryUnit ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                              Same as Secondary Unit
+                            </Text>
+                            {!formMatPrimaryUnit && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                          </Pressable>
+                          {units.map((u) => (
+                            <Pressable
+                              key={u.id}
+                              onPress={() => {
+                                setFormMatPrimaryUnit(u.id);
+                                setIsFormPrimaryUnitDropdownOpen(false);
+                              }}
+                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatPrimaryUnit === u.id ? 'bg-blue-50/50' : ''}`}
+                            >
+                              <Text className={`text-xs ${formMatPrimaryUnit === u.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                                {u.unit_name} ({u.short_name})
+                              </Text>
+                              {formMatPrimaryUnit === u.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <View className="gap-1 mt-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase">Conversion Factor</Text>
                   <TextInput
                     value={formMatConversionFactor}
                     onChangeText={setFormMatConversionFactor}
-                    placeholder="e.g. 1.5 (Secondary/Primary)"
+                    placeholder="e.g. 1.5"
                     keyboardType="numeric"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
+                    style={{ minHeight: 38 }}
                   />
-                  <Text className="text-[8px] font-semibold text-slate-400">
-                    Number of secondary units in one primary unit pack.
+                  <Text className="text-[9px] font-medium text-slate-400">
+                    Number of stocking/base units contained in one primary purchase pack (e.g. 1.5 if bought as 1.5 kg packet).
                   </Text>
                 </View>
               </View>
 
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">HSN Code</Text>
-                  <TextInput
-                    value={formMatHsn}
-                    onChangeText={setFormMatHsn}
-                    placeholder="e.g., 2103"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
-                </View>
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Preferred Supplier</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {suppliers.map((s) => (
-                      <Pressable
-                        key={s.id}
-                        onPress={() => setFormMatSupplier(s.id)}
-                        className={`p-2 rounded mb-1 ${formMatSupplier === s.id ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{s.supplier_name}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
+              {/* SECTION 3: STOCK & PROCUREMENT */}
+              <View className="mb-4 bg-slate-50/50 border border-slate-100 p-4 rounded-2xl gap-3" style={{ zIndex: isFormSupplierDropdownOpen ? 100 : 10, position: 'relative' }}>
+                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Stock & Procurement</Text>
 
-              <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-1 min-w-[90px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Reorder Level*</Text>
-                  <TextInput
-                    value={formMatReorder}
-                    onChangeText={setFormMatReorder}
-                    placeholder="10"
-                    keyboardType="numeric"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
+                <View className="flex-row gap-3 flex-wrap">
+                  <View className="flex-1 min-w-[90px] gap-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Reorder Level*</Text>
+                    <TextInput
+                      value={formMatReorder}
+                      onChangeText={setFormMatReorder}
+                      placeholder="10"
+                      keyboardType="numeric"
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
+                      style={{ minHeight: 38 }}
+                    />
+                  </View>
+                  <View className="flex-1 min-w-[90px] gap-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Opening Stock*</Text>
+                    <TextInput
+                      value={formMatOpening}
+                      onChangeText={setFormMatOpening}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      editable={!editingMaterial}
+                      className={`border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-medium ${editingMaterial ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-800'}`}
+                      style={{ minHeight: 38 }}
+                    />
+                  </View>
+                  <View className="flex-1 min-w-[90px] gap-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Avg Cost (₹)*</Text>
+                    <TextInput
+                      value={formMatAvgCost}
+                      onChangeText={setFormMatAvgCost}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
+                      style={{ minHeight: 38 }}
+                    />
+                  </View>
                 </View>
-                <View className="flex-1 min-w-[90px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Opening Stock*</Text>
-                  <TextInput
-                    value={formMatOpening}
-                    onChangeText={setFormMatOpening}
-                    placeholder="0"
-                    keyboardType="numeric"
-                    editable={!editingMaterial}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
-                </View>
-                <View className="flex-1 min-w-[90px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Avg Cost (₹)*</Text>
-                  <TextInput
-                    value={formMatAvgCost}
-                    onChangeText={setFormMatAvgCost}
-                    placeholder="0"
-                    keyboardType="numeric"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
-                  />
+
+                <View className="flex-row gap-3 flex-wrap">
+                  <View className="flex-1 min-w-[120px] gap-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">HSN Code</Text>
+                    <TextInput
+                      value={formMatHsn}
+                      onChangeText={setFormMatHsn}
+                      placeholder="e.g., 2103"
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
+                      style={{ minHeight: 38 }}
+                    />
+                  </View>
+
+                  {/* Preferred Supplier Selector */}
+                  <View className="flex-1 min-w-[140px] gap-1 relative" style={{ zIndex: isFormSupplierDropdownOpen ? 1000 : 1 }}>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase">Preferred Supplier</Text>
+                    <Pressable
+                      onPress={() => {
+                        setIsFormSupplierDropdownOpen(!isFormSupplierDropdownOpen);
+                        setIsFormCategoryDropdownOpen(false);
+                        setIsFormUnitDropdownOpen(false);
+                        setIsFormPrimaryUnitDropdownOpen(false);
+                      }}
+                      className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
+                      style={{ minHeight: 38 }}
+                    >
+                      <Text className="text-xs text-slate-800 font-medium">
+                        {suppliers.find(s => s.id === formMatSupplier)?.supplier_name || 'Select Supplier'}
+                      </Text>
+                      <ChevronDown size={14} color="#64748b" />
+                    </Pressable>
+                    {isFormSupplierDropdownOpen && (
+                      <View className="absolute top-[52px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[140px] overflow-hidden z-50">
+                        <ScrollView nestedScrollEnabled={true}>
+                          <Pressable
+                            onPress={() => {
+                              setFormMatSupplier('');
+                              setIsFormSupplierDropdownOpen(false);
+                            }}
+                            className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${!formMatSupplier ? 'bg-blue-50/50' : ''}`}
+                          >
+                            <Text className={`text-xs ${!formMatSupplier ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                              None (Clear preferred supplier)
+                            </Text>
+                            {!formMatSupplier && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                          </Pressable>
+                          {suppliers.map((s) => (
+                            <Pressable
+                              key={s.id}
+                              onPress={() => {
+                                setFormMatSupplier(s.id);
+                                setIsFormSupplierDropdownOpen(false);
+                              }}
+                              className={`p-2.5 border-b border-slate-50 active:bg-slate-50 flex-row justify-between items-center ${formMatSupplier === s.id ? 'bg-blue-50/50' : ''}`}
+                            >
+                              <Text className={`text-xs ${formMatSupplier === s.id ? 'text-blue-600 font-bold' : 'text-slate-700'}`}>
+                                {s.supplier_name}
+                              </Text>
+                              {formMatSupplier === s.id && <Check size={12} color="#2563eb" strokeWidth={3} />}
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </View>
             </ScrollView>
 
-            <Pressable onPress={handleSaveMaterial} className="bg-blue-600 py-3 rounded-2xl items-center mt-5">
+            <Pressable onPress={handleSaveMaterial} className="bg-blue-600 py-3 rounded-2xl items-center mt-5 active:scale-95 shadow-md">
               <Text className="text-xs font-bold text-white">Save Material</Text>
             </Pressable>
           </View>
