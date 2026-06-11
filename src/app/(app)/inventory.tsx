@@ -851,16 +851,22 @@ export default function InventoryScreen() {
     setIsImporting(true);
 
     try {
+      console.log('[Import] Executing import with rows:', importSummary.rows.length);
       const result = await importRawMaterials(importSummary.rows);
+      console.log('[Import] Execution result:', result);
+
       if (result.error) {
-        Alert.alert('Import Failed', result.error);
+        Alert.alert('Import Failed', String(result.error));
       } else if (result.data) {
         Alert.alert('Import Success', `Successfully imported ${result.data.count} raw materials.`);
         setIsImportModalOpen(false);
         setImportSummary(null);
         await loadAllData(false, simulatedBranchId);
+      } else {
+        Alert.alert('Import Error', 'Import process finished without data or error.');
       }
     } catch (err: any) {
+      console.error('[Import] Execution threw error:', err);
       Alert.alert('Error', 'An unexpected error occurred: ' + (err.message || err));
     } finally {
       setIsImporting(false);
@@ -6177,14 +6183,13 @@ export default function InventoryScreen() {
                   
                   {/* Table Header */}
                   <View className="flex-row border-b border-slate-200 pb-2 mb-2 px-2">
-                    <View style={{ width: '12%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Code</Text></View>
-                    <View style={{ width: '22%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Name</Text></View>
-                    <View style={{ width: '13%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Category</Text></View>
-                    <View style={{ width: '8%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Unit</Text></View>
+                    <View style={{ width: '28%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Name</Text></View>
+                    <View style={{ width: '15%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Category</Text></View>
+                    <View style={{ width: '10%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Unit</Text></View>
                     <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Reorder</Text></View>
-                    <View style={{ width: '10%', alignItems: 'flex-end' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Cost</Text></View>
-                    <View style={{ width: '13%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Supplier</Text></View>
-                    <View style={{ width: '12%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Action</Text></View>
+                    <View style={{ width: '12%', alignItems: 'flex-end' }} className="pr-3"><Text className="text-[9px] font-black text-slate-400 uppercase">Cost</Text></View>
+                    <View style={{ width: '15%' }} className="pl-3"><Text className="text-[9px] font-black text-slate-400 uppercase">Supplier</Text></View>
+                    <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Action</Text></View>
                   </View>
 
                   {/* Table Body */}
@@ -6206,12 +6211,7 @@ export default function InventoryScreen() {
 
                       return (
                         <View key={idx} className="flex-row items-start py-2 border-b border-slate-100 px-2 rounded-xl">
-                          <View style={{ width: '12%' }} className="pr-1">
-                            <Text className={`text-xs font-bold ${isError ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                              {row.materialCode || 'N/A'}
-                            </Text>
-                          </View>
-                          <View style={{ width: '22%' }} className="pr-2">
+                          <View style={{ width: '28%' }} className="pr-2">
                             <Text className={`text-xs font-semibold ${isError ? 'text-slate-400' : 'text-slate-800'}`}>
                               {row.materialName || 'N/A'}
                             </Text>
@@ -6221,7 +6221,7 @@ export default function InventoryScreen() {
                               </Text>
                             ))}
                           </View>
-                          <View style={{ width: '13%' }} className="pr-2">
+                          <View style={{ width: '15%' }} className="pr-2">
                             <Text className="text-xs text-slate-600 font-medium">{row.categoryName || 'N/A'}</Text>
                             {!row.categoryId && !!row.categoryName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
@@ -6229,7 +6229,7 @@ export default function InventoryScreen() {
                               </View>
                             ) : null}
                           </View>
-                          <View style={{ width: '8%' }} className="pr-1">
+                          <View style={{ width: '10%' }} className="pr-1">
                             <Text className="text-xs text-slate-600 font-medium">{row.unitName || 'N/A'}</Text>
                             {!row.unitId && !!row.unitName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
@@ -6240,10 +6240,10 @@ export default function InventoryScreen() {
                           <View style={{ width: '10%', alignItems: 'center' }}>
                             <Text className="text-xs text-slate-700 font-semibold">{row.reorderLevel}</Text>
                           </View>
-                          <View style={{ width: '10%', alignItems: 'flex-end' }} className="pr-1">
+                          <View style={{ width: '12%', alignItems: 'flex-end' }} className="pr-3">
                             <Text className="text-xs text-slate-700 font-semibold">Rs.{row.averageCost.toFixed(2)}</Text>
                           </View>
-                          <View style={{ width: '13%' }} className="pr-1">
+                          <View style={{ width: '15%' }} className="pl-3 pr-1">
                             <Text className="text-xs text-slate-600 font-medium truncate">{row.preferredSupplierName || 'N/A'}</Text>
                             {!row.supplierId && !!row.preferredSupplierName ? (
                               <View className="bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md self-start mt-0.5">
@@ -6251,7 +6251,7 @@ export default function InventoryScreen() {
                               </View>
                             ) : null}
                           </View>
-                          <View style={{ width: '12%', alignItems: 'center' }}>
+                          <View style={{ width: '10%', alignItems: 'center' }}>
                             <View className={`px-2 py-0.5 rounded-full border ${actionBadgeColor}`}>
                               <Text className="text-[9px] font-black uppercase">{actionBadgeText}</Text>
                             </View>
