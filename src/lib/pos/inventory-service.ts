@@ -3244,10 +3244,19 @@ export async function fetchTransferRequests(branchId?: string): Promise<ServiceR
 }
 
 function fetchTransferRequestsLocal(tenantId: string, branchId: string): ServiceResult<InventoryTransferRequest[]> {
-  const all = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const all = getLocalData<any[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
   const branches = fetchBranchesLocal(tenantId).data || [];
   
-  const filtered = all.filter(r => r.tenant_id === tenantId && (r.from_branch_id === branchId || r.to_branch_id === branchId));
+  // Normalization layer for backward compatibility & self-healing
+  const normalized = all.map(r => ({
+    ...r,
+    from_branch_id: r.from_branch_id || r.supplying_branch_id,
+    to_branch_id: r.to_branch_id || r.requesting_branch_id,
+    branch_id: r.branch_id || r.requesting_branch_id,
+    remarks: r.remarks !== undefined && r.remarks !== null ? r.remarks : (r.notes || null),
+  }));
+
+  const filtered = normalized.filter(r => r.tenant_id === tenantId && (r.from_branch_id === branchId || r.to_branch_id === branchId));
   const formatted = filtered.map(r => {
     const fromB = branches.find(b => b.id === r.from_branch_id);
     const toB = branches.find(b => b.id === r.to_branch_id);
@@ -3258,7 +3267,7 @@ function fetchTransferRequestsLocal(tenantId: string, branchId: string): Service
     };
   });
   
-  return { data: formatted, error: null };
+  return { data: formatted as InventoryTransferRequest[], error: null };
 }
 
 export async function fetchTransferRequestItems(requestId: string): Promise<ServiceResult<InventoryTransferRequestItem[]>> {
