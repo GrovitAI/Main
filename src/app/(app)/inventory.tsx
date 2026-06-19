@@ -4518,6 +4518,21 @@ export default function InventoryScreen() {
           </View>
         </View>
 
+        {/* DIAGNOSTIC DEV BANNER */}
+        <View className="bg-blue-50 border border-blue-200 p-3 rounded-2xl mb-4">
+          <Text className="text-xs font-bold text-blue-800">
+            [Diagnostics] Simulated Branch: {simulatedBranchId} ({simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' ? 'Main Restaurant' : 'Central Kitchen'})
+          </Text>
+          <Text className="text-[10px] text-blue-600 mt-1 font-semibold">
+            Loaded requests count: {transferRequests.length}
+          </Text>
+          {transferRequests.map(r => (
+            <Text key={r.id} className="text-[9px] text-slate-500 font-mono mt-0.5">
+              - ID: {r.id.substring(0,6)}... | From: {r.from_branch_id?.substring(0,6)}... | To: {r.to_branch_id?.substring(0,6)}... | Status: {r.status}
+            </Text>
+          ))}
+        </View>
+
         {/* Header Title with Primary Action */}
         <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
           <View className="flex-1 mr-4">
