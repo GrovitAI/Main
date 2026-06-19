@@ -269,6 +269,7 @@ function Autocomplete<T extends { id: string }>({
                 onChangeText={setQuery}
                 placeholder="Type to search..."
                 placeholderTextColor="#94a3b8"
+                className="outline-none"
                 style={{
                   flex: 1,
                   marginLeft: 8,
@@ -276,6 +277,7 @@ function Autocomplete<T extends { id: string }>({
                   fontWeight: '600',
                   color: '#0f2744',
                   height: '100%',
+                  ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
                 } as any}
                 autoFocus
               />
@@ -1320,7 +1322,8 @@ export default function RecipeManagement() {
                 onChangeText={setEditIngredientSearch}
                 placeholder="Filter materials..."
                 placeholderTextColor="#94a3b8"
-                className="flex-1 ml-2 text-[11px] font-semibold text-text-primary"
+                className="flex-1 ml-2 text-[11px] font-semibold text-text-primary outline-none"
+                style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
               />
             </View>
 
@@ -1710,7 +1713,8 @@ export default function RecipeManagement() {
             onChangeText={setSearchQuery}
             placeholder="Search recipes, products..."
             placeholderTextColor="#94a3b8"
-            className="flex-1 ml-2 text-xs font-semibold text-text-primary"
+            className="flex-1 ml-2 text-xs font-semibold text-text-primary outline-none"
+            style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>

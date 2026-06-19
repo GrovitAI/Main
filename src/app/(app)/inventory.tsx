@@ -2173,6 +2173,7 @@ export default function InventoryScreen() {
                     setCurrentPage(1);
                   }}
                   className="flex-1 text-[11px] text-slate-800 outline-none"
+                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
                 />
                 {searchQuery.length > 0 && (
                   <Pressable onPress={() => setSearchQuery('')}>
@@ -2826,6 +2827,7 @@ export default function InventoryScreen() {
               onChangeText={(t) => { setPurSearchQuery(t); setPurPage(1); }}
               className="flex-1 text-[11px] text-slate-800 outline-none"
               placeholderTextColor="#94a3b8"
+              style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
             />
             {purSearchQuery.length > 0 && (
               <Pressable onPress={() => setPurSearchQuery('')}>
@@ -4170,7 +4172,8 @@ export default function InventoryScreen() {
               onChangeText={setNewReqSearchQuery}
               placeholder="Search raw materials by name or code..."
               placeholderTextColor="#94a3b8"
-              className="flex-1 text-xs font-semibold text-[#0f2744] h-8 p-0"
+              className="flex-1 text-xs font-semibold text-[#0f2744] h-8 p-0 outline-none"
+              style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
             />
             {newReqSearchQuery.length > 0 && (
               <Pressable onPress={() => setNewReqSearchQuery('')}>
@@ -4391,8 +4394,8 @@ export default function InventoryScreen() {
                             value={item.requested_quantity}
                             onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
                             keyboardType="numeric"
-                            className="w-14 text-center text-xs font-black text-[#0f2744] p-0 m-0"
-                            style={{ height: '100%' }}
+                            className="w-14 text-center text-xs font-black text-[#0f2744] p-0 m-0 outline-none"
+                            style={{ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
                           />
 
                           <Pressable
@@ -4421,8 +4424,8 @@ export default function InventoryScreen() {
               onChangeText={setNewReqRemarks}
               placeholder="e.g. Urgent stock request for weekend"
               placeholderTextColor="#94a3b8"
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f2744]"
-              style={{ minHeight: 40 }}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f2744] outline-none"
+              style={{ minHeight: 40, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
             />
           </View>
 

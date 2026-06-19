@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Modal, View, Text, Pressable, TextInput, FlatList, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, Pressable, TextInput, FlatList, useWindowDimensions, Platform } from 'react-native';
 import { Search, X, Check } from 'lucide-react-native';
 
 interface SearchableDropdownProps<T> {
@@ -97,7 +97,8 @@ export function SearchableDropdown<T>({
                   onChangeText={setSearchQuery}
                   placeholder={placeholder}
                   placeholderTextColor="#5b6b7c"
-                  className="flex-1 text-[#0f2744] text-[11px] font-semibold h-6 p-0"
+                  className="flex-1 text-[#0f2744] text-[11px] font-semibold h-6 p-0 outline-none"
+                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
                   autoFocus={true}
                 />
                 {searchQuery.length > 0 && (

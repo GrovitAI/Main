@@ -589,7 +589,8 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               onChangeText={setSearchQuery}
               placeholder="Search menu items..."
               placeholderTextColor="#94a3b8"
-              className="flex-1 text-text-primary text-[11px] font-semibold h-full"
+              className="flex-1 text-text-primary text-[11px] font-semibold h-full outline-none"
+              style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} className="p-0.5">
