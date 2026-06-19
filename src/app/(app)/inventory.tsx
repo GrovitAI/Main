@@ -5442,7 +5442,7 @@ export default function InventoryScreen() {
   return (
     <View className="flex-1 bg-slate-50 flex-row">
       {/* LEFT SIDEBAR (Web/Tablet view) — auto-collapses to icon rail */}
-      {width >= 768 && activeTab !== 'record_purchase' && (
+      {width >= 768 && activeTab !== 'record_purchase' && !(activeTab === 'transfers' && isCreatingRequest) && (
         <View
           style={[
             Platform.OS === 'web'
@@ -5763,7 +5763,7 @@ export default function InventoryScreen() {
       {/* RIGHT MAIN PANEL */}
       <View className="flex-1 flex-col">
         {/* Header Bar */}
-        {activeTab !== 'record_purchase' && (
+        {activeTab !== 'record_purchase' && !(activeTab === 'transfers' && isCreatingRequest) && (
           <View className="bg-white border-b border-slate-200 px-6 py-4 flex-row items-center justify-between shadow-sm">
             <View className="flex-row items-center gap-3">
               {width < 768 && (
