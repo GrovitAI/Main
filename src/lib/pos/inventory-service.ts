@@ -3427,9 +3427,20 @@ function createTransferRequestLocal(
   const reqNumber = `TRF-${new Date().getFullYear()}-${seq}`;
 
   const newReq: InventoryTransferRequest = {
-    ...header,
     id: requestId,
+    tenant_id: header.tenant_id,
+    branch_id: header.requesting_branch_id,
     request_number: reqNumber,
+    from_branch_id: header.supplying_branch_id,
+    to_branch_id: header.requesting_branch_id,
+    request_date: now,
+    status: header.status,
+    remarks: header.notes,
+    created_by: 'Owner Staff',
+    approved_by: null,
+    approved_at: null,
+    rejected_by: null,
+    rejected_at: null,
     created_at: now,
     updated_at: now
   };
@@ -3437,7 +3448,7 @@ function createTransferRequestLocal(
   const newItems = items.map(itm => ({
     id: Math.random().toString(36).substr(2, 9),
     tenant_id: header.tenant_id,
-    branch_id: header.branch_id,
+    branch_id: header.requesting_branch_id,
     transfer_request_id: requestId,
     material_id: itm.material_id,
     requested_quantity: itm.requested_quantity,
@@ -3448,10 +3459,10 @@ function createTransferRequestLocal(
   const newEvent: InventoryTransferEvent = {
     id: Math.random().toString(36).substr(2, 9),
     tenant_id: header.tenant_id,
-    branch_id: header.branch_id,
+    branch_id: header.requesting_branch_id,
     transfer_request_id: requestId,
     event_type: 'Created',
-    performed_by: header.created_by,
+    performed_by: header.created_by || 'Owner Staff',
     notes: 'Transfer request raised.',
     created_at: now
   };
