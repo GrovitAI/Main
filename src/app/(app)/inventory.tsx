@@ -64,6 +64,7 @@ import { useNavigation } from 'expo-router';
 
 import { BRANCH_ID, getTenantContext } from '@/lib/pos/tenant-context';
 import { colors } from '@/lib/pos/brand';
+import { useTabBarHidden } from '@/lib/pos/ui-context';
 import {
   fetchCategories,
   fetchUnits,
@@ -538,6 +539,10 @@ export default function InventoryScreen() {
   // Modals for Transfers
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
   const [isCreatingRequest, setIsCreatingRequest] = useState(false);
+
+  // Hide bottom tab bar on mobile when creating a transfer request
+  useTabBarHidden(activeTab === 'transfers' && isCreatingRequest);
+
   const [newReqSearchQuery, setNewReqSearchQuery] = useState('');
   const [newReqSelectedCategoryId, setNewReqSelectedCategoryId] = useState('all');
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
