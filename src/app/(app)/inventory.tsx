@@ -1263,10 +1263,14 @@ export default function InventoryScreen() {
   };
 
   const handleUpdateNewReqItemQty = (materialId: string, qty: string) => {
+    const sanitized = qty.replace(/[^0-9.]/g, '');
+    const parts = sanitized.split('.');
+    const finalQty = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
+
     const next = [...newReqItems];
     const idx = next.findIndex(itm => itm.material_id === materialId);
     if (idx >= 0) {
-      next[idx].requested_quantity = qty;
+      next[idx].requested_quantity = finalQty;
       setNewReqItems(next);
     }
   };
@@ -4225,7 +4229,7 @@ export default function InventoryScreen() {
                 keyExtractor={(item) => item.id}
                 columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
                 contentContainerStyle={{ gap: 12, paddingBottom: 20 }}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
                 renderItem={({ item }) => {
                   const cartItem = newReqItems.find((itm) => itm.material_id === item.id);
                   const isSelected = !!cartItem;
@@ -4267,15 +4271,15 @@ export default function InventoryScreen() {
                             {item.material_name}
                           </Text>
                           {item.category_name && (
-                            <View className="self-start bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md mt-1">
-                              <Text className="text-[9px] font-bold text-slate-500">{item.category_name}</Text>
+                            <View className="self-start bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md mt-1 max-w-full">
+                              <Text className="text-[9px] font-bold text-slate-500" numberOfLines={1}>{item.category_name}</Text>
                             </View>
                           )}
                         </View>
 
-                        <View className="flex-row justify-between items-center mt-2.5 pt-1.5 border-t border-slate-50">
+                        <View className="flex-row justify-between items-center mt-2.5 pt-1.5 border-t border-slate-50 flex-wrap gap-1">
                           <Text className="text-[9px] font-bold text-slate-400">Stock Level:</Text>
-                          <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
+                          <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`} numberOfLines={1}>
                             {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
                           </Text>
                         </View>
@@ -4298,11 +4302,11 @@ export default function InventoryScreen() {
             <Pressable
               ref={branchTriggerRef}
               onPress={() => setIsBranchDropdownOpen(true)}
-              className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3.5 py-2.5 justify-between active:scale-[99%]"
+              className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3.5 py-2.5 justify-between active:scale-[99%] flex-wrap gap-2"
             >
-              <View className="flex-row items-center gap-2">
+              <View className="flex-row items-center gap-2 flex-1 mr-2 min-w-0">
                 <Store size={14} color="#0066b2" />
-                <Text className="text-xs font-black text-[#0f2744]">
+                <Text className="text-xs font-black text-[#0f2744] flex-1" numberOfLines={1}>
                   {selectedBranch ? `${selectedBranch.name} (${selectedBranch.branch_type})` : 'Select branch'}
                 </Text>
               </View>
@@ -4345,7 +4349,7 @@ export default function InventoryScreen() {
                 data={newReqItems}
                 keyExtractor={(item) => item.material_id}
                 contentContainerStyle={{ gap: 10, paddingBottom: 10 }}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
                 renderItem={({ item }) => {
                   const mat = materials.find((m) => m.id === item.material_id);
                   if (!mat) return null;
