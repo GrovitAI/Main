@@ -4237,18 +4237,18 @@ export default function InventoryScreen() {
                       style={{
                         flex: 1,
                         maxWidth: columns > 1 ? `${100 / columns}%` : undefined,
-                        minHeight: 110,
+                        minHeight: 90,
                         backgroundColor: '#ffffff',
-                        borderRadius: 18,
-                        padding: 14,
+                        borderRadius: 12,
+                        padding: 10,
                         borderWidth: isSelected ? 2 : 1,
-                        borderColor: isSelected ? '#0066b2' : '#e2e8f0',
+                        borderColor: isSelected ? '#0066b2' : '#c5d9eb',
                         position: 'relative',
                         shadowColor: '#0f172a',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: isSelected ? 0.08 : 0.02,
-                        shadowRadius: 12,
-                        elevation: isSelected ? 3 : 1,
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: isSelected ? 0.06 : 0.01,
+                        shadowRadius: 6,
+                        elevation: isSelected ? 2 : 1,
                       }}
                       className="active:scale-[98%] transition-all"
                     >
@@ -4267,13 +4267,13 @@ export default function InventoryScreen() {
                             {item.material_name}
                           </Text>
                           {item.category_name && (
-                            <View className="self-start bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md mt-1.5">
+                            <View className="self-start bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md mt-1">
                               <Text className="text-[9px] font-bold text-slate-500">{item.category_name}</Text>
                             </View>
                           )}
                         </View>
 
-                        <View className="flex-row justify-between items-center mt-3 pt-2 border-t border-slate-50">
+                        <View className="flex-row justify-between items-center mt-2.5 pt-1.5 border-t border-slate-50">
                           <Text className="text-[9px] font-bold text-slate-400">Stock Level:</Text>
                           <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
                             {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
@@ -4289,7 +4289,7 @@ export default function InventoryScreen() {
         </View>
 
         {/* Right Area: Cart Panel */}
-        <View className="bg-white border-l border-slate-200 flex-col p-6 shadow-2xl" style={{ flex: 1, minWidth: 320, maxWidth: 420 }}>
+        <View className="bg-white border-l border-slate-200 flex-col p-6 shadow-2xl" style={{ flex: 0.7, minWidth: 280, maxWidth: 340 }}>
           {/* Supplying Branch Selector */}
           <View className="mb-4 relative" style={{ zIndex: 1000 }}>
             <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
