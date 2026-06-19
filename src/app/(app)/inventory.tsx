@@ -32,6 +32,7 @@ import {
   Heart,
   Info,
   Menu,
+  Minus,
   Plus,
   RefreshCw,
   Search,
@@ -536,6 +537,11 @@ export default function InventoryScreen() {
   
   // Modals for Transfers
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
+  const [newReqSearchQuery, setNewReqSearchQuery] = useState('');
+  const [newReqSelectedCategoryId, setNewReqSelectedCategoryId] = useState('all');
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const branchTriggerRef = useRef<View>(null);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
@@ -1250,24 +1256,50 @@ export default function InventoryScreen() {
     const ckBranch = dbBranches.find(b => b.branch_type === 'CENTRAL_KITCHEN' || b.branch_type === 'WAREHOUSE');
     setNewReqFromBranchId(ckBranch ? ckBranch.id : '');
     setNewReqRemarks('');
-    setNewReqItems([{ material_id: materials[0]?.id || '', requested_quantity: '' }]);
-    setIsNewRequestModalOpen(true);
+    setNewReqItems([]); // Start with an empty cart
+    setNewReqSearchQuery('');
+    setNewReqSelectedCategoryId('all');
+    setIsCreatingRequest(true);
   };
 
-  const handleAddRequestItemRow = () => {
-    setNewReqItems([...newReqItems, { material_id: materials[0]?.id || '', requested_quantity: '' }]);
-  };
-
-  const handleRemoveRequestItemRow = (index: number) => {
-    if (newReqItems.length > 1) {
-      setNewReqItems(newReqItems.filter((_, i) => i !== index));
+  const handleUpdateNewReqItemQty = (materialId: string, qty: string) => {
+    const next = [...newReqItems];
+    const idx = next.findIndex(itm => itm.material_id === materialId);
+    if (idx >= 0) {
+      next[idx].requested_quantity = qty;
+      setNewReqItems(next);
     }
   };
 
-  const handleRequestItemChange = (index: number, field: 'material_id' | 'requested_quantity', value: string) => {
+  const handleIncrementNewReqItem = (materialId: string) => {
     const next = [...newReqItems];
-    next[index][field] = value;
-    setNewReqItems(next);
+    const idx = next.findIndex(itm => itm.material_id === materialId);
+    if (idx >= 0) {
+      const currentVal = Number(next[idx].requested_quantity) || 0;
+      next[idx].requested_quantity = String(currentVal + 1);
+      setNewReqItems(next);
+    } else {
+      next.push({ material_id: materialId, requested_quantity: '1' });
+      setNewReqItems(next);
+    }
+  };
+
+  const handleDecrementNewReqItem = (materialId: string) => {
+    const next = [...newReqItems];
+    const idx = next.findIndex(itm => itm.material_id === materialId);
+    if (idx >= 0) {
+      const currentVal = Number(next[idx].requested_quantity) || 0;
+      if (currentVal <= 1) {
+        setNewReqItems(next.filter(itm => itm.material_id !== materialId));
+      } else {
+        next[idx].requested_quantity = String(currentVal - 1);
+        setNewReqItems(next);
+      }
+    }
+  };
+
+  const handleRemoveNewReqItem = (materialId: string) => {
+    setNewReqItems(newReqItems.filter(itm => itm.material_id !== materialId));
   };
 
   const handleSaveTransferRequest = async () => {
@@ -1297,6 +1329,7 @@ export default function InventoryScreen() {
 
       if (res.error) throw new Error(res.error);
       setIsNewRequestModalOpen(false);
+      setIsCreatingRequest(false);
       Alert.alert('Success', 'Transfer request created successfully.');
       await loadAllData(true);
     } catch (err: any) {
@@ -4078,7 +4111,355 @@ export default function InventoryScreen() {
     );
   };
 
+  const renderCreateTransferRequestScreen = () => {
+    const supplyBranches = dbBranches.filter(
+      (b) => b.branch_type === 'CENTRAL_KITCHEN' || b.branch_type === 'WAREHOUSE'
+    );
+    const selectedBranch = dbBranches.find((b) => b.id === newReqFromBranchId);
+
+    // Dynamic columns for responsive card grid
+    const columns = width >= 1200 ? 3 : width >= 768 ? 2 : 1;
+
+    // Filter materials
+    const filteredMaterials = materials.filter((m) => {
+      const matchQuery =
+        !newReqSearchQuery ||
+        m.material_name.toLowerCase().includes(newReqSearchQuery.toLowerCase()) ||
+        m.material_code.toLowerCase().includes(newReqSearchQuery.toLowerCase());
+
+      const matchCategory =
+        newReqSelectedCategoryId === 'all' || m.category_id === newReqSelectedCategoryId;
+
+      return matchQuery && matchCategory && m.is_active && !m.deleted_at;
+    });
+
+    return (
+      <View className="flex-1 bg-slate-50 flex-row">
+        {/* Left Area: Materials Selection */}
+        <View className="flex-1 flex-col p-6 border-r border-slate-200" style={{ flex: 2 }}>
+          {/* Header Bar */}
+          <View className="flex-row items-center justify-between mb-4 flex-wrap gap-3">
+            <View className="flex-row items-center gap-3">
+              <Pressable
+                onPress={() => {
+                  setIsCreatingRequest(false);
+                  setNewReqItems([]);
+                }}
+                className="w-10 h-10 bg-white border border-slate-200 rounded-xl items-center justify-center active:scale-95 shadow-xs"
+              >
+                <ArrowLeft size={16} color="#0066b2" />
+              </Pressable>
+              <View>
+                <Text className="text-base font-black text-[#0f2744]">Select Materials</Text>
+                <Text className="text-[10px] text-slate-400 font-bold">
+                  Tap cards to add raw materials to your transfer request
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Search bar */}
+          <View className="flex-row items-center bg-white border border-slate-200 rounded-2xl px-4 py-2 mb-4 shadow-sm">
+            <Search size={16} color="#5b6b7c" className="mr-2" />
+            <TextInput
+              value={newReqSearchQuery}
+              onChangeText={setNewReqSearchQuery}
+              placeholder="Search raw materials by name or code..."
+              placeholderTextColor="#94a3b8"
+              className="flex-1 text-xs font-semibold text-[#0f2744] h-8 p-0"
+            />
+            {newReqSearchQuery.length > 0 && (
+              <Pressable onPress={() => setNewReqSearchQuery('')}>
+                <X size={16} color="#5b6b7c" />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Category Filter Chips */}
+          <View className="mb-4">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              <Pressable
+                onPress={() => setNewReqSelectedCategoryId('all')}
+                className={`px-4 py-2 rounded-xl border ${
+                  newReqSelectedCategoryId === 'all'
+                    ? 'bg-blue-600 border-blue-600 shadow-xs'
+                    : 'bg-white border-slate-200 active:bg-slate-50'
+                }`}
+                style={{ minHeight: 36 }}
+              >
+                <Text className={`text-xs font-bold ${newReqSelectedCategoryId === 'all' ? 'text-white' : 'text-slate-600'}`}>
+                  All Categories
+                </Text>
+              </Pressable>
+              {categories.map((cat) => (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => setNewReqSelectedCategoryId(cat.id)}
+                  className={`px-4 py-2 rounded-xl border ${
+                    newReqSelectedCategoryId === cat.id
+                      ? 'bg-blue-600 border-blue-600 shadow-xs'
+                      : 'bg-white border-slate-200 active:bg-slate-50'
+                  }`}
+                  style={{ minHeight: 36 }}
+                >
+                  <Text className={`text-xs font-bold ${newReqSelectedCategoryId === cat.id ? 'text-white' : 'text-slate-600'}`}>
+                    {cat.category_name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Cards Grid */}
+          <View className="flex-1">
+            {filteredMaterials.length === 0 ? (
+              <View className="py-20 items-center justify-center">
+                <Boxes size={48} color="#cbd5e1" className="mb-3" />
+                <Text className="text-xs font-bold text-slate-400">No matching materials found</Text>
+              </View>
+            ) : (
+              <FlatList
+                key={`mats-grid-${columns}`}
+                data={filteredMaterials}
+                numColumns={columns}
+                keyExtractor={(item) => item.id}
+                columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
+                contentContainerStyle={{ gap: 12, paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => {
+                  const cartItem = newReqItems.find((itm) => itm.material_id === item.id);
+                  const isSelected = !!cartItem;
+                  const qty = cartItem ? Number(cartItem.requested_quantity) : 0;
+
+                  return (
+                    <Pressable
+                      onPress={() => handleIncrementNewReqItem(item.id)}
+                      style={{
+                        flex: 1,
+                        maxWidth: columns > 1 ? `${100 / columns}%` : undefined,
+                        minHeight: 110,
+                        backgroundColor: '#ffffff',
+                        borderRadius: 18,
+                        padding: 14,
+                        borderWidth: isSelected ? 2 : 1,
+                        borderColor: isSelected ? '#0066b2' : '#e2e8f0',
+                        position: 'relative',
+                        shadowColor: '#0f172a',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: isSelected ? 0.08 : 0.02,
+                        shadowRadius: 12,
+                        elevation: isSelected ? 3 : 1,
+                      }}
+                      className="active:scale-[98%] transition-all"
+                    >
+                      {isSelected && (
+                        <View className="absolute top-2.5 right-2.5 bg-blue-600 rounded-full w-5 h-5 items-center justify-center z-10">
+                          <Text className="text-[9px] font-black text-white">{qty}x</Text>
+                        </View>
+                      )}
+
+                      <View className="flex-1 justify-between">
+                        <View>
+                          <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                            {item.material_code}
+                          </Text>
+                          <Text className="text-xs font-black text-[#0f2744] leading-tight" numberOfLines={2}>
+                            {item.material_name}
+                          </Text>
+                          {item.category_name && (
+                            <View className="self-start bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-md mt-1.5">
+                              <Text className="text-[9px] font-bold text-slate-500">{item.category_name}</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <View className="flex-row justify-between items-center mt-3 pt-2 border-t border-slate-50">
+                          <Text className="text-[9px] font-bold text-slate-400">Stock Level:</Text>
+                          <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
+                            {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+
+        {/* Right Area: Cart Panel */}
+        <View className="bg-white border-l border-slate-200 flex-col p-6 shadow-2xl" style={{ flex: 1, minWidth: 320, maxWidth: 420 }}>
+          {/* Supplying Branch Selector */}
+          <View className="mb-4 relative" style={{ zIndex: 1000 }}>
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+              Supply Source (Branch)*
+            </Text>
+            <Pressable
+              ref={branchTriggerRef}
+              onPress={() => setIsBranchDropdownOpen(true)}
+              className="flex-row bg-slate-50 border border-slate-200 rounded-xl items-center px-3.5 py-2.5 justify-between active:scale-[99%]"
+            >
+              <View className="flex-row items-center gap-2">
+                <Store size={14} color="#0066b2" />
+                <Text className="text-xs font-black text-[#0f2744]">
+                  {selectedBranch ? `${selectedBranch.name} (${selectedBranch.branch_type})` : 'Select branch'}
+                </Text>
+              </View>
+              <ChevronDown size={14} color="#64748b" />
+            </Pressable>
+
+            <SearchableDropdown
+              visible={isBranchDropdownOpen}
+              onClose={() => setIsBranchDropdownOpen(false)}
+              options={supplyBranches}
+              selectedValue={newReqFromBranchId}
+              onSelect={(b) => setNewReqFromBranchId(b.id)}
+              getOptionLabel={(b) => `${b.name} (${b.branch_type})`}
+              getOptionValue={(b) => b.id}
+              title="Select Supplying Branch"
+              placeholder="Search branches..."
+              triggerRef={branchTriggerRef}
+            />
+          </View>
+
+          {/* Cart Header */}
+          <View className="flex-row justify-between items-center mb-3 pb-2 border-b border-slate-100">
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              Request List
+            </Text>
+            <Text className="text-xs font-black text-[#0066b2]">{newReqItems.length} items</Text>
+          </View>
+
+          {/* Cart Items List */}
+          <View className="flex-1 mb-4">
+            {newReqItems.length === 0 ? (
+              <View className="py-20 items-center justify-center flex-1">
+                <ShoppingCart size={32} color="#cbd5e1" className="mb-2" />
+                <Text className="text-[10px] font-bold text-slate-400 text-center px-4">
+                  Tap raw material cards on the left to add items to your request list
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={newReqItems}
+                keyExtractor={(item) => item.material_id}
+                contentContainerStyle={{ gap: 10, paddingBottom: 10 }}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => {
+                  const mat = materials.find((m) => m.id === item.material_id);
+                  if (!mat) return null;
+
+                  return (
+                    <View className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex-col gap-2">
+                      <View className="flex-row justify-between items-start">
+                        <View className="flex-1 pr-2">
+                          <Text className="text-xs font-black text-[#0f2744] leading-tight">
+                            {mat.material_name}
+                          </Text>
+                          <Text className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                            {mat.material_code}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => handleRemoveNewReqItem(item.material_id)}
+                          className="p-1 rounded-lg hover:bg-red-50 active:scale-95"
+                        >
+                          <Trash2 size={14} color="#ef4444" />
+                        </Pressable>
+                      </View>
+
+                      <View className="flex-row items-center justify-between mt-1 gap-2">
+                        <Text className="text-[10px] font-bold text-slate-400">
+                          Qty ({mat.unit_short_name || 'Units'})
+                        </Text>
+
+                        <View className="flex-row items-center border border-slate-200 rounded-lg bg-white overflow-hidden" style={{ height: 32 }}>
+                          <Pressable
+                            onPress={() => handleDecrementNewReqItem(item.material_id)}
+                            className="px-2.5 items-center justify-center bg-slate-50 border-r border-slate-200 active:bg-slate-100"
+                            style={{ height: '100%' }}
+                          >
+                            <Minus size={11} color="#64748b" strokeWidth={2.5} />
+                          </Pressable>
+
+                          <TextInput
+                            value={item.requested_quantity}
+                            onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
+                            keyboardType="numeric"
+                            className="w-14 text-center text-xs font-black text-[#0f2744] p-0 m-0"
+                            style={{ height: '100%' }}
+                          />
+
+                          <Pressable
+                            onPress={() => handleIncrementNewReqItem(item.material_id)}
+                            className="px-2.5 items-center justify-center bg-slate-50 border-l border-slate-200 active:bg-slate-100"
+                            style={{ height: '100%' }}
+                          >
+                            <Plus size={11} color="#64748b" strokeWidth={2.5} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
+          </View>
+
+          {/* Remarks */}
+          <View className="mb-4">
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+              Remarks / Instructions
+            </Text>
+            <TextInput
+              value={newReqRemarks}
+              onChangeText={setNewReqRemarks}
+              placeholder="e.g. Urgent stock request for weekend"
+              placeholderTextColor="#94a3b8"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f2744]"
+              style={{ minHeight: 40 }}
+            />
+          </View>
+
+          {/* Action Buttons */}
+          <View className="flex-col gap-2 pt-3 border-t border-slate-100">
+            <Pressable
+              disabled={isLoading}
+              onPress={handleSaveTransferRequest}
+              className={`bg-blue-600 py-3 rounded-xl items-center justify-center flex-row gap-2 active:scale-[99%] shadow-md ${
+                isLoading ? 'opacity-80' : ''
+              }`}
+              style={{ minHeight: 44 }}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text className="text-xs font-black text-white">Submit Request</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              disabled={isLoading}
+              onPress={() => {
+                setIsCreatingRequest(false);
+                setNewReqItems([]);
+              }}
+              className="bg-slate-100 border border-slate-200 py-3 rounded-xl items-center justify-center active:scale-[99%]"
+              style={{ minHeight: 44 }}
+            >
+              <Text className="text-xs font-bold text-slate-600">Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const renderTransfers = () => {
+    if (isCreatingRequest) {
+      return renderCreateTransferRequestScreen();
+    }
     return (
       <View className="flex-1">
         {/* Branch Simulator switcher */}
@@ -5002,6 +5383,9 @@ export default function InventoryScreen() {
     if (activeTab === 'record_purchase') {
       return 'Record Procurement Invoice';
     }
+    if (activeTab === 'transfers' && isCreatingRequest) {
+      return 'New Stock Transfer Request';
+    }
     const matched = SIDEBAR_ITEMS.find((s) => s.id === activeTab);
     return matched ? matched.label : 'Inventory Center';
   };
@@ -5019,7 +5403,9 @@ export default function InventoryScreen() {
       case 'wastage':
         return 'Maintain controls on spoils and ingredient losses';
       case 'transfers':
-        return 'Ledger adjustments and internal branch transfers';
+        return isCreatingRequest
+          ? 'Select ingredients and items to request from Central Kitchen/Warehouse'
+          : 'Ledger adjustments and internal branch transfers';
       case 'recipes':
         return 'Standardize menu recipe details, cost breakdown and margins';
       case 'reports':
@@ -5422,7 +5808,7 @@ export default function InventoryScreen() {
           </View>
         )}
 
-        {activeTab === 'record_purchase' ? (
+        {activeTab === 'record_purchase' || (activeTab === 'transfers' && isCreatingRequest) ? (
           <View className="flex-1 p-0">
             {errorMsg && (
               <View className="mx-6 mt-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
@@ -5779,126 +6165,7 @@ export default function InventoryScreen() {
 
       {/* ─── MODAL DIALOGS ─────────────────────────────────────────────────── */}
 
-      {/* 0.1. New Transfer Request Modal */}
-      <Modal visible={isNewRequestModalOpen} animationType="slide" transparent>
-        <View className="flex-1 bg-black/50 justify-center items-center p-6">
-          <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%]">
-            <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
-              <Text className="text-base font-black text-slate-900">New Stock Transfer Request</Text>
-              <Pressable onPress={() => setIsNewRequestModalOpen(false)}>
-                <X size={20} color="#64748b" />
-              </Pressable>
-            </View>
 
-            <ScrollView className="pr-2 gap-4" showsVerticalScrollIndicator={false}>
-              {/* Supplying Branch Selector */}
-              <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Supply Branch (Source)*</Text>
-                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[100px] p-2">
-                  {dbBranches
-                    .filter(b => b.branch_type === 'CENTRAL_KITCHEN' || b.branch_type === 'WAREHOUSE')
-                    .map(b => (
-                      <Pressable
-                        key={b.id}
-                        onPress={() => setNewReqFromBranchId(b.id)}
-                        className={`p-2.5 rounded-lg mb-1 flex-row items-center ${
-                          newReqFromBranchId === b.id ? 'bg-blue-100' : ''
-                        }`}
-                        style={{ minHeight: 44 }}
-                      >
-                        <Text className="text-xs font-bold text-slate-800">{b.name} ({b.branch_type})</Text>
-                      </Pressable>
-                    ))}
-                </ScrollView>
-              </View>
-
-              {/* Items Table */}
-              <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase mb-2">Request Items*</Text>
-                {newReqItems.map((item, idx) => (
-                  <View key={idx} className="flex-row items-center gap-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <View className="flex-1 gap-1">
-                      <Text className="text-[9px] font-bold text-slate-400 uppercase">Material</Text>
-                      <ScrollView className="bg-white border border-slate-200 rounded-lg max-h-[80px] p-1">
-                        {materials.map(m => (
-                          <Pressable
-                            key={m.id}
-                            onPress={() => handleRequestItemChange(idx, 'material_id', m.id)}
-                            className={`p-1.5 rounded mb-0.5 ${
-                              item.material_id === m.id ? 'bg-blue-50' : ''
-                            }`}
-                            style={{ minHeight: 32 }}
-                          >
-                            <Text className="text-[10px] text-slate-700 font-bold">{m.material_name}</Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                    <View className="w-24 gap-1">
-                      <Text className="text-[9px] font-bold text-slate-400 uppercase">Quantity</Text>
-                      <TextInput
-                        value={item.requested_quantity}
-                        onChangeText={(val) => handleRequestItemChange(idx, 'requested_quantity', val)}
-                        placeholder="Qty"
-                        keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-800"
-                        style={{ minHeight: 36 }}
-                      />
-                    </View>
-                    {newReqItems.length > 1 && (
-                      <Pressable
-                        onPress={() => handleRemoveRequestItemRow(idx)}
-                        className="w-8 h-8 items-center justify-center bg-rose-50 border border-rose-100 rounded-lg active:scale-95"
-                        style={{ minHeight: 44, minWidth: 44 }}
-                      >
-                        <Trash2 size={14} color="#e11d48" />
-                      </Pressable>
-                    )}
-                  </View>
-                ))}
-                
-                <Pressable
-                  onPress={handleAddRequestItemRow}
-                  className="flex-row bg-slate-100 border border-slate-200 items-center justify-center py-2 rounded-xl mt-1 active:scale-95"
-                  style={{ minHeight: 44 }}
-                >
-                  <Plus size={14} color="#475569" className="mr-1" />
-                  <Text className="text-xs font-bold text-slate-600">Add Material Row</Text>
-                </Pressable>
-              </View>
-
-              {/* Remarks */}
-              <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Remarks / Instructions</Text>
-                <TextInput
-                  value={newReqRemarks}
-                  onChangeText={setNewReqRemarks}
-                  placeholder="e.g. Urgent stock replenishment"
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800"
-                  style={{ minHeight: 44 }}
-                />
-              </View>
-            </ScrollView>
-
-            <View className="flex-row justify-end gap-3 border-t border-slate-100 pt-4 mt-4">
-              <Pressable
-                onPress={() => setIsNewRequestModalOpen(false)}
-                className="bg-slate-100 border border-slate-200 py-2.5 px-5 rounded-xl active:scale-95"
-                style={{ minHeight: 44 }}
-              >
-                <Text className="text-xs font-bold text-slate-600">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleSaveTransferRequest}
-                className="bg-blue-600 py-2.5 px-5 rounded-xl active:scale-95 shadow-md"
-                style={{ minHeight: 44 }}
-              >
-                <Text className="text-xs font-bold text-white">Submit Request</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* 0.2. Review, Approve & Dispatch Request Modal */}
       <Modal visible={isApprovalModalOpen} animationType="fade" transparent>
