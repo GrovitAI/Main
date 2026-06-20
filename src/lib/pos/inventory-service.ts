@@ -3773,8 +3773,6 @@ export async function createDispatch(
         .from('inventory_dispatches')
         .insert({
           id: dispatchId,
-          tenant_id,
-          branch_id: req.supplying_branch_id,
           request_id: requestId,
           dispatch_number: `DSP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`,
           dispatched_at: now,
