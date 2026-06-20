@@ -4809,7 +4809,7 @@ export default function InventoryScreen() {
                       {isCreator && item.status === 'Pending' && (
                         <Pressable
                           onPress={() => handleProcessCancelRequest(item.id)}
-                          className="bg-rose-50 border border-rose-200 py-1.5 px-3 rounded-lg active:scale-95"
+                          className="bg-rose-50 border border-rose-200 py-1.5 px-3 rounded-lg active:scale-95 items-center justify-center"
                           style={{ minHeight: 44 }}
                         >
                           <Text className="text-xs font-bold text-rose-700">Cancel Request</Text>
@@ -4819,7 +4819,7 @@ export default function InventoryScreen() {
                       {isSupplier && (item.status === 'Pending' || item.status === 'Approved' || item.status === 'Partially Dispatched') && (
                         <Pressable
                           onPress={() => handleOpenApprovalModal(item)}
-                          className="bg-blue-600 py-1.5 px-3 rounded-lg active:scale-95 shadow-sm"
+                          className="bg-blue-600 py-1.5 px-3 rounded-lg active:scale-95 shadow-sm items-center justify-center"
                           style={{ minHeight: 44 }}
                         >
                           <Text className="text-xs font-bold text-white">
@@ -6409,7 +6409,7 @@ export default function InventoryScreen() {
                 {selectedRequest?.status === 'Pending' && (
                   <Pressable
                     onPress={handleProcessRejection}
-                    className="bg-rose-50 border border-rose-200 py-2.5 px-4 rounded-xl active:scale-95"
+                    className="bg-rose-50 border border-rose-200 py-2.5 px-4 rounded-xl active:scale-95 items-center justify-center"
                     style={{ minHeight: 44 }}
                   >
                     <Text className="text-xs font-bold text-rose-700">Reject Request</Text>
@@ -6420,7 +6420,7 @@ export default function InventoryScreen() {
               <View className="flex-row gap-2">
                 <Pressable
                   onPress={() => setIsApprovalModalOpen(false)}
-                  className="bg-slate-100 border border-slate-200 py-2.5 px-4 rounded-xl active:scale-95"
+                  className="bg-slate-100 border border-slate-200 py-2.5 px-4 rounded-xl active:scale-95 items-center justify-center"
                   style={{ minHeight: 44 }}
                 >
                   <Text className="text-xs font-bold text-slate-600">Close</Text>
@@ -6429,7 +6429,7 @@ export default function InventoryScreen() {
                 {selectedRequest?.status === 'Pending' && (
                   <Pressable
                     onPress={handleProcessApproval}
-                    className="bg-blue-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md"
+                    className="bg-blue-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md items-center justify-center"
                     style={{ minHeight: 44 }}
                   >
                     <Text className="text-xs font-bold text-white">Approve Request</Text>
@@ -6439,7 +6439,7 @@ export default function InventoryScreen() {
                 {(selectedRequest?.status === 'Approved' || selectedRequest?.status === 'Partially Dispatched') && (
                   <Pressable
                     onPress={handleProcessDispatch}
-                    className="bg-indigo-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md"
+                    className="bg-indigo-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md items-center justify-center"
                     style={{ minHeight: 44 }}
                   >
                     <Text className="text-xs font-bold text-white">Create Dispatch</Text>
@@ -6505,14 +6505,14 @@ export default function InventoryScreen() {
             <View className="flex-row justify-end gap-3 border-t border-slate-100 pt-4 mt-4">
               <Pressable
                 onPress={() => setIsReceiveModalOpen(false)}
-                className="bg-slate-100 border border-slate-200 py-2.5 px-4 rounded-xl active:scale-95"
+                className="bg-slate-100 border border-slate-200 py-2.5 px-4 rounded-xl active:scale-95 items-center justify-center"
                 style={{ minHeight: 44 }}
               >
                 <Text className="text-xs font-bold text-slate-600">Close</Text>
               </Pressable>
               <Pressable
                 onPress={handleProcessReceive}
-                className="bg-emerald-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md"
+                className="bg-emerald-600 py-2.5 px-4 rounded-xl active:scale-95 shadow-md items-center justify-center"
                 style={{ minHeight: 44 }}
               >
                 <Text className="text-xs font-bold text-white">Record Receipt & Update Stock</Text>
@@ -6570,7 +6570,7 @@ export default function InventoryScreen() {
             <View className="flex-row justify-end border-t border-slate-100 pt-4 mt-4">
               <Pressable
                 onPress={() => setIsEventsModalOpen(false)}
-                className="bg-slate-100 border border-slate-200 py-2 px-5 rounded-xl active:scale-95"
+                className="bg-slate-100 border border-slate-200 py-2 px-5 rounded-xl active:scale-95 items-center justify-center"
                 style={{ minHeight: 44 }}
               >
                 <Text className="text-xs font-bold text-slate-600">Close</Text>
@@ -6736,7 +6736,7 @@ export default function InventoryScreen() {
                   setIsImportModalOpen(false);
                   setImportSummary(null);
                 }}
-                className="bg-slate-100 border border-slate-200 py-2.5 px-6 rounded-xl active:scale-95 shadow-xs"
+                className="bg-slate-100 border border-slate-200 py-2.5 px-6 rounded-xl active:scale-95 shadow-xs items-center justify-center"
                 style={{ minHeight: 44 }}
               >
                 <Text className="text-xs font-bold text-slate-600">Cancel</Text>
