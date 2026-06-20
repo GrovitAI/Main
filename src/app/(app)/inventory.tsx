@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  PressableProps,
   ScrollView,
   Text,
   TextInput,
@@ -138,6 +139,11 @@ import {
   type ValidatedImportRow,
   type ValidationSummary
 } from '@/lib/pos/material-import-service';
+
+// Custom Pressable component to support delayPressIn prop which is supported at runtime but missing from standard types
+const CustomPressable = Pressable as React.ComponentType<
+  PressableProps & { delayPressIn?: number }
+>;
 
 // ─── LOGO ASSET LOAD ─────────────────────────────────────────────────────────
 
@@ -547,6 +553,7 @@ export default function InventoryScreen() {
   const [newReqSelectedCategoryId, setNewReqSelectedCategoryId] = useState('all');
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const branchTriggerRef = useRef<View>(null);
+  const qtyInputRefs = useRef<Record<string, any>>({});
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
@@ -557,9 +564,6 @@ export default function InventoryScreen() {
   const [newReqItems, setNewReqItems] = useState<{ material_id: string; requested_quantity: string }[]>([
     { material_id: '', requested_quantity: '' }
   ]);
-  const [supplierMaterials, setSupplierMaterials] = useState<InventoryMaterial[]>([]);
-  const [isSupplierMaterialsLoading, setIsSupplierMaterialsLoading] = useState(false);
-  const [infoModalMaterial, setInfoModalMaterial] = useState<InventoryMaterial | null>(null);
   const [mobileView, setMobileView] = useState<'materials' | 'cart'>('materials');
 
   const [selectedRequest, setSelectedRequest] = useState<InventoryTransferRequest | null>(null);
@@ -754,29 +758,6 @@ export default function InventoryScreen() {
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    const loadSupplierMaterials = async () => {
-      if (newReqFromBranchId) {
-        setIsSupplierMaterialsLoading(true);
-        try {
-          const res = await fetchMaterials(newReqFromBranchId);
-          if (res.data) {
-            setSupplierMaterials(res.data);
-          } else {
-            setSupplierMaterials([]);
-          }
-        } catch (e) {
-          console.error('Error loading supplier materials:', e);
-          setSupplierMaterials([]);
-        } finally {
-          setIsSupplierMaterialsLoading(false);
-        }
-      } else {
-        setSupplierMaterials([]);
-      }
-    };
-    loadSupplierMaterials();
-  }, [newReqFromBranchId]);
 
   // ─── FILTERS ───────────────────────────────────────────────────────────────
 
@@ -1293,7 +1274,6 @@ export default function InventoryScreen() {
     setNewReqSearchQuery('');
     setNewReqSelectedCategoryId('all');
     setMobileView('materials');
-    setInfoModalMaterial(null);
     setIsCreatingRequest(true);
   };
 
@@ -4279,16 +4259,22 @@ export default function InventoryScreen() {
                     const isSelected = !!cartItem;
                     const qty = cartItem ? Number(cartItem.requested_quantity) : 0;
 
-                    const supplierMat = supplierMaterials.find((sm) => sm.id === item.id);
-                    const supplierStock = supplierMat ? supplierMat.current_stock : undefined;
-
                     return (
                       <Pressable
-                        onPress={() => setInfoModalMaterial(item)}
+                        onPress={() => {
+                          if (!isSelected) {
+                            handleIncrementNewReqItem(item.id);
+                            setTimeout(() => {
+                              qtyInputRefs.current[item.id]?.focus();
+                            }, 100);
+                          } else {
+                            qtyInputRefs.current[item.id]?.focus();
+                          }
+                        }}
                         style={{
                           flex: 1,
                           maxWidth: columns > 1 ? `${100 / columns}%` : undefined,
-                          minHeight: 120,
+                          minHeight: 100,
                           backgroundColor: colors.surfaceElevated,
                           borderRadius: 16,
                           padding: 12,
@@ -4331,13 +4317,6 @@ export default function InventoryScreen() {
                               {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
                             </Text>
                           </View>
-                          {/* Supply stock */}
-                          <View className="flex-row justify-between items-center">
-                            <Text className="text-[9px] font-bold text-slate-400">Supplier Stock:</Text>
-                            <Text className="text-[10px] font-black text-slate-700">
-                              {supplierStock !== undefined ? `${supplierStock.toFixed(2)} ${item.unit_short_name || 'Units'}` : '--'}
-                            </Text>
-                          </View>
                         </View>
 
                         {/* Bottom Row: Cost and Quick Add/Incrementer */}
@@ -4350,47 +4329,67 @@ export default function InventoryScreen() {
                           {/* Inline controls */}
                           <View style={{ pointerEvents: 'auto' }}>
                             {!isSelected ? (
-                              <Pressable
+                              <CustomPressable
                                 onPress={(e) => {
                                   e.stopPropagation();
                                   handleIncrementNewReqItem(item.id);
+                                  setTimeout(() => {
+                                    qtyInputRefs.current[item.id]?.focus();
+                                  }, 100);
                                 }}
+                                delayPressIn={0}
                                 className="bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg flex-row items-center justify-center active:scale-95"
                                 style={{ minHeight: 32, minWidth: 64 }}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               >
                                 <Plus size={10} color={colors.primary} strokeWidth={3} className="mr-0.5" />
                                 <Text className="text-[10px] font-black text-[#0066b2]">Request</Text>
-                              </Pressable>
+                              </CustomPressable>
                             ) : (
                               <View className="flex-row items-center border border-blue-200 rounded-lg bg-white overflow-hidden" style={{ height: 28 }}>
-                                <Pressable
+                                <CustomPressable
                                   onPress={(e) => {
                                     e.stopPropagation();
                                     handleDecrementNewReqItem(item.id);
                                   }}
+                                  delayPressIn={0}
                                   className="px-2 items-center justify-center bg-blue-50 border-r border-blue-200 active:bg-blue-100"
                                   style={{ height: '100%', minWidth: 28 }}
                                   hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                                 >
                                   <Minus size={10} color={colors.primary} strokeWidth={3} />
-                                </Pressable>
+                                </CustomPressable>
 
-                                <Text className="px-2 text-center text-[10px] font-black text-slate-800">
-                                  {qty}
-                                </Text>
+                                <TextInput
+                                  ref={(el) => {
+                                    if (el) {
+                                      qtyInputRefs.current[item.id] = el;
+                                    } else {
+                                      delete qtyInputRefs.current[item.id];
+                                    }
+                                  }}
+                                  value={qty === 0 ? '' : String(qty)}
+                                  onChangeText={(val) => handleUpdateNewReqItemQty(item.id, val)}
+                                  keyboardType="numeric"
+                                  placeholder="0"
+                                  placeholderTextColor="#94a3b8"
+                                  selectTextOnFocus={true}
+                                  className="w-10 text-center text-[10px] font-black text-slate-800 p-0 m-0 outline-none h-full"
+                                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                                />
 
-                                <Pressable
+                                <CustomPressable
                                   onPress={(e) => {
                                     e.stopPropagation();
                                     handleIncrementNewReqItem(item.id);
                                   }}
+                                  delayPressIn={0}
                                   className="px-2 items-center justify-center bg-blue-50 border-l border-blue-200 active:bg-blue-100"
                                   style={{ height: '100%', minWidth: 28 }}
                                   hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                                 >
                                   <Plus size={10} color={colors.primary} strokeWidth={3} />
-                                </Pressable>
+                                </CustomPressable>
                               </View>
                             )}
                           </View>
@@ -4398,6 +4397,7 @@ export default function InventoryScreen() {
                       </Pressable>
                     );
                   }}
+
                 />
               )}
             </View>
@@ -4499,58 +4499,56 @@ export default function InventoryScreen() {
                     if (!mat) return null;
 
                     return (
-                      <View className="bg-slate-50 border border-slate-200/60 rounded-xl p-3 flex-col gap-2">
-                        <View className="flex-row justify-between items-start">
-                          <View className="flex-1 pr-2">
-                            <Text className="text-xs font-black text-[#0f2744] leading-tight">
-                              {mat.material_name}
-                            </Text>
-                            <Text className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
-                              {mat.material_code}
-                            </Text>
-                          </View>
-                          <Pressable
-                            onPress={() => handleRemoveNewReqItem(item.material_id)}
-                            className="p-1 rounded-lg hover:bg-red-50 active:scale-95"
-                            style={{ minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' }}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                          >
-                            <Trash2 size={14} color="#ef4444" />
-                          </Pressable>
+                      <View className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1.5 flex-row justify-between items-center gap-2">
+                        {/* Name & Code on left */}
+                        <View className="flex-1 pr-1">
+                          <Text className="text-[11px] font-black text-[#0f2744] leading-tight" numberOfLines={1}>
+                            {mat.material_name}
+                          </Text>
+                          <Text className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">
+                            #{mat.material_code}
+                          </Text>
                         </View>
 
-                        <View className="flex-row items-center justify-between mt-1 gap-2">
-                          <Text className="text-[10px] font-bold text-slate-400">
-                            Qty ({mat.unit_short_name || 'Units'})
-                          </Text>
-
-                          <View className="flex-row items-center border border-slate-200 rounded-lg bg-white overflow-hidden" style={{ height: 32 }}>
-                            <Pressable
+                        {/* Quantity Controller & Delete Button on right */}
+                        <View className="flex-row items-center gap-2">
+                          <View className="flex-row items-center border border-slate-200 rounded-lg bg-white overflow-hidden" style={{ height: 26 }}>
+                            <CustomPressable
                               onPress={() => handleDecrementNewReqItem(item.material_id)}
-                              className="px-2.5 items-center justify-center bg-slate-50 border-r border-slate-200 active:bg-slate-100"
-                              style={{ height: '100%', minWidth: 32 }}
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              delayPressIn={0}
+                              className="px-1.5 items-center justify-center bg-slate-50 border-r border-slate-200 active:bg-slate-100"
+                              style={{ height: '100%', minWidth: 24 }}
+                              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                             >
-                              <Minus size={11} color="#64748b" strokeWidth={2.5} />
-                            </Pressable>
+                              <Minus size={9} color="#64748b" strokeWidth={3} />
+                            </CustomPressable>
 
                             <TextInput
                               value={item.requested_quantity}
                               onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
                               keyboardType="numeric"
-                              className="w-14 text-center text-xs font-black text-[#0f2744] p-0 m-0 outline-none"
+                              className="w-10 text-center text-[10px] font-black text-[#0f2744] p-0 m-0 outline-none"
                               style={{ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
                             />
 
-                            <Pressable
+                            <CustomPressable
                               onPress={() => handleIncrementNewReqItem(item.material_id)}
-                              className="px-2.5 items-center justify-center bg-slate-50 border-l border-slate-200 active:bg-slate-100"
-                              style={{ height: '100%', minWidth: 32 }}
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              delayPressIn={0}
+                              className="px-1.5 items-center justify-center bg-slate-50 border-l border-slate-200 active:bg-slate-100"
+                              style={{ height: '100%', minWidth: 24 }}
+                              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                             >
-                              <Plus size={11} color="#64748b" strokeWidth={2.5} />
-                            </Pressable>
+                              <Plus size={9} color="#64748b" strokeWidth={3} />
+                            </CustomPressable>
                           </View>
+
+                          <Pressable
+                            onPress={() => handleRemoveNewReqItem(item.material_id)}
+                            className="w-8 h-8 rounded-lg hover:bg-red-50 items-center justify-center active:scale-95"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Trash2 size={12} color="#ef4444" />
+                          </Pressable>
                         </View>
                       </View>
                     );
@@ -4609,225 +4607,7 @@ export default function InventoryScreen() {
     );
   };
 
-  const renderMaterialDetailModal = () => {
-    if (!infoModalMaterial) return null;
 
-    const item = infoModalMaterial;
-    const cartItem = newReqItems.find((itm) => itm.material_id === item.id);
-    const qty = cartItem ? cartItem.requested_quantity : '0';
-    const parsedQty = Number(qty) || 0;
-
-    const supplierMat = supplierMaterials.find((sm) => sm.id === item.id);
-    const supplierStock = supplierMat ? supplierMat.current_stock : 0;
-
-    const matchedSupplier = suppliers.find((s) => s.id === item.preferred_supplier_id);
-    const supplierName = matchedSupplier ? matchedSupplier.supplier_name : 'No preferred supplier designated';
-
-    const isLowStock = item.current_stock <= item.reorder_level;
-
-    return (
-      <Modal
-        visible={!!infoModalMaterial}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setInfoModalMaterial(null)}
-      >
-        <View className="flex-1 justify-center items-center bg-black/55 p-4 md:p-6">
-          <View className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
-            {/* Header */}
-            <View className="bg-[#004a8d] px-6 py-5 flex-row justify-between items-center">
-              <View className="flex-1 pr-4">
-                <Text className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-0.5">
-                  Raw Material Details
-                </Text>
-                <Text className="text-base font-black text-white leading-tight" numberOfLines={1}>
-                  {item.material_name}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setInfoModalMaterial(null)}
-                className="w-8 h-8 rounded-full bg-black/15 items-center justify-center active:scale-95"
-                style={{ minHeight: 44, minWidth: 44 }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={16} color="white" />
-              </Pressable>
-            </View>
-
-            <ScrollView className="p-6 max-h-[75vh]" showsVerticalScrollIndicator={true}>
-              {/* Category & HSN Code Bar */}
-              <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2 bg-slate-50 border border-slate-100 p-3 rounded-2xl">
-                <View>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Category</Text>
-                  <Text className="text-xs font-black text-slate-700">{item.category_name || 'Uncategorized'}</Text>
-                </View>
-                <View>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Material Code</Text>
-                  <Text className="text-xs font-bold text-slate-700 font-mono">#{item.material_code}</Text>
-                </View>
-                <View>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">HSN Code</Text>
-                  <Text className="text-xs font-bold text-slate-700 font-mono">{item.hsn_code || 'N/A'}</Text>
-                </View>
-              </View>
-
-              {/* Stock Status Box */}
-              <View className={`border rounded-2xl p-4 mb-4 flex-row items-start ${
-                isLowStock ? 'bg-amber-50/70 border-amber-200' : 'bg-green-50/70 border-green-200'
-              }`}>
-                {isLowStock ? (
-                  <AlertTriangle size={20} color="#d97706" className="mr-3 mt-0.5" />
-                ) : (
-                  <Check size={20} color="#16a34a" className="mr-3 mt-0.5" />
-                )}
-                <View className="flex-1">
-                  <Text className={`text-xs font-black uppercase tracking-wider ${
-                    isLowStock ? 'text-amber-800' : 'text-green-800'
-                  }`}>
-                    {isLowStock ? 'Low Stock Warning' : 'Stock Status Healthy'}
-                  </Text>
-                  <Text className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    Current stock level is <Text className="font-bold text-slate-700">{item.current_stock.toFixed(2)} {item.unit_short_name}</Text>. Reorder point is <Text className="font-bold text-slate-700">{item.reorder_level.toFixed(2)} {item.unit_short_name}</Text>.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Supply Details Grid */}
-              <View className="border border-slate-200/80 rounded-2xl p-4 mb-6">
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-3">
-                  Inventory & Procurement Specs
-                </Text>
-
-                <View className="flex-col gap-2.5">
-                  <View className="flex-row justify-between items-center border-b border-slate-50 pb-2">
-                    <Text className="text-xs font-bold text-slate-500">Destination Stock (Simulated Branch)</Text>
-                    <Text className="text-xs font-black text-slate-700">
-                      {item.current_stock.toFixed(2)} {item.unit_short_name}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center border-b border-slate-50 pb-2">
-                    <Text className="text-xs font-bold text-slate-500">Supplying Branch Stock (CK/Warehouse)</Text>
-                    <Text className="text-xs font-black text-slate-700">
-                      {isSupplierMaterialsLoading ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : (
-                        `${supplierStock.toFixed(2)} ${item.unit_short_name}`
-                      )}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center border-b border-slate-50 pb-2">
-                    <Text className="text-xs font-bold text-slate-500">Average Unit Cost</Text>
-                    <Text className="text-xs font-black text-slate-700">
-                      ₹{item.average_cost.toFixed(2)}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center border-b border-slate-50 pb-2">
-                    <Text className="text-xs font-bold text-slate-500">Last Purchase Price</Text>
-                    <Text className="text-xs font-black text-slate-700">
-                      ₹{(item.last_purchase_price || 0).toFixed(2)}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center border-b border-slate-50 pb-2">
-                    <Text className="text-xs font-bold text-slate-500">Preferred Supplier</Text>
-                    <Text className="text-xs font-bold text-slate-600" numberOfLines={1}>
-                      {supplierName}
-                    </Text>
-                  </View>
-
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-xs font-bold text-slate-500">Barcode Identifier</Text>
-                    <Text className="text-xs font-bold text-slate-700 font-mono">
-                      {item.barcode || 'N/A'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Adjust Request Quantity Block */}
-              <View className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 mb-4">
-                <Text className="text-xs font-black text-slate-800 mb-3 text-center">
-                  Adjust Request Quantity
-                </Text>
-
-                <View className="flex-row justify-center items-center gap-4">
-                  <Pressable
-                    onPress={() => {
-                      if (parsedQty > 0) {
-                        handleUpdateNewReqItemQty(item.id, String(Math.max(0, parsedQty - 1)));
-                      }
-                    }}
-                    className="w-11 h-11 bg-white border border-slate-300 rounded-xl items-center justify-center active:scale-95 shadow-sm"
-                    style={{ minHeight: 44, minWidth: 44 }}
-                  >
-                    <Minus size={16} color={colors.textPrimary} strokeWidth={2.5} />
-                  </Pressable>
-
-                  <TextInput
-                    value={qty === '0' && parsedQty === 0 ? '' : qty}
-                    onChangeText={(val) => handleUpdateNewReqItemQty(item.id, val)}
-                    keyboardType="numeric"
-                    placeholder="0.00"
-                    placeholderTextColor="#94a3b8"
-                    className="w-24 text-center text-lg font-black text-slate-800 border-b border-slate-300 py-1 focus:border-blue-600 outline-none"
-                    style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
-                  />
-
-                  <Pressable
-                    onPress={() => {
-                      handleUpdateNewReqItemQty(item.id, String(parsedQty + 1));
-                    }}
-                    className="w-11 h-11 bg-white border border-slate-300 rounded-xl items-center justify-center active:scale-95 shadow-sm"
-                    style={{ minHeight: 44, minWidth: 44 }}
-                  >
-                    <Plus size={16} color={colors.textPrimary} strokeWidth={2.5} />
-                  </Pressable>
-
-                  <Text className="text-xs font-bold text-slate-500 self-end mb-2">
-                    {item.unit_short_name || 'Units'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Action Buttons inside popup */}
-              <View className="flex-row gap-3 mt-2">
-                {parsedQty > 0 ? (
-                  <Pressable
-                    onPress={() => {
-                      handleRemoveNewReqItem(item.id);
-                      setInfoModalMaterial(null);
-                    }}
-                    className="flex-1 bg-red-50 border border-red-200 py-3.5 rounded-xl items-center justify-center active:scale-95"
-                    style={{ minHeight: 48 }}
-                  >
-                    <Text className="text-xs font-black text-red-600">Remove Request</Text>
-                  </Pressable>
-                ) : null}
-
-                <Pressable
-                  onPress={() => {
-                    if (parsedQty === 0) {
-                      handleUpdateNewReqItemQty(item.id, '1');
-                    }
-                    setInfoModalMaterial(null);
-                  }}
-                  className="flex-1 bg-blue-600 py-3.5 rounded-xl items-center justify-center active:scale-95 shadow-md"
-                  style={{ minHeight: 48 }}
-                >
-                  <Text className="text-xs font-black text-white">
-                    {parsedQty > 0 ? 'Update Request' : 'Add to Request'}
-                  </Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
 
 
   const renderTransfers = () => {
@@ -7744,8 +7524,6 @@ export default function InventoryScreen() {
           </View>
         </View>
       </Modal>
-
-      {renderMaterialDetailModal()}
     </View>
   );
 }
