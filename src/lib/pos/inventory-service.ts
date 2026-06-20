@@ -419,6 +419,14 @@ const LOCAL_STORAGE_KEYS = {
 // Global switch to bypass remote calls once a database table does not exist
 let forceLocalFallback = false;
 
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 function isLocalStorageAvailable(): boolean {
   return typeof window !== 'undefined' && !!window.localStorage;
 }
@@ -3343,13 +3351,14 @@ export async function createTransferRequest(
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const now = new Date().toISOString();
-    const requestId = Math.random().toString(36).substr(2, 9);
+    const requestId = uuidv4();
     const createdBy = 'Owner Staff';
 
     const headerPayload = {
       tenant_id,
       requesting_branch_id: toBranchId,
       supplying_branch_id: fromBranchId,
+      request_number: `TRF-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`,
       status: 'Pending' as const,
       notes: remarks || null,
       updated_at: now
@@ -3741,7 +3750,7 @@ export async function createDispatch(
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const now = new Date().toISOString();
-    const dispatchId = Math.random().toString(36).substr(2, 9);
+    const dispatchId = uuidv4();
     const author = createdBy || 'Owner Staff';
 
     if (!forceLocalFallback) {
@@ -3764,7 +3773,10 @@ export async function createDispatch(
         .from('inventory_dispatches')
         .insert({
           id: dispatchId,
+          tenant_id,
+          branch_id: req.supplying_branch_id,
           request_id: requestId,
+          dispatch_number: `DSP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`,
           dispatched_at: now,
           status: 'Dispatched'
         })
