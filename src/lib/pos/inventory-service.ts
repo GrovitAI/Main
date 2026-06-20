@@ -260,6 +260,7 @@ export type InventoryTransferRequest = {
   // UI helpers
   from_branch_name?: string;
   to_branch_name?: string;
+  items?: InventoryTransferRequestItem[];
 };
 
 export type InventoryTransferRequestItem = {
@@ -292,6 +293,8 @@ export type InventoryDispatch = {
   // UI helpers
   from_branch_name?: string;
   to_branch_name?: string;
+  transfer_request_number?: string;
+  items?: InventoryDispatchItem[];
 };
 
 export type InventoryDispatchItem = {
@@ -3198,7 +3201,13 @@ export async function fetchTransferRequests(branchId?: string): Promise<ServiceR
     if (!forceLocalFallback) {
       const { data, error } = await supabase
         .from('inventory_transfer_requests')
-        .select('*')
+        .select(`
+          *,
+          items:inventory_transfer_request_items(
+            *,
+            material:inventory_materials(material_name, unit:inventory_units!inventory_unit_id(short_name))
+          )
+        `)
         .eq('tenant_id', tenant_id)
         .or(`supplying_branch_id.eq.${activeBranchId},requesting_branch_id.eq.${activeBranchId}`)
         .order('created_at', { ascending: false });
@@ -3236,6 +3245,19 @@ export async function fetchTransferRequests(branchId?: string): Promise<ServiceR
         updated_at: r.updated_at,
         from_branch_name: branchMap.get(r.supplying_branch_id) || 'Unknown Branch',
         to_branch_name: branchMap.get(r.requesting_branch_id) || 'Unknown Branch',
+        items: (r.items || []).map((itm: any) => ({
+          id: itm.id,
+          tenant_id: r.tenant_id,
+          branch_id: r.requesting_branch_id,
+          transfer_request_id: itm.request_id,
+          material_id: itm.material_id,
+          requested_quantity: Number(itm.requested_qty) || 0,
+          approved_quantity: itm.approved_qty !== null ? Number(itm.approved_qty) : null,
+          received_quantity: itm.received_qty !== null ? Number(itm.received_qty) : null,
+          created_at: itm.created_at || new Date().toISOString(),
+          material_name: itm.material?.material_name || 'Unknown Material',
+          unit_short_name: itm.material?.unit?.short_name || 'units',
+        }))
       }));
       
       return { data: formatted as InventoryTransferRequest[], error: null };
@@ -3254,6 +3276,9 @@ export async function fetchTransferRequests(branchId?: string): Promise<ServiceR
 function fetchTransferRequestsLocal(tenantId: string, branchId: string): ServiceResult<InventoryTransferRequest[]> {
   const all = getLocalData<any[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
   const branches = fetchBranchesLocal(tenantId).data || [];
+  const allItems = getLocalData<InventoryTransferRequestItem[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUEST_ITEMS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
   
   // Normalization layer for backward compatibility & self-healing
   const normalized = all.map(r => ({
@@ -3268,10 +3293,23 @@ function fetchTransferRequestsLocal(tenantId: string, branchId: string): Service
   const formatted = filtered.map(r => {
     const fromB = branches.find(b => b.id === r.from_branch_id);
     const toB = branches.find(b => b.id === r.to_branch_id);
+    
+    // Fetch and map items locally
+    const reqItems = allItems.filter(itm => itm.transfer_request_id === r.id).map(itm => {
+      const mat = mats.find(m => m.id === itm.material_id);
+      const unit = mat ? units.find(u => u.id === mat.inventory_unit_id) : null;
+      return {
+        ...itm,
+        material_name: mat ? mat.material_name : 'Unknown Material',
+        unit_short_name: unit ? unit.short_name : 'units'
+      };
+    });
+
     return {
       ...r,
       from_branch_name: fromB ? fromB.name : 'Unknown Branch',
       to_branch_name: toB ? toB.name : 'Unknown Branch',
+      items: reqItems
     };
   });
   
@@ -3923,7 +3961,8 @@ export async function createDispatch(
         remarks: remarks || null,
         created_by: author,
         created_at: dispData.dispatched_at,
-        updated_at: dispData.dispatched_at
+        updated_at: dispData.dispatched_at,
+        transfer_request_number: req.request_number
       };
 
       return { data: returnedDispatch, error: null };
@@ -3978,6 +4017,7 @@ function createDispatchLocal(
     ...payload,
     id: dispatchId,
     dispatch_number: dispNumber,
+    transfer_request_number: req ? req.request_number : undefined,
     created_at: now,
     updated_at: now
   };
@@ -4458,7 +4498,11 @@ export async function fetchDispatches(branchId?: string): Promise<ServiceResult<
         .from('inventory_dispatches')
         .select(`
           *,
-          request:inventory_transfer_requests(*)
+          request:inventory_transfer_requests(*),
+          items:inventory_dispatch_items(
+            *,
+            material:inventory_materials(material_name, unit:inventory_units!inventory_unit_id(short_name))
+          )
         `);
 
       if (error) {
@@ -4502,6 +4546,19 @@ export async function fetchDispatches(branchId?: string): Promise<ServiceResult<
           updated_at: d.dispatched_at,
           from_branch_name: branchMap.get(req.supplying_branch_id) || 'Unknown Branch',
           to_branch_name: branchMap.get(req.requesting_branch_id) || 'Unknown Branch',
+          transfer_request_number: req.request_number,
+          items: (d.items || []).map((itm: any) => ({
+            id: itm.id,
+            tenant_id: tenant_id,
+            branch_id: req.supplying_branch_id,
+            dispatch_id: itm.dispatch_id,
+            material_id: itm.material_id,
+            dispatched_quantity: Number(itm.quantity) || 0,
+            received_quantity: itm.received_qty !== null ? Number(itm.received_qty) : null,
+            created_at: itm.created_at || new Date().toISOString(),
+            material_name: itm.material?.material_name || 'Unknown Material',
+            unit_short_name: itm.material?.unit?.short_name || 'units',
+          }))
         };
       });
 
@@ -4521,15 +4578,34 @@ export async function fetchDispatches(branchId?: string): Promise<ServiceResult<
 function fetchDispatchesLocal(tenantId: string, branchId: string): ServiceResult<InventoryDispatch[]> {
   const all = getLocalData<InventoryDispatch[]>(LOCAL_STORAGE_KEYS.DISPATCHES, []);
   const branches = fetchBranchesLocal(tenantId).data || [];
+  const allReqs = getLocalData<InventoryTransferRequest[]>(LOCAL_STORAGE_KEYS.TRANSFER_REQUESTS, []);
+  const allItems = getLocalData<InventoryDispatchItem[]>(LOCAL_STORAGE_KEYS.DISPATCH_ITEMS, []);
+  const mats = getLocalData<InventoryMaterial[]>(LOCAL_STORAGE_KEYS.MATERIALS, []);
+  const units = getLocalData<InventoryUnit[]>(LOCAL_STORAGE_KEYS.UNITS, []);
 
   const filtered = all.filter(d => d.tenant_id === tenantId && (d.from_branch_id === branchId || d.to_branch_id === branchId));
   const formatted = filtered.map(d => {
     const fromB = branches.find(b => b.id === d.from_branch_id);
     const toB = branches.find(b => b.id === d.to_branch_id);
+    const req = allReqs.find(r => r.id === d.transfer_request_id);
+    
+    // Fetch and map items locally
+    const dispItems = allItems.filter(itm => itm.dispatch_id === d.id).map(itm => {
+      const mat = mats.find(m => m.id === itm.material_id);
+      const unit = mat ? units.find(u => u.id === mat.inventory_unit_id) : null;
+      return {
+        ...itm,
+        material_name: mat ? mat.material_name : 'Unknown Material',
+        unit_short_name: unit ? unit.short_name : 'units'
+      };
+    });
+
     return {
       ...d,
       from_branch_name: fromB ? fromB.name : 'Unknown Branch',
       to_branch_name: toB ? toB.name : 'Unknown Branch',
+      transfer_request_number: req ? req.request_number : undefined,
+      items: dispItems
     };
   });
 

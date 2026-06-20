@@ -4794,6 +4794,32 @@ export default function InventoryScreen() {
                     )}
                   </View>
 
+                  {/* Items Preview */}
+                  {item.items && item.items.length > 0 && (
+                    <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                        Items Requested ({item.items.length})
+                      </Text>
+                      <View className="flex-col gap-1.5">
+                        {item.items.slice(0, 3).map((itm) => (
+                          <View key={itm.id} className="flex-row justify-between items-center bg-white border border-slate-100 px-2 py-1 rounded-lg">
+                            <Text className="text-xs font-bold text-slate-700 flex-1 mr-2" numberOfLines={1}>
+                              {itm.material_name}
+                            </Text>
+                            <Text className="text-xs font-black text-slate-800">
+                              {itm.requested_quantity} {itm.unit_short_name}
+                            </Text>
+                          </View>
+                        ))}
+                        {item.items.length > 3 && (
+                          <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
+                            + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
                   {/* Actions */}
                   <View className="flex-row justify-between items-center flex-wrap gap-2">
                     <Pressable
@@ -4858,7 +4884,7 @@ export default function InventoryScreen() {
                 <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
                   <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
                     <View>
-                      <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.dispatch_number}</Text>
+                      <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.transfer_request_number || item.dispatch_number}</Text>
                       <Text className="text-sm font-bold text-slate-800 mt-0.5">
                         {item.from_branch_name} → {item.to_branch_name}
                       </Text>
@@ -4876,6 +4902,32 @@ export default function InventoryScreen() {
                       <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
                     )}
                   </View>
+
+                  {/* Items Preview */}
+                  {item.items && item.items.length > 0 && (
+                    <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
+                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+                        Items Dispatched ({item.items.length})
+                      </Text>
+                      <View className="flex-col gap-1.5">
+                        {item.items.slice(0, 3).map((itm) => (
+                          <View key={itm.id} className="flex-row justify-between items-center bg-white border border-slate-100 px-2 py-1 rounded-lg">
+                            <Text className="text-xs font-bold text-slate-700 flex-1 mr-2" numberOfLines={1}>
+                              {itm.material_name}
+                            </Text>
+                            <Text className="text-xs font-black text-slate-800">
+                              {itm.dispatched_quantity} {itm.unit_short_name}
+                            </Text>
+                          </View>
+                        ))}
+                        {item.items.length > 3 && (
+                          <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
+                            + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  )}
 
                   {isReceiver && !isReceived && (
                     <Pressable
