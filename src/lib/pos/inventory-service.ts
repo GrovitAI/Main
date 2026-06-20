@@ -3816,7 +3816,7 @@ export async function createDispatch(
           const nextReserved = Math.max(0, (Number(CK_stock.reserved_stock) || 0) - itm.dispatched_quantity);
           const nextCurrent = Math.max(0, (Number(CK_stock.current_stock) || 0) - itm.dispatched_quantity);
           
-          await supabase
+          const { error: stockErr } = await supabase
             .from('inventory_material_stock_levels')
             .update({
               reserved_stock: nextReserved,
@@ -3825,18 +3825,26 @@ export async function createDispatch(
               updated_at: now
             })
             .eq('id', CK_stock.id);
+
+          if (stockErr) {
+            return { data: null, error: `Could not update stock levels: ${stockErr.message}` };
+          }
         }
 
-        const { data: mat } = await supabase
+        const { data: mat, error: matErr } = await supabase
           .from('inventory_materials')
           .select('*')
           .eq('id', itm.material_id)
           .single();
 
+        if (matErr) {
+          return { data: null, error: `Could not fetch material details: ${matErr.message}` };
+        }
+
         const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
         const balanceStock = CK_stock ? Math.max(0, Number(CK_stock.current_stock) - itm.dispatched_quantity) : 0;
 
-        await supabase.from('inventory_stock_ledger').insert({
+        const { error: ledgerErr } = await supabase.from('inventory_stock_ledger').insert({
           tenant_id,
           branch_id: req.supplying_branch_id,
           material_id: itm.material_id,
@@ -3853,6 +3861,10 @@ export async function createDispatch(
           created_by: author
         });
 
+        if (ledgerErr) {
+          return { data: null, error: `Could not write to stock ledger: ${ledgerErr.message}` };
+        }
+
         dispatchItemsPayload.push({
           dispatch_id: dispData.id,
           material_id: itm.material_id,
@@ -3860,7 +3872,10 @@ export async function createDispatch(
         });
       }
 
-      await supabase.from('inventory_dispatch_items').insert(dispatchItemsPayload);
+      const { error: itemsErr } = await supabase.from('inventory_dispatch_items').insert(dispatchItemsPayload);
+      if (itemsErr) {
+        return { data: null, error: `Could not save dispatch items: ${itemsErr.message}` };
+      }
 
       let allDispatched = true;
       for (const ri of (reqItems || [])) {
@@ -3873,12 +3888,16 @@ export async function createDispatch(
       }
 
       const nextStatus = allDispatched ? 'Dispatched' : 'Partially Dispatched';
-      await supabase
+      const { error: reqUpdateErr } = await supabase
         .from('inventory_transfer_requests')
         .update({ status: nextStatus, updated_at: now })
         .eq('id', requestId);
 
-      await supabase.from('inventory_transfer_events').insert({
+      if (reqUpdateErr) {
+        return { data: null, error: `Could not update transfer request status: ${reqUpdateErr.message}` };
+      }
+
+      const { error: eventErr } = await supabase.from('inventory_transfer_events').insert({
         tenant_id,
         branch_id: req.supplying_branch_id,
         transfer_request_id: requestId,
@@ -3886,6 +3905,10 @@ export async function createDispatch(
         performed_by: author,
         notes: `Items dispatched. Status set to ${nextStatus}.`
       });
+
+      if (eventErr) {
+        return { data: null, error: `Could not log dispatch transfer event: ${eventErr.message}` };
+      }
 
       const returnedDispatch: InventoryDispatch = {
         id: dispData.id,
@@ -3970,8 +3993,10 @@ function createDispatchLocal(
     created_at: now
   }));
 
+  const supplyingBranchId = req.from_branch_id || req.supplying_branch_id;
+
   for (const itm of items) {
-    const lvlIdx = allStock.findIndex(l => l.branch_id === req.from_branch_id && l.material_id === itm.material_id);
+    const lvlIdx = allStock.findIndex(l => l.branch_id === supplyingBranchId && l.material_id === itm.material_id);
     let balanceStock = 0;
     if (lvlIdx >= 0) {
       const lvl = allStock[lvlIdx];
@@ -3988,7 +4013,7 @@ function createDispatchLocal(
     allLedger.push({
       id: Math.random().toString(36).substr(2, 9),
       tenant_id: payload.tenant_id,
-      branch_id: req.from_branch_id,
+      branch_id: supplyingBranchId,
       material_id: itm.material_id,
       transaction_date: now,
       transaction_type: 'Transfer Out',
@@ -4009,7 +4034,7 @@ function createDispatchLocal(
   let allDispatched = true;
   for (const ri of reqItems) {
     const matchingDisp = items.find(i => i.material_id === ri.material_id);
-    const approved = Number(ri.approved_quantity) || 0;
+    const approved = Number(ri.approved_quantity ?? ri.approved_qty) || 0;
     const dispatched = matchingDisp ? matchingDisp.dispatched_quantity : 0;
     if (dispatched < approved) {
       allDispatched = false;
@@ -4071,30 +4096,42 @@ export async function receiveDispatch(
         return { data: false, error: `Could not fetch dispatch: ${dispErr.message}` };
       }
 
-      await supabase
+      const { error: dispUpdErr } = await supabase
         .from('inventory_dispatches')
         .update({ status: 'Received', received_at: now })
         .eq('id', dispatchId);
+
+      if (dispUpdErr) {
+        return { data: false, error: `Could not update dispatch status: ${dispUpdErr.message}` };
+      }
 
       const targetBranchId = disp.request.requesting_branch_id;
 
       for (const itm of items) {
         // Update request item received_qty
-        const { data: reqItem } = await supabase
+        const { data: reqItem, error: reqItemErr } = await supabase
           .from('inventory_transfer_request_items')
           .select('received_qty')
           .eq('request_id', disp.request_id)
           .eq('material_id', itm.material_id)
           .single();
         
+        if (reqItemErr) {
+          return { data: false, error: `Could not fetch request item: ${reqItemErr.message}` };
+        }
+        
         const prevReceived = reqItem ? Number(reqItem.received_qty) || 0 : 0;
-        await supabase
+        const { error: reqItemUpdErr } = await supabase
           .from('inventory_transfer_request_items')
           .update({ received_qty: prevReceived + itm.received_quantity })
           .eq('request_id', disp.request_id)
           .eq('material_id', itm.material_id);
 
-        const { data: stockLvl } = await supabase
+        if (reqItemUpdErr) {
+          return { data: false, error: `Could not update request item received quantity: ${reqItemUpdErr.message}` };
+        }
+
+        const { data: stockLvl, error: stockLvlErr } = await supabase
           .from('inventory_material_stock_levels')
           .select('*')
           .eq('tenant_id', tenant_id)
@@ -4102,13 +4139,17 @@ export async function receiveDispatch(
           .eq('material_id', itm.material_id)
           .limit(1);
 
+        if (stockLvlErr) {
+          return { data: false, error: `Could not fetch stock levels: ${stockLvlErr.message}` };
+        }
+
         const activeLvl = stockLvl && stockLvl.length > 0 ? stockLvl[0] : null;
         let newStock = itm.received_quantity;
 
         if (activeLvl) {
           newStock = (Number(activeLvl.current_stock) || 0) + itm.received_quantity;
           const reserved = Number(activeLvl.reserved_stock) || 0;
-          await supabase
+          const { error: stockUpdErr } = await supabase
             .from('inventory_material_stock_levels')
             .update({
               current_stock: newStock,
@@ -4116,8 +4157,12 @@ export async function receiveDispatch(
               updated_at: now
             })
             .eq('id', activeLvl.id);
+
+          if (stockUpdErr) {
+            return { data: false, error: `Could not update stock levels: ${stockUpdErr.message}` };
+          }
         } else {
-          await supabase
+          const { error: stockInsErr } = await supabase
             .from('inventory_material_stock_levels')
             .insert({
               tenant_id,
@@ -4128,17 +4173,25 @@ export async function receiveDispatch(
               reserved_stock: 0,
               available_stock: itm.received_quantity
             });
+
+          if (stockInsErr) {
+            return { data: false, error: `Could not initialize stock levels: ${stockInsErr.message}` };
+          }
         }
 
-        const { data: mat } = await supabase
+        const { data: mat, error: matErr } = await supabase
           .from('inventory_materials')
           .select('*')
           .eq('id', itm.material_id)
           .single();
 
+        if (matErr) {
+          return { data: false, error: `Could not fetch material details: ${matErr.message}` };
+        }
+
         const unitCost = mat ? Number(mat.average_cost) || 0 : 0;
 
-        await supabase.from('inventory_stock_ledger').insert({
+        const { error: ledgerErr } = await supabase.from('inventory_stock_ledger').insert({
           tenant_id,
           branch_id: targetBranchId,
           material_id: itm.material_id,
@@ -4155,9 +4208,13 @@ export async function receiveDispatch(
           created_by: author
         });
 
+        if (ledgerErr) {
+          return { data: false, error: `Could not write to stock ledger: ${ledgerErr.message}` };
+        }
+
         if (itm.received_quantity < itm.dispatched_quantity) {
           const varianceQty = itm.dispatched_quantity - itm.received_quantity;
-          await supabase.from('inventory_transfer_variances').insert({
+          const { error: varErr } = await supabase.from('inventory_transfer_variances').insert({
             tenant_id,
             branch_id: targetBranchId,
             dispatch_item_id: itm.id,
@@ -4167,28 +4224,44 @@ export async function receiveDispatch(
             variance_qty: varianceQty,
             reason: remarks || 'Transit loss'
           });
+
+          if (varErr) {
+            return { data: false, error: `Could not log transfer variance: ${varErr.message}` };
+          }
         }
       }
 
       if (disp.request_id) {
         let allReceived = true;
         
-        const { data: dispList } = await supabase
+        const { data: dispList, error: dispListErr } = await supabase
           .from('inventory_dispatches')
           .select('id')
           .eq('request_id', disp.request_id);
 
+        if (dispListErr) {
+          return { data: false, error: `Could not fetch dispatches list: ${dispListErr.message}` };
+        }
+
         const dispIds = (dispList || []).map((d: any) => d.id);
 
-        const { data: allDispItems } = await supabase
+        const { data: allDispItems, error: dispItemsErr } = await supabase
           .from('inventory_dispatch_items')
           .select('*')
           .in('dispatch_id', dispIds);
 
-        const { data: reqItems } = await supabase
+        if (dispItemsErr) {
+          return { data: false, error: `Could not fetch dispatch items: ${dispItemsErr.message}` };
+        }
+
+        const { data: reqItems, error: reqItemsErr } = await supabase
           .from('inventory_transfer_request_items')
           .select('*')
           .eq('request_id', disp.request_id);
+
+        if (reqItemsErr) {
+          return { data: false, error: `Could not fetch request items: ${reqItemsErr.message}` };
+        }
 
         for (const ri of (reqItems || [])) {
           const matchingDispItems = (allDispItems || []).filter((di: any) => di.material_id === ri.material_id);
@@ -4200,12 +4273,16 @@ export async function receiveDispatch(
         }
 
         const nextStatus = allReceived ? 'Completed' : 'Partially Received';
-        await supabase
+        const { error: reqUpdErr } = await supabase
           .from('inventory_transfer_requests')
           .update({ status: nextStatus, updated_at: now })
           .eq('id', disp.request_id);
 
-        await supabase.from('inventory_transfer_events').insert({
+        if (reqUpdErr) {
+          return { data: false, error: `Could not update request status: ${reqUpdErr.message}` };
+        }
+
+        const { error: eventErr } = await supabase.from('inventory_transfer_events').insert({
           tenant_id,
           branch_id: targetBranchId,
           transfer_request_id: disp.request_id,
@@ -4213,6 +4290,10 @@ export async function receiveDispatch(
           performed_by: author,
           notes: `Goods received. Status set to ${nextStatus}.`
         });
+
+        if (eventErr) {
+          return { data: false, error: `Could not log receive transfer event: ${eventErr.message}` };
+        }
       }
 
       return { data: true, error: null };
@@ -4331,7 +4412,7 @@ function receiveDispatchLocal(
     for (const ri of reqItems) {
       const matching = relatedDispItems.filter(di => di.material_id === ri.material_id);
       const totalReceived = matching.reduce((s, di) => s + (Number(di.received_quantity) || 0), 0);
-      const approved = Number(ri.approved_quantity) || 0;
+      const approved = Number(ri.approved_quantity ?? (ri as any).approved_qty) || 0;
       if (totalReceived < approved) {
         allReceived = false;
       }
@@ -4686,13 +4767,14 @@ function cancelTransferRequestLocal(
     const dispItems = allDispItems.filter(di => dispatchIds.includes(di.dispatch_id));
 
     for (const ri of reqItems) {
-      const approved = Number(ri.approved_quantity) || 0;
+      const approved = Number(ri.approved_quantity ?? (ri as any).approved_qty) || 0;
       const matchingDisp = dispItems.filter(di => di.material_id === ri.material_id);
       const totalDispatched = matchingDisp.reduce((sum, di) => sum + (Number(di.dispatched_quantity) || 0), 0);
       const remainingReserved = Math.max(0, approved - totalDispatched);
 
       if (remainingReserved > 0) {
-        let lvlIdx = allStock.findIndex(l => l.branch_id === req.from_branch_id && l.material_id === ri.material_id);
+        const supplyingBranchId = req.from_branch_id || (req as any).supplying_branch_id;
+        let lvlIdx = allStock.findIndex(l => l.branch_id === supplyingBranchId && l.material_id === ri.material_id);
         if (lvlIdx >= 0) {
           const lvl = allStock[lvlIdx];
           lvl.reserved_stock = Math.max(0, (Number(lvl.reserved_stock) || 0) - remainingReserved);
@@ -4706,7 +4788,7 @@ function cancelTransferRequestLocal(
   allEvents.push({
     id: Math.random().toString(36).substr(2, 9),
     tenant_id: req.tenant_id,
-    branch_id: req.from_branch_id,
+    branch_id: req.from_branch_id || (req as any).supplying_branch_id,
     transfer_request_id: requestId,
     event_type: 'Cancelled',
     performed_by: cancelledBy,
