@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -452,6 +452,7 @@ export default function InventoryScreen() {
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const numColumns = width >= 768 ? 2 : 1;
+  const columns = width >= 1200 ? 3 : width >= 768 ? 2 : 1;
 
   const [activeTab, setActiveTab] = useState<TabName>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
@@ -670,84 +671,116 @@ export default function InventoryScreen() {
   const [purDetailLines, setPurDetailLines] = useState<InventoryPurchaseItem[]>([]);
   const [purDetailLoading, setPurDetailLoading] = useState(false);
 
-  // ─── DATA LOADER ───────────────────────────────────────────────────────────
+  // ─── TABS DEPENDENCY MAPPING AND LAZY LOADER ───────────────────────────────
 
-  const loadAllData = async (silent = false, targetBranchId = simulatedBranchId) => {
+  const TAB_DEPENDENCIES: Record<string, string[]> = useMemo(() => ({
+    dashboard: ['kpis', 'materials'],
+    materials: ['materials', 'categories', 'units', 'suppliers'],
+    purchases: ['purchases', 'suppliers', 'materials', 'categories', 'units'],
+    suppliers: ['suppliers'],
+    wastage: ['wastages', 'materials', 'adjustments'],
+    transfers: ['transferRequests', 'dispatchesList', 'dbBranches', 'materials'],
+    recipes: ['recipes', 'materials', 'products'],
+    reports: ['stockLedger', 'materials', 'wastages', 'purchases'],
+    alerts: ['alerts', 'auditLogs'],
+    units: ['units'],
+    categories: ['categories'],
+    record_purchase: ['purchases', 'suppliers', 'materials', 'categories', 'units'],
+  }), []);
+
+  const loadedEntities = useRef<Set<string>>(new Set());
+  const lastFetchedBranchId = useRef<string | null>(null);
+
+  const invalidateEntities = useCallback((entities: string[]) => {
+    entities.forEach((entity) => loadedEntities.current.delete(entity));
+  }, []);
+
+  const loadAllData = useCallback(async (silent = false, targetBranchId = simulatedBranchId) => {
+    if (lastFetchedBranchId.current !== targetBranchId) {
+      loadedEntities.current.clear();
+      lastFetchedBranchId.current = targetBranchId;
+    }
+
+    const deps = TAB_DEPENDENCIES[activeTab] || [];
+    const needed = deps.filter((d) => !loadedEntities.current.has(d));
+
+    if (needed.length === 0) return;
+
     if (!silent) setIsLoading(true);
     setErrorMsg(null);
+
     try {
       initializeLocalSeeder();
 
-      const [
-        kpiRes,
-        matRes,
-        catRes,
-        unitRes,
-        supRes,
-        purRes,
-        wstRes,
-        adjRes,
-        audRes,
-        alrtRes,
-        branchRes,
-        reqRes,
-        dispRes,
-        ledgerRes,
-        recipesRes,
-        prodsRes
-      ] = await Promise.all([
-        fetchInventoryDashboardKPIs(),
-        fetchMaterials(targetBranchId),
-        fetchCategories(),
-        fetchUnits(),
-        fetchSuppliers(),
-        fetchPurchases(),
-        fetchWastage(),
-        fetchAdjustments(),
-        fetchAuditLogs(),
-        fetchAlerts(),
-        fetchBranches(),
-        fetchTransferRequests(targetBranchId),
-        fetchDispatches(targetBranchId),
-        fetchStockLedger(),
-        fetchRecipes(),
-        getProducts()
-      ]);
+      const fetchers: Record<string, () => Promise<any>> = {
+        kpis: () => fetchInventoryDashboardKPIs(),
+        materials: () => fetchMaterials(targetBranchId),
+        categories: () => fetchCategories(),
+        units: () => fetchUnits(),
+        suppliers: () => fetchSuppliers(),
+        purchases: () => fetchPurchases(),
+        wastages: () => fetchWastage(),
+        adjustments: () => fetchAdjustments(),
+        auditLogs: () => fetchAuditLogs(),
+        alerts: () => fetchAlerts(),
+        dbBranches: () => fetchBranches(),
+        transferRequests: () => fetchTransferRequests(targetBranchId),
+        dispatchesList: () => fetchDispatches(targetBranchId),
+        stockLedger: () => fetchStockLedger(),
+        recipes: () => fetchRecipes(),
+        products: () => getProducts(),
+      };
 
-      if (kpiRes.data) setKpis(kpiRes.data);
-      if (matRes.data) setMaterials(matRes.data);
-      if (catRes.data) setCategories(catRes.data);
-      if (unitRes.data) setUnits(unitRes.data);
-      if (supRes.data) setSuppliers(supRes.data);
-      if (purRes.data) setPurchases(purRes.data);
-      if (wstRes.data) setWastages(wstRes.data);
-      if (adjRes.data) setAdjustments(adjRes.data);
-      if (audRes.data) setAuditLogs(audRes.data);
-      if (alrtRes.data) setAlerts(alrtRes.data);
-      if (branchRes.data) setDbBranches(branchRes.data);
-      if (reqRes.data) setTransferRequests(reqRes.data);
-      if (dispRes.data) setDispatchesList(dispRes.data);
-      if (ledgerRes.data) setStockLedger(ledgerRes.data);
-      if (recipesRes.data) setRecipes(recipesRes.data);
-      if (prodsRes.data) setProducts(prodsRes.data);
+      const setters: Record<string, (data: any) => void> = {
+        kpis: setKpis,
+        materials: setMaterials,
+        categories: setCategories,
+        units: setUnits,
+        suppliers: setSuppliers,
+        purchases: setPurchases,
+        wastages: setWastages,
+        adjustments: setAdjustments,
+        auditLogs: setAuditLogs,
+        alerts: setAlerts,
+        dbBranches: setDbBranches,
+        transferRequests: setTransferRequests,
+        dispatchesList: setDispatchesList,
+        stockLedger: setStockLedger,
+        recipes: setRecipes,
+        products: setProducts,
+      };
+
+      await Promise.all(
+        needed.map(async (entity) => {
+          const fetcher = fetchers[entity];
+          if (!fetcher) return;
+          const res = await fetcher();
+          if (res.data) {
+            setters[entity](res.data);
+            loadedEntities.current.add(entity);
+          }
+        })
+      );
     } catch (err: any) {
       setErrorMsg(err.message || 'Unable to fetch inventory records.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeTab, simulatedBranchId, TAB_DEPENDENCIES]);
 
   useEffect(() => {
     loadAllData(false, simulatedBranchId);
-  }, [simulatedBranchId]);
+  }, [simulatedBranchId, loadAllData]);
 
   useEffect(() => {
     // Silently refresh when screen receives focus
     const unsubscribe = navigation.addListener('focus', () => {
+      const deps = TAB_DEPENDENCIES[activeTab] || [];
+      deps.forEach((d) => loadedEntities.current.delete(d));
       loadAllData(true, simulatedBranchId);
     });
     return unsubscribe;
-  }, [navigation, simulatedBranchId]);
+  }, [navigation, simulatedBranchId, activeTab, loadAllData, TAB_DEPENDENCIES]);
 
   useEffect(() => {
     // Refresh silently when changing tabs/panels in inventory to ensure fresh state
@@ -756,7 +789,7 @@ export default function InventoryScreen() {
     if (['materials', 'suppliers', 'units', 'categories'].includes(activeTab)) {
       setIsMasterExpanded(true);
     }
-  }, [activeTab]);
+  }, [activeTab, simulatedBranchId, loadAllData]);
 
 
   // ─── FILTERS ───────────────────────────────────────────────────────────────
@@ -905,6 +938,7 @@ export default function InventoryScreen() {
         Alert.alert('Import Success', `Successfully imported ${result.data.count} raw materials.`);
         setIsImportModalOpen(false);
         setImportSummary(null);
+        invalidateEntities(['materials', 'kpis']);
         await loadAllData(false, simulatedBranchId);
       } else {
         Alert.alert('Import Error', 'Import process finished without data or error.');
@@ -917,7 +951,7 @@ export default function InventoryScreen() {
     }
   };
 
-  const handleOpenMaterialModal = (material?: InventoryMaterial) => {
+  const handleOpenMaterialModal = useCallback((material?: InventoryMaterial) => {
     setModalError(null);
     if (material) {
       setEditingMaterial(material);
@@ -953,9 +987,9 @@ export default function InventoryScreen() {
     setIsFormPrimaryUnitDropdownOpen(false);
     setIsFormSupplierDropdownOpen(false);
     setIsMaterialModalOpen(true);
-  };
+  }, [categories, units, suppliers]);
 
-  const handleSaveMaterial = async () => {
+  const handleSaveMaterial = useCallback(async () => {
     if (!formMatName.trim()) {
       setModalError('Material Name is required.');
       return;
@@ -1011,27 +1045,45 @@ export default function InventoryScreen() {
       const res = await saveMaterial(payload);
       if (res.error) throw new Error(res.error);
       setIsMaterialModalOpen(false);
+      invalidateEntities(['materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to save material.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    formMatName,
+    formMatCode,
+    formMatCategory,
+    formMatUnit,
+    formMatConversionFactor,
+    formMatReorder,
+    formMatOpening,
+    formMatAvgCost,
+    editingMaterial,
+    formMatPrimaryUnit,
+    formMatBarcode,
+    formMatHsn,
+    formMatSupplier,
+    invalidateEntities,
+    loadAllData,
+  ]);
 
-  const handleDeleteMaterialItem = async (id: string) => {
+  const handleDeleteMaterialItem = useCallback(async (id: string) => {
     setIsLoading(true);
     try {
       await deleteMaterial(id);
+      invalidateEntities(['materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [invalidateEntities, loadAllData]);
 
-  const handleOpenSupplierModal = (supplier?: InventorySupplier) => {
+  const handleOpenSupplierModal = useCallback((supplier?: InventorySupplier) => {
     setModalError(null);
     if (supplier) {
       setEditingSupplier(supplier);
@@ -1055,9 +1107,9 @@ export default function InventoryScreen() {
       setFormSupNotes('');
     }
     setIsSupplierModalOpen(true);
-  };
+  }, []);
 
-  const handleSaveSupplier = async () => {
+  const handleSaveSupplier = useCallback(async () => {
     if (!formSupName.trim()) {
       setModalError('Supplier Legal Name is required.');
       return;
@@ -1088,27 +1140,41 @@ export default function InventoryScreen() {
       const res = await saveSupplier(payload);
       if (res.error) throw new Error(res.error);
       setIsSupplierModalOpen(false);
+      invalidateEntities(['suppliers']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to save supplier.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    formSupName,
+    formSupCode,
+    formSupPhone,
+    editingSupplier,
+    formSupContact,
+    formSupEmail,
+    formSupGst,
+    formSupTerms,
+    formSupNotes,
+    invalidateEntities,
+    loadAllData,
+  ]);
 
-  const handleDeleteSupplierItem = async (id: string) => {
+  const handleDeleteSupplierItem = useCallback(async (id: string) => {
     setIsLoading(true);
     try {
       await deleteSupplier(id);
+      invalidateEntities(['suppliers']);
       await loadAllData(true);
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [invalidateEntities, loadAllData]);
 
-  const handleOpenCategoryModal = (category?: InventoryCategory) => {
+  const handleOpenCategoryModal = useCallback((category?: InventoryCategory) => {
     setModalError(null);
     if (category) {
       setEditingCategory(category);
@@ -1122,9 +1188,9 @@ export default function InventoryScreen() {
       setFormCatDesc('');
     }
     setIsCategoryModalOpen(true);
-  };
+  }, []);
 
-  const handleSaveCategory = async () => {
+  const handleSaveCategory = useCallback(async () => {
     if (!formCatName.trim()) {
       setModalError('Category Name is required.');
       return;
@@ -1146,27 +1212,36 @@ export default function InventoryScreen() {
       const res = await saveCategory(payload);
       if (res.error) throw new Error(res.error);
       setIsCategoryModalOpen(false);
+      invalidateEntities(['categories']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to save category.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    formCatName,
+    formCatCode,
+    editingCategory,
+    formCatDesc,
+    invalidateEntities,
+    loadAllData,
+  ]);
 
-  const handleDeleteCategoryItem = async (id: string) => {
+  const handleDeleteCategoryItem = useCallback(async (id: string) => {
     setIsLoading(true);
     try {
       await deleteCategory(id);
+      invalidateEntities(['categories']);
       await loadAllData(true);
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [invalidateEntities, loadAllData]);
 
-  const handleOpenUnitModal = (unit?: InventoryUnit) => {
+  const handleOpenUnitModal = useCallback((unit?: InventoryUnit) => {
     setModalError(null);
     if (unit) {
       setEditingUnit(unit);
@@ -1180,9 +1255,9 @@ export default function InventoryScreen() {
       setFormUnitShort('');
     }
     setIsUnitModalOpen(true);
-  };
+  }, []);
 
-  const handleSaveUnit = async () => {
+  const handleSaveUnit = useCallback(async () => {
     if (!formUnitName.trim()) {
       setModalError('Unit Name is required.');
       return;
@@ -1209,25 +1284,34 @@ export default function InventoryScreen() {
       const res = await saveUnit(payload);
       if (res.error) throw new Error(res.error);
       setIsUnitModalOpen(false);
+      invalidateEntities(['units']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to save unit.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    formUnitName,
+    formUnitCode,
+    formUnitShort,
+    editingUnit,
+    invalidateEntities,
+    loadAllData,
+  ]);
 
-  const handleDeleteUnitItem = async (id: string) => {
+  const handleDeleteUnitItem = useCallback(async (id: string) => {
     setIsLoading(true);
     try {
       await deleteUnit(id);
+      invalidateEntities(['units']);
       await loadAllData(true);
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [invalidateEntities, loadAllData]);
 
   const handleOpenPurchaseModal = () => {
     setModalError(null);
@@ -1265,7 +1349,7 @@ export default function InventoryScreen() {
 
   // ─── INTERNAL TRANSFERS HANDLERS ───────────────────────────────────────────
 
-  const handleOpenNewRequestModal = () => {
+  const handleOpenNewRequestModal = useCallback(() => {
     setModalError(null);
     const ckBranch = dbBranches.find(b => b.branch_type === 'CENTRAL_KITCHEN' || b.branch_type === 'WAREHOUSE');
     setNewReqFromBranchId(ckBranch ? ckBranch.id : '');
@@ -1275,9 +1359,9 @@ export default function InventoryScreen() {
     setNewReqSelectedCategoryId('all');
     setMobileView('materials');
     setIsCreatingRequest(true);
-  };
+  }, [dbBranches]);
 
-  const handleUpdateNewReqItemQty = (materialId: string, qty: string) => {
+  const handleUpdateNewReqItemQty = useCallback((materialId: string, qty: string) => {
     const sanitized = qty.replace(/[^0-9.]/g, '');
     const parts = sanitized.split('.');
     const finalQty = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
@@ -1291,9 +1375,9 @@ export default function InventoryScreen() {
       next.push({ material_id: materialId, requested_quantity: finalQty });
       setNewReqItems(next);
     }
-  };
+  }, [newReqItems]);
 
-  const handleIncrementNewReqItem = (materialId: string) => {
+  const handleIncrementNewReqItem = useCallback((materialId: string) => {
     const next = [...newReqItems];
     const idx = next.findIndex(itm => itm.material_id === materialId);
     if (idx >= 0) {
@@ -1304,9 +1388,9 @@ export default function InventoryScreen() {
       next.push({ material_id: materialId, requested_quantity: '1' });
       setNewReqItems(next);
     }
-  };
+  }, [newReqItems]);
 
-  const handleDecrementNewReqItem = (materialId: string) => {
+  const handleDecrementNewReqItem = useCallback((materialId: string) => {
     const next = [...newReqItems];
     const idx = next.findIndex(itm => itm.material_id === materialId);
     if (idx >= 0) {
@@ -1318,13 +1402,13 @@ export default function InventoryScreen() {
         setNewReqItems(next);
       }
     }
-  };
+  }, [newReqItems]);
 
-  const handleRemoveNewReqItem = (materialId: string) => {
+  const handleRemoveNewReqItem = useCallback((materialId: string) => {
     setNewReqItems(newReqItems.filter(itm => itm.material_id !== materialId));
-  };
+  }, [newReqItems]);
 
-  const handleSaveTransferRequest = async () => {
+  const handleSaveTransferRequest = useCallback(async () => {
     if (!newReqFromBranchId) {
       Alert.alert('Error', 'Please select supplying branch.');
       return;
@@ -1353,15 +1437,16 @@ export default function InventoryScreen() {
       setIsNewRequestModalOpen(false);
       setIsCreatingRequest(false);
       Alert.alert('Success', 'Transfer request created successfully.');
+      invalidateEntities(['transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to create request.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [newReqFromBranchId, newReqItems, simulatedBranchId, newReqRemarks, invalidateEntities, loadAllData]);
 
-  const handleOpenApprovalModal = async (req: InventoryTransferRequest) => {
+  const handleOpenApprovalModal = useCallback(async (req: InventoryTransferRequest) => {
     setModalError(null);
     setSelectedRequest(req);
     setApproveRemarks('');
@@ -1388,9 +1473,9 @@ export default function InventoryScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleProcessApproval = async () => {
+  const handleProcessApproval = useCallback(async () => {
     if (!selectedRequest) return;
     const itemsPayload = reqItemsList.map(itm => ({
       material_id: itm.material_id,
@@ -1403,15 +1488,16 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
       Alert.alert('Success', 'Transfer request approved.');
+      invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to approve request.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedRequest, reqItemsList, approvedQuantities, invalidateEntities, loadAllData]);
 
-  const handleProcessRejection = async () => {
+  const handleProcessRejection = useCallback(async () => {
     if (!selectedRequest) return;
     setIsLoading(true);
     try {
@@ -1419,15 +1505,16 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
       Alert.alert('Success', 'Transfer request rejected.');
+      invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to reject request.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedRequest, approveRemarks, invalidateEntities, loadAllData]);
 
-  const handleProcessCancelRequest = async (requestId: string) => {
+  const handleProcessCancelRequest = useCallback(async (requestId: string) => {
     Alert.alert(
       'Cancel Request',
       'Are you sure you want to cancel this transfer request? Any stock reservations will be released.',
@@ -1442,6 +1529,7 @@ export default function InventoryScreen() {
               const res = await cancelTransferRequest(requestId, 'Branch Staff', 'Cancelled by requesting branch.');
               if (res.error) throw new Error(res.error);
               Alert.alert('Success', 'Transfer request cancelled successfully.');
+              invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
               await loadAllData(true);
             } catch (err: any) {
               Alert.alert('Error', err.message || 'Failed to cancel request.');
@@ -1452,9 +1540,9 @@ export default function InventoryScreen() {
         }
       ]
     );
-  };
+  }, [invalidateEntities, loadAllData]);
 
-  const handleProcessDispatch = async () => {
+  const handleProcessDispatch = useCallback(async () => {
     if (!selectedRequest) return;
     const itemsPayload = reqItemsList.map(itm => ({
       material_id: itm.material_id,
@@ -1472,15 +1560,16 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
       Alert.alert('Success', 'Stock dispatch shipment created.');
+      invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to dispatch shipment.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedRequest, reqItemsList, dispatchQuantities, approveRemarks, invalidateEntities, loadAllData]);
 
-  const handleOpenReceiveModal = async (disp: InventoryDispatch) => {
+  const handleOpenReceiveModal = useCallback(async (disp: InventoryDispatch) => {
     setModalError(null);
     setSelectedDispatch(disp);
     setReceiveRemarks('');
@@ -1502,9 +1591,9 @@ export default function InventoryScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleProcessReceive = async () => {
+  const handleProcessReceive = useCallback(async () => {
     if (!selectedDispatch) return;
     const itemsPayload = dispItemsList.map(itm => ({
       id: itm.id,
@@ -1519,15 +1608,16 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setIsReceiveModalOpen(false);
       Alert.alert('Success', 'Shipment receipt recorded and ledger updated.');
+      invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to record shipment receipt.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedDispatch, dispItemsList, receivedQuantities, receiveRemarks, invalidateEntities, loadAllData]);
 
-  const handleOpenEventsModal = async (req: InventoryTransferRequest) => {
+  const handleOpenEventsModal = useCallback(async (req: InventoryTransferRequest) => {
     setSelectedRequestForEvents(req);
     setRequestEvents([]);
     setEventsLoading(true);
@@ -1541,7 +1631,7 @@ export default function InventoryScreen() {
     } finally {
       setEventsLoading(false);
     }
-  };
+  }, []);
 
   const handleRecordPurchase = async () => {
     if (!purchaseSupplierId) {
@@ -1624,6 +1714,7 @@ export default function InventoryScreen() {
       setPurchaseInvoiceNum('');
       setPurchaseTransportCharges('0');
       setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
+      invalidateEntities(['purchases', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to record purchase.');
@@ -1661,6 +1752,7 @@ export default function InventoryScreen() {
       setIsWastageModalOpen(false);
       setWastageMaterialId('');
       setWastageQty('');
+      invalidateEntities(['wastages', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to record wastage.');
@@ -1706,6 +1798,7 @@ export default function InventoryScreen() {
       setAdjMaterialId('');
       setAdjQty('');
       setAdjRemarks('');
+      invalidateEntities(['adjustments', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err: any) {
       setModalError(err.message || 'Failed to record adjustment.');
@@ -1714,10 +1807,11 @@ export default function InventoryScreen() {
     }
   };
 
-  const handleMarkAlert = async (id: string) => {
+  const handleMarkAlert = useCallback(async (id: string) => {
     await markAlertRead(id);
+    invalidateEntities(['alerts']);
     await loadAllData(true);
-  };
+  }, [invalidateEntities, loadAllData]);
 
   const handleAddPurchaseLine = () => {
     setPurchaseItems([...purchaseItems, { material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
@@ -2673,62 +2767,11 @@ export default function InventoryScreen() {
               <Text className="text-base font-bold text-slate-500">No suppliers registered</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View className={`${numColumns === 2 ? 'w-[49%]' : 'w-full'} bg-white border border-slate-200 rounded-2xl p-4 mb-4 shadow-sm`}>
-              <View className="flex-row justify-between items-start mb-2.5">
-                <View className="flex-1 mr-2">
-                  <Text className="text-sm font-black text-slate-800">{item.supplier_name}</Text>
-                  <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                    Code: {item.supplier_code}
-                  </Text>
-                </View>
-                <View className="bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
-                  <Text className="text-[9px] font-bold text-blue-700 uppercase">{item.payment_terms}</Text>
-                </View>
-              </View>
-
-              <View className="border-t border-slate-100 pt-2 gap-1.5">
-                <View className="flex-row items-center">
-                  <Text className="text-[11px] font-bold text-slate-400 w-20">Contact:</Text>
-                  <Text className="text-[11px] font-semibold text-slate-700">{item.contact_person || 'N/A'}</Text>
-                </View>
-                <View className="flex-row items-center">
-                  <Text className="text-[11px] font-bold text-slate-400 w-20">Phone:</Text>
-                  <Text className="text-[11px] font-semibold text-slate-700">{item.phone}</Text>
-                </View>
-                <View className="flex-row items-center">
-                  <Text className="text-[11px] font-bold text-slate-400 w-20">GST Number:</Text>
-                  <Text className="text-[11px] font-semibold text-slate-700 uppercase">{item.gst_number || 'N/A'}</Text>
-                </View>
-                <View className="flex-row items-start">
-                  <Text className="text-[11px] font-bold text-slate-400 w-20">Address:</Text>
-                  <Text className="text-[11px] text-slate-500 flex-1">
-                    {item.address}, {item.city}, {item.state}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row justify-between items-center mt-4 pt-2 border-t border-slate-50">
-                <Text className="text-[10px] italic text-slate-400">
-                  Registered: {new Date(item.created_at).toLocaleDateString()}
-                </Text>
-                <View className="flex-row gap-1.5">
-                  <Pressable
-                    onPress={() => handleOpenSupplierModal(item)}
-                    className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
-                  >
-                    <FileText size={14} color="#64748b" />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleDeleteSupplierItem(item.id)}
-                    className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
-                  >
-                    <Trash2 size={14} color="#e11d48" />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          )}
+          renderItem={renderSupplierItem}
+          extraData={numColumns}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
         />
       </View>
     );
@@ -4102,34 +4145,10 @@ export default function InventoryScreen() {
               <Text className="text-base font-bold text-slate-500">No wastage recorded this month</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
-              <View className="flex-row justify-between items-center flex-wrap gap-2">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-rose-50 rounded-xl items-center justify-center mr-3">
-                    <AlertTriangle size={20} color="#e11d48" />
-                  </View>
-                  <View>
-                    <Text className="text-sm font-bold text-slate-800">{item.material_name}</Text>
-                    <Text className="text-xs text-slate-400">
-                      Reason: {item.reason} • Source: {item.location_id}
-                    </Text>
-                  </View>
-                </View>
-                <View className="items-end">
-                  <Text className="text-sm font-black text-rose-700">₹{item.cost_impact.toFixed(2)}</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">Qty lost: {item.quantity}</Text>
-                </View>
-              </View>
-
-              <View className="flex-row justify-between pt-3 mt-3 border-t border-slate-100 items-center flex-wrap gap-1">
-                <Text className="text-[11px] text-slate-400 font-semibold">Recorded by {item.recorded_by}</Text>
-                <Text className="text-[11px] text-slate-400">
-                  {new Date(item.recorded_at).toLocaleDateString()} {new Date(item.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-              </View>
-            </View>
-          )}
+          renderItem={renderWastageItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       </View>
     );
@@ -4142,7 +4161,6 @@ export default function InventoryScreen() {
     const selectedBranch = dbBranches.find((b) => b.id === newReqFromBranchId);
 
     // Dynamic columns for responsive card grid
-    const columns = width >= 1200 ? 3 : width >= 768 ? 2 : 1;
 
     // Filter materials
     const filteredMaterials = materials.filter((m) => {
@@ -4254,150 +4272,11 @@ export default function InventoryScreen() {
                   columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
                   contentContainerStyle={{ gap: 12, paddingBottom: isMobile && newReqItems.length > 0 ? 90 : 20 }}
                   showsVerticalScrollIndicator={true}
-                  renderItem={({ item }) => {
-                    const cartItem = newReqItems.find((itm) => itm.material_id === item.id);
-                    const isSelected = !!cartItem;
-                    const qty = cartItem ? Number(cartItem.requested_quantity) : 0;
-
-                    return (
-                      <Pressable
-                        onPress={() => {
-                          if (!isSelected) {
-                            handleIncrementNewReqItem(item.id);
-                            setTimeout(() => {
-                              qtyInputRefs.current[item.id]?.focus();
-                            }, 100);
-                          } else {
-                            qtyInputRefs.current[item.id]?.focus();
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          maxWidth: columns > 1 ? `${100 / columns}%` : undefined,
-                          minHeight: 100,
-                          backgroundColor: colors.surfaceElevated,
-                          borderRadius: 16,
-                          padding: 12,
-                          borderWidth: isSelected ? 2 : 1,
-                          borderColor: isSelected ? colors.primary : colors.border,
-                          position: 'relative',
-                          shadowColor: colors.textPrimary,
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: isSelected ? 0.08 : 0.02,
-                          shadowRadius: 8,
-                          elevation: isSelected ? 3 : 1,
-                        }}
-                        className="active:scale-[99%] transition-all"
-                      >
-                        {/* Top Row: Category and Code */}
-                        <View className="flex-row justify-between items-center mb-1.5 flex-wrap gap-1">
-                          {item.category_name && (
-                            <View className="bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md">
-                              <Text className="text-[9px] font-bold text-slate-500" numberOfLines={1}>
-                                {item.category_name}
-                              </Text>
-                            </View>
-                          )}
-                          <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
-                            #{item.material_code}
-                          </Text>
-                        </View>
-
-                        {/* Material Name */}
-                        <Text className="text-xs font-black text-slate-800 leading-tight mb-2" numberOfLines={2}>
-                          {item.material_name}
-                        </Text>
-
-                        {/* Stocks Info Grid */}
-                        <View className="flex-col gap-1 mb-2.5 pt-1.5 border-t border-slate-50">
-                          {/* Dest stock */}
-                          <View className="flex-row justify-between items-center">
-                            <Text className="text-[9px] font-bold text-slate-400">Current Stock:</Text>
-                            <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
-                              {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Bottom Row: Cost and Quick Add/Incrementer */}
-                        <View className="flex-row justify-between items-center pt-2 border-t border-slate-50/50 flex-wrap gap-2">
-                          <View>
-                            <Text className="text-[8px] font-bold text-slate-400 uppercase">Avg Cost</Text>
-                            <Text className="text-[10px] font-black text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
-                          </View>
-
-                          {/* Inline controls */}
-                          <View style={{ pointerEvents: 'auto' }}>
-                            {!isSelected ? (
-                              <CustomPressable
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  handleIncrementNewReqItem(item.id);
-                                  setTimeout(() => {
-                                    qtyInputRefs.current[item.id]?.focus();
-                                  }, 100);
-                                }}
-                                delayPressIn={0}
-                                className="bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg flex-row items-center justify-center active:scale-95"
-                                style={{ minHeight: 32, minWidth: 64 }}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                              >
-                                <Plus size={10} color={colors.primary} strokeWidth={3} className="mr-0.5" />
-                                <Text className="text-[10px] font-black text-[#0066b2]">Request</Text>
-                              </CustomPressable>
-                            ) : (
-                              <View className="flex-row items-center border border-blue-200 rounded-lg bg-white overflow-hidden" style={{ height: 28 }}>
-                                <CustomPressable
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    handleDecrementNewReqItem(item.id);
-                                  }}
-                                  delayPressIn={0}
-                                  className="px-2 items-center justify-center bg-blue-50 border-r border-blue-200 active:bg-blue-100"
-                                  style={{ height: '100%', minWidth: 28 }}
-                                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                                >
-                                  <Minus size={10} color={colors.primary} strokeWidth={3} />
-                                </CustomPressable>
-
-                                <TextInput
-                                  ref={(el) => {
-                                    if (el) {
-                                      qtyInputRefs.current[item.id] = el;
-                                    } else {
-                                      delete qtyInputRefs.current[item.id];
-                                    }
-                                  }}
-                                  value={qty === 0 ? '' : String(qty)}
-                                  onChangeText={(val) => handleUpdateNewReqItemQty(item.id, val)}
-                                  keyboardType="numeric"
-                                  placeholder="0"
-                                  placeholderTextColor="#94a3b8"
-                                  selectTextOnFocus={true}
-                                  className="w-10 text-center text-[10px] font-black text-slate-800 p-0 m-0 outline-none h-full"
-                                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
-                                />
-
-                                <CustomPressable
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    handleIncrementNewReqItem(item.id);
-                                  }}
-                                  delayPressIn={0}
-                                  className="px-2 items-center justify-center bg-blue-50 border-l border-blue-200 active:bg-blue-100"
-                                  style={{ height: '100%', minWidth: 28 }}
-                                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                                >
-                                  <Plus size={10} color={colors.primary} strokeWidth={3} />
-                                </CustomPressable>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                      </Pressable>
-                    );
-                  }}
-
+                  renderItem={renderNewReqMaterialItem}
+                  extraData={newReqItems}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
                 />
               )}
             </View>
@@ -4494,65 +4373,11 @@ export default function InventoryScreen() {
                   keyExtractor={(item) => item.material_id}
                   contentContainerStyle={{ gap: 10, paddingBottom: 10 }}
                   showsVerticalScrollIndicator={true}
-                  renderItem={({ item }) => {
-                    const mat = materials.find((m) => m.id === item.material_id);
-                    if (!mat) return null;
-
-                    return (
-                      <View className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1.5 flex-row justify-between items-center gap-2">
-                        {/* Name & Code on left */}
-                        <View className="flex-1 pr-1">
-                          <Text className="text-[11px] font-black text-[#0f2744] leading-tight" numberOfLines={1}>
-                            {mat.material_name}
-                          </Text>
-                          <Text className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">
-                            #{mat.material_code}
-                          </Text>
-                        </View>
-
-                        {/* Quantity Controller & Delete Button on right */}
-                        <View className="flex-row items-center gap-2">
-                          <View className="flex-row items-center border border-slate-200 rounded-lg bg-white overflow-hidden" style={{ height: 26 }}>
-                            <CustomPressable
-                              onPress={() => handleDecrementNewReqItem(item.material_id)}
-                              delayPressIn={0}
-                              className="px-1.5 items-center justify-center bg-slate-50 border-r border-slate-200 active:bg-slate-100"
-                              style={{ height: '100%', minWidth: 24 }}
-                              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                            >
-                              <Minus size={9} color="#64748b" strokeWidth={3} />
-                            </CustomPressable>
-
-                            <TextInput
-                              value={item.requested_quantity}
-                              onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
-                              keyboardType="numeric"
-                              className="w-10 text-center text-[10px] font-black text-[#0f2744] p-0 m-0 outline-none"
-                              style={{ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
-                            />
-
-                            <CustomPressable
-                              onPress={() => handleIncrementNewReqItem(item.material_id)}
-                              delayPressIn={0}
-                              className="px-1.5 items-center justify-center bg-slate-50 border-l border-slate-200 active:bg-slate-100"
-                              style={{ height: '100%', minWidth: 24 }}
-                              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                            >
-                              <Plus size={9} color="#64748b" strokeWidth={3} />
-                            </CustomPressable>
-                          </View>
-
-                          <Pressable
-                            onPress={() => handleRemoveNewReqItem(item.material_id)}
-                            className="w-8 h-8 rounded-lg hover:bg-red-50 items-center justify-center active:scale-95"
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Trash2 size={12} color="#ef4444" />
-                          </Pressable>
-                        </View>
-                      </View>
-                    );
-                  }}
+                  renderItem={renderNewReqCartItem}
+                  extraData={newReqItems}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
                 />
               )}
             </View>
@@ -4755,109 +4580,10 @@ export default function InventoryScreen() {
                 <Text className="text-base font-bold text-slate-500">No transfer requests logged</Text>
               </View>
             }
-            renderItem={({ item }) => {
-              const isCreator = item.to_branch_id === simulatedBranchId;
-              const isSupplier = item.from_branch_id === simulatedBranchId;
-              
-              let statusColor = 'bg-slate-100 text-slate-600 border-slate-200';
-              if (item.status === 'Pending') statusColor = 'bg-amber-50 text-amber-700 border-amber-200';
-              else if (item.status === 'Approved') statusColor = 'bg-blue-50 text-blue-700 border-blue-200';
-              else if (item.status === 'Partially Dispatched') statusColor = 'bg-purple-50 text-purple-700 border-purple-200';
-              else if (item.status === 'Dispatched') statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
-              else if (item.status === 'Completed') statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-              else if (item.status === 'Rejected') statusColor = 'bg-rose-50 text-rose-700 border-rose-200';
-              else if (item.status === 'Cancelled') statusColor = 'bg-slate-100 text-slate-500 border-slate-200';
-
-              return (
-                <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
-                  <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
-                    <View>
-                      <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.request_number}</Text>
-                      <Text className="text-sm font-bold text-slate-800 mt-0.5">
-                        {item.to_branch_name} Request
-                      </Text>
-                    </View>
-                    <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
-                      <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
-                    </View>
-                  </View>
-
-                  <View className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
-                    <Text className="text-xs text-slate-500 font-medium">
-                      From supplying branch: <Text className="font-bold text-slate-700">{item.from_branch_name}</Text>
-                    </Text>
-                    <Text className="text-xs text-slate-500 font-medium mt-1">
-                      Request Date: <Text className="font-bold text-slate-700">{new Date(item.request_date).toLocaleDateString()}</Text>
-                    </Text>
-                    {item.remarks && (
-                      <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
-                    )}
-                  </View>
-
-                  {/* Items Preview */}
-                  {item.items && item.items.length > 0 && (
-                    <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
-                        Items Requested ({item.items.length})
-                      </Text>
-                      <View className="flex-col gap-1.5">
-                        {item.items.slice(0, 3).map((itm) => (
-                          <View key={itm.id} className="flex-row justify-between items-center bg-white border border-slate-100 px-2 py-1 rounded-lg">
-                            <Text className="text-xs font-bold text-slate-700 flex-1 mr-2" numberOfLines={1}>
-                              {itm.material_name}
-                            </Text>
-                            <Text className="text-xs font-black text-slate-800">
-                              {itm.requested_quantity} {itm.unit_short_name}
-                            </Text>
-                          </View>
-                        ))}
-                        {item.items.length > 3 && (
-                          <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
-                            + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Actions */}
-                  <View className="flex-row justify-between items-center flex-wrap gap-2">
-                    <Pressable
-                      onPress={() => handleOpenEventsModal(item)}
-                      className="flex-row items-center"
-                      style={{ minHeight: 44 }}
-                    >
-                      <Info size={12} color="#475569" className="mr-1" />
-                      <Text className="text-xs font-bold text-slate-600">Event Logs</Text>
-                    </Pressable>
-
-                    <View className="flex-row gap-2">
-                      {isCreator && item.status === 'Pending' && (
-                        <Pressable
-                          onPress={() => handleProcessCancelRequest(item.id)}
-                          className="bg-rose-50 border border-rose-200 py-1.5 px-3 rounded-lg active:scale-95 items-center justify-center"
-                          style={{ minHeight: 44 }}
-                        >
-                          <Text className="text-xs font-bold text-rose-700">Cancel Request</Text>
-                        </Pressable>
-                      )}
-                      
-                      {isSupplier && (item.status === 'Pending' || item.status === 'Approved' || item.status === 'Partially Dispatched') && (
-                        <Pressable
-                          onPress={() => handleOpenApprovalModal(item)}
-                          className="bg-blue-600 py-1.5 px-3 rounded-lg active:scale-95 shadow-sm items-center justify-center"
-                          style={{ minHeight: 44 }}
-                        >
-                          <Text className="text-xs font-bold text-white">
-                            {item.status === 'Pending' ? 'Review & Approve' : 'Dispatch Stock'}
-                          </Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              );
-            }}
+            renderItem={renderRequestItem}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
           />
         )}
 
@@ -4873,74 +4599,10 @@ export default function InventoryScreen() {
                 <Text className="text-base font-bold text-slate-500">No dispatches logged</Text>
               </View>
             }
-            renderItem={({ item }) => {
-              const isReceiver = item.to_branch_id === simulatedBranchId;
-              const isReceived = item.status === 'Received';
-              
-              let statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
-              if (isReceived) statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-
-              return (
-                <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
-                  <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
-                    <View>
-                      <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.transfer_request_number || item.dispatch_number}</Text>
-                      <Text className="text-sm font-bold text-slate-800 mt-0.5">
-                        {item.from_branch_name} → {item.to_branch_name}
-                      </Text>
-                    </View>
-                    <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
-                      <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
-                    </View>
-                  </View>
-
-                  <View className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
-                    <Text className="text-xs text-slate-500 font-medium">
-                      Date shipped: <Text className="font-bold text-slate-700">{new Date(item.dispatch_date).toLocaleDateString()}</Text>
-                    </Text>
-                    {item.remarks && (
-                      <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
-                    )}
-                  </View>
-
-                  {/* Items Preview */}
-                  {item.items && item.items.length > 0 && (
-                    <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
-                      <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
-                        Items Dispatched ({item.items.length})
-                      </Text>
-                      <View className="flex-col gap-1.5">
-                        {item.items.slice(0, 3).map((itm) => (
-                          <View key={itm.id} className="flex-row justify-between items-center bg-white border border-slate-100 px-2 py-1 rounded-lg">
-                            <Text className="text-xs font-bold text-slate-700 flex-1 mr-2" numberOfLines={1}>
-                              {itm.material_name}
-                            </Text>
-                            <Text className="text-xs font-black text-slate-800">
-                              {itm.dispatched_quantity} {itm.unit_short_name}
-                            </Text>
-                          </View>
-                        ))}
-                        {item.items.length > 3 && (
-                          <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
-                            + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  )}
-
-                  {isReceiver && !isReceived && (
-                    <Pressable
-                      onPress={() => handleOpenReceiveModal(item)}
-                      className="bg-emerald-600 py-2 items-center justify-center rounded-xl shadow-sm active:scale-95"
-                      style={{ minHeight: 44 }}
-                    >
-                      <Text className="text-xs font-bold text-white">Verify & Receive Shipment</Text>
-                    </Pressable>
-                  )}
-                </View>
-              );
-            }}
+            renderItem={renderDispatchItem}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
           />
         )}
 
@@ -4956,39 +4618,10 @@ export default function InventoryScreen() {
                 <Text className="text-base font-bold text-slate-500">No manual adjustments recorded</Text>
               </View>
             }
-            renderItem={({ item }) => {
-              const isAdd = item.adjustment_type === 'Add';
-              return (
-                <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
-                  <View className="flex-row justify-between items-center flex-wrap gap-2">
-                    <View className="flex-row items-center">
-                      <View className={`w-10 h-10 ${isAdd ? 'bg-emerald-50' : 'bg-rose-50'} rounded-xl items-center justify-center mr-3`}>
-                        <RefreshCw size={20} color={isAdd ? '#10b981' : '#ef4444'} />
-                      </View>
-                      <View>
-                        <Text className="text-sm font-bold text-slate-800">{item.material_name}</Text>
-                        <Text className="text-xs text-slate-400">
-                          Reason: {item.reason} • Location: {item.location_id}
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="items-end">
-                      <Text className={`text-sm font-black ${isAdd ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {isAdd ? '+' : '-'}{item.quantity}
-                      </Text>
-                      <Text className="text-[10px] text-slate-400 mt-0.5">
-                        {new Date(item.adjustment_date).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  </View>
-                  {item.remarks && (
-                    <View className="bg-slate-50 rounded-lg p-2.5 mt-2.5 border border-slate-100">
-                      <Text className="text-[11px] text-slate-500 italic">Remarks: {item.remarks}</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            }}
+            renderItem={renderAdjustmentItem}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
           />
         )}
       </View>
@@ -5125,26 +4758,10 @@ export default function InventoryScreen() {
                 <FlatList
                   data={items}
                   keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => {
-                    const isHealthy = item.marginPct >= 50;
-                    return (
-                      <View className="flex-row p-3 border-b border-slate-100 items-center">
-                        <Text className="flex-[2] text-xs font-bold text-slate-800">{item.name}</Text>
-                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">₹{item.price.toFixed(2)}</Text>
-                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">₹{item.recipeCost.toFixed(2)}</Text>
-                        <Text className={`flex-1 text-xs font-bold text-right font-mono ${isHealthy ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          ₹{item.marginAmt.toFixed(2)}
-                        </Text>
-                        <View className="flex-1 items-end justify-center">
-                          <View className={`px-2 py-0.5 rounded border ${isHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-                            <Text className={`text-[10px] font-mono font-black ${isHealthy ? 'text-emerald-700' : 'text-rose-700'}`}>
-                              {item.marginPct.toFixed(1)}%
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  }}
+                  renderItem={renderRecipeMarginItem}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
                 />
               </View>
             )}
@@ -5238,31 +4855,10 @@ export default function InventoryScreen() {
                 <FlatList
                   data={items}
                   keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => {
-                    const hasDiscrepancy = Math.abs(item.varianceQty) > 0.01;
-                    return (
-                      <View className="flex-row p-3 border-b border-slate-100 items-center">
-                        <View className="flex-[2]">
-                          <Text className="text-xs font-bold text-slate-800">{item.material_name}</Text>
-                          <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1 py-0.5 rounded uppercase self-start mt-1">
-                            {item.material_code}
-                          </Text>
-                        </View>
-                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">
-                          {item.theoreticalQty.toFixed(2)} {item.unit_short_name}
-                        </Text>
-                        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">
-                          {item.actualQty.toFixed(2)} {item.unit_short_name}
-                        </Text>
-                        <Text className={`flex-1 text-xs font-bold text-right font-mono ${item.varianceQty > 0.01 ? 'text-rose-600' : 'text-slate-600'}`}>
-                          {item.varianceQty > 0 ? '+' : ''}{item.varianceQty.toFixed(2)} {item.unit_short_name}
-                        </Text>
-                        <Text className={`flex-1 text-xs font-bold text-right font-mono ${item.costImpact > 0.01 ? 'text-rose-600' : 'text-slate-600'}`}>
-                          ₹{item.costImpact.toFixed(2)}
-                        </Text>
-                      </View>
-                    );
-                  }}
+                  renderItem={renderStockVarianceItem}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
                 />
               </View>
             )}
@@ -5374,30 +4970,11 @@ export default function InventoryScreen() {
                 <Text className="text-base font-bold text-slate-500">All alerts cleared</Text>
               </View>
             }
-            renderItem={({ item }) => {
-              let alertColor = 'border-amber-200 bg-amber-50/50';
-              if (item.alert_type === 'Out of Stock') alertColor = 'border-rose-200 bg-rose-50/50';
-
-              return (
-                <View className={`border rounded-xl p-3 mb-3 ${alertColor} shadow-sm`}>
-                  <View className="flex-row justify-between items-start mb-2 flex-wrap gap-1">
-                    <Text className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
-                      {item.alert_type}
-                    </Text>
-                    {!item.is_read && (
-                      <Pressable
-                        onPress={() => handleMarkAlert(item.id)}
-                        className="bg-slate-200 border border-slate-300 rounded px-2 py-0.5"
-                      >
-                        <Text className="text-[9px] font-bold text-slate-600">Acknowledge</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                  <Text className="text-xs font-semibold text-slate-800 leading-relaxed mb-1">{item.message}</Text>
-                  <Text className="text-[9px] text-slate-400 italic">{new Date(item.created_at).toLocaleString()}</Text>
-                </View>
-              );
-            }}
+            renderItem={renderAlertItem}
+            extraData={alerts}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
           />
         </View>
 
@@ -5414,23 +4991,10 @@ export default function InventoryScreen() {
                 <Text className="text-base font-bold text-slate-500">No logs found</Text>
               </View>
             }
-            renderItem={({ item }) => (
-              <View className="bg-white border border-slate-100 rounded-xl p-3 mb-3 shadow-sm">
-                <View className="flex-row justify-between items-center mb-1 flex-wrap gap-1">
-                  <Text className="text-xs font-bold text-slate-800">Module: {item.module_name.toUpperCase()}</Text>
-                  <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">
-                    {item.action_type}
-                  </Text>
-                </View>
-                <Text className="text-[10px] text-slate-500 mb-2">Recorded on item: {item.performed_by}</Text>
-                <View className="flex-row justify-between items-center border-t border-slate-50 pt-2 flex-wrap gap-1">
-                  <Text className="text-[10px] text-slate-400 font-semibold">Performed by: {item.performed_by}</Text>
-                  <Text className="text-[10px] text-slate-400">
-                    {new Date(item.created_at).toLocaleDateString()} {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
-              </View>
-            )}
+            renderItem={renderAuditLogItem}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
           />
         </View>
       </View>
@@ -5464,36 +5028,10 @@ export default function InventoryScreen() {
               <Text className="text-base font-bold text-slate-500">No units defined</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm flex-row items-center justify-between">
-              <View className="flex-row items-center flex-1 mr-4">
-                <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
-                  <Text className="text-xs font-black text-blue-700">{item.short_name}</Text>
-                </View>
-                <View>
-                  <Text className="text-sm font-black text-slate-800">{item.unit_name}</Text>
-                  <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase mt-0.5 self-start">
-                    Code: {item.unit_code}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row items-center gap-1.5">
-                <Pressable
-                  onPress={() => handleOpenUnitModal(item)}
-                  className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
-                >
-                  <FileText size={14} color="#64748b" />
-                </Pressable>
-                <Pressable
-                  onPress={() => handleDeleteUnitItem(item.id)}
-                  className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
-                >
-                  <Trash2 size={14} color="#e11d48" />
-                </Pressable>
-              </View>
-            </View>
-          )}
+          renderItem={renderUnitItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       </View>
     );
@@ -5527,39 +5065,10 @@ export default function InventoryScreen() {
               <Text className="text-base font-bold text-slate-500">No categories logged</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm flex-row items-center justify-between">
-              <View className="flex-row items-center flex-1 mr-4">
-                <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
-                  <Tag size={18} color={colors.primary} />
-                </View>
-                <View className="flex-1">
-                  <View className="flex-row items-center mb-0.5 flex-wrap">
-                    <Text className="text-sm font-black text-slate-800 mr-2">{item.category_name}</Text>
-                    <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">
-                      {item.category_code}
-                    </Text>
-                  </View>
-                  <Text className="text-xs text-slate-400 font-semibold">{item.description || 'No description logged.'}</Text>
-                </View>
-              </View>
-
-              <View className="flex-row items-center gap-1.5">
-                <Pressable
-                  onPress={() => handleOpenCategoryModal(item)}
-                  className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
-                >
-                  <FileText size={14} color="#64748b" />
-                </Pressable>
-                <Pressable
-                  onPress={() => handleDeleteCategoryItem(item.id)}
-                  className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
-                >
-                  <Trash2 size={14} color="#e11d48" />
-                </Pressable>
-              </View>
-            </View>
-          )}
+          renderItem={renderCategoryItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       </View>
     );
@@ -5568,6 +5077,659 @@ export default function InventoryScreen() {
   const renderRecipes = () => {
     return <RecipeManagement />;
   };
+
+  // ─── MEMOIZED FLATLIST RENDERERS ──────────────────────────────────────────────
+
+  const renderSupplierItem = useCallback(({ item }: { item: InventorySupplier }) => (
+    <View className={`${numColumns === 2 ? 'w-[49%]' : 'w-full'} bg-white border border-slate-200 rounded-2xl p-4 mb-4 shadow-sm`}>
+      <View className="flex-row justify-between items-start mb-2.5">
+        <View className="flex-1 mr-2">
+          <Text className="text-sm font-black text-slate-800">{item.supplier_name}</Text>
+          <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+            Code: {item.supplier_code}
+          </Text>
+        </View>
+        <View className="bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
+          <Text className="text-[9px] font-bold text-blue-700 uppercase">{item.payment_terms}</Text>
+        </View>
+      </View>
+
+      <View className="border-t border-slate-100 pt-2 gap-1.5">
+        <View className="flex-row items-center">
+          <Text className="text-[11px] font-bold text-slate-400 w-20">Contact:</Text>
+          <Text className="text-[11px] font-semibold text-slate-700">{item.contact_person || 'N/A'}</Text>
+        </View>
+        <View className="flex-row items-center">
+          <Text className="text-[11px] font-bold text-slate-400 w-20">Phone:</Text>
+          <Text className="text-[11px] font-semibold text-slate-700">{item.phone}</Text>
+        </View>
+        <View className="flex-row items-center">
+          <Text className="text-[11px] font-bold text-slate-400 w-20">GST Number:</Text>
+          <Text className="text-[11px] font-semibold text-slate-700 uppercase">{item.gst_number || 'N/A'}</Text>
+        </View>
+        <View className="flex-row items-start">
+          <Text className="text-[11px] font-bold text-slate-400 w-20">Address:</Text>
+          <Text className="text-[11px] text-slate-500 flex-1">
+            {item.address}, {item.city}, {item.state}
+          </Text>
+        </View>
+      </View>
+
+      <View className="flex-row justify-between items-center mt-4 pt-2 border-t border-slate-50">
+        <Text className="text-[10px] italic text-slate-400">
+          Registered: {new Date(item.created_at).toLocaleDateString()}
+        </Text>
+        <View className="flex-row gap-1.5">
+          <Pressable
+            onPress={() => handleOpenSupplierModal(item)}
+            className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+          >
+            <FileText size={14} color="#64748b" />
+          </Pressable>
+          <Pressable
+            onPress={() => handleDeleteSupplierItem(item.id)}
+            className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+          >
+            <Trash2 size={14} color="#e11d48" />
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  ), [numColumns, handleOpenSupplierModal, handleDeleteSupplierItem]);
+
+  const renderWastageItem = useCallback(({ item }: { item: InventoryWastage }) => (
+    <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+      <View className="flex-row justify-between items-center flex-wrap gap-2">
+        <View className="flex-row items-center">
+          <View className="w-10 h-10 bg-rose-50 rounded-xl items-center justify-center mr-3">
+            <AlertTriangle size={20} color="#e11d48" />
+          </View>
+          <View>
+            <Text className="text-sm font-bold text-slate-800">{item.material_name}</Text>
+            <Text className="text-xs text-slate-400">
+              Reason: {item.reason} • Source: {item.location_id}
+            </Text>
+          </View>
+        </View>
+        <View className="items-end">
+          <Text className="text-sm font-black text-rose-700">₹{item.cost_impact.toFixed(2)}</Text>
+          <Text className="text-[10px] text-slate-400 mt-0.5">Qty lost: {item.quantity}</Text>
+        </View>
+      </View>
+
+      <View className="flex-row justify-between pt-3 mt-3 border-t border-slate-100 items-center flex-wrap gap-1">
+        <Text className="text-[11px] text-slate-400 font-semibold">Recorded by {item.recorded_by}</Text>
+        <Text className="text-[11px] text-slate-400">
+          {new Date(item.recorded_at).toLocaleDateString()} {new Date(item.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+    </View>
+  ), []);
+
+  const renderNewReqMaterialItem = useCallback(({ item }: { item: InventoryMaterial }) => {
+    const cartItem = newReqItems.find((itm) => itm.material_id === item.id);
+    const isSelected = !!cartItem;
+    const qty = cartItem ? Number(cartItem.requested_quantity) : 0;
+
+    return (
+      <Pressable
+        onPress={() => {
+          if (!isSelected) {
+            handleIncrementNewReqItem(item.id);
+            setTimeout(() => {
+              qtyInputRefs.current[item.id]?.focus();
+            }, 100);
+          } else {
+            qtyInputRefs.current[item.id]?.focus();
+          }
+        }}
+        style={{
+          flex: 1,
+          maxWidth: columns > 1 ? `${100 / columns}%` : undefined,
+          minHeight: 100,
+          backgroundColor: colors.surfaceElevated,
+          borderRadius: 16,
+          padding: 12,
+          borderWidth: isSelected ? 2 : 1,
+          borderColor: isSelected ? colors.primary : colors.border,
+          position: 'relative',
+          shadowColor: colors.textPrimary,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isSelected ? 0.08 : 0.02,
+          shadowRadius: 8,
+          elevation: isSelected ? 3 : 1,
+        }}
+        className="active:scale-[99%] transition-all"
+      >
+        {/* Top Row: Category and Code */}
+        <View className="flex-row justify-between items-center mb-1.5 flex-wrap gap-1">
+          {item.category_name && (
+            <View className="bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md">
+              <Text className="text-[9px] font-bold text-slate-500" numberOfLines={1}>
+                {item.category_name}
+              </Text>
+            </View>
+          )}
+          <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+            #{item.material_code}
+          </Text>
+        </View>
+
+        {/* Material Name */}
+        <Text className="text-xs font-black text-slate-800 leading-tight mb-2" numberOfLines={2}>
+          {item.material_name}
+        </Text>
+
+        {/* Stocks Info Grid */}
+        <View className="flex-col gap-1 mb-2.5 pt-1.5 border-t border-slate-50">
+          {/* Dest stock */}
+          <View className="flex-row justify-between items-center">
+            <Text className="text-[9px] font-bold text-slate-400">Current Stock:</Text>
+            <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
+              {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Bottom Row: Cost and Quick Add/Incrementer */}
+        <View className="flex-row justify-between items-center pt-2 border-t border-slate-50/50 flex-wrap gap-2">
+          <View>
+            <Text className="text-[8px] font-bold text-slate-400 uppercase">Avg Cost</Text>
+            <Text className="text-[10px] font-black text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
+          </View>
+
+          {/* Inline controls */}
+          <View style={{ pointerEvents: 'auto' }}>
+            {!isSelected ? (
+              <CustomPressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleIncrementNewReqItem(item.id);
+                  setTimeout(() => {
+                    qtyInputRefs.current[item.id]?.focus();
+                  }, 100);
+                }}
+                delayPressIn={0}
+                className="bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg flex-row items-center justify-center active:scale-95"
+                style={{ minHeight: 32, minWidth: 64 }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Plus size={10} color={colors.primary} strokeWidth={3} className="mr-0.5" />
+                <Text className="text-[10px] font-black text-[#0066b2]">Request</Text>
+              </CustomPressable>
+            ) : (
+              <View className="flex-row items-center border border-blue-200 rounded-lg bg-white overflow-hidden" style={{ height: 28 }}>
+                <CustomPressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleDecrementNewReqItem(item.id);
+                  }}
+                  delayPressIn={0}
+                  className="px-2 items-center justify-center bg-blue-50 border-r border-blue-200 active:bg-blue-100"
+                  style={{ height: '100%', minWidth: 28 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                >
+                  <Minus size={10} color={colors.primary} strokeWidth={3} />
+                </CustomPressable>
+
+                <TextInput
+                  ref={(el) => {
+                    if (el) {
+                      qtyInputRefs.current[item.id] = el;
+                    } else {
+                      delete qtyInputRefs.current[item.id];
+                    }
+                  }}
+                  value={qty === 0 ? '' : String(qty)}
+                  onChangeText={(val) => handleUpdateNewReqItemQty(item.id, val)}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#94a3b8"
+                  selectTextOnFocus={true}
+                  className="w-10 text-center text-[10px] font-black text-slate-800 p-0 m-0 outline-none h-full"
+                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                />
+
+                <CustomPressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleIncrementNewReqItem(item.id);
+                  }}
+                  delayPressIn={0}
+                  className="px-2 items-center justify-center bg-blue-50 border-l border-blue-200 active:bg-blue-100"
+                  style={{ height: '100%', minWidth: 28 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                >
+                  <Plus size={10} color={colors.primary} strokeWidth={3} />
+                </CustomPressable>
+              </View>
+            )}
+          </View>
+        </View>
+      </Pressable>
+    );
+  }, [newReqItems, columns, handleIncrementNewReqItem, handleDecrementNewReqItem, handleUpdateNewReqItemQty]);
+
+  const renderNewReqCartItem = useCallback(({ item }: { item: { material_id: string; requested_quantity: string } }) => {
+    const mat = materials.find((m) => m.id === item.material_id);
+    if (!mat) return null;
+
+    return (
+      <View className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1.5 flex-row justify-between items-center gap-2">
+        {/* Name & Code on left */}
+        <View className="flex-1 pr-1">
+          <Text className="text-[11px] font-black text-[#0f2744] leading-tight" numberOfLines={1}>
+            {mat.material_name}
+          </Text>
+          <Text className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">
+            #{mat.material_code}
+          </Text>
+        </View>
+
+        {/* Quantity Controller & Delete Button on right */}
+        <View className="flex-row items-center gap-2">
+          <View className="flex-row items-center border border-slate-200 rounded-lg bg-white overflow-hidden" style={{ height: 26 }}>
+            <CustomPressable
+              onPress={() => handleDecrementNewReqItem(item.material_id)}
+              delayPressIn={0}
+              className="px-1.5 items-center justify-center bg-slate-50 border-r border-slate-200 active:bg-slate-100"
+              style={{ height: '100%', minWidth: 24 }}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            >
+              <Minus size={9} color="#64748b" strokeWidth={3} />
+            </CustomPressable>
+
+            <TextInput
+              value={item.requested_quantity}
+              onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
+              keyboardType="numeric"
+              className="w-10 text-center text-[10px] font-black text-[#0f2744] p-0 m-0 outline-none"
+              style={{ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
+            />
+
+            <CustomPressable
+              onPress={() => handleIncrementNewReqItem(item.material_id)}
+              delayPressIn={0}
+              className="px-1.5 items-center justify-center bg-slate-50 border-l border-slate-200 active:bg-slate-100"
+              style={{ height: '100%', minWidth: 24 }}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            >
+              <Plus size={9} color="#64748b" strokeWidth={3} />
+            </CustomPressable>
+          </View>
+
+          <Pressable
+            onPress={() => handleRemoveNewReqItem(item.material_id)}
+            className="w-8 h-8 rounded-lg hover:bg-red-50 items-center justify-center active:scale-95"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Trash2 size={12} color="#ef4444" />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }, [materials, handleDecrementNewReqItem, handleUpdateNewReqItemQty, handleIncrementNewReqItem, handleRemoveNewReqItem]);
+
+  const renderRequestItem = useCallback(({ item }: { item: InventoryTransferRequest }) => {
+    const isCreator = item.to_branch_id === simulatedBranchId;
+    const isSupplier = item.from_branch_id === simulatedBranchId;
+    
+    let statusColor = 'bg-slate-100 text-slate-600 border-slate-200';
+    if (item.status === 'Pending') statusColor = 'bg-amber-50 text-amber-700 border-amber-200';
+    else if (item.status === 'Approved') statusColor = 'bg-blue-50 text-blue-700 border-blue-200';
+    else if (item.status === 'Partially Dispatched') statusColor = 'bg-purple-50 text-purple-700 border-purple-200';
+    else if (item.status === 'Dispatched') statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    else if (item.status === 'Completed') statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    else if (item.status === 'Rejected') statusColor = 'bg-rose-50 text-rose-700 border-rose-200';
+    else if (item.status === 'Cancelled') statusColor = 'bg-slate-100 text-slate-500 border-slate-200';
+
+    return (
+      <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+        <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
+          <View>
+            <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.request_number}</Text>
+            <Text className="text-sm font-bold text-slate-800 mt-0.5">
+              {item.to_branch_name} Request
+            </Text>
+          </View>
+          <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
+            <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
+          </View>
+        </View>
+
+        <View className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
+          <Text className="text-xs text-slate-500 font-medium">
+            From supplying branch: <Text className="font-bold text-slate-700">{item.from_branch_name}</Text>
+          </Text>
+          <Text className="text-xs text-slate-500 font-medium mt-1">
+            Request Date: <Text className="font-bold text-slate-700">{new Date(item.request_date).toLocaleDateString()}</Text>
+          </Text>
+          {item.remarks && (
+            <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
+          )}
+        </View>
+
+        {/* Items Preview */}
+        {item.items && item.items.length > 0 && (
+          <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+              Items Requested ({item.items.length})
+            </Text>
+            <View className="flex-col gap-1.5">
+              {item.items.slice(0, 3).map((itm) => (
+                <View key={itm.id} className="flex-row justify-between items-center bg-white border border-slate-100 px-2 py-1 rounded-lg">
+                  <Text className="text-xs font-bold text-slate-700 flex-1 mr-2" numberOfLines={1}>
+                    {itm.material_name}
+                  </Text>
+                  <Text className="text-xs font-black text-slate-800">
+                    {itm.requested_quantity} {itm.unit_short_name}
+                  </Text>
+                </View>
+              ))}
+              {item.items.length > 3 && (
+                <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
+                  + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Actions */}
+        <View className="flex-row justify-between items-center flex-wrap gap-2">
+          <Pressable
+            onPress={() => handleOpenEventsModal(item)}
+            className="flex-row items-center"
+            style={{ minHeight: 44 }}
+          >
+            <Info size={12} color="#475569" className="mr-1" />
+            <Text className="text-xs font-bold text-slate-600">Event Logs</Text>
+          </Pressable>
+
+          <View className="flex-row gap-2">
+            {isCreator && item.status === 'Pending' && (
+              <Pressable
+                onPress={() => handleProcessCancelRequest(item.id)}
+                className="bg-rose-50 border border-rose-200 py-1.5 px-3 rounded-lg active:scale-95 items-center justify-center"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-rose-700">Cancel Request</Text>
+              </Pressable>
+            )}
+            
+            {isSupplier && (item.status === 'Pending' || item.status === 'Approved' || item.status === 'Partially Dispatched') && (
+              <Pressable
+                onPress={() => handleOpenApprovalModal(item)}
+                className="bg-blue-600 py-1.5 px-3 rounded-lg active:scale-95 shadow-sm items-center justify-center"
+                style={{ minHeight: 44 }}
+              >
+                <Text className="text-xs font-bold text-white">
+                  {item.status === 'Pending' ? 'Review & Approve' : 'Dispatch Stock'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }, [simulatedBranchId, handleOpenEventsModal, handleProcessCancelRequest, handleOpenApprovalModal]);
+
+  const renderDispatchItem = useCallback(({ item }: { item: InventoryDispatch }) => {
+    const isReceiver = item.to_branch_id === simulatedBranchId;
+    const isReceived = item.status === 'Received';
+    
+    let statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    if (isReceived) statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+    return (
+      <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+        <View className="flex-row justify-between items-start flex-wrap gap-2 mb-2">
+          <View>
+            <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">{item.transfer_request_number || item.dispatch_number}</Text>
+            <Text className="text-sm font-bold text-slate-800 mt-0.5">
+              {item.from_branch_name} → {item.to_branch_name}
+            </Text>
+          </View>
+          <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
+            <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
+          </View>
+        </View>
+
+        <View className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
+          <Text className="text-xs text-slate-500 font-medium">
+            Date shipped: <Text className="font-bold text-slate-700">{new Date(item.dispatch_date).toLocaleDateString()}</Text>
+          </Text>
+          {item.remarks && (
+            <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
+          )}
+        </View>
+
+        {/* Items Preview */}
+        {item.items && item.items.length > 0 && (
+          <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+              Items Dispatched ({item.items.length})
+            </Text>
+            <View className="flex-col gap-1.5">
+              {item.items.slice(0, 3).map((itm) => (
+                <View key={itm.id} className="flex-row justify-between items-center bg-white border border-slate-100 px-2 py-1 rounded-lg">
+                  <Text className="text-xs font-bold text-slate-700 flex-1 mr-2" numberOfLines={1}>
+                    {itm.material_name}
+                  </Text>
+                  <Text className="text-xs font-black text-slate-800">
+                    {itm.dispatched_quantity} {itm.unit_short_name}
+                  </Text>
+                </View>
+              ))}
+              {item.items.length > 3 && (
+                <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
+                  + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {isReceiver && !isReceived && (
+          <Pressable
+            onPress={() => handleOpenReceiveModal(item)}
+            className="bg-emerald-600 py-2 items-center justify-center rounded-xl shadow-sm active:scale-95"
+            style={{ minHeight: 44 }}
+          >
+            <Text className="text-xs font-bold text-white">Verify & Receive Shipment</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }, [simulatedBranchId, handleOpenReceiveModal]);
+
+  const renderAdjustmentItem = useCallback(({ item }: { item: InventoryAdjustment }) => {
+    const isAdd = item.adjustment_type === 'Add';
+    return (
+      <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm">
+        <View className="flex-row justify-between items-center flex-wrap gap-2">
+          <View className="flex-row items-center">
+            <View className={`w-10 h-10 ${isAdd ? 'bg-emerald-50' : 'bg-rose-50'} rounded-xl items-center justify-center mr-3`}>
+              <RefreshCw size={20} color={isAdd ? '#10b981' : '#ef4444'} />
+            </View>
+            <View>
+              <Text className="text-sm font-bold text-slate-800">{item.material_name}</Text>
+              <Text className="text-xs text-slate-400">
+                Reason: {item.reason} • Location: {item.location_id}
+              </Text>
+            </View>
+          </View>
+          <View className="items-end">
+            <Text className={`text-sm font-black ${isAdd ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {isAdd ? '+' : '-'}{item.quantity}
+            </Text>
+            <Text className="text-[10px] text-slate-400 mt-0.5">
+              {new Date(item.adjustment_date).toLocaleDateString()}
+            </Text>
+          </View>
+        </View>
+        {item.remarks && (
+          <View className="bg-slate-50 rounded-lg p-2.5 mt-2.5 border border-slate-100">
+            <Text className="text-[11px] text-slate-500 italic">Remarks: {item.remarks}</Text>
+          </View>
+        )}
+      </View>
+    );
+  }, []);
+
+  const renderRecipeMarginItem = useCallback(({ item }: { item: any }) => {
+    const isHealthy = item.marginPct >= 50;
+    return (
+      <View className="flex-row p-3 border-b border-slate-100 items-center">
+        <Text className="flex-[2] text-xs font-bold text-slate-800">{item.name}</Text>
+        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">₹{item.price.toFixed(2)}</Text>
+        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">₹{item.recipeCost.toFixed(2)}</Text>
+        <Text className={`flex-1 text-xs font-bold text-right font-mono ${isHealthy ? 'text-emerald-600' : 'text-amber-600'}`}>
+          ₹{item.marginAmt.toFixed(2)}
+        </Text>
+        <View className="flex-1 items-end justify-center">
+          <View className={`px-2 py-0.5 rounded border ${isHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+            <Text className={`text-[10px] font-mono font-black ${isHealthy ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {item.marginPct.toFixed(1)}%
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }, []);
+
+  const renderStockVarianceItem = useCallback(({ item }: { item: any }) => {
+    return (
+      <View className="flex-row p-3 border-b border-slate-100 items-center">
+        <View className="flex-[2]">
+          <Text className="text-xs font-bold text-slate-800">{item.material_name}</Text>
+          <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase self-start mt-1">
+            {item.material_code}
+          </Text>
+        </View>
+        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">
+          {item.theoreticalQty.toFixed(2)} {item.unit_short_name}
+        </Text>
+        <Text className="flex-1 text-xs font-semibold text-slate-600 text-right font-mono">
+          {item.actualQty.toFixed(2)} {item.unit_short_name}
+        </Text>
+        <Text className={`flex-1 text-xs font-bold text-right font-mono ${item.varianceQty > 0.01 ? 'text-rose-600' : 'text-slate-600'}`}>
+          {item.varianceQty > 0 ? '+' : ''}{item.varianceQty.toFixed(2)} {item.unit_short_name}
+        </Text>
+        <Text className={`flex-1 text-xs font-bold text-right font-mono ${item.costImpact > 0.01 ? 'text-rose-600' : 'text-slate-600'}`}>
+          ₹{item.costImpact.toFixed(2)}
+        </Text>
+      </View>
+    );
+  }, []);
+
+  const renderAlertItem = useCallback(({ item }: { item: InventoryAlert }) => {
+    let alertColor = 'border-amber-200 bg-amber-50/50';
+    if (item.alert_type === 'Out of Stock') alertColor = 'border-rose-200 bg-rose-50/50';
+
+    return (
+      <View className={`border rounded-xl p-3 mb-3 ${alertColor} shadow-sm`}>
+        <View className="flex-row justify-between items-start mb-2 flex-wrap gap-1">
+          <Text className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
+            {item.alert_type}
+          </Text>
+          {!item.is_read && (
+            <Pressable
+              onPress={() => handleMarkAlert(item.id)}
+              className="bg-slate-200 border border-slate-300 rounded px-2 py-0.5"
+            >
+              <Text className="text-[9px] font-bold text-slate-600">Acknowledge</Text>
+            </Pressable>
+          )}
+        </View>
+        <Text className="text-xs font-semibold text-slate-800 leading-relaxed mb-1">{item.message}</Text>
+        <Text className="text-[9px] text-slate-400 italic">{new Date(item.created_at).toLocaleString()}</Text>
+      </View>
+    );
+  }, [handleMarkAlert]);
+
+  const renderAuditLogItem = useCallback(({ item }: { item: InventoryAuditLog }) => (
+    <View className="bg-white border border-slate-100 rounded-xl p-3 mb-3 shadow-sm">
+      <View className="flex-row justify-between items-center mb-1 flex-wrap gap-1">
+        <Text className="text-xs font-bold text-slate-800">Module: {item.module_name.toUpperCase()}</Text>
+        <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">
+          {item.action_type}
+        </Text>
+      </View>
+      <Text className="text-[10px] text-slate-500 mb-2">Recorded on item: {item.performed_by}</Text>
+      <View className="flex-row justify-between items-center border-t border-slate-50 pt-2 flex-wrap gap-1">
+        <Text className="text-[10px] text-slate-400 font-semibold">Performed by: {item.performed_by}</Text>
+        <Text className="text-[10px] text-slate-400">
+          {new Date(item.created_at).toLocaleDateString()} {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+    </View>
+  ), []);
+
+  const renderUnitItem = useCallback(({ item }: { item: InventoryUnit }) => (
+    <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm flex-row items-center justify-between">
+      <View className="flex-row items-center flex-1 mr-4">
+        <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
+          <Text className="text-xs font-black text-blue-700">{item.short_name}</Text>
+        </View>
+        <View>
+          <Text className="text-sm font-black text-slate-800">{item.unit_name}</Text>
+          <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase mt-0.5 self-start">
+            Code: {item.unit_code}
+          </Text>
+        </View>
+      </View>
+
+      <View className="flex-row items-center gap-1.5">
+        <Pressable
+          onPress={() => handleOpenUnitModal(item)}
+          className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+        >
+          <FileText size={14} color="#64748b" />
+        </Pressable>
+        <Pressable
+          onPress={() => handleDeleteUnitItem(item.id)}
+          className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+        >
+          <Trash2 size={14} color="#e11d48" />
+        </Pressable>
+      </View>
+    </View>
+  ), [handleOpenUnitModal, handleDeleteUnitItem]);
+
+  const renderCategoryItem = useCallback(({ item }: { item: InventoryCategory }) => (
+    <View className="bg-white border border-slate-200 rounded-2xl p-4 mb-3 shadow-sm flex-row items-center justify-between">
+      <View className="flex-row items-center flex-1 mr-4">
+        <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center mr-3">
+          <Tag size={18} color={colors.primary} />
+        </View>
+        <View className="flex-1">
+          <View className="flex-row items-center mb-0.5 flex-wrap">
+            <Text className="text-sm font-black text-slate-800 mr-2">{item.category_name}</Text>
+            <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">
+              {item.category_code}
+            </Text>
+          </View>
+          <Text className="text-xs text-slate-400 font-semibold">{item.description || 'No description logged.'}</Text>
+        </View>
+      </View>
+
+      <View className="flex-row items-center gap-1.5">
+        <Pressable
+          onPress={() => handleOpenCategoryModal(item)}
+          className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+        >
+          <FileText size={14} color="#64748b" />
+        </Pressable>
+        <Pressable
+          onPress={() => handleDeleteCategoryItem(item.id)}
+          className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+        >
+          <Trash2 size={14} color="#e11d48" />
+        </Pressable>
+      </View>
+    </View>
+  ), [handleOpenCategoryModal, handleDeleteCategoryItem]);
 
   const renderActiveTabPanel = () => {
     switch (activeTab) {
