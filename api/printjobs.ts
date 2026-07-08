@@ -87,12 +87,12 @@ export default async function handler(req: any, res: any) {
       console.log('[API] Decoded print payload (first 500 chars):');
       console.log(JSON.stringify(decodedText.substring(0, 500)));
 
-      console.log('[API] Decoded byte char codes (first 100 bytes):');
-      const charCodes = [];
-      for (let idx = 0; idx < Math.min(decodedBuffer.length, 100); idx++) {
-        charCodes.push(decodedBuffer[idx]);
+      console.log('[API] Decoded payload bytes in Hex (first 50 bytes):');
+      const hexBytes = [];
+      for (let idx = 0; idx < Math.min(decodedBuffer.length, 50); idx++) {
+        hexBytes.push(decodedBuffer[idx].toString(16).toUpperCase().padStart(2, '0'));
       }
-      console.log(JSON.stringify(charCodes));
+      console.log(hexBytes.join(' '));
     } catch (err: any) {
       console.log('[API] Error decoding Base64 payload:', err.message);
     }
