@@ -3,6 +3,34 @@ import { fetchPrinters, type Printer } from '../pos/printer-db-service';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 
 /**
+ * Base64 encoding helper for platforms without Buffer.
+ */
+function encodeBase64(str: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  let i = 0;
+  while (i < str.length) {
+    const c1 = str.charCodeAt(i++);
+    const c2 = i < str.length ? str.charCodeAt(i++) : NaN;
+    const c3 = i < str.length ? str.charCodeAt(i++) : NaN;
+
+    const byte1 = c1 >> 2;
+    const byte2 = ((c1 & 3) << 4) | (isNaN(c2) ? 0 : c2 >> 4);
+    const byte3 = isNaN(c2) ? 64 : ((c2 & 15) << 2) | (isNaN(c3) ? 0 : c3 >> 6);
+    const byte4 = isNaN(c3) ? 64 : c3 & 63;
+
+    result += chars.charAt(byte1) + chars.charAt(byte2) +
+              (byte3 === 64 ? '=' : chars.charAt(byte3)) +
+              (byte4 === 64 ? '=' : chars.charAt(byte4));
+  }
+  return result;
+}
+
+function utf8ToBinaryString(str: string): string {
+  return unescape(encodeURIComponent(str));
+}
+
+/**
  * Pure JavaScript helper to verify TCP port reachability from browser/client environment.
  */
 async function testTcpPort(ip: string, port: number, timeoutMs = 2000): Promise<boolean> {
@@ -35,6 +63,25 @@ async function testTcpPort(ip: string, port: number, timeoutMs = 2000): Promise<
 export async function diagnosePrinterConnection(
   printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>
 ): Promise<'connected' | 'unreachable' | 'offline' | 'missing'> {
+  if (printer.connection === 'printnode') {
+    const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
+    if (!apiKey || !printer.ip_address) return 'unreachable';
+    try {
+      const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
+      const res = await fetch(`https://api.printnode.com/printers/${printer.ip_address}`, {
+        headers: { 'Authorization': authHeader }
+      });
+      if (!res.ok) return 'unreachable';
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0 && data[0].state === 'online') {
+        return 'connected';
+      }
+      return 'unreachable';
+    } catch {
+      return 'unreachable';
+    }
+  }
+
   const agentOnline = await checkAgentHealth();
   if (!agentOnline) {
     return 'offline';
@@ -82,7 +129,76 @@ function getLineWidth(paperWidth: string): number {
 /**
  * Core raw printing method via Grovit Print Agent.
  */
+/**
+ * Cloud printing via PrintNode API.
+ */
+async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>, lines: string[]): Promise<void> {
+  const printerIdStr = printer.ip_address;
+  if (!printerIdStr) {
+    Alert.alert('Configuration Error', 'No PrintNode Printer ID configured.');
+    return;
+  }
+
+  const printerId = parseInt(printerIdStr, 10);
+  if (isNaN(printerId)) {
+    Alert.alert('Configuration Error', 'Invalid PrintNode Printer ID.');
+    return;
+  }
+
+  const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
+  if (!apiKey) {
+    Alert.alert('Configuration Error', 'PrintNode API key is not configured.');
+    return;
+  }
+
+  try {
+    const escPosString = [
+      '\x1B@', // Reset printer
+      ...lines,
+      '\n\n\n\n', // Feed paper
+      '\x1Bi\x01', // ESC/POS Paper Cut
+    ].join('');
+
+    const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
+    const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
+
+    console.log('[Printer] Sending cloud print job via PrintNode to printer:', printerId);
+    const response = await fetch('https://api.printnode.com/printjobs', {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        printerId: printerId,
+        title: 'Grovit POS Receipt',
+        contentType: 'raw_base64',
+        content: base64Content,
+        source: 'Grovit POS',
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`PrintNode API returned ${response.status}: ${errText}`);
+    }
+
+    console.log('[Printer] PrintNode job submitted successfully.');
+  } catch (err: any) {
+    console.error('[Printer] PrintNode submission failed:', err);
+    Alert.alert('Printing Failed', `PrintNode error: ${err.message}`);
+  }
+}
+
+/**
+ * Core raw printing method via Grovit Print Agent.
+ */
 async function printRawToPrinter(printer: Printer, lines: string[]): Promise<void> {
+  if (printer.connection === 'printnode') {
+    await printViaPrintNode(printer, lines);
+    return;
+  }
+
   const ip = printer.ip_address || '127.0.0.1';
   const port = printer.port ?? 9100;
 
@@ -123,6 +239,25 @@ export const printerService = {
    * Sends small receipt directly via print agent.
    */
   testPrinter: async (printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>): Promise<string> => {
+    if (printer.connection === 'printnode') {
+      const ip = printer.ip_address || '';
+      if (!ip) {
+        throw new Error('No PrintNode Printer ID configured.');
+      }
+      const width = printer.paper_width === '58mm' ? 32 : 42;
+      const divider = '-'.repeat(width) + '\n';
+      const testReceipt = [
+        divider,
+        '       GROVIT POS\n\n',
+        'Printer Connected via PrintNode \u2713\n\n',
+        `Printer ID: ${ip}\n`,
+        `Date/Time: ${new Date().toLocaleString()}\n`,
+        divider,
+      ];
+      await printViaPrintNode(printer, testReceipt);
+      return 'PrintNode Printer';
+    }
+
     const ip = printer.ip_address || '';
     const port = printer.port ?? 9100;
 

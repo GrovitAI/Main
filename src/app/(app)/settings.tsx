@@ -173,7 +173,7 @@ export default function SettingsScreen() {
     loadPrinters();
   }, []);
 
-  const checkPrinterConnectivity = async (ip: string, port: number) => {
+  const checkPrinterConnectivity = async (ip: string, port: number, connection = formState.connection) => {
     if (!ip) {
       setConnStatus('unreachable');
       return;
@@ -183,7 +183,7 @@ export default function SettingsScreen() {
       const status = await diagnosePrinterConnection({
         name: 'Check',
         type: 'epson_thermal',
-        connection: 'network',
+        connection: connection,
         ip_address: ip,
         port: port,
         paper_width: '80mm',
@@ -202,12 +202,12 @@ export default function SettingsScreen() {
     }
   };
 
-  // Run reachability checks when IP/Port is modified in the expanded form
+  // Run reachability checks when IP/Port/Connection is modified in the expanded form
   useEffect(() => {
     if (formState.ip_address) {
-      checkPrinterConnectivity(formState.ip_address, formState.port);
+      checkPrinterConnectivity(formState.ip_address, formState.port, formState.connection);
     }
-  }, [formState.ip_address, formState.port]);
+  }, [formState.ip_address, formState.port, formState.connection]);
 
   const handleExpandPrinter = (printer: Printer) => {
     setIsAddingNew(false);
@@ -228,7 +228,7 @@ export default function SettingsScreen() {
     setFormState(state);
     setFormError(null);
     setSuccessMsg(null);
-    checkPrinterConnectivity(state.ip_address ?? '', state.port);
+    checkPrinterConnectivity(state.ip_address ?? '', state.port, state.connection);
   };
 
   const handleCollapsePrinter = () => {
@@ -257,18 +257,26 @@ export default function SettingsScreen() {
       setFormError('Printer name is required.');
       return false;
     }
-    if (!formState.ip_address?.trim()) {
-      setFormError('IP Address is required.');
+    if (!formState.ip_address || !formState.ip_address.trim()) {
+      setFormError(formState.connection === 'printnode' ? 'PrintNode Printer ID is required.' : 'IP Address is required.');
       return false;
     }
-    const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-    if (!ipRegex.test(formState.ip_address.trim())) {
-      setFormError('Please enter a valid IPv4 IP Address.');
-      return false;
-    }
-    if (!formState.port || formState.port <= 0) {
-      setFormError('A valid port is required.');
-      return false;
+    if (formState.connection !== 'printnode') {
+      const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+      if (!ipRegex.test(formState.ip_address.trim()) && formState.ip_address.trim() !== 'localhost' && formState.ip_address.trim() !== '127.0.0.1') {
+        setFormError('Please enter a valid IPv4 IP Address.');
+        return false;
+      }
+      if (!formState.port || formState.port <= 0) {
+        setFormError('A valid port is required.');
+        return false;
+      }
+    } else {
+      const idRegex = /^\d+$/;
+      if (!idRegex.test(formState.ip_address.trim())) {
+        setFormError('PrintNode Printer ID must be a numeric value.');
+        return false;
+      }
     }
     setFormError(null);
     return true;
@@ -735,13 +743,47 @@ export default function SettingsScreen() {
                                 </View>
                               </View>
 
-                              {/* IP Address */}
+                              {/* Connection Type */}
                               <View className="w-full md:w-1/2 px-2.5 mb-4">
-                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">IP Address</Text>
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Connection Type</Text>
+                                <View className="flex-row gap-2">
+                                  {[
+                                    { value: 'network', label: 'Direct Network (IP)' },
+                                    { value: 'printnode', label: 'PrintNode Cloud' }
+                                  ].map((conn) => {
+                                    const isSelected = formState.connection === conn.value;
+                                    return (
+                                      <Pressable
+                                        key={conn.value}
+                                        className={`flex-1 border items-center justify-center ${
+                                          isSelected 
+                                            ? 'bg-slate-900 border-slate-900 text-white' 
+                                            : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
+                                        }`}
+                                        style={({ pressed }) => [
+                                          { height: 40, borderRadius: 12, borderWidth: 1 },
+                                          pressed && { opacity: 0.9 }
+                                        ]}
+                                        onPress={() => setFormState(prev => ({ ...prev, connection: conn.value }))}
+                                      >
+                                        <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                                          {conn.label}
+                                        </Text>
+                                      </Pressable>
+                                    );
+                                  })}
+                                </View>
+                              </View>
+
+                              {/* IP Address or PrintNode ID */}
+                              <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                  {formState.connection === 'printnode' ? 'PrintNode Printer ID' : 'IP Address'}
+                                </Text>
                                 <TextInput
                                   value={formState.ip_address ?? ''}
                                   onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
-                                  placeholder="e.g. 192.168.1.100"
+                                  placeholder={formState.connection === 'printnode' ? 'e.g. 75621308' : 'e.g. 192.168.1.100'}
                                   placeholderTextColor="#94a3b8"
                                   className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
                                   style={{ minHeight: 40 }}
@@ -750,18 +792,20 @@ export default function SettingsScreen() {
                               </View>
 
                               {/* Port */}
-                              <View className="w-full md:w-1/2 px-2.5 mb-4">
-                                <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Port</Text>
-                                <TextInput
-                                  value={String(formState.port)}
-                                  onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
-                                  placeholder="9100"
-                                  placeholderTextColor="#94a3b8"
-                                  className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
-                                  style={{ minHeight: 40 }}
-                                  keyboardType="number-pad"
-                                />
-                              </View>
+                              {formState.connection !== 'printnode' && (
+                                <View className="w-full md:w-1/2 px-2.5 mb-4">
+                                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Port</Text>
+                                  <TextInput
+                                    value={String(formState.port)}
+                                    onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
+                                    placeholder="9100"
+                                    placeholderTextColor="#94a3b8"
+                                    className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                                    style={{ minHeight: 40 }}
+                                    keyboardType="number-pad"
+                                  />
+                                </View>
+                              )}
 
                               {/* Paper Width */}
                               <View className="w-full md:w-1/2 px-2.5 mb-4">
@@ -943,33 +987,69 @@ export default function SettingsScreen() {
                             </View>
                           </View>
 
-                          {/* IP Address */}
-                          <View className="w-full md:w-1/2 px-2.5 mb-4">
-                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">IP Address</Text>
-                            <TextInput
-                              value={formState.ip_address ?? ''}
-                              onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
-                              placeholder="e.g. 192.168.1.101"
-                              placeholderTextColor="#94a3b8"
-                              className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
-                              style={{ minHeight: 40 }}
-                              keyboardType="numeric"
-                            />
-                          </View>
+                           {/* Connection Type */}
+                           <View className="w-full md:w-1/2 px-2.5 mb-4">
+                             <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Connection Type</Text>
+                             <View className="flex-row gap-2">
+                               {[
+                                 { value: 'network', label: 'Direct Network (IP)' },
+                                 { value: 'printnode', label: 'PrintNode Cloud' }
+                               ].map((conn) => {
+                                 const isSelected = formState.connection === conn.value;
+                                 return (
+                                   <Pressable
+                                     key={conn.value}
+                                     className={`flex-1 border items-center justify-center ${
+                                       isSelected 
+                                         ? 'bg-slate-900 border-slate-900 text-white' 
+                                         : 'bg-white border-slate-200 text-slate-600 active:bg-slate-50'
+                                     }`}
+                                     style={({ pressed }) => [
+                                       { height: 40, borderRadius: 12, borderWidth: 1 },
+                                       pressed && { opacity: 0.9 }
+                                     ]}
+                                     onPress={() => setFormState(prev => ({ ...prev, connection: conn.value }))}
+                                   >
+                                     <Text className={`font-extrabold text-[11px] ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                                       {conn.label}
+                                     </Text>
+                                   </Pressable>
+                                 );
+                               })}
+                             </View>
+                           </View>
 
-                          {/* Port */}
-                          <View className="w-full md:w-1/2 px-2.5 mb-4">
-                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Port</Text>
-                            <TextInput
-                              value={String(formState.port)}
-                              onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
-                              placeholder="9100"
-                              placeholderTextColor="#94a3b8"
-                              className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
-                              style={{ minHeight: 40 }}
-                              keyboardType="number-pad"
-                            />
-                          </View>
+                           {/* IP Address or PrintNode ID */}
+                           <View className="w-full md:w-1/2 px-2.5 mb-4">
+                             <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                               {formState.connection === 'printnode' ? 'PrintNode Printer ID' : 'IP Address'}
+                             </Text>
+                             <TextInput
+                               value={formState.ip_address ?? ''}
+                               onChangeText={(text) => setFormState(prev => ({ ...prev, ip_address: text }))}
+                               placeholder={formState.connection === 'printnode' ? 'e.g. 75621308' : 'e.g. 192.168.1.101'}
+                               placeholderTextColor="#94a3b8"
+                               className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                               style={{ minHeight: 40 }}
+                               keyboardType="numeric"
+                             />
+                           </View>
+
+                           {/* Port */}
+                           {formState.connection !== 'printnode' && (
+                             <View className="w-full md:w-1/2 px-2.5 mb-4">
+                               <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Port</Text>
+                               <TextInput
+                                 value={String(formState.port)}
+                                 onChangeText={(text) => setFormState(prev => ({ ...prev, port: Number(text) || 0 }))}
+                                 placeholder="9100"
+                                 placeholderTextColor="#94a3b8"
+                                 className="border border-slate-200 rounded-xl px-4 py-2 text-slate-800 bg-white focus:border-slate-400 text-xs font-bold select-all w-full"
+                                 style={{ minHeight: 40 }}
+                                 keyboardType="number-pad"
+                               />
+                             </View>
+                           )}
 
                           {/* Paper Width */}
                           <View className="w-full md:w-1/2 px-2.5 mb-4">
