@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert } from 'react-native';
 import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart } from 'lucide-react-native';
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
@@ -37,9 +37,21 @@ export default function SettingsScreen() {
 
       // 2. Synchronize with database
       if (shouldSync && pnPrinters.length > 0) {
-        const syncRes = await syncPrintNodePrinters(pnPrinters);
-        if (syncRes.error) {
-          console.warn('[Settings] Printer sync failed:', syncRes.error);
+        try {
+          const result = await syncPrintNodePrinters(pnPrinters);
+          if (result.error) {
+            console.error(result.error);
+            Alert.alert(
+              "Printer Sync Failed",
+              result.error ?? "Unknown database error"
+            );
+          }
+        } catch (err) {
+          console.error(err);
+          Alert.alert(
+            "Printer Sync Failed",
+            err instanceof Error ? err.message : "Unknown error"
+          );
         }
       }
     } catch (err: any) {
