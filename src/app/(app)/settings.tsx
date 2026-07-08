@@ -330,7 +330,7 @@ export default function SettingsScreen() {
                 {printers.map((printer) => {
                   const liveMatch = printNodePrinters.find(p => String(p.id) === printer.ip_address);
                   const isOnline = liveMatch ? liveMatch.state === 'online' : false;
-                  const computerName = printer.os_printer_name || (liveMatch?.computer?.name ?? 'Unknown');
+                  const computerName = liveMatch?.computer?.name ?? 'Unknown';
 
                   return (
                     <View 

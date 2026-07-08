@@ -15,7 +15,6 @@ export type Printer = {
   printer_role: string;     // 'bill' | 'kitchen'
   is_default: boolean;
   is_active: boolean;
-  os_printer_name: string | null; // Resolved Windows/OS spooler name
   created_at?: string;
 };
 
@@ -64,7 +63,6 @@ export async function savePrinter(
       printer_role: input.printer_role,
       is_default: input.is_default,
       is_active: input.is_active,
-      os_printer_name: input.os_printer_name,
     };
 
     if (input.id) {
@@ -178,7 +176,6 @@ export async function syncPrintNodePrinters(
           .from('printers')
           .update({
             name: p.name,
-            os_printer_name: p.computer?.name || null,
           })
           .eq('id', matched.id)
           .eq('tenant_id', tenant_id)
@@ -203,7 +200,6 @@ export async function syncPrintNodePrinters(
             printer_role: 'bill',
             is_default: false,
             is_active: false,
-            os_printer_name: p.computer?.name || null,
           });
 
         if (insertErr) {
