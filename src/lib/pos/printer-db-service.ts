@@ -143,3 +143,77 @@ export async function deletePrinter(id: string): Promise<ServiceResult<void>> {
     return { data: null, error: 'Unable to delete printer.' };
   }
 }
+
+/**
+ * Synchronizes discovered PrintNode printers with the database.
+ * Inserts new ones as disabled and updates names/hostnames of existing ones.
+ */
+export async function syncPrintNodePrinters(
+  pnPrinters: { id: number; name: string; computer?: { name: string } }[]
+): Promise<ServiceResult<void>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+
+    // 1. Fetch existing configured printers from DB
+    const { data: existing, error } = await supabase
+      .from('printers')
+      .select('*')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+
+    if (error) {
+      return { data: null, error: 'Failed to fetch existing printers for sync.' };
+    }
+
+    const existingPrinters = (existing ?? []) as Printer[];
+
+    // 2. Loop and sync
+    for (const p of pnPrinters) {
+      const pIdStr = String(p.id);
+      const matched = existingPrinters.find(x => x.ip_address === pIdStr);
+
+      if (matched) {
+        // Update name and OS printer hostname if changed
+        const { error: updateErr } = await supabase
+          .from('printers')
+          .update({
+            name: p.name,
+            os_printer_name: p.computer?.name || null,
+          })
+          .eq('id', matched.id)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
+
+        if (updateErr) {
+          console.warn('[Printer DB] Sync update failed for printer ID:', p.id, updateErr);
+        }
+      } else {
+        // Insert new printer configuration (disabled by default)
+        const { error: insertErr } = await supabase
+          .from('printers')
+          .insert({
+            tenant_id,
+            branch_id,
+            name: p.name,
+            type: 'epson_thermal',
+            connection: 'printnode',
+            ip_address: pIdStr,
+            port: 9100,
+            paper_width: '80mm',
+            printer_role: 'bill',
+            is_default: false,
+            is_active: false,
+            os_printer_name: p.computer?.name || null,
+          });
+
+        if (insertErr) {
+          console.warn('[Printer DB] Sync insert failed for printer ID:', p.id, insertErr);
+        }
+      }
+    }
+
+    return { data: undefined, error: null };
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Sync failed.' };
+  }
+}

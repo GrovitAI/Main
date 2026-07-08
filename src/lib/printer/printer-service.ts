@@ -438,72 +438,73 @@ export const printerService = {
         return;
       }
 
-      const billPrinters = res.data.filter(p => p.is_active && p.printer_role === 'bill');
-      if (billPrinters.length === 0) {
+      const activeBillingPrinters = res.data.filter(p => p.is_active && p.printer_role === 'bill');
+      if (activeBillingPrinters.length === 0) {
         console.log('[Printer] No active bill printers configured.');
         return;
       }
 
-      for (const printer of billPrinters) {
-        const width = getLineWidth(printer.paper_width);
-        const divider = '-'.repeat(width) + '\n';
-        const doubleDivider = '='.repeat(width) + '\n';
+      // Find default billing printer, fallback to first active one
+      const printer = activeBillingPrinters.find(p => p.is_default) || activeBillingPrinters[0];
 
-        const mergedMap: Record<string, { qty: number; price: number }> = {};
-        for (const item of items) {
-          const name = item.product_name || item.item_name || 'Item';
-          if (mergedMap[name]) {
-            mergedMap[name].qty += item.qty;
-          } else {
-            mergedMap[name] = { qty: item.qty, price: item.price };
-          }
+      const width = getLineWidth(printer.paper_width);
+      const divider = '-'.repeat(width) + '\n';
+      const doubleDivider = '='.repeat(width) + '\n';
+
+      const mergedMap: Record<string, { qty: number; price: number }> = {};
+      for (const item of items) {
+        const name = item.product_name || item.item_name || 'Item';
+        if (mergedMap[name]) {
+          mergedMap[name].qty += item.qty;
+        } else {
+          mergedMap[name] = { qty: item.qty, price: item.price };
         }
-
-        const itemLines: string[] = [];
-        for (const [name, detail] of Object.entries(mergedMap)) {
-          itemLines.push(`${name}\n`);
-          const left = `  ${detail.qty} x Rs.${detail.price.toFixed(2)}`;
-          const right = `Rs.${(detail.qty * detail.price).toFixed(2)}`;
-          itemLines.push(padLine(left, right, width) + '\n');
-        }
-
-        const formattedDate = new Date().toLocaleDateString('en-GB');
-        const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-        let footerMessage = isFinal ? '* Thank you for dining with us! *' : '* Thank you for your visit! *';
-        if (typeof window !== 'undefined' && window.localStorage) {
-          const storedFooter = window.localStorage.getItem('receiptFooter');
-          if (storedFooter !== null) {
-            footerMessage = storedFooter;
-          }
-        }
-
-        const footerLines = footerMessage
-          ? footerMessage.split('\n').map(line => `\x1Ba\x01${line.trim()}\n`).join('')
-          : '';
-
-        const lines: string[] = [
-          '\x1Ba\x01', // Center
-          '\x1B!\x18', // Bold double height
-          '       GROVIT POS       \n\n',
-          '\x1B!\x00', // Reset
-          isFinal ? '*** TAX INVOICE ***\n' : '*** PROVISIONAL BILL ***\n',
-          doubleDivider,
-          '\x1Ba\x00', // Left
-          invoiceNumber ? padLine('Bill No   :', invoiceNumber, width) + '\n' : '',
-          padLine('Order Ref :', orderName, width) + '\n',
-          padLine('Date      :', `${formattedDate} ${formattedTime}`, width) + '\n',
-          paymentMethod ? padLine('Payment   :', paymentMethod.toUpperCase(), width) + '\n' : '',
-          divider,
-          ...itemLines,
-          divider,
-          padLine('TOTAL AMOUNT', `Rs.${totalAmount.toFixed(2)}`, width) + '\n',
-          doubleDivider,
-          footerLines,
-        ];
-
-        await printRawToPrinter(printer, lines);
       }
+
+      const itemLines: string[] = [];
+      for (const [name, detail] of Object.entries(mergedMap)) {
+        itemLines.push(`${name}\n`);
+        const left = `  ${detail.qty} x Rs.${detail.price.toFixed(2)}`;
+        const right = `Rs.${(detail.qty * detail.price).toFixed(2)}`;
+        itemLines.push(padLine(left, right, width) + '\n');
+      }
+
+      const formattedDate = new Date().toLocaleDateString('en-GB');
+      const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+      let footerMessage = isFinal ? '* Thank you for dining with us! *' : '* Thank you for your visit! *';
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const storedFooter = window.localStorage.getItem('receiptFooter');
+        if (storedFooter !== null) {
+          footerMessage = storedFooter;
+        }
+      }
+
+      const footerLines = footerMessage
+        ? footerMessage.split('\n').map(line => `\x1Ba\x01${line.trim()}\n`).join('')
+        : '';
+
+      const lines: string[] = [
+        '\x1Ba\x01', // Center
+        '\x1B!\x18', // Bold double height
+        '       GROVIT POS       \n\n',
+        '\x1B!\x00', // Reset
+        isFinal ? '*** TAX INVOICE ***\n' : '*** PROVISIONAL BILL ***\n',
+        doubleDivider,
+        '\x1Ba\x00', // Left
+        invoiceNumber ? padLine('Bill No   :', invoiceNumber, width) + '\n' : '',
+        padLine('Order Ref :', orderName, width) + '\n',
+        padLine('Date      :', `${formattedDate} ${formattedTime}`, width) + '\n',
+        paymentMethod ? padLine('Payment   :', paymentMethod.toUpperCase(), width) + '\n' : '',
+        divider,
+        ...itemLines,
+        divider,
+        padLine('TOTAL AMOUNT', `Rs.${totalAmount.toFixed(2)}`, width) + '\n',
+        doubleDivider,
+        footerLines,
+      ];
+
+      await printRawToPrinter(printer, lines);
     } catch (err) {
       console.warn('[Printer] printBill caught error (ignored to avoid blocking POS):', err);
     }

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView } from 'react-native';
 import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart } from 'lucide-react-native';
 import { colors, brand } from '@/lib/pos/brand';
-import { fetchPrinters, savePrinter, type Printer } from '@/lib/pos/printer-db-service';
+import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { MenuManagement } from '@/components/settings/MenuManagement';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Trash2 } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'menu'>('printers');
@@ -21,36 +22,38 @@ export default function SettingsScreen() {
 
   const [printNodePrinters, setPrintNodePrinters] = useState<PrintNodePrinter[]>([]);
   const [loadingPrintNode, setLoadingPrintNode] = useState(false);
-  const [activeBillPrinterId, setActiveBillPrinterId] = useState<string | null>(null);
-  const [activeKitchenPrinterId, setActiveKitchenPrinterId] = useState<string | null>(null);
-  const [testingPrinterId, setTestingPrinterId] = useState<number | null>(null);
+  const [testingPrinterId, setTestingPrinterId] = useState<string | number | null>(null);
 
-  const loadPrinters = async () => {
+  const loadPrinters = async (shouldSync = false) => {
     setLoading(true);
     setLoadingPrintNode(true);
     setFormError(null);
-    setSuccessMsg(null);
 
-    // 1. Fetch DB configured printers
+    let pnPrinters: PrintNodePrinter[] = [];
+    try {
+      // 1. Fetch live PrintNode printers
+      pnPrinters = await fetchPrintNodePrinters();
+      setPrintNodePrinters(pnPrinters);
+
+      // 2. Synchronize with database
+      if (shouldSync && pnPrinters.length > 0) {
+        const syncRes = await syncPrintNodePrinters(pnPrinters);
+        if (syncRes.error) {
+          console.warn('[Settings] Printer sync failed:', syncRes.error);
+        }
+      }
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to fetch PrintNode printers.');
+    }
+
+    // 3. Load configurations from database
     const res = await fetchPrinters();
     if (res.data) {
       setPrinters(res.data);
-      const bill = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill');
-      setActiveBillPrinterId(bill ? bill.ip_address : null);
-      const kitchen = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'kitchen');
-      setActiveKitchenPrinterId(kitchen ? kitchen.ip_address : null);
     }
 
-    // 2. Fetch live PrintNode printers
-    try {
-      const pnPrinters = await fetchPrintNodePrinters();
-      setPrintNodePrinters(pnPrinters);
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to fetch PrintNode printers.');
-    } finally {
-      setLoading(false);
-      setLoadingPrintNode(false);
-    }
+    setLoading(false);
+    setLoadingPrintNode(false);
   };
 
   useEffect(() => {
@@ -58,31 +61,23 @@ export default function SettingsScreen() {
       const storedFooter = window.localStorage.getItem('receiptFooter') || '* Thank you for your visit! *';
       setReceiptFooter(storedFooter);
     }
-    loadPrinters();
+    loadPrinters(true);
   }, []);
 
-  const handleSelectBillingPrinter = async (printer: PrintNodePrinter) => {
+  const handleToggleActive = async (printer: Printer) => {
     setSubmitting(true);
     setSuccessMsg(null);
     setFormError(null);
     try {
       const res = await savePrinter({
-        name: printer.name,
-        type: 'epson_thermal',
-        connection: 'printnode',
-        ip_address: String(printer.id),
-        port: 9100,
-        paper_width: '80mm',
-        printer_role: 'bill',
-        is_default: true,
-        is_active: true,
-        os_printer_name: null,
+        ...printer,
+        is_active: !printer.is_active,
       });
       if (res.error) {
         setFormError(res.error);
       } else {
-        setSuccessMsg(`Billing printer set to "${printer.name}" successfully!`);
-        await loadPrinters();
+        setSuccessMsg(`Printer "${printer.name}" ${!printer.is_active ? 'enabled' : 'disabled'} successfully!`);
+        await loadPrinters(false);
       }
     } catch (err: any) {
       setFormError(err.message || 'Failed to save printer.');
@@ -91,28 +86,20 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleSelectKitchenPrinter = async (printer: PrintNodePrinter) => {
+  const handleToggleDefault = async (printer: Printer) => {
     setSubmitting(true);
     setSuccessMsg(null);
     setFormError(null);
     try {
       const res = await savePrinter({
-        name: printer.name,
-        type: 'epson_thermal',
-        connection: 'printnode',
-        ip_address: String(printer.id),
-        port: 9100,
-        paper_width: '80mm',
-        printer_role: 'kitchen',
-        is_default: true,
-        is_active: true,
-        os_printer_name: null,
+        ...printer,
+        is_default: !printer.is_default,
       });
       if (res.error) {
         setFormError(res.error);
       } else {
-        setSuccessMsg(`Kitchen printer set to "${printer.name}" successfully!`);
-        await loadPrinters();
+        setSuccessMsg(`Printer "${printer.name}" default status updated.`);
+        await loadPrinters(false);
       }
     } catch (err: any) {
       setFormError(err.message || 'Failed to save printer.');
@@ -121,23 +108,54 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleTestPrint = async (printer: PrintNodePrinter) => {
-    setTestingPrinterId(printer.id);
+  const handleChangeRole = async (printer: Printer, newRole: 'bill' | 'kitchen') => {
+    setSubmitting(true);
     setSuccessMsg(null);
     setFormError(null);
     try {
-      await printerService.testPrinter({
-        name: printer.name,
-        type: 'epson_thermal',
-        connection: 'printnode',
-        ip_address: String(printer.id),
-        port: 9100,
-        paper_width: '80mm',
-        printer_role: 'bill',
-        is_default: false,
-        is_active: true,
-        os_printer_name: null,
+      const res = await savePrinter({
+        ...printer,
+        printer_role: newRole,
+        is_default: newRole === 'bill' ? printer.is_default : false,
       });
+      if (res.error) {
+        setFormError(res.error);
+      } else {
+        setSuccessMsg(`Printer "${printer.name}" role set to ${newRole === 'bill' ? 'Billing' : 'Kitchen'}.`);
+        await loadPrinters(false);
+      }
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to save printer.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeletePrinter = async (id: string) => {
+    setSubmitting(true);
+    setSuccessMsg(null);
+    setFormError(null);
+    try {
+      const res = await deletePrinter(id);
+      if (res.error) {
+        setFormError(res.error);
+      } else {
+        setSuccessMsg('Printer configuration removed.');
+        await loadPrinters(false);
+      }
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to delete printer.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTestPrint = async (printer: Printer) => {
+    setTestingPrinterId(printer.ip_address);
+    setSuccessMsg(null);
+    setFormError(null);
+    try {
+      await printerService.testPrinter(printer);
       setSuccessMsg(`Test print sent to "${printer.name}" successfully!`);
     } catch (err: any) {
       setFormError(err.message || 'Failed to send test print.');
@@ -267,7 +285,7 @@ export default function SettingsScreen() {
               </View>
               <Pressable
                 disabled={loading || loadingPrintNode}
-                onPress={loadPrinters}
+                onPress={() => loadPrinters(true)}
                 className="flex-row items-center gap-1.5 bg-slate-150 border border-slate-200 px-3.5 py-2 rounded-xl active:bg-slate-200"
               >
                 <RefreshCw size={12} color="#0f172a" className={loadingPrintNode ? 'animate-spin' : ''} />
@@ -291,34 +309,34 @@ export default function SettingsScreen() {
               </View>
             )}
 
-            {/* Discovered Printers list */}
-            {loadingPrintNode ? (
+            {/* DB Configured Printers list */}
+            {loading ? (
               <View className="items-center justify-center py-20 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
                 <ActivityIndicator size="large" color="#0F172A" />
-                <Text className="text-slate-500 font-bold mt-3.5 text-xs">Retrieving PrintNode cloud printers...</Text>
+                <Text className="text-slate-500 font-bold mt-3.5 text-xs">Retrieving configured printers...</Text>
               </View>
-            ) : printNodePrinters.length === 0 ? (
+            ) : printers.length === 0 ? (
               <View className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex-row items-center gap-3.5 shadow-xs">
                 <AlertCircle size={20} color="#d97706" />
                 <View className="flex-1">
-                  <Text className="text-xs font-bold text-amber-800">No Printers Discovered</Text>
+                  <Text className="text-xs font-bold text-amber-800">No Configured Printers</Text>
                   <Text className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                    We couldn't find any printers connected to your PrintNode account. Please verify the PrintNode Client is running on your computer and your printers are turned on.
+                    No printers have been synchronized yet. Please click the "Refresh List" button to fetch available printers from your PrintNode account.
                   </Text>
                 </View>
               </View>
             ) : (
               <View className="w-full gap-4">
-                {printNodePrinters.map((printer) => {
-                  const isBillingActive = activeBillPrinterId === String(printer.id);
-                  const isKitchenActive = activeKitchenPrinterId === String(printer.id);
-                  const isOnline = printer.state === 'online';
+                {printers.map((printer) => {
+                  const liveMatch = printNodePrinters.find(p => String(p.id) === printer.ip_address);
+                  const isOnline = liveMatch ? liveMatch.state === 'online' : false;
+                  const computerName = printer.os_printer_name || (liveMatch?.computer?.name ?? 'Unknown');
 
                   return (
                     <View 
                       key={printer.id} 
                       className={`bg-white rounded-2xl border p-5 mb-1.5 gap-4.5 transition-all ${
-                        isBillingActive || isKitchenActive ? 'border-slate-800 shadow-sm' : 'border-slate-200/80 shadow-xs'
+                        printer.is_active ? 'border-slate-800 shadow-sm' : 'border-slate-200/80 shadow-xs'
                       }`}
                     >
                       <View className="flex-row justify-between items-start flex-wrap gap-2.5">
@@ -331,6 +349,7 @@ export default function SettingsScreen() {
                           <View className="flex-1">
                             <View className="flex-row items-center gap-2 flex-wrap">
                               <Text className="font-bold text-[#0F172A] text-sm">{printer.name}</Text>
+                              
                               <View className={`px-2 py-0.5 rounded-full flex-row items-center gap-1 ${
                                 isOnline ? 'bg-emerald-50 border-emerald-200/40' : 'bg-rose-50 border-rose-200/40'
                               }`}>
@@ -339,25 +358,39 @@ export default function SettingsScreen() {
                                   {isOnline ? 'Online' : 'Offline'}
                                 </Text>
                               </View>
+
+                              <View className={`px-2 py-0.5 rounded-full border ${
+                                printer.is_active ? 'bg-slate-100 border-slate-350' : 'bg-slate-50 border-slate-200'
+                              }`}>
+                                <Text className={`text-[9px] font-black uppercase ${printer.is_active ? 'text-slate-700' : 'text-slate-400'}`}>
+                                  {printer.is_active ? 'Enabled' : 'Disabled'}
+                                </Text>
+                              </View>
                             </View>
                             <Text className="text-xs text-slate-500 mt-1 font-semibold">
-                              ID: {printer.id} • Computer: {printer.computer?.name || 'Unknown'} ({printer.computer?.state || 'offline'})
+                              ID: {printer.ip_address} • Computer: {computerName}
                             </Text>
                           </View>
                         </View>
 
                         {/* Active Badges */}
                         <View className="flex-row gap-1.5 flex-wrap">
-                          {isBillingActive && (
+                          {printer.is_active && printer.printer_role === 'bill' && (
                             <View className="bg-slate-900 border border-slate-900 px-3 py-1.5 rounded-xl flex-row items-center gap-1">
                               <CheckCircle2 size={11} color="#ffffff" />
                               <Text className="text-white text-[9px] font-black uppercase">Active Bill</Text>
                             </View>
                           )}
-                          {isKitchenActive && (
+                          {printer.is_active && printer.printer_role === 'kitchen' && (
                             <View className="bg-slate-800 border border-slate-800 px-3 py-1.5 rounded-xl flex-row items-center gap-1">
                               <CheckCircle2 size={11} color="#ffffff" />
                               <Text className="text-white text-[9px] font-black uppercase">Active Kitchen</Text>
+                            </View>
+                          )}
+                          {printer.is_active && printer.is_default && printer.printer_role === 'bill' && (
+                            <View className="bg-sky-500 border border-sky-500 px-3 py-1.5 rounded-xl flex-row items-center gap-1">
+                              <CheckCircle2 size={11} color="#ffffff" />
+                              <Text className="text-white text-[9px] font-black uppercase">Default</Text>
                             </View>
                           )}
                         </View>
@@ -365,53 +398,90 @@ export default function SettingsScreen() {
 
                       {/* Actions row */}
                       <View className="flex-row justify-between border-t border-slate-100 pt-4 flex-wrap gap-3.5 items-center">
-                        <View className="flex-row gap-2 flex-wrap flex-1 min-w-[240px]">
-                          {/* Bill Printer selection */}
+                        <View className="flex-row gap-3 flex-wrap flex-1 min-w-[280px] items-center">
+                          {/* Active toggle */}
                           <Pressable
-                            disabled={submitting || !isOnline}
-                            onPress={() => handleSelectBillingPrinter(printer)}
-                            className={`px-4 h-9 rounded-xl items-center justify-center flex-row gap-1.5 border ${
-                              isBillingActive 
-                                ? 'bg-slate-50 border-slate-200 text-slate-400' 
-                                : 'bg-slate-900 border-slate-900 text-white active:bg-slate-850'
-                            } ${!isOnline ? 'opacity-40' : ''}`}
+                            disabled={submitting}
+                            onPress={() => handleToggleActive(printer)}
+                            className={`px-4 h-9 rounded-xl items-center justify-center flex-row border ${
+                              printer.is_active 
+                                ? 'bg-rose-50 border-rose-200 text-rose-700 active:bg-rose-100' 
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-700 active:bg-emerald-100'
+                            }`}
                           >
-                            <Text className={`font-extrabold text-[11px] ${isBillingActive ? 'text-slate-400' : 'text-white'}`}>
-                              Use as Billing Printer
+                            <Text className={`font-extrabold text-[11px] ${printer.is_active ? 'text-rose-700' : 'text-emerald-700'}`}>
+                              {printer.is_active ? 'Disable' : 'Enable'}
                             </Text>
                           </Pressable>
 
-                          {/* Kitchen Printer selection */}
-                          <Pressable
-                            disabled={submitting || !isOnline}
-                            onPress={() => handleSelectKitchenPrinter(printer)}
-                            className={`px-4 h-9 rounded-xl items-center justify-center flex-row gap-1.5 border ${
-                              isKitchenActive 
-                                ? 'bg-slate-50 border-slate-200 text-slate-400' 
-                                : 'bg-white border-slate-200 text-slate-700 active:bg-slate-50'
-                            } ${!isOnline ? 'opacity-40' : ''}`}
-                          >
-                            <Text className={`font-extrabold text-[11px] ${isKitchenActive ? 'text-slate-400' : 'text-slate-750'}`}>
-                              Use as Kitchen Printer
-                            </Text>
-                          </Pressable>
+                          {/* Role segment selector */}
+                          <View className="flex-row bg-slate-100 p-0.5 rounded-xl border border-slate-200/50">
+                            <Pressable
+                              disabled={submitting}
+                              onPress={() => handleChangeRole(printer, 'bill')}
+                              className={`px-3 py-1.5 rounded-lg ${
+                                printer.printer_role === 'bill' ? 'bg-white shadow-xs' : 'bg-transparent'
+                              }`}
+                            >
+                              <Text className={`text-[10px] font-extrabold ${printer.printer_role === 'bill' ? 'text-slate-800' : 'text-slate-500'}`}>
+                                Billing Receipt
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              disabled={submitting}
+                              onPress={() => handleChangeRole(printer, 'kitchen')}
+                              className={`px-3 py-1.5 rounded-lg ${
+                                printer.printer_role === 'kitchen' ? 'bg-white shadow-xs' : 'bg-transparent'
+                              }`}
+                            >
+                              <Text className={`text-[10px] font-extrabold ${printer.printer_role === 'kitchen' ? 'text-slate-800' : 'text-slate-500'}`}>
+                                Kitchen KOT
+                              </Text>
+                            </Pressable>
+                          </View>
+
+                          {/* Default check (Only relevant for Billing role and when active) */}
+                          {printer.printer_role === 'bill' && printer.is_active && (
+                            <Pressable
+                              disabled={submitting}
+                              onPress={() => handleToggleDefault(printer)}
+                              className="flex-row items-center gap-2 px-2 py-1 active:opacity-75"
+                            >
+                              <View className={`w-4 h-4 rounded-md border items-center justify-center ${
+                                printer.is_default ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-350'
+                              }`}>
+                                {printer.is_default && <CheckCircle2 size={10} color="#ffffff" />}
+                              </View>
+                              <Text className="text-[11px] font-extrabold text-slate-700">Set as Default Billing</Text>
+                            </Pressable>
+                          )}
                         </View>
 
-                        {/* Test Print button */}
-                        <Pressable
-                          disabled={testingPrinterId !== null || !isOnline}
-                          onPress={() => handleTestPrint(printer)}
-                          className={`px-4.5 h-9 rounded-xl border border-slate-200 bg-white active:bg-slate-50 items-center justify-center flex-row gap-1.5 ${!isOnline ? 'opacity-40' : ''}`}
-                        >
-                          {testingPrinterId === printer.id ? (
-                            <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.7 }] }} />
-                          ) : (
-                            <>
-                              <Play size={10} color="#64748b" fill="#64748b" />
-                              <Text className="font-extrabold text-slate-700 text-[11px]">Test Print</Text>
-                            </>
-                          )}
-                        </Pressable>
+                        {/* Test print & Delete */}
+                        <View className="flex-row gap-2 items-center">
+                          <Pressable
+                            disabled={testingPrinterId !== null || !isOnline}
+                            onPress={() => handleTestPrint(printer)}
+                            className={`px-4 h-9 rounded-xl border border-slate-200 bg-white active:bg-slate-50 items-center justify-center flex-row gap-1.5 ${!isOnline ? 'opacity-40' : ''}`}
+                          >
+                            {testingPrinterId === printer.ip_address ? (
+                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.7 }] }} />
+                            ) : (
+                              <>
+                                <Play size={10} color="#64748b" fill="#64748b" />
+                                <Text className="font-extrabold text-slate-700 text-[11px]">Test Print</Text>
+                              </>
+                            )}
+                          </Pressable>
+
+                          <Pressable
+                            disabled={submitting}
+                            onPress={() => handleDeletePrinter(printer.id)}
+                            className="p-2 h-9 w-9 rounded-xl border border-rose-200 bg-rose-50 active:bg-rose-100 items-center justify-center"
+                          >
+                            <Trash2 size={12} color="#e11d48" />
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
                   );
