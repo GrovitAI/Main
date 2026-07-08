@@ -13,15 +13,18 @@ export type PrintNodePrinter = {
   };
 };
 
+export const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location) {
+    return window.location.origin;
+  }
+  return 'http://localhost:8081';
+};
+
 export async function fetchPrintNodePrinters(): Promise<PrintNodePrinter[]> {
-  const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
-  if (!apiKey) throw new Error('PrintNode API key is not configured.');
-  const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
-  const response = await fetch('https://api.printnode.com/printers', {
-    headers: { 'Authorization': authHeader }
-  });
+  const response = await fetch(`${getApiBaseUrl()}/api/printers`);
   if (!response.ok) {
-    throw new Error(`PrintNode API returned ${response.status}`);
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to fetch printers from server: ${response.status}`);
   }
   return await response.json();
 }
@@ -88,13 +91,9 @@ export async function diagnosePrinterConnection(
   printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>
 ): Promise<'connected' | 'unreachable' | 'offline' | 'missing'> {
   if (printer.connection === 'printnode') {
-    const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
-    if (!apiKey || !printer.ip_address) return 'unreachable';
+    if (!printer.ip_address) return 'unreachable';
     try {
-      const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
-      const res = await fetch(`https://api.printnode.com/printers/${printer.ip_address}`, {
-        headers: { 'Authorization': authHeader }
-      });
+      const res = await fetch(`${getApiBaseUrl()}/api/printers?id=${printer.ip_address}`);
       if (!res.ok) return 'unreachable';
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0 && data[0].state === 'online') {
@@ -169,12 +168,6 @@ async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'br
     return;
   }
 
-  const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
-  if (!apiKey) {
-    Alert.alert('Configuration Error', 'PrintNode API key is not configured.');
-    return;
-  }
-
   try {
     const escPosString = [
       '\x1B@', // Reset printer
@@ -184,27 +177,22 @@ async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'br
     ].join('');
 
     const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
-    const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
 
     console.log('[Printer] Sending cloud print job via PrintNode to printer:', printerId);
-    const response = await fetch('https://api.printnode.com/printjobs', {
+    const response = await fetch(`${getApiBaseUrl()}/api/printjobs`, {
       method: 'POST',
       headers: {
-        'Authorization': authHeader,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         printerId: printerId,
-        title: 'Grovit POS Receipt',
-        contentType: 'raw_base64',
-        content: base64Content,
-        source: 'Grovit POS',
+        base64Content: base64Content,
       }),
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`PrintNode API returned ${response.status}: ${errText}`);
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `PrintNode API returned ${response.status}`);
     }
 
     console.log('[Printer] PrintNode job submitted successfully.');

@@ -1,5 +1,5 @@
 import { fetchPrinters } from '@/lib/pos/printer-db-service';
-import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString } from '@/lib/printer/printer-service';
+import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString, getApiBaseUrl } from '@/lib/printer/printer-service';
 
 /**
  * Checks whether the default PrintNode billing printer is online.
@@ -53,11 +53,6 @@ export async function printReceipt(printerName: string, content: string): Promis
         return { success: false, error: 'Invalid PrintNode Printer ID.' };
       }
 
-      const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
-      if (!apiKey) {
-        return { success: false, error: 'PrintNode API key is not configured.' };
-      }
-
       // Convert ESC/POS control characters (initialized reset + cut)
       const escPosString = [
         '\x1B@',
@@ -67,27 +62,22 @@ export async function printReceipt(printerName: string, content: string): Promis
       ].join('');
 
       const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
-      const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
 
       console.log('[PrintService] Sending PrintNode job to default billing printer ID:', printerId);
-      const response = await fetch('https://api.printnode.com/printjobs', {
+      const response = await fetch(`${getApiBaseUrl()}/api/printjobs`, {
         method: 'POST',
         headers: {
-          'Authorization': authHeader,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           printerId: printerId,
-          title: 'Grovit POS Receipt',
-          contentType: 'raw_base64',
-          content: base64Content,
-          source: 'Grovit POS',
+          base64Content: base64Content,
         }),
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        return { success: false, error: `PrintNode API returned ${response.status}: ${errText}` };
+        const errData = await response.json().catch(() => ({}));
+        return { success: false, error: errData.error || `PrintNode API returned ${response.status}` };
       }
 
       return { success: true };
