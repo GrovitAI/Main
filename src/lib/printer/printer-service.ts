@@ -149,6 +149,168 @@ function getLineWidth(paperWidth: string): number {
   return paperWidth === '58mm' ? 32 : 42;
 }
 
+function padLeft(str: string, length: number, char = ' '): string {
+  if (str.length >= length) return str;
+  return char.repeat(length - str.length) + str;
+}
+
+function padRight(str: string, length: number, char = ' '): string {
+  if (str.length >= length) return str;
+  return str + char.repeat(length - str.length);
+}
+
+function center(str: string, length: number, char = ' '): string {
+  if (str.length >= length) return str.substring(0, length);
+  const spaces = Math.floor((length - str.length) / 2);
+  return char.repeat(spaces) + str + char.repeat(length - str.length - spaces);
+}
+
+function separator(length: number, char = '-'): string {
+  return char.repeat(length);
+}
+
+function formatMoney(amount: number): string {
+  return 'Rs.' + amount.toFixed(2);
+}
+
+function wrapText(text: string, limit: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    if ((currentLine + word).length <= limit) {
+      currentLine += (currentLine === '' ? '' : ' ') + word;
+    } else {
+      if (currentLine !== '') {
+        lines.push(currentLine);
+      }
+      currentLine = word;
+      while (currentLine.length > limit) {
+        lines.push(currentLine.substring(0, limit));
+        currentLine = currentLine.substring(limit);
+      }
+    }
+  }
+  if (currentLine !== '') {
+    lines.push(currentLine);
+  }
+  return lines;
+}
+
+function formatItemRow(name: string, qty: number, rate: number, amount: number, totalWidth = 42): string {
+  let nameWidth = 20;
+  let qtyWidth = 4;
+  let rateWidth = 8;
+  let amountWidth = 10;
+
+  if (totalWidth === 32) {
+    nameWidth = 14;
+    qtyWidth = 3;
+    rateWidth = 7;
+    amountWidth = 8;
+  }
+
+  const wrappedNames = wrapText(name, nameWidth);
+  const qtyStr = center(String(qty), qtyWidth);
+  const rateStr = padLeft(rate.toFixed(2), rateWidth);
+  const amountStr = padLeft(amount.toFixed(2), amountWidth);
+
+  let result = '';
+  // First line has all columns
+  const firstLineName = padRight(wrappedNames[0] || '', nameWidth);
+  result += `${firstLineName}${qtyStr}${rateStr}${amountStr}\n`;
+
+  // Subsequent lines only have the wrapped name, padded
+  for (let i = 1; i < wrappedNames.length; i++) {
+    result += `${padRight(wrappedNames[i], nameWidth)}${' '.repeat(qtyWidth + rateWidth + amountWidth)}\n`;
+  }
+  return result;
+}
+
+function buildHeader(width = 42): string[] {
+  return [
+    center('LE LEBAN', width) + '\n',
+    center('Lebanese Cuisine & Bistro', width) + '\n',
+    center('123, Park Street, Kolkata', width) + '\n',
+    center('GSTIN: 19AAACL2345M1ZP', width) + '\n',
+    center('FSSAI: 12822019000123', width) + '\n',
+    center('Phone: +91 98765 43210', width) + '\n',
+  ];
+}
+
+function buildBillInfo(
+  orderName: string,
+  invoiceNumber: string | null | undefined,
+  width = 42
+): string[] {
+  const formattedDate = new Date().toLocaleDateString('en-GB');
+  const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  let orderType = 'Dine-In';
+  if (orderName.toLowerCase().includes('takeaway')) {
+    orderType = 'Takeaway';
+  } else if (orderName.toLowerCase().includes('delivery')) {
+    orderType = 'Delivery';
+  }
+
+  let tokenNo = 'N/A';
+  const tokenMatch = orderName.match(/Token\s*#?\s*(\d+)/i) || orderName.match(/#(\d+)/);
+  if (tokenMatch) {
+    tokenNo = tokenMatch[1];
+  }
+
+  return [
+    padRight('Bill No   : ' + (invoiceNumber || 'PENDING'), width) + '\n',
+    padRight('Date/Time : ' + `${formattedDate} ${formattedTime}`, width) + '\n',
+    padRight('Cashier   : Admin', width) + '\n',
+    padRight('Order Type: ' + orderType, width) + '\n',
+    padRight('Token No  : ' + tokenNo, width) + '\n',
+    padRight('Customer  : Guest', width) + '\n',
+    padRight('Mobile    : N/A', width) + '\n',
+  ];
+}
+
+function buildItemsHeader(width = 42): string[] {
+  let nameWidth = 20;
+  let qtyWidth = 4;
+  let rateWidth = 8;
+  let amountWidth = 10;
+
+  if (width === 32) {
+    nameWidth = 14;
+    qtyWidth = 3;
+    rateWidth = 7;
+    amountWidth = 8;
+  }
+
+  const colHeader = padRight('Item', nameWidth) + center('Qty', qtyWidth) + padLeft('Rate', rateWidth) + padLeft('Amount', amountWidth);
+  return [
+    separator(width) + '\n',
+    colHeader + '\n',
+    separator(width) + '\n',
+  ];
+}
+
+function buildTotals(
+  totalQty: number,
+  totalAmount: number,
+  width = 42
+): string[] {
+  const subtotal = totalAmount / 1.05;
+  const cgst = (totalAmount - subtotal) / 2;
+  const sgst = cgst;
+
+  return [
+    separator(width) + '\n',
+    padLine('Total Qty', String(totalQty), width) + '\n',
+    padLine('Subtotal', 'Rs.' + subtotal.toFixed(2), width) + '\n',
+    padLine('CGST (2.5%)', 'Rs.' + cgst.toFixed(2), width) + '\n',
+    padLine('SGST (2.5%)', 'Rs.' + sgst.toFixed(2), width) + '\n',
+    padLine('Round Off', 'Rs.0.00', width) + '\n',
+  ];
+}
+
 /**
  * Core raw printing method via Grovit Print Agent.
  */
@@ -454,10 +616,9 @@ export const printerService = {
       const printer = activeBillingPrinters.find(p => p.is_default) || activeBillingPrinters[0];
 
       const width = getLineWidth(printer.paper_width);
-      const divider = '-'.repeat(width) + '\n';
-      const doubleDivider = '='.repeat(width) + '\n';
 
       const mergedMap: Record<string, { qty: number; price: number }> = {};
+      let totalQty = 0;
       for (const item of items) {
         const name = item.product_name || item.item_name || 'Item';
         if (mergedMap[name]) {
@@ -465,20 +626,43 @@ export const printerService = {
         } else {
           mergedMap[name] = { qty: item.qty, price: item.price };
         }
+        totalQty += item.qty;
       }
 
+      // 1. Build Header
+      const headerLines = buildHeader(width);
+
+      // 2. Original / Duplicate copy separator
+      const copyTypeLines = [
+        separator(width) + '\n',
+        center(isFinal ? 'ORIGINAL COPY' : 'PROVISIONAL BILL', width) + '\n',
+        separator(width) + '\n',
+      ];
+
+      // 3. Bill Information
+      const billInfoLines = buildBillInfo(orderName, invoiceNumber, width);
+
+      // 4. Items Table Header
+      const itemsHeaderLines = buildItemsHeader(width);
+
+      // 5. Items Rows
       const itemLines: string[] = [];
       for (const [name, detail] of Object.entries(mergedMap)) {
-        itemLines.push(`${name}\n`);
-        const left = `  ${detail.qty} x Rs.${detail.price.toFixed(2)}`;
-        const right = `Rs.${(detail.qty * detail.price).toFixed(2)}`;
-        itemLines.push(padLine(left, right, width) + '\n');
+        itemLines.push(formatItemRow(name, detail.qty, detail.price, detail.qty * detail.price, width));
       }
 
-      const formattedDate = new Date().toLocaleDateString('en-GB');
-      const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      // 6. Totals Section
+      const totalsLines = buildTotals(totalQty, totalAmount, width);
 
-      let footerMessage = isFinal ? '* Thank you for dining with us! *' : '* Thank you for your visit! *';
+      // 7. Grand Total (emphasized)
+      const grandTotalLines = [
+        separator(width, '=') + '\n',
+        padLine('GRAND TOTAL', formatMoney(totalAmount), width) + '\n',
+        separator(width, '=') + '\n',
+      ];
+
+      // 8. Footer Section
+      let footerMessage = isFinal ? 'Thank You!\nVisit Again' : '* Thank you for your visit! *';
       if (typeof window !== 'undefined' && window.localStorage) {
         const storedFooter = window.localStorage.getItem('receiptFooter');
         if (storedFooter !== null) {
@@ -487,27 +671,26 @@ export const printerService = {
       }
 
       const footerLines = footerMessage
-        ? footerMessage.split('\n').map(line => `\x1Ba\x01${line.trim()}\n`).join('')
-        : '';
+        .split('\n')
+        .map(line => center(line.trim(), width) + '\n');
+
+      const poweredByLine = [
+        '\n',
+        center('Powered by Grovit POS', width) + '\n',
+        '\n\n\n\n' // 4 blank lines before cut
+      ];
 
       const lines: string[] = [
-        '\x1Ba\x01', // Center
-        '\x1B!\x18', // Bold double height
-        '       GROVIT POS       \n\n',
-        '\x1B!\x00', // Reset
-        isFinal ? '*** TAX INVOICE ***\n' : '*** PROVISIONAL BILL ***\n',
-        doubleDivider,
-        '\x1Ba\x00', // Left
-        invoiceNumber ? padLine('Bill No   :', invoiceNumber, width) + '\n' : '',
-        padLine('Order Ref :', orderName, width) + '\n',
-        padLine('Date      :', `${formattedDate} ${formattedTime}`, width) + '\n',
-        paymentMethod ? padLine('Payment   :', paymentMethod.toUpperCase(), width) + '\n' : '',
-        divider,
+        '\x1Ba\x00', // Left alignment default
+        ...headerLines,
+        ...copyTypeLines,
+        ...billInfoLines,
+        ...itemsHeaderLines,
         ...itemLines,
-        divider,
-        padLine('TOTAL AMOUNT', `Rs.${totalAmount.toFixed(2)}`, width) + '\n',
-        doubleDivider,
-        footerLines,
+        ...totalsLines,
+        ...grandTotalLines,
+        ...footerLines,
+        ...poweredByLine,
       ];
 
       await printRawToPrinter(printer, lines);
