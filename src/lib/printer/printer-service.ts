@@ -356,7 +356,11 @@ export const printerService = {
             divider,
           ];
 
-          await printRawToPrinter(printer, lines);
+          try {
+            await printRawToPrinter(printer, lines);
+          } catch (err: any) {
+            console.error(`[Printer] KOT print failed for kitchen printer "${printer.name}" (ID: ${printer.ip_address}):`, err);
+          }
         }
       } else {
         console.log('[Printer] No active network kitchen printers configured.');
@@ -440,7 +444,9 @@ export const printerService = {
 
       const activeBillingPrinters = res.data.filter(p => p.is_active && p.printer_role === 'bill');
       if (activeBillingPrinters.length === 0) {
-        console.log('[Printer] No active bill printers configured.');
+        const errorMsg = 'No active billing printer configured.\nGo to Settings -> Printer Configuration.';
+        console.log('[Printer]', errorMsg);
+        Alert.alert('Printer Error', errorMsg);
         return;
       }
 
