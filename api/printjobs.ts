@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+
 function encodeBase64(str: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let result = '';
@@ -38,7 +40,7 @@ export default async function handler(req: any, res: any) {
   console.log('[API] Request received: POST /api/printjobs');
   const apiKey = process.env.PRINTNODE_API_KEY || process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
   console.log('[API] API key exists:', !!apiKey);
-  console.log('process.env.PRINTNODE_API_KEY:', process.env.PRINTNODE_API_KEY);
+  console.log('[API] Raw API key length:', apiKey.length);
 
   if (!apiKey) {
     res.statusCode = 500;
@@ -64,13 +66,22 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
+    const rawBase64 = Buffer.from(`${apiKey}:`, 'utf8').toString('base64');
+    const customBase64 = encodeBase64(apiKey + ':');
+
+    console.log('[API] Buffer Base64:', rawBase64);
+    console.log('[API] Custom Base64:', customBase64);
+    console.log('[API] Encoder Match:', rawBase64 === customBase64);
+
+    const authHeader = `Basic ${rawBase64}`;
+    console.log('[API] Authorization header prefix:', 'Basic ' + rawBase64.substring(0, 15) + '...');
 
     const response = await fetch('https://api.printnode.com/printjobs', {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({
         printerId: Number(printerId),
