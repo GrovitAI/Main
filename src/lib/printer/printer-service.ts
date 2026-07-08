@@ -2,6 +2,30 @@ import { Platform, Alert } from 'react-native';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 
+export type PrintNodePrinter = {
+  id: number;
+  name: string;
+  state: string; // 'online' | 'offline'
+  default: boolean;
+  computer: {
+    name: string;
+    state: string;
+  };
+};
+
+export async function fetchPrintNodePrinters(): Promise<PrintNodePrinter[]> {
+  const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
+  if (!apiKey) throw new Error('PrintNode API key is not configured.');
+  const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
+  const response = await fetch('https://api.printnode.com/printers', {
+    headers: { 'Authorization': authHeader }
+  });
+  if (!response.ok) {
+    throw new Error(`PrintNode API returned ${response.status}`);
+  }
+  return await response.json();
+}
+
 /**
  * Base64 encoding helper for platforms without Buffer.
  */
