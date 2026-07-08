@@ -5,7 +5,7 @@ import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 /**
  * Base64 encoding helper for platforms without Buffer.
  */
-function encodeBase64(str: string): string {
+export function encodeBase64(str: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let result = '';
   let i = 0;
@@ -26,7 +26,7 @@ function encodeBase64(str: string): string {
   return result;
 }
 
-function utf8ToBinaryString(str: string): string {
+export function utf8ToBinaryString(str: string): string {
   return unescape(encodeURIComponent(str));
 }
 

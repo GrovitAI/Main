@@ -1511,11 +1511,11 @@ export default function PosBillingScreen() {
         {isTablet && (
           <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', zIndex: 9999, elevation: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 9999 }}>
-              {/* Print Agent Status Indicator */}
+              {/* Cloud Printer Status Indicator */}
               <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', gap: 6, height: 34 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: printAgentOnline === true ? '#22C55E' : printAgentOnline === false ? '#EF4444' : '#94A3B8' }} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: printAgentOnline === true ? '#1E293B' : printAgentOnline === false ? '#EF4444' : '#64748B' }}>
-                  {printAgentOnline === true ? '🟢 Printer Connected' : printAgentOnline === false ? '⚠ Print Agent Offline' : 'Checking Printer...'}
+                  {printAgentOnline === true ? '🟢 Cloud Printer Online' : printAgentOnline === false ? '⚠ Cloud Printer Offline' : 'Checking Printer...'}
                 </Text>
               </View>
               {/* + New Order */}

@@ -1,75 +1,100 @@
-const PRINT_AGENT_URL = 'http://localhost:4545';
+import { fetchPrinters } from '@/lib/pos/printer-db-service';
+import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString } from '@/lib/printer/printer-service';
 
 /**
- * Checks whether the local Grovit Print Agent is running at port 4545.
+ * Checks whether the default PrintNode billing printer is online.
  */
 export async function isPrintAgentRunning(): Promise<boolean> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1500); // Short timeout for snappy loading check
   try {
-    const res = await fetch(`${PRINT_AGENT_URL}/health`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return res.ok;
+    const res = await fetchPrinters();
+    if (res.error || !res.data) return false;
+    const defaultBillPrinter = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill');
+    if (!defaultBillPrinter) return false;
+    const status = await diagnosePrinterConnection(defaultBillPrinter);
+    return status === 'connected';
   } catch {
-    clearTimeout(timeoutId);
     return false;
   }
 }
 
 /**
- * Fetches the list of available OS printers connected to the local Print Agent spools.
+ * Empty stub kept for backward compatibility (formerly fetched list of local printers).
  */
 export async function getPrinters(): Promise<string[]> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000);
-  try {
-    const res = await fetch(`${PRINT_AGENT_URL}/printers`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.warn('[PrintService] Failed to retrieve local printers list:', err);
-    return [];
-  }
+  return [];
 }
 
 /**
- * Sends a thermal receipt print job to the designated printer.
+ * Sends a thermal receipt print job directly via PrintNode API to the default billing printer.
  */
 export async function printReceipt(printerName: string, content: string): Promise<{ success: boolean; error?: string }> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 seconds print socket timeout
   try {
-    const res = await fetch(`${PRINT_AGENT_URL}/print`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        printerName,
-        type: 'bill',
+    const res = await fetchPrinters();
+    if (res.error || !res.data) {
+      return { success: false, error: res.error || 'No printers configured.' };
+    }
+    
+    // Find active primary bill printer
+    const defaultBillPrinter = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill') || res.data.find(p => p.is_active && p.printer_role === 'bill');
+    if (!defaultBillPrinter) {
+      return { success: false, error: 'No active bill printer configured in database.' };
+    }
+
+    if (defaultBillPrinter.connection === 'printnode') {
+      const printerIdStr = defaultBillPrinter.ip_address;
+      if (!printerIdStr) {
+        return { success: false, error: 'PrintNode Printer ID is not configured.' };
+      }
+
+      const printerId = parseInt(printerIdStr, 10);
+      if (isNaN(printerId)) {
+        return { success: false, error: 'Invalid PrintNode Printer ID.' };
+      }
+
+      const apiKey = process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
+      if (!apiKey) {
+        return { success: false, error: 'PrintNode API key is not configured.' };
+      }
+
+      // Convert ESC/POS control characters (initialized reset + cut)
+      const escPosString = [
+        '\x1B@',
         content,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (res.ok) {
+        '\n\n\n\n',
+        '\x1Bi\x01'
+      ].join('');
+
+      const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
+      const authHeader = 'Basic ' + encodeBase64(apiKey + ':');
+
+      console.log('[PrintService] Sending PrintNode job to default billing printer ID:', printerId);
+      const response = await fetch('https://api.printnode.com/printjobs', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          printerId: printerId,
+          title: 'Grovit POS Receipt',
+          contentType: 'raw_base64',
+          content: base64Content,
+          source: 'Grovit POS',
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return { success: false, error: `PrintNode API returned ${response.status}: ${errText}` };
+      }
+
       return { success: true };
     } else {
-      const data = await res.json().catch(() => ({}));
-      return { success: false, error: data.details || data.error || `HTTP ${res.status}` };
+      return { success: false, error: 'Default billing printer connection type in database is not printnode.' };
     }
   } catch (err: any) {
-    clearTimeout(timeoutId);
-    const msg = err.name === 'AbortError' ? 'Connection timed out' : err.message || String(err);
     console.warn('[PrintService] Thermal print request failed:', err);
-    return { success: false, error: msg };
+    return { success: false, error: err.message || String(err) };
   }
 }
 

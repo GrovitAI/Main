@@ -4,17 +4,16 @@ import { Printer as PrinterIcon, Plus, Trash2, Check, AlertCircle, Settings, Che
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, diagnosePrinterConnection } from '@/lib/printer/printer-service';
-import { checkAgentHealth } from '@/lib/printer/print-agent-service';
-import { getPrinters } from '@/services/printService';
 import { MenuManagement } from '@/components/settings/MenuManagement';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Heart } from 'lucide-react-native';
 
 type PrinterFormState = Omit<Printer, 'id' | 'tenant_id' | 'branch_id'> & { id?: string };
 
 const initialFormState: PrinterFormState = {
   name: '',
   type: 'epson_thermal',
-  connection: 'network',
+  connection: 'printnode',
   ip_address: '',
   port: 9100,
   paper_width: '80mm',
@@ -34,15 +33,6 @@ export default function SettingsScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Global print agent status
-  const [agentOnline, setAgentOnline] = useState<boolean | null>(null);
-  const [checkingAgent, setCheckingAgent] = useState(false);
-
-  // Local Print Agent Spooler states
-  const [localPrinters, setLocalPrinters] = useState<string[]>([]);
-  const [loadingLocalPrinters, setLoadingLocalPrinters] = useState(false);
-  const [selectedLocalPrinter, setSelectedLocalPrinter] = useState<string | null>(null);
-  const [showPrinterDropdown, setShowPrinterDropdown] = useState(false);
   const [receiptFooter, setReceiptFooter] = useState('');
 
   // Accordion state
@@ -52,101 +42,6 @@ export default function SettingsScreen() {
 
   // Connectivity status of the expanded printer
   const [connStatus, setConnStatus] = useState<'connected' | 'unreachable' | 'offline' | 'checking'>('checking');
-
-  const fetchLocalPrintersList = async () => {
-    setLoadingLocalPrinters(true);
-    try {
-      const list = await getPrinters();
-      setLocalPrinters(list);
-    } catch (err) {
-      console.warn('Failed to load local printers:', err);
-      setLocalPrinters([]);
-    } finally {
-      setLoadingLocalPrinters(false);
-    }
-  };
-
-  const checkAgentStatus = async () => {
-    setCheckingAgent(true);
-    try {
-      const online = await checkAgentHealth();
-      setAgentOnline(online);
-      if (online) {
-        setLoadingLocalPrinters(true);
-        const list = await getPrinters();
-        setLocalPrinters(list);
-        setLoadingLocalPrinters(false);
-      }
-    } catch {
-      setAgentOnline(false);
-    } finally {
-      setCheckingAgent(false);
-    }
-  };
-
-  const handleSelectLocalPrinter = (printerName: string | null) => {
-    setSelectedLocalPrinter(printerName);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      if (printerName) {
-        window.localStorage.setItem('billingPrinter', printerName);
-      } else {
-        window.localStorage.removeItem('billingPrinter');
-      }
-    }
-  };
-
-  const [localTesting, setLocalTesting] = useState(false);
-  const [localDrawerKicking, setLocalDrawerKicking] = useState(false);
-
-  const handleLocalTestPrint = async () => {
-    if (!selectedLocalPrinter) return;
-    setLocalTesting(true);
-    setFormError(null);
-    setSuccessMsg(null);
-    try {
-      const res = await fetch('http://localhost:4545/test-print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ printerName: selectedLocalPrinter }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.details || data.error || 'Failed to print test receipt');
-      }
-      setSuccessMsg(`Test print sent to "${selectedLocalPrinter}" successfully!`);
-    } catch (err: any) {
-      setFormError(err.message || String(err));
-    } finally {
-      setLocalTesting(false);
-    }
-  };
-
-  const handleLocalOpenDrawer = async () => {
-    if (!selectedLocalPrinter) return;
-    setLocalDrawerKicking(true);
-    setFormError(null);
-    setSuccessMsg(null);
-    try {
-      const res = await fetch('http://localhost:4545/open-cash-drawer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ printerName: selectedLocalPrinter }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.details || data.error || 'Failed to open cash drawer');
-      }
-      setSuccessMsg(`Cash drawer kick sent via "${selectedLocalPrinter}"!`);
-    } catch (err: any) {
-      setFormError(err.message || String(err));
-    } finally {
-      setLocalDrawerKicking(false);
-    }
-  };
 
   const loadPrinters = async () => {
     setLoading(true);
@@ -164,12 +59,9 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('billingPrinter');
-      setSelectedLocalPrinter(stored);
       const storedFooter = window.localStorage.getItem('receiptFooter') || '* Thank you for your visit! *';
       setReceiptFooter(storedFooter);
     }
-    checkAgentStatus();
     loadPrinters();
   }, []);
 
@@ -481,160 +373,29 @@ export default function SettingsScreen() {
         {activeTab === 'printers' ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
             
-            {/* Local Print Agent Profile Card */}
-            <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs gap-4" style={{ zIndex: showPrinterDropdown ? 50 : 1 }}>
-              <View className="flex-row items-center justify-between flex-wrap gap-4">
-                <View className="flex-row items-center gap-3.5">
-                  <View className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl w-11 h-11 items-center justify-center">
-                    <PrinterIcon size={18} color="#0F172A" />
-                  </View>
-                  <View>
-                    <Text className="text-base font-bold text-[#0F172A]">Local Print Agent</Text>
-                    <Text className="text-xs text-slate-500 mt-0.5 leading-relaxed">Direct IP network printing via local print agent bridge.</Text>
-                  </View>
+            {/* Receipt Footer Message Card */}
+            <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs gap-3">
+              <View className="flex-row items-center gap-3">
+                <View className="p-2 bg-slate-50 border border-slate-100 rounded-lg w-9 h-9 items-center justify-center">
+                  <Heart size={16} color="#0F172A" />
                 </View>
-
-                {/* Status indicator */}
-                <Pressable 
-                  onPress={checkAgentStatus}
-                  className="flex-row items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl active:bg-slate-100"
-                >
-                  <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Agent Status</Text>
-                  {checkingAgent ? (
-                    <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.65 }] }} />
-                  ) : agentOnline === true ? (
-                    <View className="bg-emerald-50 border border-emerald-200/50 px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
-                      <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <Text className="text-emerald-700 text-[9px] font-black uppercase">Online</Text>
-                    </View>
-                  ) : (
-                    <View className="bg-rose-50 border border-rose-200/50 px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
-                      <View className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                      <Text className="text-rose-700 text-[9px] font-black uppercase">Offline</Text>
-                    </View>
-                  )}
-                </Pressable>
+                <View>
+                  <Text className="text-sm font-bold text-[#0F172A]">Receipt Footer Message</Text>
+                  <Text className="text-[10px] text-slate-500 mt-0.5">Customize the thank you note displayed at the bottom of customer bills.</Text>
+                </View>
               </View>
-
-              {/* Printer selection dropdown if agent is online */}
-              {agentOnline === true && (
-                <View className="border-t border-slate-100 pt-4 mt-1">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Active Local Spooler / OS Printer</Text>
-                  
-                  {loadingLocalPrinters ? (
-                    <View className="flex-row items-center gap-2 py-2">
-                      <ActivityIndicator size="small" color="#0F172A" />
-                      <Text className="text-xs text-slate-500 font-semibold">Retrieving system printers...</Text>
-                    </View>
-                  ) : localPrinters.length === 0 ? (
-                    <View className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl flex-row items-center gap-2.5">
-                      <AlertCircle size={15} color="#d97706" />
-                      <Text className="text-xs font-bold text-amber-700 flex-1">
-                        No OS printers found. Please ensure printers are installed on this device.
-                      </Text>
-                    </View>
-                  ) : (
-                    <View className="flex-row items-center gap-3" style={{ zIndex: showPrinterDropdown ? 1000 : 1, overflow: 'visible' }}>
-                      <View className="flex-1 relative" style={{ zIndex: 1000, overflow: 'visible' }}>
-                        {/* Selector UI (Dropdown) */}
-                        <Pressable 
-                          onPress={() => setShowPrinterDropdown(!showPrinterDropdown)}
-                          className="flex-row items-center justify-between border border-slate-200 rounded-xl px-4 py-2 bg-white"
-                          style={{ minHeight: 40 }}
-                        >
-                          <Text className={`text-xs font-bold ${selectedLocalPrinter ? 'text-[#0F172A]' : 'text-slate-400'}`}>
-                            {selectedLocalPrinter || 'Select a system printer...'}
-                          </Text>
-                          <ChevronDown size={14} color="#64748B" />
-                        </Pressable>
-
-                        {showPrinterDropdown && (
-                          <View 
-                            className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-48"
-                            style={{ top: '100%', elevation: 10, zIndex: 1000 }}
-                          >
-                            <ScrollView nestedScrollEnabled>
-                              {localPrinters.map((printerName) => {
-                                const isSelected = selectedLocalPrinter === printerName;
-                                return (
-                                  <Pressable
-                                    key={printerName}
-                                    onPress={() => {
-                                      handleSelectLocalPrinter(printerName);
-                                      setShowPrinterDropdown(false);
-                                    }}
-                                    className={`px-4 py-2.5 flex-row items-center justify-between active:bg-slate-50 ${
-                                      isSelected ? 'bg-slate-50' : ''
-                                    }`}
-                                  >
-                                    <Text className={`text-xs font-bold ${isSelected ? 'text-[#0F172A]' : 'text-slate-600'}`}>
-                                      {printerName}
-                                    </Text>
-                                    {isSelected && <Check size={14} color="#0F172A" />}
-                                  </Pressable>
-                                );
-                              })}
-                            </ScrollView>
-                          </View>
-                        )}
-                      </View>
-
-                      {selectedLocalPrinter ? (
-                        <View className="flex-row gap-2">
-                          <Pressable 
-                            onPress={handleLocalTestPrint}
-                            disabled={localTesting || localDrawerKicking}
-                            className="px-3.5 border border-slate-200 bg-white rounded-xl active:bg-slate-50 h-10 items-center justify-center flex-row gap-1.5"
-                          >
-                            {localTesting ? (
-                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.75 }] }} />
-                            ) : (
-                              <Text className="text-[11px] font-bold text-slate-700">Test Print</Text>
-                            )}
-                          </Pressable>
-
-                          <Pressable 
-                            onPress={handleLocalOpenDrawer}
-                            disabled={localTesting || localDrawerKicking}
-                            className="px-3.5 border border-slate-200 bg-white rounded-xl active:bg-slate-50 h-10 items-center justify-center flex-row gap-1.5"
-                          >
-                            {localDrawerKicking ? (
-                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.75 }] }} />
-                            ) : (
-                              <Text className="text-[11px] font-bold text-slate-700">Open Drawer</Text>
-                            )}
-                          </Pressable>
-
-                          <Pressable 
-                            onPress={() => handleSelectLocalPrinter(null)}
-                            className="px-3.5 border border-rose-200 bg-rose-50 rounded-xl active:bg-rose-100 h-10 items-center justify-center flex-row gap-1.5"
-                          >
-                            <Trash2 size={13} color="#dc2626" />
-                            <Text className="text-[11px] font-extrabold text-rose-700">Clear</Text>
-                          </Pressable>
-                        </View>
-                      ) : null}
-                    </View>
-                  )}
-
-                  {/* Configurable Receipt Footer Input */}
-                  <View className="border-t border-slate-100 pt-4 mt-4 w-full">
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Receipt Footer Message</Text>
-                    <TextInput
-                      value={receiptFooter}
-                      onChangeText={(text) => {
-                        setReceiptFooter(text);
-                        if (typeof window !== 'undefined' && window.localStorage) {
-                          window.localStorage.setItem('receiptFooter', text);
-                        }
-                      }}
-                      placeholder="e.g., * Thank you for your visit! *"
-                      className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-semibold"
-                      style={{ minHeight: 40 }}
-                    />
-                  </View>
-                </View>
-              )}
+              <TextInput
+                value={receiptFooter}
+                onChangeText={(text) => {
+                  setReceiptFooter(text);
+                  if (typeof window !== 'undefined' && window.localStorage) {
+                    window.localStorage.setItem('receiptFooter', text);
+                  }
+                }}
+                placeholder="e.g., * Thank you for your visit! *"
+                className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-semibold"
+                style={{ minHeight: 40 }}
+              />
             </View>
 
             {/* Collapsible accordion network configurations stream */}
