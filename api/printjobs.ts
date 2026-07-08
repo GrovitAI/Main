@@ -38,9 +38,14 @@ export default async function handler(req: any, res: any) {
   }
 
   console.log('[API] Request received: POST /api/printjobs');
-  const apiKey = process.env.PRINTNODE_API_KEY || process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
-  console.log('[API] API key exists:', !!apiKey);
-  console.log('[API] Raw API key length:', apiKey.length);
+  const rawApiKey = process.env.PRINTNODE_API_KEY || process.env.EXPO_PUBLIC_PRINTNODE_API_KEY || '';
+  console.log('[API] Raw API key exists:', !!rawApiKey);
+  console.log('[API] Raw API key length:', rawApiKey.length);
+  console.log('[API] Raw API key char codes:', [...rawApiKey].map(c => c.charCodeAt(0)));
+
+  const apiKey = rawApiKey.trim();
+  console.log('[API] Trimmed API key length:', apiKey.length);
+  console.log('[API] Trimmed API key char codes:', [...apiKey].map(c => c.charCodeAt(0)));
 
   if (!apiKey) {
     res.statusCode = 500;
