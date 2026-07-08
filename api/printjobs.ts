@@ -71,6 +71,32 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    // Task 2: Log payload properties
+    console.log('[API] PrintNode Payload Details:');
+    console.log('  - printerId:', Number(printerId));
+    console.log('  - contentType: raw_base64');
+    console.log('  - source: Grovit POS');
+    console.log('  - title: Grovit POS Receipt');
+    console.log('  - content length (Base64 characters):', base64Content.length);
+
+    // Task 3 & 7: Decode and log the text representation
+    try {
+      const decodedBuffer = Buffer.from(base64Content, 'base64');
+      const decodedText = decodedBuffer.toString('utf8');
+      
+      console.log('[API] Decoded print payload (first 500 chars):');
+      console.log(JSON.stringify(decodedText.substring(0, 500)));
+
+      console.log('[API] Decoded byte char codes (first 100 bytes):');
+      const charCodes = [];
+      for (let idx = 0; idx < Math.min(decodedBuffer.length, 100); idx++) {
+        charCodes.push(decodedBuffer[idx]);
+      }
+      console.log(JSON.stringify(charCodes));
+    } catch (err: any) {
+      console.log('[API] Error decoding Base64 payload:', err.message);
+    }
+
     const rawBase64 = Buffer.from(`${apiKey}:`, 'utf8').toString('base64');
     const customBase64 = encodeBase64(apiKey + ':');
 
