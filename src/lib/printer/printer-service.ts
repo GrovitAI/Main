@@ -256,12 +256,15 @@ export const printerService = {
       if (!ip) {
         throw new Error('No PrintNode Printer ID configured.');
       }
+      const width = printer.paper_width === '58mm' ? 32 : 42;
+      const divider = '-'.repeat(width) + '\n';
       const testReceipt = [
-        '********************************\n',
-        '         PRINTNODE TEST         \n',
-        '          HELLO WORLD           \n',
-        '           1234567890           \n',
-        '********************************\n'
+        divider,
+        '       GROVIT POS\n\n',
+        'Printer Connected via PrintNode \u2713\n\n',
+        `Printer ID: ${ip}\n`,
+        `Date/Time: ${new Date().toLocaleString()}\n`,
+        divider,
       ];
       await printViaPrintNode(printer, testReceipt);
       return 'PrintNode Printer';
