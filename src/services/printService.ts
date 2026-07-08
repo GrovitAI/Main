@@ -8,9 +8,11 @@ export async function isPrintAgentRunning(): Promise<boolean> {
   try {
     const res = await fetchPrinters();
     if (res.error || !res.data) return false;
-    const defaultBillPrinter = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill');
-    if (!defaultBillPrinter) return false;
-    const status = await diagnosePrinterConnection(defaultBillPrinter);
+    const activePrinter = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill')
+                       || res.data.find(p => p.is_active && p.is_default)
+                       || res.data.find(p => p.is_active);
+    if (!activePrinter) return false;
+    const status = await diagnosePrinterConnection(activePrinter);
     return status === 'connected';
   } catch {
     return false;
