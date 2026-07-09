@@ -1124,12 +1124,16 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     let nextOrderName = activeOrder.order_name;
     let nextOrderNum = 0;
     
-    // Scenario 2: No unsent items and already unpaid (legacy) — print bill, mark confirmed, exit
+    // Scenario A: No unsent items, order already in_kitchen — generate bill number, print bill, confirm
     if (unsentItems.length === 0 && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
       const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+
+      // Generate bill number now (first time) or reuse if already set
+      const billNumber = activeOrder.invoice_number || getNextBillNumber();
+
       printerService.printBill(
         activeOrder.order_name,
-        activeOrder.invoice_number,
+        billNumber,
         snapshot.activeOrderItems,
         totalAmount,
         false, // provisional bill
@@ -1146,30 +1150,36 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         }
         return {
           orders: state.orders.map((o) =>
-            o.id === activeOrderId ? { ...o, status: 'confirmed' as const } : o
+            o.id === activeOrderId ? { ...o, status: 'confirmed' as const, invoice_number: billNumber } : o
           ),
           summaries: state.summaries.map((s) =>
-            s.order.id === activeOrderId ? { ...s, order: { ...s.order, status: 'confirmed' as const } } : s
+            s.order.id === activeOrderId
+              ? { ...s, order: { ...s.order, status: 'confirmed' as const, invoice_number: billNumber } }
+              : s
           ),
           billPrintedByOrderId: nextPrinted,
           isEditingUnpaid: false,
           hasUnsavedChanges: false,
         };
       });
-      // Background DB update: transition to confirmed
+      // Background DB: persist bill number + confirmed status
       const { tenant_id, branch_id } = getTenantContext();
       void supabase
         .from('open_orders')
-        .update({ status: 'confirmed' })
+        .update({ status: 'confirmed', invoice_number: billNumber })
         .eq('id', activeOrderId)
         .eq('tenant_id', tenant_id)
         .eq('branch_id', branch_id);
       return true;
     }
 
-    // No client-side order number generation here
+    // Scenario B: Has unsent items or is a fresh draft — generate KOT + bill number + print both
 
-    // Let's handle KOT if there are unsent items
+    // Generate the bill number now. This is the permanent number on the receipt.
+    // Settlement must NOT generate or overwrite this.
+    const billNumber = activeOrder.invoice_number || getNextBillNumber();
+
+    // Handle KOT if there are unsent items
     let nextKotNumber = 0;
     let itemsToSend: { name: string; quantity: number }[] = [];
     let mockTicket: KotTicket | null = null;
@@ -1214,15 +1224,15 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const totalAmount = orderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
     const itemCount = orderItems.reduce((sum, item) => sum + item.qty, 0);
 
-    // Sim print provisional bill
+    // Print the customer bill with the generated bill number
     printerService.printBill(
       nextOrderName,
-      activeOrder.invoice_number,
+      billNumber,
       orderItems,
       totalAmount,
       false, // provisional
       null,  // paymentMethod
-      nextKots  // KOTs so far (includes optimistic new KOT if any)
+      nextKots  // includes the new KOT optimistically
     );
 
     // Optimistically transition cart items to kot_sent: true
@@ -1249,6 +1259,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         ...activeOrder,
         status: 'confirmed' as const,
         order_name: nextOrderName,
+        invoice_number: billNumber,
       },
       itemCount,
       created_at: activeOrder.created_at || new Date().toISOString(),
@@ -1274,7 +1285,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }
       return {
         orders: state.orders.map((o) =>
-          o.id === activeOrderId ? { ...o, status: 'confirmed' as const, order_name: nextOrderName } : o
+          o.id === activeOrderId
+            ? { ...o, status: 'confirmed' as const, order_name: nextOrderName, invoice_number: billNumber }
+            : o
         ),
         summaries: nextSummaries,
         activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
@@ -1329,22 +1342,21 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           });
         }
 
-        // Only do DB write to order status / order name when coming from draft/open or in_kitchen
-        if (wasDraft || activeOrder.status === 'in_kitchen') {
-          const { tenant_id, branch_id } = getTenantContext();
-          const { error: orderError } = await supabase
-            .from('open_orders')
-            .update({
-              status: 'confirmed',
-              order_name: nextOrderName,
-            })
-            .eq('id', activeOrderId)
-            .eq('tenant_id', tenant_id)
-            .eq('branch_id', branch_id);
+        // Always write order status + bill number to DB (regardless of prior status)
+        const { tenant_id, branch_id } = getTenantContext();
+        const { error: orderError } = await supabase
+          .from('open_orders')
+          .update({
+            status: 'confirmed',
+            order_name: nextOrderName,
+            invoice_number: billNumber,
+          })
+          .eq('id', activeOrderId)
+          .eq('tenant_id', tenant_id)
+          .eq('branch_id', branch_id);
 
-          if (orderError) {
-            throw orderError;
-          }
+        if (orderError) {
+          throw orderError;
         }
 
         console.log('[useOrdersStore] Background saveAndPrint success!');

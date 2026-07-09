@@ -1081,7 +1081,10 @@ export async function settleOrderById(
 
     // 6. Mark open order as paid
     const paidAt = new Date().toISOString();
-    const generatedInvoiceNumber = getNextBillNumber();
+
+    // Bill number must already exist from Save & Print.
+    // Only generate a fallback here if the order was settled without going through Save & Print.
+    const invoiceNumber = order.invoice_number || getNextBillNumber();
 
     const needsOrderNumber = !order.order_name || order.order_name.toLowerCase().includes('draft') || !order.order_name.startsWith('Order #');
     let nextOrderName = order.order_name;
@@ -1096,7 +1099,7 @@ export async function settleOrderById(
         status: 'paid',
         paid_at: paidAt,
         completed_at: paidAt,
-        invoice_number: generatedInvoiceNumber,
+        invoice_number: invoiceNumber,
         payment_method: paymentType,
         order_name: nextOrderName,
       })
