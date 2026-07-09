@@ -199,34 +199,20 @@ function wrapText(text: string, limit: number): string[] {
 }
 
 function formatItemRow(name: string, qty: number, rate: number, amount: number, totalWidth = 42): string {
-  let qtyWidth = 4;
-  let rateWidth = 8;
-  let amountWidth = 10;
-
-  if (totalWidth === 32) {
-    qtyWidth = 3;
-    rateWidth = 7;
-    amountWidth = 8;
-  }
-
-  // Name uses the full paper width — no squishing into a narrow column
+  // Name gets full paper width — wraps cleanly if long
   const nameLines = wrapText(name, totalWidth);
 
-  // Numbers are always right-aligned on their own dedicated line
-  const qtyStr    = padLeft(String(qty), qtyWidth);
-  const rateStr   = padLeft(rate.toFixed(2), rateWidth);
-  const amountStr = padLeft(amount.toFixed(2), amountWidth);
-  const numericSection = `${qtyStr}${rateStr}${amountStr}`;
-  const numericLine = padLeft(numericSection, totalWidth);
+  // Detail line: "  2 x 349.00" left  →  "698.00" right
+  const detail  = `  ${qty} x ${rate.toFixed(2)}`;
+  const amtStr  = amount.toFixed(2);
+  const detailLine = padLine(detail, amtStr, totalWidth);
 
   let result = '';
   for (const line of nameLines) {
     result += line + '\n';
   }
-  result += numericLine + '\n';
-
-  // Blank line between items for breathing room
-  result += '\n';
+  result += detailLine + '\n';
+  result += '\n'; // breathing room between items
   return result;
 }
 
@@ -301,20 +287,8 @@ function buildBillInfo(
 }
 
 function buildItemsHeader(width = 42): string[] {
-  let qtyWidth = 4;
-  let rateWidth = 8;
-  let amountWidth = 10;
-
-  if (width === 32) {
-    qtyWidth = 3;
-    rateWidth = 7;
-    amountWidth = 8;
-  }
-
-  // Header row: "Item" on left, column labels right-aligned to match number lines
-  const numericHeader = padLeft('Qty', qtyWidth) + padLeft('Rate', rateWidth) + padLeft('Amt', amountWidth);
-  const colHeader = padLine('Item', numericHeader, width);
-
+  // Header mirrors detail line layout: label left, "Amount" right
+  const colHeader = padLine('Item', 'Amount', width);
   return [
     separator(width) + '\n',
     colHeader + '\n',
