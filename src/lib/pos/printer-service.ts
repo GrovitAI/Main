@@ -1,5 +1,5 @@
 import { printerService as newPrinterService } from '../printer/printer-service';
-import type { PosOrderItem } from './order-types';
+import type { PosOrderItem, KotTicket } from './order-types';
 
 export const printerService = {
   /**
@@ -13,6 +13,7 @@ export const printerService = {
 
   /**
    * Delegates to the production-grade billing/provisional printer.
+   * Pass `kots` to include the Kitchen Tickets audit section on the receipt.
    */
   printBill: (
     orderName: string,
@@ -20,16 +21,19 @@ export const printerService = {
     items: PosOrderItem[],
     totalAmount: number,
     isFinal = false,
-    paymentMethod?: string | null
+    paymentMethod?: string | null,
+    kots?: Pick<KotTicket, 'kot_number' | 'created_at'>[]
   ) => {
-    if (isFinal) {
-      newPrinterService.printBill(orderName, invoiceNumber, items, totalAmount, true, paymentMethod).catch(err => {
-        console.warn('Deferred printSettlementBill failure:', err);
-      });
-    } else {
-      newPrinterService.printBill(orderName, invoiceNumber, items, totalAmount, false, paymentMethod).catch(err => {
-        console.warn('Deferred printBill failure:', err);
-      });
-    }
+    newPrinterService.printBill(
+      orderName,
+      invoiceNumber,
+      items,
+      totalAmount,
+      isFinal,
+      paymentMethod ?? null,
+      kots
+    ).catch(err => {
+      console.warn('Deferred printBill failure:', err);
+    });
   }
 };

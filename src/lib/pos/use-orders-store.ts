@@ -1132,7 +1132,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         activeOrder.invoice_number,
         snapshot.activeOrderItems,
         totalAmount,
-        false // provisional bill
+        false, // provisional bill
+        null,  // paymentMethod
+        snapshot.kotsByOrderId[activeOrderId] ?? []
       );
       set((state) => {
         const nextPrinted = {
@@ -1218,7 +1220,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       activeOrder.invoice_number,
       orderItems,
       totalAmount,
-      false // provisional
+      false, // provisional
+      null,  // paymentMethod
+      nextKots  // KOTs so far (includes optimistic new KOT if any)
     );
 
     // Optimistically transition cart items to kot_sent: true

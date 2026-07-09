@@ -621,6 +621,9 @@ export const printerService = {
 
   /**
    * Prints provisional customer bill to all active bill printers.
+   *
+   * @param kots - Optional array of KOT entries to print on the receipt.
+   *               Each entry needs kot_number and created_at.
    */
   printBill: async (
     orderName: string,
@@ -628,7 +631,8 @@ export const printerService = {
     items: any[],
     totalAmount: number,
     isFinal = false,
-    paymentMethod?: string | null
+    paymentMethod?: string | null,
+    kots?: Array<{ kot_number: number; created_at: string }>
   ): Promise<void> => {
     try {
       const res = await fetchPrinters();
@@ -670,6 +674,20 @@ export const printerService = {
       // 3. Bill Information
       const billInfoLines = buildBillInfo(orderName, invoiceNumber, width);
 
+      // 3b. Kitchen Tickets section
+      const kotSectionLines: string[] = [];
+      if (kots && kots.length > 0) {
+        kotSectionLines.push('Kitchen Tickets' + '\n');
+        kotSectionLines.push(separator(width) + '\n');
+        for (const kot of kots) {
+          const kotTime = new Date(kot.created_at).toLocaleTimeString('en-US', {
+            hour: '2-digit', minute: '2-digit', hour12: false,
+          });
+          kotSectionLines.push(padLine(`#${kot.kot_number}`, kotTime, width) + '\n');
+        }
+        kotSectionLines.push(separator(width) + '\n');
+      }
+
       // 4. Items Table Header
       const itemsHeaderLines = buildItemsHeader(width);
 
@@ -703,6 +721,7 @@ export const printerService = {
         '\x1Ba\x00', // Left alignment default
         ...headerLines,
         ...billInfoLines,
+        ...kotSectionLines,
         ...itemsHeaderLines,
         ...itemLines,
         ...totalsLines,
