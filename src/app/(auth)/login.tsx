@@ -55,23 +55,23 @@ export default function LoginScreen() {
     <>
       <StatusBar style="light" />
       <BrandedGradient variant="hero" className="flex-1">
-        <View className="flex-1 items-center justify-center px-6 py-10">
+        <View className="flex-1 items-center justify-center px-4 py-6">
           <Image
             source={logoSource}
             accessibilityLabel={`${brand.name} logo`}
-            className="h-32 w-64 md:h-40 md:w-72"
+            className="h-16 w-36 md:h-24 md:w-52"
             resizeMode="contain"
           />
 
-          <View className="mt-8 w-full max-w-sm rounded-panel border-2 border-border-soft bg-surface-elevated p-8 shadow-panel">
-            <Text className="text-center text-2xl font-bold text-text-primary">
+          <View className="mt-6 w-full max-w-sm rounded-panel border border-border-soft bg-surface-elevated p-6 shadow-panel">
+            <Text className="text-center text-xl font-bold text-text-primary">
               {brand.name}
             </Text>
-            <Text className="mt-2 text-center text-sm text-text-secondary">
+            <Text className="mt-1.5 text-center text-xs text-text-secondary">
               Sign in to your restaurant POS
             </Text>
 
-            <View className="mt-6 space-y-4">
+            <View className="mt-4 space-y-3">
               {/* Email Input */}
               <View>
                 <Text className="text-xs font-semibold text-text-secondary mb-1">
@@ -80,18 +80,18 @@ export default function LoginScreen() {
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="cashier@grovit.com"
+                  placeholder="cashier@leleban.com"
                   placeholderTextColor="#94a3b8"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
-                  className="w-full px-4 py-3 rounded-xl border border-border text-text-primary bg-surface-tint/20 text-sm focus:border-primary focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border text-text-primary bg-surface-tint/20 text-xs focus:border-primary focus:bg-white"
                 />
               </View>
 
               {/* Password Input */}
-              <View className="mt-4">
+              <View className="mt-3">
                 <Text className="text-xs font-semibold text-text-secondary mb-1">
                   Password
                 </Text>
@@ -104,14 +104,14 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
-                  className="w-full px-4 py-3 rounded-xl border border-border text-text-primary bg-surface-tint/20 text-sm focus:border-primary focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border text-text-primary bg-surface-tint/20 text-xs focus:border-primary focus:bg-white"
                 />
               </View>
             </View>
 
             {/* Error Message Box */}
             {displayError && (
-              <View className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200">
+              <View className="mt-3 p-2.5 rounded-xl bg-red-50 border border-red-200">
                 <Text className="text-xs font-medium text-red-600 text-center">
                   {displayError}
                 </Text>
@@ -122,14 +122,14 @@ export default function LoginScreen() {
             <Pressable
               onPress={handleLogin}
               disabled={isLoading}
-              className="mt-6 overflow-hidden rounded-2xl"
+              className="mt-5 overflow-hidden rounded-2xl"
               style={({ pressed }) => ({
                 opacity: pressed ? 0.9 : 1,
               })}
             >
               <BrandedGradient
                 variant="primarySoft"
-                className="min-h-[48px] items-center justify-center px-8 py-3 flex-row"
+                className="min-h-[44px] items-center justify-center px-8 py-2.5 flex-row"
               >
                 {isLoading ? (
                   <ActivityIndicator size="small" color="#ffffff" className="mr-2" />
