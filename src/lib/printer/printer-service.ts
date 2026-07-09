@@ -199,38 +199,36 @@ function wrapText(text: string, limit: number): string[] {
 }
 
 function formatItemRow(name: string, qty: number, rate: number, amount: number, totalWidth = 42): string {
-  let nameWidth = 20;
   let qtyWidth = 4;
   let rateWidth = 8;
   let amountWidth = 10;
 
   if (totalWidth === 32) {
-    nameWidth = 14;
     qtyWidth = 3;
     rateWidth = 7;
     amountWidth = 8;
   }
 
-  const wrappedNames = wrapText(name, nameWidth);
-  const qtyStr = center(String(qty), qtyWidth);
-  const rateStr = padLeft(rate.toFixed(2), rateWidth);
+  // Name uses the full paper width — no squishing into a narrow column
+  const nameLines = wrapText(name, totalWidth);
+
+  // Numbers are always right-aligned on their own dedicated line
+  const qtyStr    = padLeft(String(qty), qtyWidth);
+  const rateStr   = padLeft(rate.toFixed(2), rateWidth);
   const amountStr = padLeft(amount.toFixed(2), amountWidth);
+  const numericSection = `${qtyStr}${rateStr}${amountStr}`;
+  const numericLine = padLeft(numericSection, totalWidth);
 
   let result = '';
-  // First line has all columns
-  const firstLineName = padRight(wrappedNames[0] || '', nameWidth);
-  result += `${firstLineName}${qtyStr}${rateStr}${amountStr}\n`;
-
-  // Subsequent wrapped name lines
-  for (let i = 1; i < wrappedNames.length; i++) {
-    result += `${padRight(wrappedNames[i], nameWidth)}${' '.repeat(qtyWidth + rateWidth + amountWidth)}\n`;
+  for (const line of nameLines) {
+    result += line + '\n';
   }
+  result += numericLine + '\n';
 
-  // Blank line between items for readability
+  // Blank line between items for breathing room
   result += '\n';
   return result;
 }
-
 
 // ─── Receipt configuration ───────────────────────────────────────────────────
 
@@ -303,19 +301,20 @@ function buildBillInfo(
 }
 
 function buildItemsHeader(width = 42): string[] {
-  let nameWidth = 20;
   let qtyWidth = 4;
   let rateWidth = 8;
   let amountWidth = 10;
 
   if (width === 32) {
-    nameWidth = 14;
     qtyWidth = 3;
     rateWidth = 7;
     amountWidth = 8;
   }
 
-  const colHeader = padRight('Item', nameWidth) + center('Qty', qtyWidth) + padLeft('Rate', rateWidth) + padLeft('Amount', amountWidth);
+  // Header row: "Item" on left, column labels right-aligned to match number lines
+  const numericHeader = padLeft('Qty', qtyWidth) + padLeft('Rate', rateWidth) + padLeft('Amt', amountWidth);
+  const colHeader = padLine('Item', numericHeader, width);
+
   return [
     separator(width) + '\n',
     colHeader + '\n',
