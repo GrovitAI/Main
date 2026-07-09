@@ -59,7 +59,7 @@ export default function LoginScreen() {
           <Image
             source={logoSource}
             accessibilityLabel={`${brand.name} logo`}
-            className="h-16 w-36 md:h-20 md:w-44"
+            style={{ width: 220, height: 110 }}
             resizeMode="contain"
           />
 
