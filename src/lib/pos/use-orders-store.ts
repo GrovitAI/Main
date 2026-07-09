@@ -275,7 +275,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
             const dbStatus = dbSum.order.status;
             const localStatus = localSum.order.status;
             if (
-              (localStatus === 'unpaid' && dbStatus === 'draft') ||
+              ((localStatus === 'unpaid' || localStatus === 'confirmed' || localStatus === 'in_kitchen') && dbStatus === 'draft') ||
+              (localStatus === 'confirmed' && dbStatus === 'in_kitchen') ||
               (localStatus === 'held' && dbStatus === 'draft') ||
               (localStatus === 'paid' && dbStatus !== 'paid') ||
               (localStatus === 'cancelled' && dbStatus !== 'cancelled')
