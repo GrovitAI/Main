@@ -23,7 +23,7 @@ export function getStatusConfig(status: OrderStatus): StatusConfig {
     case 'in_kitchen':
       return { label: 'KITCHEN', bg: '#FFF7ED', text: '#EA580C' };
     case 'confirmed':
-      return { label: 'CONFIRMED', bg: '#EFF6FF', text: '#2563EB' };
+      return { label: 'TO BE PAID', bg: '#EFF6FF', text: '#2563EB' };
     case 'paid':
     case 'completed':
       return { label: status === 'completed' ? 'COMPLETED' : 'PAID', bg: '#F0FDF4', text: '#16A34A' };

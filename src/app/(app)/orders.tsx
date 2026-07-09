@@ -47,13 +47,13 @@ type OrderFilter = 'active' | 'held' | 'unpaid' | 'paid' | 'cancelled' | 'draft'
 
 
 const EDITABLE_STATUSES: OrderStatus[] = ['draft', 'open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
-const ACTIVE_STATUSES: OrderStatus[] = ['open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
+const ACTIVE_STATUSES: OrderStatus[] = ['open', 'held', 'unpaid', 'in_kitchen', 'payment_pending', 'confirmed'];
 
 function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
     case 'active':    return ACTIVE_STATUSES.includes(status);
     case 'held':      return status === 'held';
-    case 'unpaid':    return status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
+    case 'unpaid':    return status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen' || status === 'confirmed';
     case 'paid':      return status === 'paid' || status === 'completed';
     case 'cancelled': return status === 'cancelled';
     case 'draft':     return status === 'draft';
@@ -92,7 +92,7 @@ function computeKpi(summaries: OpenOrderSummary[]): KpiCounts {
   for (const s of summaries) {
     const st = s.order.status;
     if (ACTIVE_STATUSES.includes(st)) active++;
-    if (st === 'unpaid' || st === 'payment_pending' || st === 'in_kitchen') unpaid++;
+    if (st === 'unpaid' || st === 'payment_pending' || st === 'in_kitchen' || st === 'confirmed') unpaid++;
     if (st === 'held') held++;
     if (st === 'paid' || st === 'completed') paid++;
     if (st === 'cancelled') cancelled++;
