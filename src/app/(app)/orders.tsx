@@ -262,12 +262,20 @@ export default function OrdersScreen() {
     }
 
     const productNameById = useOrdersStore.getState().productNameById;
-    const mergedMap: Record<string, number> = {};
+    const mergedMap: Record<string, { qty: number; price: number }> = {};
     for (const item of result.data.items) {
-      const name = productNameById[item.product_id] ?? 'Item';
-      mergedMap[name] = (mergedMap[name] ?? 0) + item.qty;
+      const name = item.item_name || productNameById[item.product_id] || 'Item';
+      if (mergedMap[name]) {
+        mergedMap[name].qty += item.qty;
+      } else {
+        mergedMap[name] = { qty: item.qty, price: item.price ?? 0 };
+      }
     }
-    const mergedItems = Object.entries(mergedMap).map(([name, qty]) => ({ name, qty }));
+    const mergedItems = Object.entries(mergedMap).map(([name, val]) => ({
+      name,
+      qty: val.qty,
+      price: val.price,
+    }));
     setViewingItems(mergedItems);
   }, []);
 
@@ -281,6 +289,43 @@ export default function OrdersScreen() {
     () => summaries.find((s) => s.order.id === viewingOrderId),
     [summaries, viewingOrderId],
   );
+
+  const handleReprintPreviousBill = useCallback(async () => {
+    if (!viewingSummary) return;
+    try {
+      const orderName = viewingSummary.order.order_name || `Order #${viewingSummary.order.id}`;
+      const invoiceNumber = viewingSummary.order.invoice_number;
+      const totalAmount = viewingSummary.totalAmount;
+      const paymentMethod = viewingSummary.order.payment_method;
+
+      const printerName = typeof window !== 'undefined' && window.localStorage
+        ? window.localStorage.getItem('billingPrinter')
+        : null;
+
+      if (!printerName) {
+        showToast('Please configure a billing printer in Settings first.');
+        return;
+      }
+
+      // Format items for print
+      const printItems = viewingItems.map((item) => ({
+        name: item.name,
+        qty: item.qty,
+        price: (item as any).price ?? 0,
+      }));
+
+      const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod);
+      const printResult = await printReceipt(printerName, receiptText);
+      if (printResult.success) {
+        showToast('Bill reprinted successfully.');
+      } else {
+        showToast(`Reprint failed: ${printResult.error || 'unknown error'}`);
+      }
+    } catch (err) {
+      console.warn('[Reprint] Failed to reprint bill:', err);
+      showToast('Failed to reprint bill.');
+    }
+  }, [viewingSummary, viewingItems, showToast]);
 
   // ── Modal footer keyboard navigation ────────────────────────────────────────────
   useEffect(() => {
@@ -853,15 +898,16 @@ export default function OrdersScreen() {
               }
 
               // Paid / Completed / Cancelled (Read-only)
+              const showReprint = status === 'paid' || status === 'completed';
               return (
-                <View style={{ marginTop: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Close"
                     onPress={closeViewModal}
                     style={({ pressed, hovered }: any) => [
                       {
-                        width: '100%',
+                        flex: showReprint ? 1 : 1.5,
                         height: 40,
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -872,22 +918,33 @@ export default function OrdersScreen() {
                       },
                       hovered && { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' },
                       pressed && { transform: [{ scale: 0.98 }] },
-                      modalFooterIndex === 0 && Platform.OS === 'web' && {
-                        borderColor: '#0066b2',
-                        backgroundColor: '#E8F2FA',
-                        shadowColor: '#0066b2',
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 10,
-                        elevation: 4,
-                        transform: [{ scale: 1.02 }],
-                      },
                     ]}
                   >
-                    <Text style={{ fontSize: 12.5, fontWeight: '700', color: modalFooterIndex === 0 ? '#0066b2' : '#64748B' }}>
+                    <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#64748B' }}>
                       Close
                     </Text>
                   </Pressable>
+
+                  {showReprint && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Reprint Bill"
+                      onPress={handleReprintPreviousBill}
+                      style={({ pressed }) => [
+                        { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        pressed && { transform: [{ scale: 0.98 }] },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={['#10b981', '#059669']}
+                        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>
+                          Reprint Bill
+                        </Text>
+                      </LinearGradient>
+                    </Pressable>
+                  )}
                 </View>
               );
             })()}
@@ -904,66 +961,25 @@ export default function OrdersScreen() {
           onConfirm={async (paymentMethod) => {
             if (!settlingOrder) return false;
             setIsSettlingMutating(true);
-            
-            // 1. Pre-settlement fetch of full order items before they get processed
-            let orderItems: any[] = [];
             try {
-              const detailsRes = await fetchOpenOrderById(settlingOrder.order.id);
-              if (detailsRes.data) {
-                orderItems = detailsRes.data.items;
+              // Perform DB write
+              const result = await settleOrderById(settlingOrder.order.id, paymentMethod);
+              if (result.error) {
+                showToast('Connection issue. Please check internet and try again.');
+                return false;
               }
+
+              showToast('Bill settled successfully.');
+              setViewingOrderId(null); // Close the preview layover
+              void loadOrders(true); // Asynchronously reload the orders queue
+              return true;
             } catch (err) {
-              console.warn('[Print] Pre-settlement fetch items failed:', err);
-            }
-
-            // 2. Perform DB write
-            const result = await settleOrderById(settlingOrder.order.id, paymentMethod);
-            setIsSettlingMutating(false);
-
-            if (result.error) {
-              showToast('Connection issue. Please check internet and try again.');
+              console.error('[Settlement] Settle failed:', err);
+              showToast('Settlement failed. Please try again.');
               return false;
+            } finally {
+              setIsSettlingMutating(false);
             }
-
-            // 3. Printing asynchronously after successful save
-            const updatedOrder = result.data;
-            const orderName = updatedOrder?.order_name || settlingOrder.order.order_name || `Order #${settlingOrder.order.id}`;
-            const totalAmount = settlingOrder.totalAmount;
-            
-            const productNameById = useOrdersStore.getState().productNameById;
-            const printItems = orderItems.map((item) => ({
-              name: item.item_name || productNameById[item.product_id] || 'Item',
-              qty: item.qty,
-              price: item.price,
-            }));
-
-            showToast('Bill settled successfully.');
-            setViewingOrderId(null); // Close the preview layover
-            void loadOrders(true); // Asynchronously reload the orders queue
-
-            void (async () => {
-              try {
-                const printerName = typeof window !== 'undefined' && window.localStorage
-                  ? window.localStorage.getItem('billingPrinter')
-                  : null;
-
-                if (printerName) {
-                  const invoiceNumber = updatedOrder?.invoice_number || null;
-                  const paymentMethod = updatedOrder?.payment_method || null;
-                  const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod);
-                  const printResult = await printReceipt(printerName, receiptText);
-                  if (printResult.success) {
-                    showToast('Bill settled & receipt printed.');
-                  } else {
-                    showToast(`Bill settled successfully. (Print failed: ${printResult.error || 'unknown error'})`);
-                  }
-                }
-              } catch (printErr) {
-                console.warn('[Print] Silent printing failed:', printErr);
-              }
-            })();
-
-            return true;
           }}
           isMutating={isSettlingMutating}
         />

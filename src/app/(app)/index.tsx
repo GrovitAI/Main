@@ -804,6 +804,45 @@ export default function PosBillingScreen() {
     }
   }, [isMutating, activeOrderId, activeOrder, activeOrderItems, saveAndPrint, showToast]);
 
+  // Reprint active bill handler
+  const handleReprintActiveBill = useCallback(async () => {
+    if (!activeOrder) return;
+    try {
+      const printerName = typeof window !== 'undefined' && window.localStorage
+        ? window.localStorage.getItem('billingPrinter')
+        : null;
+
+      if (!printerName) {
+        showToast('Please configure a billing printer in Settings first.');
+        return;
+      }
+
+      const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
+      const items = activeOrderItems.map((item) => ({
+        name: item.product_name || item.item_name || 'Item',
+        qty: item.qty,
+        price: item.price,
+      }));
+
+      const receiptText = buildReceiptText(
+        activeOrder.order_name,
+        activeOrder.invoice_number,
+        items,
+        totalAmount,
+        activeOrder.payment_method
+      );
+      const printResult = await printReceipt(printerName, receiptText);
+      if (printResult.success) {
+        showToast('Bill reprinted successfully.');
+      } else {
+        showToast(`Reprint failed: ${printResult.error || 'unknown error'}`);
+      }
+    } catch (err) {
+      console.warn('[Reprint] Failed to reprint:', err);
+      showToast('Failed to reprint bill.');
+    }
+  }, [activeOrder, activeOrderItems, showToast]);
+
   // Cancel order handler
   const handleCancelClick = useCallback(() => {
     if (isMutating) return;
@@ -872,41 +911,14 @@ export default function PosBillingScreen() {
     const result = await settleBill(paymentType);
     const success = !!(result && !result.error && result.data);
     
-    // 3. Printing asynchronously after successful save
+    // 3. Complete settlement
     if (success && result.data) {
       showToast('Bill settled successfully.');
-      const updatedOrder = result.data;
-      
-      void (async () => {
-        try {
-          const printerName = typeof window !== 'undefined' && window.localStorage
-            ? window.localStorage.getItem('billingPrinter')
-            : null;
-
-          if (printerName) {
-            const receiptText = buildReceiptText(
-              updatedOrder.order_name,
-              updatedOrder.invoice_number,
-              items,
-              totalAmount,
-              updatedOrder.payment_method
-            );
-            const printResult = await printReceipt(printerName, receiptText);
-            if (printResult.success) {
-              showToast('Bill settled & receipt printed.');
-            } else {
-              showToast(`Bill settled successfully. (Print failed: ${printResult.error || 'unknown error'})`);
-            }
-          }
-        } catch (printErr) {
-          console.warn('[Print] Silent thermal printing failed:', printErr);
-        }
-      })();
     } else {
       showToast(result?.error || 'Settlement failed. Please try again.');
     }
     return success;
-  }, [settleBill, activeOrderItems, showToast]);
+  }, [settleBill, showToast]);
 
   // Guard Modals mapping
   const activeModalConfig = useMemo(() => {
@@ -1475,6 +1487,7 @@ export default function PosBillingScreen() {
       heldOrders={heldOrdersFiltered}
       itemCountByOrderId={itemCountByOrderId}
       onResumeOrder={handleSelectOrderClick}
+      onReprint={handleReprintActiveBill}
     />
   );
 

@@ -128,7 +128,7 @@ export function buildReceiptText(
   const dashedDivider = '-'.repeat(width);
 
   const lines: string[] = [];
-  lines.push(centerText('LE LEBAN', width));
+  lines.push('\x1B\x45\x01' + centerText('LE LEBAN', width) + '\x1B\x45\x00');
   lines.push(centerText('RESTAURANT POS', width));
   lines.push(divider);
   
@@ -160,7 +160,8 @@ export function buildReceiptText(
   lines.push(dashedDivider);
   
   const totalText = `Rs.${totalAmount.toFixed(2)}`;
-  lines.push(alignLeftRight('TOTAL AMOUNT', totalText, width));
+  const totalLine = alignLeftRight('TOTAL AMOUNT', totalText, width);
+  lines.push('\x1B\x45\x01' + totalLine + '\x1B\x45\x00');
   
   lines.push(divider);
 

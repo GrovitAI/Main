@@ -45,6 +45,7 @@ type OrderPanelProps = {
   onEditBill: () => void;
   onDiscardChanges: () => void;
   onStartNewOrder: () => void;
+  onReprint?: () => void;
   heldOrders: OpenOrder[];
   itemCountByOrderId: Record<string, number>;
   onResumeOrder: (orderId: string) => void;
@@ -75,6 +76,7 @@ export function OrderPanel({
   heldOrders,
   itemCountByOrderId,
   onResumeOrder,
+  onReprint,
 }: OrderPanelProps) {
   const [saveKotHovered, setSaveKotHovered] = useState(false);
   const [savePrintHovered, setSavePrintHovered] = useState(false);
@@ -677,21 +679,41 @@ export function OrderPanel({
  
         {/* Read-only mode — replaces all mutation CTAs */}
         {isReadOnlyView && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onStartNewOrder}
-            style={({ pressed }) => [
-              { marginTop: 10, shadowColor: '#0D6CE0', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 16, elevation: 3 },
-              pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }
-            ]}
-          >
-            <LinearGradient
-              colors={['#0D6CE0', '#0B58B2']}
-              style={{ height: 48, width: '100%', borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}
+          <View style={{ gap: 10 }}>
+            {order && (order.status === 'paid' || order.status === 'completed') && onReprint && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onReprint}
+                style={({ pressed }) => [
+                  { shadowColor: '#10B981', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 2 },
+                  pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }
+                ]}
+              >
+                <LinearGradient
+                  colors={['#10b981', '#059669']}
+                  style={{ height: 44, width: '100%', borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>Reprint Bill</Text>
+                </LinearGradient>
+              </Pressable>
+            )}
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={onStartNewOrder}
+              style={({ pressed }) => [
+                { shadowColor: '#0D6CE0', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 },
+                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }
+              ]}
             >
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>Start New Order</Text>
-            </LinearGradient>
-          </Pressable>
+              <LinearGradient
+                colors={['#0D6CE0', '#0B58B2']}
+                style={{ height: 44, width: '100%', borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>Start New Order</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
         )}
              {/* Bottom actions row — hidden when read-only */}
         {!isReadOnlyView && (

@@ -1370,19 +1370,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }
 
       const settledOrder = result.data;
-      const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
 
-      // 2. Direct network printer call (F8 direct print) using DB values
-      printerService.printBill(
-        settledOrder.order_name,
-        settledOrder.invoice_number,
-        snapshot.activeOrderItems,
-        totalAmount,
-        true, // isFinal = true
-        settledOrder.payment_method
-      );
-
-      // 3. Clear UI & Update summaries
+      // 2. Clear UI & Update summaries
       set((state) => {
         const nextBillPrinted = { ...state.billPrintedByOrderId };
         delete nextBillPrinted[activeOrderId];
