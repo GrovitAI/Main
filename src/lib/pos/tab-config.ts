@@ -48,6 +48,11 @@ const OWNER_TABS: TabConfig[] = [
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
+const KITCHEN_TABS: TabConfig[] = [
+  { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
+  { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
+];
+
 export const APP_TAB_ROUTE_NAMES = [
   'index',
   'orders',
@@ -69,6 +74,12 @@ export function getTabsForRole(role: UserRole): TabConfig[] {
       return MANAGER_TABS;
     case 'owner':
       return OWNER_TABS;
+    case 'admin':
+      return OWNER_TABS; // Admin has owner tabs for operations
+    case 'kitchen':
+      return KITCHEN_TABS; // Kitchen staff only see kitchen display
+    default:
+      return CASHIER_TABS;
   }
 }
 
@@ -80,6 +91,12 @@ export function getDefaultScreenForRole(role: UserRole): string {
       return '/(app)/orders';
     case 'owner':
       return '/(app)/dashboard';
+    case 'admin':
+      return '/(app)/dashboard';
+    case 'kitchen':
+      return '/(app)/kitchen';
+    default:
+      return '/(app)/orders';
   }
 }
 

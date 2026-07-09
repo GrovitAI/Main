@@ -4,7 +4,8 @@ import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing } fr
 import { UIContext } from '@/lib/pos/ui-context';
 
 import { colors } from '@/lib/pos/brand';
-import { CURRENT_ROLE } from '@/lib/pos/session-context';
+import { useSessionStore } from '@/lib/pos/use-session-store';
+import { ActivityIndicator } from 'react-native';
 import {
   APP_TAB_ROUTE_NAMES,
   AppTabRouteName,
@@ -262,10 +263,27 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
 }
 
 export default function AppTabLayout() {
-  const roleTabs = getTabsForRole(CURRENT_ROLE);
-  const initialRouteName = getInitialRouteNameForRole(CURRENT_ROLE);
+  const { session } = useSessionStore();
   const segments = useSegments();
   const pathname = usePathname();
+
+  // Redirect to login if session is not active (Session Guard)
+  useEffect(() => {
+    if (!session) {
+      router.replace('/(auth)/login');
+    }
+  }, [session]);
+
+  if (!session) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0066b2" />
+      </View>
+    );
+  }
+
+  const roleTabs = getTabsForRole(session.role);
+  const initialRouteName = getInitialRouteNameForRole(session.role);
   // tabBarHidden is controlled exclusively by individual screens via useTabBarHidden().
   // index.tsx sets it to true during the splash video and restores it to false when done.
   // We use window.location.pathname (available synchronously before Expo Router hydration)
