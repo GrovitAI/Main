@@ -744,10 +744,12 @@ export default function OrdersScreen() {
             {/* Footer Actions */}
             {viewingOrderId && viewingSummary && (() => {
               const status = viewingSummary.order.status;
-              const isUnpaidOrActive = status === 'draft' || status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
+              const isDraftOrKitchen = status === 'draft' || status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
+              const isConfirmedOrder = status === 'confirmed';
               const isHeld = status === 'held';
 
-              if (isUnpaidOrActive) {
+              // Draft / Kitchen — open in POS to continue working
+              if (isDraftOrKitchen) {
                 return (
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                     <Pressable
@@ -791,21 +793,68 @@ export default function OrdersScreen() {
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Settle Bill"
-                      onPress={() => {
-                        setSettlingOrder(viewingSummary);
-                      }}
+                      onPress={() => { setSettlingOrder(viewingSummary); }}
                       onHoverIn={() => setModalFooterIndex(1)}
                       style={({ pressed }: any) => [
                         { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 1 && Platform.OS === 'web' && {
-                          borderWidth: 2,
-                          borderColor: '#4ADE80',
-                          shadowColor: '#16a34a',
-                          shadowOffset: { width: 0, height: 0 },
-                          shadowOpacity: 0.25,
-                          shadowRadius: 12,
-                          elevation: 6,
+                          borderWidth: 2, borderColor: '#4ADE80',
+                          shadowColor: '#16a34a', shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
+                          transform: [{ scale: 1.02 }],
+                        },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={['#16a34a', '#15803d']}
+                        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>
+                          Settle Bill
+                        </Text>
+                      </LinearGradient>
+                    </Pressable>
+                  </View>
+                );
+              }
+
+              // Confirmed — locked order: Reprint + Settle only
+              if (isConfirmedOrder) {
+                return (
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Reprint Bill"
+                      onPress={handleReprintPreviousBill}
+                      onHoverIn={() => setModalFooterIndex(0)}
+                      style={({ pressed }: any) => [
+                        { flex: 1, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        pressed && { transform: [{ scale: 0.98 }] },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={['#0369a1', '#0284c7']}
+                        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>
+                          Reprint Bill
+                        </Text>
+                      </LinearGradient>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Settle Bill"
+                      onPress={() => { setSettlingOrder(viewingSummary); }}
+                      onHoverIn={() => setModalFooterIndex(1)}
+                      style={({ pressed }: any) => [
+                        { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 1 && Platform.OS === 'web' && {
+                          borderWidth: 2, borderColor: '#4ADE80',
+                          shadowColor: '#16a34a', shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
                           transform: [{ scale: 1.02 }],
                         },
                       ]}

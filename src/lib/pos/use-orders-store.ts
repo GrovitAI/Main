@@ -386,7 +386,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           [orderId]: orderKots,
         },
         isLoadingActiveOrder: false,
-        isEditingUnpaid: !isReadOnly && (order.status === 'unpaid' || order.status === 'in_kitchen') && !state.billPrintedByOrderId[orderId],
+        isEditingUnpaid: !isReadOnly && order.status === 'in_kitchen',
         hasUnsavedChanges: false,
         isReadOnlyView: isReadOnly,
         isWorkspaceEmpty: false,
@@ -979,7 +979,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const optimisticSummary: OpenOrderSummary = {
       order: {
         ...activeOrder,
-        status: 'unpaid' as const,
+        status: 'in_kitchen' as const,
         order_name: nextOrderName,
       },
       itemCount,
@@ -1044,7 +1044,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         }
 
         const { tenant_id, branch_id } = getTenantContext();
-        const updatePayload: any = { status: 'unpaid' };
+        const updatePayload: any = { status: 'in_kitchen' };
         if (wasDraft) {
           updatePayload.order_name = nextOrderName;
         }
@@ -1124,8 +1124,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     let nextOrderName = activeOrder.order_name;
     let nextOrderNum = 0;
     
-    // Scenario 2: No unsent items and already unpaid -> Simply print provisional bill and exit (No DB write)
-    if (unsentItems.length === 0 && activeOrder.status === 'unpaid') {
+    // Scenario 2: No unsent items and already unpaid (legacy) — print bill, mark confirmed, exit
+    if (unsentItems.length === 0 && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
       const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
       printerService.printBill(
         activeOrder.order_name,
@@ -1143,11 +1143,25 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
         }
         return {
+          orders: state.orders.map((o) =>
+            o.id === activeOrderId ? { ...o, status: 'confirmed' as const } : o
+          ),
+          summaries: state.summaries.map((s) =>
+            s.order.id === activeOrderId ? { ...s, order: { ...s.order, status: 'confirmed' as const } } : s
+          ),
           billPrintedByOrderId: nextPrinted,
-          isEditingUnpaid: false, // Exit edit mode upon printing provisional bill
+          isEditingUnpaid: false,
           hasUnsavedChanges: false,
         };
       });
+      // Background DB update: transition to confirmed
+      const { tenant_id, branch_id } = getTenantContext();
+      void supabase
+        .from('open_orders')
+        .update({ status: 'confirmed' })
+        .eq('id', activeOrderId)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
       return true;
     }
 
@@ -1229,7 +1243,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const optimisticSummary: OpenOrderSummary = {
       order: {
         ...activeOrder,
-        status: 'unpaid' as const,
+        status: 'confirmed' as const,
         order_name: nextOrderName,
       },
       itemCount,
@@ -1256,7 +1270,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }
       return {
         orders: state.orders.map((o) =>
-          o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
+          o.id === activeOrderId ? { ...o, status: 'confirmed' as const, order_name: nextOrderName } : o
         ),
         summaries: nextSummaries,
         activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
@@ -1311,13 +1325,13 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           });
         }
 
-        // Only do DB write to order status / order name if transitioning from draft/open status
-        if (wasDraft) {
+        // Only do DB write to order status / order name when coming from draft/open or in_kitchen
+        if (wasDraft || activeOrder.status === 'in_kitchen') {
           const { tenant_id, branch_id } = getTenantContext();
           const { error: orderError } = await supabase
             .from('open_orders')
             .update({
-              status: 'unpaid',
+              status: 'confirmed',
               order_name: nextOrderName,
             })
             .eq('id', activeOrderId)
@@ -1423,7 +1437,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    const allowed = ['draft', 'held', 'unpaid', 'open'].includes(activeOrder.status);
+    const allowed = ['draft', 'held', 'unpaid', 'open', 'in_kitchen', 'confirmed'].includes(activeOrder.status);
     if (!allowed) {
       set({ error: 'This order status cannot be cancelled.' });
       return;

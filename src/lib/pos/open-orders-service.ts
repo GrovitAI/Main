@@ -15,7 +15,8 @@ function isOpenOrderRow(order: OpenOrder): boolean {
     order.status === 'draft' ||
     order.status === 'held' ||
     order.status === 'unpaid' ||
-    order.status === 'in_kitchen'
+    order.status === 'in_kitchen' ||
+    order.status === 'confirmed'
   );
 }
 

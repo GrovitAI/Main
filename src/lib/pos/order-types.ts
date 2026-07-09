@@ -3,6 +3,7 @@ export type OrderStatus =
   | 'held'
   | 'unpaid'
   | 'in_kitchen'
+  | 'confirmed'
   | 'payment_pending'
   | 'paid'
   | 'completed'

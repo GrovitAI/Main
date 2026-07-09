@@ -109,8 +109,12 @@ export function OrderPanel({
   const tax = useMemo(() => calculateTax(subtotal, TAX_RATE), [subtotal]);
   const total = useMemo(() => calculateOrderTotal(subtotal, TAX_RATE), [subtotal]);
 
-  const isUnpaid = order ? (order.status === 'unpaid' || order.status === 'in_kitchen') : false;
-  const isDraft = order ? (order.status === 'draft' || order.status === 'open') : false;
+  const isDraft     = order ? (order.status === 'draft' || order.status === 'open') : false;
+  const isKitchen   = order?.status === 'in_kitchen';
+  const isConfirmed = order?.status === 'confirmed';
+  // Legacy unpaid treated same as confirmed for backward compat
+  const isUnpaid    = order ? (order.status === 'unpaid') : false;
+
   // Read-only mode forces canEdit off regardless of status
   const canEdit = !isReadOnlyView && (isDraft || isEditingUnpaid);
 
@@ -121,32 +125,42 @@ export function OrderPanel({
       ? 'Cancelled Order'
       : order?.status === 'completed'
         ? 'Completed Order'
-        : null;
+        : order?.status === 'confirmed'
+          ? 'Confirmed Bill'
+          : null;
 
   const orderTitle = order
     ? (readOnlyTitle ??
-        ((order.status === 'unpaid' || order.status === 'in_kitchen')
-          ? (order.order_name || 'Unpaid Bill')
-          : (order.status === 'held'
-              ? 'Held Order'
-              : (order.status === 'draft' || order.status === 'open'
-                  ? 'Current Cart'
-                  : formatOrderLabel(order.order_name, 'Order')
+        (isKitchen
+          ? (order.order_name || 'Kitchen Order')
+          : (isUnpaid
+              ? (order.order_name || 'Unpaid Bill')
+              : (order.status === 'held'
+                  ? 'Held Order'
+                  : (isDraft
+                      ? 'Current Cart'
+                      : formatOrderLabel(order.order_name, 'Order')
+                    )
                 )
             )
-        )
+          )
       )
     : 'New Order';
 
-  const hasItems = items.length > 0;
+  const hasItems       = items.length > 0;
   const hasUnsentItems = items.some((item) => !item.kot_sent);
-  const showSaveKotButton = !isReadOnlyView && hasUnsentItems && (isDraft || isEditingUnpaid);
-  const showSaveAndPrintButton = !isReadOnlyView && hasItems && (
-    isDraft || 
-    (isUnpaid && (hasUnsentItems || !isBillPrinted))
-  );
-  const showReprintButton = !isReadOnlyView && hasItems && isUnpaid && !hasUnsentItems && isBillPrinted;
-  const showSettleButton = !isReadOnlyView && isUnpaid && !hasUnsentItems && isBillPrinted;
+
+  // Save KOT: only when there are unsent items and order is in draft or kitchen stage
+  const showSaveKotButton = !isReadOnlyView && hasUnsentItems && (isDraft || isKitchen);
+
+  // Save & Print: available from draft or kitchen — this is the "confirm order" action
+  const showSaveAndPrintButton = !isReadOnlyView && hasItems && (isDraft || isKitchen);
+
+  // Reprint: available once confirmed (bill already printed), no unsent items
+  const showReprintButton = !isReadOnlyView && hasItems && (isConfirmed || isUnpaid) && !hasUnsentItems;
+
+  // Settle: only after order is confirmed (locked)
+  const showSettleButton = !isReadOnlyView && (isConfirmed || isUnpaid);
 
   const handleResetPress = () => {
     if (Platform.OS === 'web') {
@@ -663,6 +677,7 @@ export function OrderPanel({
           </View>
         )}
 
+        {/* Edit Bill: only for legacy 'unpaid' orders, never for confirmed */}
         {!isReadOnlyView && !isEditingUnpaid && isUnpaid && (
           <Pressable
             accessibilityRole="button"

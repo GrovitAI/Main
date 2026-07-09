@@ -21,7 +21,9 @@ export function getStatusConfig(status: OrderStatus): StatusConfig {
     case 'payment_pending':
       return { label: 'UNPAID', bg: '#FFF7ED', text: '#F97316' };
     case 'in_kitchen':
-      return { label: 'KITCHEN', bg: '#F0F9FF', text: '#0251B8' };
+      return { label: 'KITCHEN', bg: '#FFF7ED', text: '#EA580C' };
+    case 'confirmed':
+      return { label: 'CONFIRMED', bg: '#EFF6FF', text: '#2563EB' };
     case 'paid':
     case 'completed':
       return { label: status === 'completed' ? 'COMPLETED' : 'PAID', bg: '#F0FDF4', text: '#16A34A' };
