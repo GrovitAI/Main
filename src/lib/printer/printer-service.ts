@@ -237,29 +237,30 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
 const SHOW_GST_INFORMATION = false;
 
 function buildHeader(width = 42): string[] {
-  // ESC/POS: bold on + double-width on
+  // ESC/POS bold only — do NOT use double-width here.
+  // Double-width causes each character to consume 2 columns, which cuts off text
+  // when centering is calculated at full width. Bold is sufficient for emphasis.
   const boldOn  = '\x1B\x45\x01';
   const boldOff = '\x1B\x45\x00';
-  const dwOn    = '\x1B\x21\x20';
-  const dwOff   = '\x1B\x21\x00';
 
   const lines: string[] = [
-    '\x1Ba\x01',   // center
-    boldOn + dwOn + center('LE LEBAN', width) + dwOff + boldOff + '\n',
+    '\x1Ba\x01',   // center alignment
+    boldOn + 'LE LEBAN' + boldOff + '\n',
     '\n',
     center('No. 13, Balaji Nagar Main Road', width) + '\n',
     center('Kolathur', width) + '\n',
     center('Chennai - 600099', width) + '\n',
     '\n',
     center('PH: 9003301123', width) + '\n',
+    '\n',   // blank line before the first divider
+    '\x1Ba\x00',  // back to left
   ];
 
   if (SHOW_GST_INFORMATION) {
-    lines.push(center('GSTIN: XXXXXXXXXXXX', width) + '\n');
-    lines.push(center('FSSAI: XXXXXXXXXXXXXXX', width) + '\n');
+    lines.splice(-1, 0, center('GSTIN: XXXXXXXXXXXX', width) + '\n');
+    lines.splice(-1, 0, center('FSSAI: XXXXXXXXXXXXXXX', width) + '\n');
   }
 
-  lines.push('\x1Ba\x00');  // back to left
   return lines;
 }
 
@@ -277,9 +278,16 @@ function buildBillInfo(
 
   const billNo = invoiceNumber || 'PENDING';
 
+  // Resolve token display — avoid printing internal status labels
+  const internalLabels = ['draft order', 'draft', 'order'];
+  const rawToken = (orderName || '').trim();
+  const tokenDisplay = (!rawToken || internalLabels.includes(rawToken.toLowerCase()))
+    ? '--'
+    : rawToken;
+
   return [
     separator(width) + '\n',
-    'Name:' + '\n',
+    'Customer: Walk In' + '\n',
     '\n',
     separator(width) + '\n',
     padLine(`Date: ${formattedDate}`, 'Pick Up', width) + '\n',
@@ -287,7 +295,7 @@ function buildBillInfo(
     formattedTime + '\n',
     'Cashier: Biller' + '\n',
     `Bill No: ${billNo}` + '\n',
-    (orderName ? `Token No: ${orderName}` : '') + '\n',
+    `Token No: ${tokenDisplay}` + '\n',
     separator(width) + '\n',
   ];
 }
@@ -322,15 +330,15 @@ function buildTotals(
     separator(width) + '\n',
     padLine('Total Qty:', String(totalQty), width) + '\n',
     '\n',
-    padLine('Sub Total', totalAmount.toFixed(2), width) + '\n',
+    padLine('Sub Total', 'Rs. ' + totalAmount.toFixed(2), width) + '\n',
   ];
 
   if (SHOW_GST_INFORMATION) {
     const subtotal = totalAmount / 1.05;
     const cgst = (totalAmount - subtotal) / 2;
     const sgst = cgst;
-    lines.push(padLine('CGST (2.5%)', 'Rs.' + cgst.toFixed(2), width) + '\n');
-    lines.push(padLine('SGST (2.5%)', 'Rs.' + sgst.toFixed(2), width) + '\n');
+    lines.push(padLine('CGST (2.5%)', 'Rs. ' + cgst.toFixed(2), width) + '\n');
+    lines.push(padLine('SGST (2.5%)', 'Rs. ' + sgst.toFixed(2), width) + '\n');
   }
 
   return lines;
@@ -674,16 +682,12 @@ export const printerService = {
       // 6. Totals Section
       const totalsLines = buildTotals(totalQty, totalAmount, width);
 
-      // 7. Grand Total (bold + double-width)
+      // 7. Grand Total — bold, right-aligned, Rs. prefix (no Unicode ₹ — not supported on all Epson code pages)
       const boldOn  = '\x1B\x45\x01';
       const boldOff = '\x1B\x45\x00';
-      const dwOn    = '\x1B\x21\x20';
-      const dwOff   = '\x1B\x21\x00';
       const grandTotalLines = [
         separator(width) + '\n',
-        '\x1Ba\x01',   // center
-        boldOn + dwOn + padLine('Grand Total', `\u20B9${totalAmount.toFixed(2)}`, width) + dwOff + boldOff + '\n',
-        '\x1Ba\x00',   // left
+        boldOn + padLine('Grand Total', 'Rs. ' + totalAmount.toFixed(2), width) + boldOff + '\n',
         separator(width) + '\n',
       ];
 
