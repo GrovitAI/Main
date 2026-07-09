@@ -221,12 +221,16 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
   const firstLineName = padRight(wrappedNames[0] || '', nameWidth);
   result += `${firstLineName}${qtyStr}${rateStr}${amountStr}\n`;
 
-  // Subsequent lines only have the wrapped name, padded
+  // Subsequent wrapped name lines
   for (let i = 1; i < wrappedNames.length; i++) {
     result += `${padRight(wrappedNames[i], nameWidth)}${' '.repeat(qtyWidth + rateWidth + amountWidth)}\n`;
   }
+
+  // Blank line between items for readability
+  result += '\n';
   return result;
 }
+
 
 // ─── Receipt configuration ───────────────────────────────────────────────────
 
@@ -251,7 +255,7 @@ function buildHeader(width = 42): string[] {
     center('Kolathur', width) + '\n',
     center('Chennai - 600099', width) + '\n',
     '\n',
-    center('PH: 9003301123', width) + '\n',
+    center('PH: 90309 13610', width) + '\n',
     '\n',   // blank line before the first divider
     '\x1Ba\x00',  // back to left
   ];
@@ -287,8 +291,6 @@ function buildBillInfo(
 
   return [
     separator(width) + '\n',
-    'Customer: Walk In' + '\n',
-    '\n',
     separator(width) + '\n',
     padLine(`Date: ${formattedDate}`, 'Pick Up', width) + '\n',
     '\n',
@@ -329,14 +331,14 @@ function buildTotals(
   const lines: string[] = [
     separator(width) + '\n',
     padLine('Total Qty:', String(totalQty), width) + '\n',
-    '\n',
-    padLine('Sub Total', 'Rs. ' + totalAmount.toFixed(2), width) + '\n',
   ];
 
   if (SHOW_GST_INFORMATION) {
     const subtotal = totalAmount / 1.05;
     const cgst = (totalAmount - subtotal) / 2;
     const sgst = cgst;
+    lines.push('\n');
+    lines.push(padLine('Sub Total', 'Rs. ' + subtotal.toFixed(2), width) + '\n');
     lines.push(padLine('CGST (2.5%)', 'Rs. ' + cgst.toFixed(2), width) + '\n');
     lines.push(padLine('SGST (2.5%)', 'Rs. ' + sgst.toFixed(2), width) + '\n');
   }
@@ -674,17 +676,11 @@ export const printerService = {
       // 3. Bill Information
       const billInfoLines = buildBillInfo(orderName, invoiceNumber, width);
 
-      // 3b. Kitchen Tickets section
+      // 3b. KOT reference line — e.g. "KOT: 1, 2, 3"
       const kotSectionLines: string[] = [];
       if (kots && kots.length > 0) {
-        kotSectionLines.push('Kitchen Tickets' + '\n');
-        kotSectionLines.push(separator(width) + '\n');
-        for (const kot of kots) {
-          const kotTime = new Date(kot.created_at).toLocaleTimeString('en-US', {
-            hour: '2-digit', minute: '2-digit', hour12: false,
-          });
-          kotSectionLines.push(padLine(`#${kot.kot_number}`, kotTime, width) + '\n');
-        }
+        const kotNumbers = kots.map(k => String(k.kot_number)).join(', ');
+        kotSectionLines.push(`KOT: ${kotNumbers}` + '\n');
         kotSectionLines.push(separator(width) + '\n');
       }
 
@@ -709,11 +705,9 @@ export const printerService = {
         separator(width) + '\n',
       ];
 
-      // 8. Footer Section
+      // 8. Footer
       const footerLines = [
         center('Thank You..!! & Visit Again..!!', width) + '\n',
-        '\n',
-        center('Powered by Grovit POS', width) + '\n',
         '\n\n\n\n',  // 4 feed lines before cut
       ];
 
