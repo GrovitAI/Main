@@ -228,15 +228,39 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
   return result;
 }
 
+// ─── Receipt configuration ───────────────────────────────────────────────────
+
+/**
+ * Set to true once GST registration is obtained.
+ * When false: GSTIN, FSSAI, CGST, SGST lines are suppressed.
+ */
+const SHOW_GST_INFORMATION = false;
+
 function buildHeader(width = 42): string[] {
-  return [
-    center('LE LEBAN', width) + '\n',
-    center('Lebanese Cuisine & Bistro', width) + '\n',
-    center('123, Park Street, Kolkata', width) + '\n',
-    center('GSTIN: 19AAACL2345M1ZP', width) + '\n',
-    center('FSSAI: 12822019000123', width) + '\n',
-    center('Phone: +91 98765 43210', width) + '\n',
+  // ESC/POS: bold on + double-width on
+  const boldOn  = '\x1B\x45\x01';
+  const boldOff = '\x1B\x45\x00';
+  const dwOn    = '\x1B\x21\x20';
+  const dwOff   = '\x1B\x21\x00';
+
+  const lines: string[] = [
+    '\x1Ba\x01',   // center
+    boldOn + dwOn + center('LE LEBAN', width) + dwOff + boldOff + '\n',
+    '\n',
+    center('No. 13, Balaji Nagar Main Road', width) + '\n',
+    center('Kolathur', width) + '\n',
+    center('Chennai - 600099', width) + '\n',
+    '\n',
+    center('PH: 9003301123', width) + '\n',
   ];
+
+  if (SHOW_GST_INFORMATION) {
+    lines.push(center('GSTIN: XXXXXXXXXXXX', width) + '\n');
+    lines.push(center('FSSAI: XXXXXXXXXXXXXXX', width) + '\n');
+  }
+
+  lines.push('\x1Ba\x00');  // back to left
+  return lines;
 }
 
 function buildBillInfo(
@@ -244,30 +268,27 @@ function buildBillInfo(
   invoiceNumber: string | null | undefined,
   width = 42
 ): string[] {
-  const formattedDate = new Date().toLocaleDateString('en-GB');
-  const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const formattedDate = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+  });
+  const formattedTime = new Date().toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 
-  let orderType = 'Dine-In';
-  if (orderName.toLowerCase().includes('takeaway')) {
-    orderType = 'Takeaway';
-  } else if (orderName.toLowerCase().includes('delivery')) {
-    orderType = 'Delivery';
-  }
-
-  let tokenNo = 'N/A';
-  const tokenMatch = orderName.match(/Token\s*#?\s*(\d+)/i) || orderName.match(/#(\d+)/);
-  if (tokenMatch) {
-    tokenNo = tokenMatch[1];
-  }
+  const billNo = invoiceNumber || 'PENDING';
 
   return [
-    padRight('Bill No   : ' + (invoiceNumber || 'PENDING'), width) + '\n',
-    padRight('Date/Time : ' + `${formattedDate} ${formattedTime}`, width) + '\n',
-    padRight('Cashier   : Admin', width) + '\n',
-    padRight('Order Type: ' + orderType, width) + '\n',
-    padRight('Token No  : ' + tokenNo, width) + '\n',
-    padRight('Customer  : Guest', width) + '\n',
-    padRight('Mobile    : N/A', width) + '\n',
+    separator(width) + '\n',
+    'Name:' + '\n',
+    '\n',
+    separator(width) + '\n',
+    padLine(`Date: ${formattedDate}`, 'Pick Up', width) + '\n',
+    '\n',
+    formattedTime + '\n',
+    'Cashier: Biller' + '\n',
+    `Bill No: ${billNo}` + '\n',
+    (orderName ? `Token No: ${orderName}` : '') + '\n',
+    separator(width) + '\n',
   ];
 }
 
@@ -297,18 +318,22 @@ function buildTotals(
   totalAmount: number,
   width = 42
 ): string[] {
-  const subtotal = totalAmount / 1.05;
-  const cgst = (totalAmount - subtotal) / 2;
-  const sgst = cgst;
-
-  return [
+  const lines: string[] = [
     separator(width) + '\n',
-    padLine('Total Qty', String(totalQty), width) + '\n',
-    padLine('Subtotal', 'Rs.' + subtotal.toFixed(2), width) + '\n',
-    padLine('CGST (2.5%)', 'Rs.' + cgst.toFixed(2), width) + '\n',
-    padLine('SGST (2.5%)', 'Rs.' + sgst.toFixed(2), width) + '\n',
-    padLine('Round Off', 'Rs.0.00', width) + '\n',
+    padLine('Total Qty:', String(totalQty), width) + '\n',
+    '\n',
+    padLine('Sub Total', totalAmount.toFixed(2), width) + '\n',
   ];
+
+  if (SHOW_GST_INFORMATION) {
+    const subtotal = totalAmount / 1.05;
+    const cgst = (totalAmount - subtotal) / 2;
+    const sgst = cgst;
+    lines.push(padLine('CGST (2.5%)', 'Rs.' + cgst.toFixed(2), width) + '\n');
+    lines.push(padLine('SGST (2.5%)', 'Rs.' + sgst.toFixed(2), width) + '\n');
+  }
+
+  return lines;
 }
 
 /**
@@ -632,12 +657,7 @@ export const printerService = {
       // 1. Build Header
       const headerLines = buildHeader(width);
 
-      // 2. Original / Duplicate copy separator
-      const copyTypeLines = [
-        separator(width) + '\n',
-        center(isFinal ? 'ORIGINAL COPY' : 'PROVISIONAL BILL', width) + '\n',
-        separator(width) + '\n',
-      ];
+
 
       // 3. Bill Information
       const billInfoLines = buildBillInfo(orderName, invoiceNumber, width);
@@ -654,43 +674,36 @@ export const printerService = {
       // 6. Totals Section
       const totalsLines = buildTotals(totalQty, totalAmount, width);
 
-      // 7. Grand Total (emphasized)
+      // 7. Grand Total (bold + double-width)
+      const boldOn  = '\x1B\x45\x01';
+      const boldOff = '\x1B\x45\x00';
+      const dwOn    = '\x1B\x21\x20';
+      const dwOff   = '\x1B\x21\x00';
       const grandTotalLines = [
-        separator(width, '=') + '\n',
-        padLine('GRAND TOTAL', formatMoney(totalAmount), width) + '\n',
-        separator(width, '=') + '\n',
+        separator(width) + '\n',
+        '\x1Ba\x01',   // center
+        boldOn + dwOn + padLine('Grand Total', `\u20B9${totalAmount.toFixed(2)}`, width) + dwOff + boldOff + '\n',
+        '\x1Ba\x00',   // left
+        separator(width) + '\n',
       ];
 
       // 8. Footer Section
-      let footerMessage = isFinal ? 'Thank You!\nVisit Again' : '* Thank you for your visit! *';
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const storedFooter = window.localStorage.getItem('receiptFooter');
-        if (storedFooter !== null) {
-          footerMessage = storedFooter;
-        }
-      }
-
-      const footerLines = footerMessage
-        .split('\n')
-        .map(line => center(line.trim(), width) + '\n');
-
-      const poweredByLine = [
+      const footerLines = [
+        center('Thank You..!! & Visit Again..!!', width) + '\n',
         '\n',
         center('Powered by Grovit POS', width) + '\n',
-        '\n\n\n\n' // 4 blank lines before cut
+        '\n\n\n\n',  // 4 feed lines before cut
       ];
 
       const lines: string[] = [
         '\x1Ba\x00', // Left alignment default
         ...headerLines,
-        ...copyTypeLines,
         ...billInfoLines,
         ...itemsHeaderLines,
         ...itemLines,
         ...totalsLines,
         ...grandTotalLines,
         ...footerLines,
-        ...poweredByLine,
       ];
 
       await printRawToPrinter(printer, lines);
