@@ -55,26 +55,26 @@ export default function LoginScreen() {
     <>
       <StatusBar style="light" />
       <BrandedGradient variant="hero" className="flex-1">
-        <View className="flex-1 items-center justify-center px-4 py-4">
+        <View className="flex-1 items-center justify-center px-6 py-8">
           <Image
             source={logoSource}
             accessibilityLabel={`${brand.name} logo`}
-            className="h-12 w-28 md:h-16 md:w-36"
+            className="h-16 w-36 md:h-20 md:w-44"
             resizeMode="contain"
           />
 
-          <View className="mt-4 w-full max-w-[320px] rounded-panel border border-border-soft bg-surface-elevated p-5 shadow-panel">
-            <Text className="text-center text-lg font-bold text-text-primary">
+          <View className="mt-6 w-full max-w-[360px] rounded-panel border border-border-soft bg-surface-elevated p-8 shadow-panel">
+            <Text className="text-center text-xl font-bold text-text-primary">
               {brand.name}
             </Text>
-            <Text className="mt-1 text-center text-[10px] text-text-secondary">
+            <Text className="mt-1.5 text-center text-xs text-text-secondary">
               Sign in to your restaurant POS
             </Text>
 
-            <View className="mt-3.5 space-y-2.5">
+            <View className="mt-6 space-y-4">
               {/* Email Input */}
               <View>
-                <Text className="text-[10px] font-semibold text-text-secondary mb-1">
+                <Text className="text-xs font-semibold text-text-secondary mb-1.5">
                   Email Address
                 </Text>
                 <TextInput
@@ -86,13 +86,13 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
-                  className="w-full px-3 py-2 rounded-lg border border-border text-text-primary bg-surface-tint/20 text-xs focus:border-primary focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border text-text-primary bg-surface-tint/10 text-sm focus:border-primary focus:bg-white"
                 />
               </View>
 
               {/* Password Input */}
-              <View className="mt-2.5">
-                <Text className="text-[10px] font-semibold text-text-secondary mb-1">
+              <View className="mt-4">
+                <Text className="text-xs font-semibold text-text-secondary mb-1.5">
                   Password
                 </Text>
                 <TextInput
@@ -104,15 +104,15 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
-                  className="w-full px-3 py-2 rounded-lg border border-border text-text-primary bg-surface-tint/20 text-xs focus:border-primary focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border text-text-primary bg-surface-tint/10 text-sm focus:border-primary focus:bg-white"
                 />
               </View>
             </View>
 
             {/* Error Message Box */}
             {displayError && (
-              <View className="mt-2.5 p-2 rounded-lg bg-red-50 border border-red-200">
-                <Text className="text-[10px] font-medium text-red-600 text-center">
+              <View className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200">
+                <Text className="text-xs font-medium text-red-600 text-center">
                   {displayError}
                 </Text>
               </View>
@@ -122,14 +122,14 @@ export default function LoginScreen() {
             <Pressable
               onPress={handleLogin}
               disabled={isLoading}
-              className="mt-4 overflow-hidden rounded-xl"
+              className="mt-6 overflow-hidden rounded-2xl"
               style={({ pressed }) => ({
                 opacity: pressed ? 0.9 : 1,
               })}
             >
               <BrandedGradient
                 variant="primarySoft"
-                className="min-h-[38px] items-center justify-center px-8 py-2 flex-row"
+                className="min-h-[44px] items-center justify-center px-8 py-2.5 flex-row"
               >
                 {isLoading ? (
                   <ActivityIndicator size="small" color="#ffffff" className="mr-2" />
