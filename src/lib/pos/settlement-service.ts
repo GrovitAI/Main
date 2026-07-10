@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getTenantContext } from './tenant-context';
+import { getTenantContext, requireBranchContext } from './tenant-context';
 
 export type Settlement = {
   id: string;
@@ -43,13 +43,14 @@ export async function createSettlement(
   input: Pick<Settlement, 'amount' | 'payment_method' | 'reference' | 'notes' | 'settled_at'>,
 ): Promise<ServiceResult<Settlement>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const context = getTenantContext();
+    const branchId = requireBranchContext(context);
 
     const { data, error } = await supabase
       .from('settlements')
       .insert({
-        tenant_id,
-        branch_id,
+        tenant_id: context.tenant_id,
+        branch_id: branchId,
         amount: input.amount,
         payment_method: input.payment_method,
         reference: input.reference,
