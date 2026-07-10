@@ -76,8 +76,16 @@ export async function fetchAnalyticsDashboard(
   try {
     const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
 
-    const startTimestamp = `${filters.startDate}T00:00:00.000Z`;
-    const endTimestamp = `${filters.endDate}T23:59:59.999Z`;
+    // The restaurant business day runs from 1 PM afternoon to 1 PM the next afternoon
+    // (covering the operational hours of 2 PM to 2 AM).
+    // Construct local Date objects and let JS convert them to UTC ISO strings.
+    const startLocal = new Date(`${filters.startDate}T13:00:00`);
+    
+    const endLocal = new Date(`${filters.endDate}T13:00:00`);
+    endLocal.setDate(endLocal.getDate() + 1); // Extend to 1 PM of the day after endDate
+
+    const startTimestamp = startLocal.toISOString();
+    const endTimestamp = endLocal.toISOString();
 
     // Determine effective branch: explicit filter > session branch (non-owner)
     const effectiveBranchId = filters.branchId ?? (!isOwnerOrAdmin ? branch_id : null);
@@ -108,6 +116,15 @@ export async function fetchAnalyticsDashboard(
         error: null,
       };
     }
+
+    // Helper: Shift bills created before 1 PM local time to the previous business date
+    const getBusinessDate = (dateStr: string): Date => {
+      const date = new Date(dateStr);
+      if (date.getHours() < 13) {
+        date.setDate(date.getDate() - 1);
+      }
+      return date;
+    };
 
     // 2. Dynamic time filter function
     const filterByTime = (dateStr: string) => {
@@ -185,9 +202,10 @@ export async function fetchAnalyticsDashboard(
       dayMap.set(label, { sales: 0, orders: 0 });
     }
 
-    // Populate day values from actual paid bills
+    // Populate day values from actual paid bills using their business date
     paidBills.forEach((bill) => {
-      const label = formatDateLabel(bill.created_at);
+      const bizDate = getBusinessDate(bill.created_at);
+      const label = formatDateLabel(bizDate.toISOString());
       const current = dayMap.get(label) || { sales: 0, orders: 0 };
       dayMap.set(label, {
         sales: current.sales + (bill.total_amount || 0),
