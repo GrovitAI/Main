@@ -43,15 +43,12 @@ const SEARCH_DEBOUNCE_MS = 200;
 
 // ─── Filter types ─────────────────────────────────────────────────────────────
 
-type OrderFilter = 'active' | 'held' | 'unpaid' | 'paid' | 'cancelled' | 'draft' | 'all';
-
+type OrderFilter = 'held' | 'unpaid' | 'paid' | 'cancelled' | 'draft' | 'all';
 
 const EDITABLE_STATUSES: OrderStatus[] = ['draft', 'open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
-const ACTIVE_STATUSES: OrderStatus[] = ['open', 'held', 'unpaid', 'in_kitchen', 'payment_pending', 'confirmed'];
 
 function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
-    case 'active':    return ACTIVE_STATUSES.includes(status);
     case 'held':      return status === 'held';
     case 'unpaid':    return status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen' || status === 'confirmed';
     case 'paid':      return status === 'paid' || status === 'completed';
@@ -78,7 +75,6 @@ function matchesSearch(summary: OpenOrderSummary, query: string): boolean {
 // ─── KPI counts ───────────────────────────────────────────────────────────────
 
 type KpiCounts = {
-  active: number;
   unpaid: number;
   held: number;
   paid: number;
@@ -88,17 +84,16 @@ type KpiCounts = {
 };
 
 function computeKpi(summaries: OpenOrderSummary[]): KpiCounts {
-  let active = 0, unpaid = 0, held = 0, paid = 0, cancelled = 0, draft = 0;
+  let unpaid = 0, held = 0, paid = 0, cancelled = 0, draft = 0;
   for (const s of summaries) {
     const st = s.order.status;
-    if (ACTIVE_STATUSES.includes(st)) active++;
     if (st === 'unpaid' || st === 'payment_pending' || st === 'in_kitchen' || st === 'confirmed') unpaid++;
     if (st === 'held') held++;
     if (st === 'paid' || st === 'completed') paid++;
     if (st === 'cancelled') cancelled++;
     if (st === 'draft') draft++;
   }
-  return { active, unpaid, held, paid, cancelled, draft, all: summaries.length };
+  return { unpaid, held, paid, cancelled, draft, all: summaries.length };
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -146,7 +141,7 @@ export default function OrdersScreen() {
   const error = storeError;
 
   // ── UI state ────────────────────────────────────────────────────────────────
-  const [activeFilter, setActiveFilter] = useState<OrderFilter>('active');
+  const [activeFilter, setActiveFilter] = useState<OrderFilter>('unpaid');
   const [searchInputValue, setSearchInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,10 +213,10 @@ export default function OrdersScreen() {
   // ── Dynamic header subtext ───────────────────────────────────────────────────
   const headerSubtext = useMemo(() => {
     const parts: string[] = [];
-    if (kpi.active > 0) parts.push(`${kpi.active} active`);
     if (kpi.unpaid > 0) parts.push(`${kpi.unpaid} unpaid`);
+    if (kpi.draft > 0) parts.push(`${kpi.draft} drafts`);
     if (kpi.held > 0) parts.push(`${kpi.held} held`);
-    return parts.length > 0 ? parts.join(' • ') : 'No active orders';
+    return parts.length > 0 ? parts.join(' • ') : 'No open orders';
   }, [kpi]);
 
   // ── Filtered + searched results ──────────────────────────────────────────────
@@ -516,12 +511,11 @@ export default function OrdersScreen() {
         <FlatList
           horizontal
           data={[
-            { id: 'active'    as OrderFilter, label: 'Active',    count: kpi.active,    color: '#0066b2', bg: '#E8F2FA' },
             { id: 'unpaid'    as OrderFilter, label: 'Unpaid',    count: kpi.unpaid,    color: '#F97316', bg: '#FFF4EC' },
+            { id: 'draft'     as OrderFilter, label: 'Draft',     count: kpi.draft,     color: '#475569', bg: '#F1F5F9' },
             { id: 'held'      as OrderFilter, label: 'Held',      count: kpi.held,      color: '#D97706', bg: '#FEF3C7' },
             { id: 'paid'      as OrderFilter, label: 'Paid',      count: kpi.paid,      color: '#16A34A', bg: '#F0FDF4' },
             { id: 'cancelled' as OrderFilter, label: 'Cancelled', count: kpi.cancelled, color: '#64748B', bg: '#F1F5F9' },
-            { id: 'draft'     as OrderFilter, label: 'Draft',     count: kpi.draft,     color: '#475569', bg: '#F1F5F9' },
             { id: 'all'       as OrderFilter, label: 'All',       count: kpi.all,       color: '#64748B', bg: '#F1F5F9' },
           ]}
           keyExtractor={(item) => item.id}
@@ -558,8 +552,8 @@ export default function OrdersScreen() {
             <Text style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', marginTop: 6 }}>
               {searchQuery
                 ? `No results for "${searchQuery}"`
-                : activeFilter === 'active'
-                  ? 'No active orders right now'
+                : activeFilter === 'unpaid'
+                  ? 'No unpaid bills right now'
                   : `No ${activeFilter} orders today`}
             </Text>
           </View>
