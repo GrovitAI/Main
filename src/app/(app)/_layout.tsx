@@ -5,7 +5,8 @@ import { UIContext } from '@/lib/pos/ui-context';
 
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { ChevronDown, MapPin, Layers, User } from 'lucide-react-native';
 import {
   APP_TAB_ROUTE_NAMES,
   AppTabRouteName,
@@ -367,47 +368,322 @@ export default function AppTabLayout() {
     };
   }, [roleTabs]);
 
+  const setBranchScope = useSessionStore((s) => s.setBranchScope);
+  const showHeader = session && (session.role === 'owner' || session.role === 'admin');
+
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>
-    <Tabs
-      initialRouteName={initialRouteName}
-      tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      {APP_TAB_ROUTE_NAMES.map((routeName) => {
-        const tab = getTabConfigForRoute(routeName, roleTabs);
-
-        if (!tab) {
-          return (
-            <Tabs.Screen
-              key={routeName}
-              name={routeName}
-              options={{
-                href: null,
-              }}
-            />
-          );
-        }
-
-        const TabIcon = tab.icon;
-
-        return (
-          <Tabs.Screen
-            key={routeName}
-            name={routeName}
-            options={{
-              title: tab.label,
-              headerShown: false,
-              tabBarIcon: ({ color, size }) => (
-                <TabIcon color={color} size={size} />
-              ),
-            }}
+      <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        {showHeader && (
+          <GlobalHeader
+            session={session}
+            setBranchScope={setBranchScope}
           />
-        );
-      })}
-    </Tabs>
+        )}
+        <View style={{ flex: 1 }}>
+          <Tabs
+            initialRouteName={initialRouteName}
+            tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            {APP_TAB_ROUTE_NAMES.map((routeName) => {
+              const tab = getTabConfigForRoute(routeName, roleTabs);
+
+              if (!tab) {
+                return (
+                  <Tabs.Screen
+                    key={routeName}
+                    name={routeName}
+                    options={{
+                      href: null,
+                    }}
+                  />
+                );
+              }
+
+              const TabIcon = tab.icon;
+
+              return (
+                <Tabs.Screen
+                  key={routeName}
+                  name={routeName}
+                  options={{
+                    title: tab.label,
+                    headerShown: false,
+                    tabBarIcon: ({ color, size }) => (
+                      <TabIcon color={color} size={size} />
+                    ),
+                  }}
+                />
+              );
+            })}
+          </Tabs>
+        </View>
+      </View>
     </UIContext.Provider>
   );
 }
+
+// ─── Global Header & Branch Selector Dropdown ───────────────────────────────────
+
+const headerLogo = require('@/../assets/images/le-leban-logo.png') as number;
+
+function GlobalHeader({ session, setBranchScope }: { session: any; setBranchScope: any }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const currentScope = session.branchScope;
+
+  const currentLabel = currentScope.mode === 'all'
+    ? 'All Branches'
+    : (session.accessibleBranches.find((b: any) => b.id === currentScope.branchId)?.name || 'Home Branch');
+
+  const handleSelectBranch = (branchId: string | 'all') => {
+    if (branchId === 'all') {
+      setBranchScope({ mode: 'all' });
+    } else {
+      setBranchScope({ mode: 'single', branchId });
+    }
+    setMenuOpen(false);
+  };
+
+  return (
+    <View style={styles.headerContainer}>
+      {/* Left side: Logo and Role Badge */}
+      <View style={styles.leftSection}>
+        <Image
+          source={headerLogo}
+          style={{ width: 56, height: 26 }}
+          resizeMode="contain"
+          accessibilityLabel="Le Leban Logo"
+        />
+        <View style={styles.roleBadge}>
+          <Text style={styles.roleText}>{session.role.toUpperCase()}</Text>
+        </View>
+      </View>
+
+      {/* Right side: Branch Selector and Profile Card */}
+      <View style={styles.rightSection}>
+        {/* Branch Selector Dropdown Trigger */}
+        <View style={{ zIndex: 10001 }}>
+          <Pressable
+            onPress={() => setMenuOpen(!menuOpen)}
+            style={styles.branchSelectorTrigger}
+          >
+            {currentScope.mode === 'all' ? (
+              <Layers size={13} color="#0066b2" />
+            ) : (
+              <MapPin size={13} color="#0066b2" />
+            )}
+            <Text style={styles.branchSelectorText}>{currentLabel}</Text>
+            <ChevronDown size={12} color="#64748B" />
+          </Pressable>
+
+          {/* Popover Dropdown Menu */}
+          {menuOpen && (
+            <>
+              {/* Pressable Backdrop to click outside and close */}
+              <Pressable
+                style={styles.backdrop}
+                onPress={() => setMenuOpen(false)}
+              />
+              <View style={styles.dropdownMenu}>
+                <Text style={styles.dropdownHeader}>Switch Branch Scope</Text>
+                
+                {/* Option: All Branches */}
+                <Pressable
+                  onPress={() => handleSelectBranch('all')}
+                  style={[
+                    styles.dropdownItem,
+                    currentScope.mode === 'all' && styles.dropdownItemActive
+                  ]}
+                >
+                  <Layers size={13} color={currentScope.mode === 'all' ? '#0066b2' : '#64748B'} />
+                  <Text style={[
+                    styles.dropdownItemText,
+                    currentScope.mode === 'all' && styles.dropdownItemTextActive
+                  ]}>All Branches (Aggregation)</Text>
+                </Pressable>
+
+                <View style={styles.dropdownDivider} />
+
+                {/* Option: Individual Branches */}
+                {session.accessibleBranches.map((branch: any) => {
+                  const isActive = currentScope.mode === 'single' && currentScope.branchId === branch.id;
+                  return (
+                    <Pressable
+                      key={branch.id}
+                      onPress={() => handleSelectBranch(branch.id)}
+                      style={[
+                        styles.dropdownItem,
+                        isActive && styles.dropdownItemActive
+                      ]}
+                    >
+                      <MapPin size={13} color={isActive ? '#0066b2' : '#64748B'} />
+                      <Text style={[
+                        styles.dropdownItemText,
+                        isActive && styles.dropdownItemTextActive
+                      ]}>{branch.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Profile Chip */}
+        <View style={styles.profileChip}>
+          <User size={12} color="#64748B" />
+          <Text style={styles.profileText}>{session.displayName}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerContainer: {
+    height: 50,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    zIndex: 9999,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+      },
+      default: {
+        elevation: 2,
+      }
+    })
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  roleBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  roleText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#1E40AF',
+    letterSpacing: 0.5,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  branchSelectorTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
+    height: 34,
+    cursor: 'pointer' as any,
+  },
+  branchSelectorText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: -100,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    zIndex: 9999,
+    backgroundColor: 'transparent',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 40,
+    right: 0,
+    width: 240,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+      },
+      default: {
+        elevation: 5,
+      }
+    }),
+    zIndex: 10000,
+  },
+  dropdownHeader: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    cursor: 'pointer' as any,
+  },
+  dropdownItemActive: {
+    backgroundColor: '#F0F9FF',
+  },
+  dropdownItemText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  dropdownItemTextActive: {
+    color: '#0066b2',
+    fontWeight: '700',
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  profileChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    gap: 6,
+    height: 34,
+  },
+  profileText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+});
+
