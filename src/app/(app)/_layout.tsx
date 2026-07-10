@@ -268,16 +268,9 @@ export default function AppTabLayout() {
   const segments = useSegments();
   const pathname = usePathname();
 
-  if (!session) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0066b2" />
-      </View>
-    );
-  }
+  // Compute role-based tabs (safe: getTabsForRole handles null/undefined gracefully)
+  const roleTabs = session ? getTabsForRole(session.role) : [];
 
-  const roleTabs = getTabsForRole(session.role);
-  const initialRouteName = getInitialRouteNameForRole(session.role);
   // tabBarHidden is controlled exclusively by individual screens via useTabBarHidden().
   // index.tsx sets it to true during the splash video and restores it to false when done.
   // We use window.location.pathname (available synchronously before Expo Router hydration)
@@ -369,7 +362,19 @@ export default function AppTabLayout() {
   }, [roleTabs]);
 
   const setBranchScope = useSessionStore((s) => s.setBranchScope);
-  const showHeader = session && (session.role === 'owner' || session.role === 'admin');
+
+  // ── All hooks are above this line. Early return is safe here. ──
+  if (!session) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0066b2" />
+      </View>
+    );
+  }
+
+  const initialRouteName = getInitialRouteNameForRole(session.role);
+  const showHeader = session.role === 'owner' || session.role === 'admin';
+
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>
