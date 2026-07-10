@@ -11,20 +11,26 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const [isRestoring, setIsRestoring] = useState(true);
-  const { restoreSession } = useSessionStore();
+  const { restoreSession, session } = useSessionStore();
 
   useEffect(() => {
     async function checkSession() {
-      const restored = await restoreSession();
+      await restoreSession();
       setIsRestoring(false);
-      if (restored) {
-        router.replace('/(app)');
-      } else {
-        router.replace('/(auth)/login');
-      }
     }
     checkSession();
   }, []);
+
+  // Listen to session changes globally to handle navigation redirects reactively
+  useEffect(() => {
+    if (isRestoring) return;
+
+    if (!session) {
+      router.replace('/(auth)/login');
+    } else {
+      router.replace('/(app)');
+    }
+  }, [session, isRestoring]);
 
   if (isRestoring) {
     return (

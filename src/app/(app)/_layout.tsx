@@ -267,13 +267,6 @@ export default function AppTabLayout() {
   const segments = useSegments();
   const pathname = usePathname();
 
-  // Redirect to login if session is not active (Session Guard)
-  useEffect(() => {
-    if (!session) {
-      router.replace('/(auth)/login');
-    }
-  }, [session]);
-
   if (!session) {
     return (
       <View style={{ flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center' }}>
