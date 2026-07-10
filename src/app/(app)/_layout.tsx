@@ -58,6 +58,7 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   analytics: '/analytics',
   expenses: '/expenses',
   staff: '/staff',
+  branches: '/branches',
   billing: '/billing',
 };
 

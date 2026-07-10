@@ -10,6 +10,7 @@ import {
   Users,
   TrendingUp,
   DollarSign,
+  GitBranch,
 } from 'lucide-react-native';
 
 import type { UserRole } from './session-context';
@@ -47,6 +48,7 @@ const OWNER_TABS: TabConfig[] = [
   { name: 'orders',     href: '/(app)/orders',     icon: ShoppingCart,    label: 'Orders' },
   { name: 'expenses',   href: '/(app)/expenses',   icon: DollarSign,      label: 'Expenses' },
   { name: 'staff',      href: '/(app)/staff',      icon: Users,           label: 'Staff' },
+  { name: 'branches',   href: '/(app)/branches',   icon: GitBranch,       label: 'Branches' },
   { name: 'settings',   href: '/(app)/settings',   icon: Settings2,       label: 'Settings' },
 ];
 
@@ -69,6 +71,7 @@ export const APP_TAB_ROUTE_NAMES = [
   'analytics',
   'expenses',
   'staff',
+  'branches',
   'billing',
 ] as const;
 
