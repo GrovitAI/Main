@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { storage } from './storage';
 import { supabase } from './supabase';
-import { getPermissionsForRole, type PosSession, type UserRole, type Branch, type BranchScope, type TerminalStatus } from './session-context';
+import { getPermissionsForRole, type PosSession, type UserRole, type Branch, type TerminalStatus } from './session-context';
 
 function generateUuid(): string {
   // Standard RFC4122 v4 UUID generator in pure JS
@@ -28,14 +28,13 @@ type SessionState = {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   restoreSession: () => Promise<boolean>;
-  setBranchScope: (scope: BranchScope) => void;
   updateActivity: () => void;
   clearError: () => void;
 };
 
-export const useSessionStore = create<SessionState>((set, get) => {
+export const useSessionStore = create<SessionState>((set) => {
   // Listen for auth state changes on initialization
-  supabase.auth.onAuthStateChange(async (event, authSession) => {
+  supabase.auth.onAuthStateChange(async (event) => {
     if (event === 'SIGNED_OUT') {
       set({ session: null });
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -87,9 +86,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
         const role = staff.role as UserRole;
         const tenantId = staff.tenant_id;
-        const homeBranchId = staff.branch_id;
+        // Every user is permanently bound to their assigned branch
+        const branchId = staff.branch_id;
 
-        // Fetch tenant details separately
+        // Fetch tenant details
         const { data: tenant } = await supabase
           .from('tenants')
           .select('name')
@@ -97,15 +97,15 @@ export const useSessionStore = create<SessionState>((set, get) => {
           .maybeSingle();
         const tenantName = tenant?.name || 'Le Leban';
 
-        // Fetch home branch details
-        const { data: homeBranch } = await supabase
+        // Fetch branch details
+        const { data: branch } = await supabase
           .from('branches')
           .select('name')
-          .eq('id', homeBranchId)
+          .eq('id', branchId)
           .maybeSingle();
-        const branchName = homeBranch?.name || 'Main Branch';
+        const branchName = branch?.name || 'Main Branch';
 
-        // 3. Load authorized branches
+        // 3. Load accessible branches (for owner/admin reports filter; others get own branch only)
         let accessibleBranches: Branch[] = [];
         if (role === 'owner' || role === 'admin') {
           const { data: bData } = await supabase
@@ -114,21 +114,12 @@ export const useSessionStore = create<SessionState>((set, get) => {
             .eq('tenant_id', tenantId)
             .order('name');
           accessibleBranches = (bData || []) as Branch[];
-        } else if (role === 'manager') {
-          const { data: sbaData } = await supabase
-            .from('staff_branch_access')
-            .select('branches(*)')
-            .eq('staff_id', staff.id);
-          
-          accessibleBranches = (sbaData || [])
-            .map((item: any) => item.branches)
-            .filter(Boolean) as Branch[];
         } else {
-          // Cashier / Kitchen
+          // Cashier / Manager / Kitchen — only their own branch
           const { data: bData } = await supabase
             .from('branches')
             .select('*')
-            .eq('id', homeBranchId)
+            .eq('id', branchId)
             .maybeSingle();
           if (bData) {
             accessibleBranches = [bData as Branch];
@@ -146,18 +137,14 @@ export const useSessionStore = create<SessionState>((set, get) => {
           .from('pos_terminals')
           .select('*')
           .eq('device_uuid', deviceUuid)
-          .eq('branch_id', homeBranchId)
+          .eq('branch_id', branchId)
           .maybeSingle();
 
         if (terminal) {
           terminalId = terminal.id;
           terminalCode = terminal.terminal_code;
           terminalName = terminal.friendly_name;
-          if (terminal.status === 'active') {
-            terminalStatus = 'REGISTERED';
-          } else {
-            terminalStatus = 'DISABLED';
-          }
+          terminalStatus = terminal.status === 'active' ? 'REGISTERED' : 'DISABLED';
         }
 
         // 5. Update last login timestamp in background
@@ -168,7 +155,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
         // 6. Build the final PosSession object
         const permissions = getPermissionsForRole(role);
-        const expiresAt = authData.session?.expires_at 
+        const expiresAt = authData.session?.expires_at
           ? new Date(authData.session.expires_at * 1000).toISOString()
           : new Date(Date.now() + 3600 * 1000).toISOString();
 
@@ -180,8 +167,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
           tenantName,
           role,
           displayName: staff.name,
-          branchScope: { mode: 'single', branchId: homeBranchId },
-          homeBranchId,
+          branchId,
           branchName,
           accessibleBranches,
           terminalId,
@@ -198,9 +184,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
         };
 
         set({ session, isLoading: false });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Authentication failed.';
         console.error('[useSessionStore] signIn failed:', err);
-        set({ error: err.message || 'Authentication failed.', isLoading: false });
+        set({ error: message, isLoading: false });
       }
     },
 
@@ -213,9 +200,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
           window.localStorage.removeItem('grovit_active_order_id');
           window.localStorage.removeItem('grovit_printed_orders');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Logout failed.';
         console.error('[useSessionStore] signOut failed:', err);
-        set({ error: err.message || 'Logout failed.', isLoading: false, session: null });
+        set({ error: message, isLoading: false, session: null });
       }
     },
 
@@ -246,9 +234,9 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
         const role = staff.role as UserRole;
         const tenantId = staff.tenant_id;
-        const homeBranchId = staff.branch_id;
+        const branchId = staff.branch_id;
 
-        // Fetch tenant details separately
+        // Fetch tenant details
         const { data: tenant } = await supabase
           .from('tenants')
           .select('name')
@@ -256,15 +244,15 @@ export const useSessionStore = create<SessionState>((set, get) => {
           .maybeSingle();
         const tenantName = tenant?.name || 'Le Leban';
 
-        // Fetch home branch details
-        const { data: homeBranch } = await supabase
+        // Fetch branch details
+        const { data: branch } = await supabase
           .from('branches')
           .select('name')
-          .eq('id', homeBranchId)
+          .eq('id', branchId)
           .maybeSingle();
-        const branchName = homeBranch?.name || 'Main Branch';
+        const branchName = branch?.name || 'Main Branch';
 
-        // Fetch accessible branches
+        // Load accessible branches
         let accessibleBranches: Branch[] = [];
         if (role === 'owner' || role === 'admin') {
           const { data: bData } = await supabase
@@ -273,27 +261,18 @@ export const useSessionStore = create<SessionState>((set, get) => {
             .eq('tenant_id', tenantId)
             .order('name');
           accessibleBranches = (bData || []) as Branch[];
-        } else if (role === 'manager') {
-          const { data: sbaData } = await supabase
-            .from('staff_branch_access')
-            .select('branches(*)')
-            .eq('staff_id', staff.id);
-          
-          accessibleBranches = (sbaData || [])
-            .map((item: any) => item.branches)
-            .filter(Boolean) as Branch[];
         } else {
           const { data: bData } = await supabase
             .from('branches')
             .select('*')
-            .eq('id', homeBranchId)
+            .eq('id', branchId)
             .maybeSingle();
           if (bData) {
             accessibleBranches = [bData as Branch];
           }
         }
 
-        // Fetch terminal registry status (verify terminal status every restore)
+        // Fetch terminal registry status
         const deviceUuid = await getOrGenerateDeviceUuid();
         let terminalId: string | null = null;
         let terminalCode = 'UNKNOWN_DEVICE';
@@ -304,22 +283,18 @@ export const useSessionStore = create<SessionState>((set, get) => {
           .from('pos_terminals')
           .select('*')
           .eq('device_uuid', deviceUuid)
-          .eq('branch_id', homeBranchId)
+          .eq('branch_id', branchId)
           .maybeSingle();
 
         if (terminal) {
           terminalId = terminal.id;
           terminalCode = terminal.terminal_code;
           terminalName = terminal.friendly_name;
-          if (terminal.status === 'active') {
-            terminalStatus = 'REGISTERED';
-          } else {
-            terminalStatus = 'DISABLED';
-          }
+          terminalStatus = terminal.status === 'active' ? 'REGISTERED' : 'DISABLED';
         }
 
         const permissions = getPermissionsForRole(role);
-        const expiresAt = authData.session.expires_at 
+        const expiresAt = authData.session.expires_at
           ? new Date(authData.session.expires_at * 1000).toISOString()
           : new Date(Date.now() + 3600 * 1000).toISOString();
 
@@ -331,8 +306,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
           tenantName,
           role,
           displayName: staff.name,
-          branchScope: { mode: 'single', branchId: homeBranchId },
-          homeBranchId,
+          branchId,
           branchName,
           accessibleBranches,
           terminalId,
@@ -355,27 +329,6 @@ export const useSessionStore = create<SessionState>((set, get) => {
         set({ session: null });
         return false;
       }
-    },
-
-    setBranchScope: (scope) => {
-      set((state) => {
-        if (!state.session) return {};
-        
-        // Log switch audit locally
-        console.log(`[SessionStore] BranchScope switched:`, {
-          oldScope: state.session.branchScope,
-          newScope: scope,
-          timestamp: new Date().toISOString()
-        });
-
-        return {
-          session: {
-            ...state.session,
-            branchScope: scope,
-            lastActivityAt: new Date().toISOString(),
-          },
-        };
-      });
     },
 
     updateActivity: () => {

@@ -1,63 +1,51 @@
 import { useSessionStore } from './use-session-store';
-import type { BranchScope } from './session-context';
 
+/**
+ * Legacy constants kept for any import sites that haven't been cleaned up yet.
+ * @deprecated — Do not use. Remove imports when encountered.
+ */
 export const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 export const BRANCH_ID = 'bbbbbbbb-0000-0000-0000-000000000001';
 
-/**
- * Compatibility flag for gradual migration of legacy services.
- * TODO: Remove before v1.0 release.
- * When set to true (Option B): ALL branch scope falls back to homeBranchId to keep legacy services compiling.
- * Once all services are migrated to requireBranchContext(), this flag will be removed, and
- * TenantContext.branch_id will be changed to string | undefined for compile-time safety.
- */
-const ALLOW_LEGACY_ALL_BRANCH_FALLBACK = true;
-
 export type TenantContext = {
   tenant_id: string;
-  branch_id: string; // Kept as strictly-typed string for backward compatibility
-  branch_scope: BranchScope;
+  branch_id: string;
 };
 
+/**
+ * Returns the tenant_id and branch_id for the currently logged-in user.
+ *
+ * Every operational user (cashier, manager, kitchen, owner) is permanently
+ * bound to a single branch via their staff record. There is no branch switching
+ * in the application context — branch isolation is a property of the login, not the UI.
+ *
+ * Use this in every Supabase query:
+ *   const { tenant_id, branch_id } = getTenantContext();
+ *   supabase.from('table').select('*').eq('tenant_id', tenant_id).eq('branch_id', branch_id)
+ */
 export function getTenantContext(): TenantContext {
   const session = useSessionStore.getState().session;
-  
+
   if (!session) {
     throw new Error('Grovit Security Exception: Active session required to retrieve tenant context.');
   }
 
-  let branchId: string;
-  if (session.branchScope.mode === 'single') {
-    branchId = session.branchScope.branchId;
-  } else {
-    // In ALL branches mode, we use the fallback homeBranchId during migration
-    branchId = session.homeBranchId;
-  }
-      
   return {
     tenant_id: session.tenantId,
-    branch_id: branchId,
-    branch_scope: session.branchScope,
+    branch_id: session.branchId,
   };
 }
 
 /**
- * Security Guard: Asserts that the current session is operating on a single branch scope.
- * Throws a system exception if invoked under ALL branches scope.
- *
- * EVERY mutating/writing service call must invoke this helper first to obtain its target branch ID.
- * Example:
- *   const ctx = getTenantContext();
- *   const branchId = requireBranchContext(ctx);
+ * @deprecated — No longer needed. getTenantContext() always returns a single branch.
+ * Kept temporarily to avoid breaking settlement-service.ts imports.
+ * Remove after settlement-service.ts is updated.
  */
 export function requireBranchContext(context: TenantContext): string {
-  if (context.branch_scope.mode === 'all') {
-    throw new Error('Grovit Security Guard: Transactional operations require a selected branch.');
-  }
   return context.branch_id;
 }
 
 /**
- * Alias for requireBranchContext
+ * @deprecated — Alias for requireBranchContext
  */
 export const assertSingleBranch = requireBranchContext;

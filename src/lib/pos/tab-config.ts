@@ -7,6 +7,9 @@ import {
   Settings2,
   ShoppingCart,
   Boxes,
+  Users,
+  TrendingUp,
+  DollarSign,
 } from 'lucide-react-native';
 
 import type { UserRole } from './session-context';
@@ -18,38 +21,41 @@ export type TabConfig = {
   label: string;
 };
 
+// Cashier: POS-focused. No management screens.
 const CASHIER_TABS: TabConfig[] = [
-  { name: 'index', href: '/(app)/index', icon: Receipt, label: 'POS' },
-  { name: 'orders', href: '/(app)/orders', icon: ShoppingCart, label: 'Orders' },
-  { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
+  { name: 'index',    href: '/(app)/index',    icon: Receipt,   label: 'POS' },
+  { name: 'orders',   href: '/(app)/orders',   icon: ShoppingCart, label: 'Orders' },
+  { name: 'kitchen',  href: '/(app)/kitchen',  icon: ChefHat,   label: 'Kitchen' },
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
+// Manager: Branch-level operational view. POS + management for own branch.
 const MANAGER_TABS: TabConfig[] = [
-  { name: 'index', href: '/(app)/index', icon: Receipt, label: 'POS' },
-  { name: 'orders', href: '/(app)/orders', icon: ShoppingCart, label: 'Orders' },
-  { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
-  { name: 'inventory', href: '/(app)/inventory', icon: Boxes, label: 'Inventory' },
-  { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
+  { name: 'index',     href: '/(app)/index',     icon: Receipt,     label: 'POS' },
+  { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
+  { name: 'kitchen',   href: '/(app)/kitchen',   icon: ChefHat,     label: 'Kitchen' },
+  { name: 'inventory', href: '/(app)/inventory', icon: Boxes,       label: 'Inventory' },
+  { name: 'analytics', href: '/(app)/analytics', icon: BarChart3,   label: 'Reports' },
+  { name: 'settings',  href: '/(app)/settings',  icon: Settings2,   label: 'Settings' },
 ];
 
+// Owner: Management dashboard. No POS — use a dedicated cashier account to bill.
 const OWNER_TABS: TabConfig[] = [
-  {
-    name: 'dashboard',
-    href: '/(app)/dashboard',
-    icon: LayoutDashboard,
-    label: 'Dashboard',
-  },
-  { name: 'index', href: '/(app)/index', icon: Receipt, label: 'POS' },
-  { name: 'orders', href: '/(app)/orders', icon: ShoppingCart, label: 'Orders' },
-  { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
-  { name: 'inventory', href: '/(app)/inventory', icon: Boxes, label: 'Inventory' },
-  { name: 'analytics', href: '/(app)/analytics', icon: BarChart3, label: 'Analytics' },
-  { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
+  { name: 'dashboard',  href: '/(app)/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
+  { name: 'inventory',  href: '/(app)/inventory',  icon: Boxes,           label: 'Inventory' },
+  { name: 'analytics',  href: '/(app)/analytics',  icon: TrendingUp,      label: 'Analytics' },
+  { name: 'orders',     href: '/(app)/orders',     icon: ShoppingCart,    label: 'Orders' },
+  { name: 'expenses',   href: '/(app)/expenses',   icon: DollarSign,      label: 'Expenses' },
+  { name: 'staff',      href: '/(app)/staff',      icon: Users,           label: 'Staff' },
+  { name: 'settings',   href: '/(app)/settings',   icon: Settings2,       label: 'Settings' },
 ];
 
+// Admin: Same as Owner for now
+const ADMIN_TABS: TabConfig[] = OWNER_TABS;
+
+// Kitchen: Kitchen display and printer settings only
 const KITCHEN_TABS: TabConfig[] = [
-  { name: 'kitchen', href: '/(app)/kitchen', icon: ChefHat, label: 'Kitchen' },
+  { name: 'kitchen',  href: '/(app)/kitchen',  icon: ChefHat,   label: 'Kitchen' },
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
@@ -61,6 +67,8 @@ export const APP_TAB_ROUTE_NAMES = [
   'settings',
   'dashboard',
   'analytics',
+  'expenses',
+  'staff',
   'billing',
 ] as const;
 
@@ -75,9 +83,9 @@ export function getTabsForRole(role: UserRole): TabConfig[] {
     case 'owner':
       return OWNER_TABS;
     case 'admin':
-      return OWNER_TABS; // Admin has owner tabs for operations
+      return ADMIN_TABS;
     case 'kitchen':
-      return KITCHEN_TABS; // Kitchen staff only see kitchen display
+      return KITCHEN_TABS;
     default:
       return CASHIER_TABS;
   }
@@ -86,9 +94,9 @@ export function getTabsForRole(role: UserRole): TabConfig[] {
 export function getDefaultScreenForRole(role: UserRole): string {
   switch (role) {
     case 'cashier':
-      return '/(app)/orders';
+      return '/(app)/index';
     case 'manager':
-      return '/(app)/orders';
+      return '/(app)/index';
     case 'owner':
       return '/(app)/dashboard';
     case 'admin':
@@ -96,14 +104,14 @@ export function getDefaultScreenForRole(role: UserRole): string {
     case 'kitchen':
       return '/(app)/kitchen';
     default:
-      return '/(app)/orders';
+      return '/(app)/index';
   }
 }
 
 export function getInitialRouteNameForRole(role: UserRole): string {
   const defaultHref = getDefaultScreenForRole(role);
   const tab = getTabsForRole(role).find((entry) => entry.href === defaultHref);
-  return tab?.name ?? 'orders';
+  return tab?.name ?? 'index';
 }
 
 export function getTabConfigForRoute(
