@@ -110,7 +110,12 @@ export async function createStaff(
 
     if (authError || !authData.user) {
       console.error('[staff-service] createStaff auth error:', authError);
-      return { data: null, error: authError?.message ?? 'Failed to create auth user.' };
+      // authError=null + user=null means Supabase blocked sign-up silently.
+      // This happens when "Confirm email" is ON in Supabase Auth settings,
+      // or when the email address already exists.
+      const msg = authError?.message
+        ?? 'Account could not be created. If this is a new email, go to Supabase → Authentication → Providers → Email and turn OFF "Confirm email", then try again.';
+      return { data: null, error: msg };
     }
 
     const authUserId = authData.user.id;
