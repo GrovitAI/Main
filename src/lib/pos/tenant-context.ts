@@ -1,4 +1,5 @@
 import { useSessionStore } from './use-session-store';
+import type { UserRole } from './session-context';
 
 /**
  * Legacy constants kept for any import sites that haven't been cleaned up yet.
@@ -10,18 +11,22 @@ export const BRANCH_ID = 'bbbbbbbb-0000-0000-0000-000000000001';
 export type TenantContext = {
   tenant_id: string;
   branch_id: string;
+  role: UserRole;
+  /**
+   * True for owner and admin roles.
+   * Management queries (orders, settlements, inventory) should skip the
+   * branch_id filter when this is true so owners can see across all branches.
+   */
+  isOwnerOrAdmin: boolean;
 };
 
 /**
- * Returns the tenant_id and branch_id for the currently logged-in user.
+ * Returns the tenant/branch context for the currently logged-in user.
  *
- * Every operational user (cashier, manager, kitchen, owner) is permanently
- * bound to a single branch via their staff record. There is no branch switching
- * in the application context — branch isolation is a property of the login, not the UI.
- *
- * Use this in every Supabase query:
- *   const { tenant_id, branch_id } = getTenantContext();
- *   supabase.from('table').select('*').eq('tenant_id', tenant_id).eq('branch_id', branch_id)
+ * - Cashier / Manager / Kitchen: branch_id = their assigned branch.
+ * - Owner / Admin: branch_id = their home branch, but isOwnerOrAdmin = true.
+ *   Management service calls should check isOwnerOrAdmin and omit the
+ *   branch_id filter to show cross-branch data.
  */
 export function getTenantContext(): TenantContext {
   const session = useSessionStore.getState().session;
@@ -30,16 +35,19 @@ export function getTenantContext(): TenantContext {
     throw new Error('Grovit Security Exception: Active session required to retrieve tenant context.');
   }
 
+  const isOwnerOrAdmin = session.role === 'owner' || session.role === 'admin';
+
   return {
     tenant_id: session.tenantId,
     branch_id: session.branchId,
+    role: session.role,
+    isOwnerOrAdmin,
   };
 }
 
 /**
  * @deprecated — No longer needed. getTenantContext() always returns a single branch.
  * Kept temporarily to avoid breaking settlement-service.ts imports.
- * Remove after settlement-service.ts is updated.
  */
 export function requireBranchContext(context: TenantContext): string {
   return context.branch_id;

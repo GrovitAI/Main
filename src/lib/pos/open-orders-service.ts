@@ -421,14 +421,20 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
 
 export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('open_orders')
       .select('*')
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
       .order('created_at', { ascending: false });
+
+    // Owners and admins see all branches; cashiers/managers see only their branch
+    if (!isOwnerOrAdmin) {
+      query = query.eq('branch_id', branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       logSupabaseError('fetchOpenOrders', error);
@@ -453,6 +459,7 @@ export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
     return { data: null, error: 'Unable to load orders.' };
   }
 }
+
 
 export async function fetchOpenOrderById(
   orderId: string,

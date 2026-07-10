@@ -25,13 +25,12 @@ export type Product = {
 
 export async function getCategories(): Promise<ServiceResult<Category[]>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-
+    const { tenant_id } = getTenantContext();
+    // Categories are tenant-wide — the same menu applies across all branches.
     const { data, error } = await supabase
       .from('categories')
       .select('*')
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
       .order('name', { ascending: true });
 
     if (error) {
@@ -60,13 +59,13 @@ export async function getProducts(
   categoryId?: string,
 ): Promise<ServiceResult<Product[]>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-
+    const { tenant_id } = getTenantContext();
+    // Products are tenant-wide — the same menu applies across all branches.
+    // Inventory stock levels are per-branch, but the catalog is shared.
     let query = supabase
       .from('products')
       .select('*')
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
       .eq('is_active', true)
       .eq('is_available', true)
       .order('name', { ascending: true });

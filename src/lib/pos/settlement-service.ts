@@ -20,14 +20,20 @@ export type ServiceResult<T> = {
 
 export async function fetchSettlements(): Promise<ServiceResult<Settlement[]>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('settlements')
       .select('*')
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
       .order('settled_at', { ascending: false });
+
+    // Owners and admins see all branches; others see only their branch
+    if (!isOwnerOrAdmin) {
+      query = query.eq('branch_id', branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return { data: null, error: 'Unable to load settlements.' };
