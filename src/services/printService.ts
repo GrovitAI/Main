@@ -186,6 +186,7 @@ export function buildReceiptText(
   items: ReceiptItem[],
   totalAmount: number,
   paymentMethod?: string | null,
+  branch?: any,
 ): string {
   const W   = PAPER_WIDTH;
   const div = '-'.repeat(W);
@@ -193,21 +194,26 @@ export function buildReceiptText(
 
   const lines: string[] = [];
 
+  const title = (branch?.name || cfg.restaurantName).toUpperCase();
+  const phone = branch?.phone || cfg.phone.replace('PH:', '').trim();
+  const gstin = branch?.gstin;
+
+  const addressRaw = branch?.address || `${cfg.addressLine1}, ${cfg.addressLine2}, ${cfg.addressLine3}`;
+  const addressParts = addressRaw.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean);
+
   // ── Header ────────────────────────────────────────────────────────────────
   lines.push(ESC_CENTER);
-  lines.push(ESC_BOLD_ON + ESC_DW_ON + centerText(cfg.restaurantName, W) + ESC_DW_OFF + ESC_BOLD_OFF);
-  if (cfg.tagline) lines.push(centerText(cfg.tagline, W));
+  lines.push(ESC_BOLD_ON + ESC_DW_ON + centerText(title, W) + ESC_DW_OFF + ESC_BOLD_OFF);
+  if (cfg.tagline && !branch) lines.push(centerText(cfg.tagline, W));
   lines.push('');
-  lines.push(centerText(cfg.addressLine1, W));
-  lines.push(centerText(cfg.addressLine2, W));
-  lines.push(centerText(cfg.addressLine3, W));
+  addressParts.forEach((part: string) => {
+    lines.push(centerText(part, W));
+  });
   lines.push('');
-  lines.push(centerText(cfg.phone, W));
+  lines.push(centerText(`PH: ${phone}`, W));
 
-  // GST / FSSAI — shown only when SHOW_GST_INFORMATION = true
-  if (SHOW_GST_INFORMATION) {
-    lines.push(centerText(cfg.gstin, W));
-    lines.push(centerText(cfg.fssai, W));
+  if (gstin) {
+    lines.push(centerText(`GSTIN: ${gstin}`, W));
   }
 
   lines.push(ESC_LEFT);

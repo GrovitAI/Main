@@ -1,6 +1,7 @@
 import { Platform, Alert } from 'react-native';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
+import { supabase } from '../pos/supabase';
 
 export type PrintNodePrinter = {
   id: number;
@@ -224,31 +225,34 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
  */
 const SHOW_GST_INFORMATION = false;
 
-function buildHeader(width = 42): string[] {
+function buildHeader(width = 42, branch?: any): string[] {
   // ESC/POS bold only — do NOT use double-width here.
-  // Double-width causes each character to consume 2 columns, which cuts off text
-  // when centering is calculated at full width. Bold is sufficient for emphasis.
   const boldOn  = '\x1B\x45\x01';
   const boldOff = '\x1B\x45\x00';
 
+  const title = (branch?.name || 'LE LEBAN').toUpperCase();
+  const phone = branch?.phone || '90309 13610';
+  const gstin = branch?.gstin;
+
+  // Split address by commas or newlines to center each part cleanly on its own line
+  const addressRaw = branch?.address || 'No. 13, Balaji Nagar Main Road, Kolathur, Chennai - 600099';
+  const addressParts = addressRaw.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean);
+
   const lines: string[] = [
     '\x1Ba\x01',   // center alignment
-    boldOn + 'LE LEBAN' + boldOff + '\n',
+    boldOn + title + boldOff + '\n',
     '\n',
-    center('No. 13, Balaji Nagar Main Road', width) + '\n',
-    center('Kolathur', width) + '\n',
-    center('Chennai - 600099', width) + '\n',
+    ...addressParts.map((part: string) => center(part, width) + '\n'),
     '\n',
-    center('PH: 90309 13610', width) + '\n',
-    '\n',   // blank line before the first divider
-    '\x1Ba\x00',  // back to left
+    center(`PH: ${phone}`, width) + '\n',
   ];
 
-  if (SHOW_GST_INFORMATION) {
-    lines.splice(-1, 0, center('GSTIN: XXXXXXXXXXXX', width) + '\n');
-    lines.splice(-1, 0, center('FSSAI: XXXXXXXXXXXXXXX', width) + '\n');
+  if (gstin) {
+    lines.push(center(`GSTIN: ${gstin}`, width) + '\n');
   }
 
+  lines.push('\n'); // blank line before divider
+  lines.push('\x1Ba\x00'); // back to left
   return lines;
 }
 
@@ -651,8 +655,15 @@ export const printerService = {
         totalQty += item.qty;
       }
 
+      // Fetch branch details dynamically
+      const { data: branch } = await supabase
+        .from('branches')
+        .select('*')
+        .eq('id', printer.branch_id)
+        .maybeSingle();
+
       // 1. Build Header
-      const headerLines = buildHeader(width);
+      const headerLines = buildHeader(width, branch);
 
 
 

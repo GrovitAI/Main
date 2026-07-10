@@ -34,6 +34,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { logSupabaseError } from '@/lib/pos/supabase-debug';
 import { printReceipt, buildReceiptText } from '@/services/printService';
+import { useSessionStore } from '@/lib/pos/use-session-store';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,11 @@ export default function OrdersScreen() {
   const loadSummaries = useOrdersStore((state) => state.loadSummaries);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const session = useSessionStore((s) => s.session);
+  const currentBranch = useMemo(() => {
+    return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
+  }, [session]);
   const error = storeError;
 
   // ── UI state ────────────────────────────────────────────────────────────────
@@ -309,7 +315,7 @@ export default function OrdersScreen() {
         price: (item as any).price ?? 0,
       }));
 
-      const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod);
+      const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod, currentBranch);
       const printResult = await printReceipt(printerName, receiptText);
       if (printResult.success) {
         showToast('Bill reprinted successfully.');

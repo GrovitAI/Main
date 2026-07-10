@@ -42,6 +42,7 @@ import {
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
 import { seedDevDatabase } from '@/lib/pos/dev-seed';
 import { useTabBarHidden } from '@/lib/pos/ui-context';
+import { useSessionStore } from '@/lib/pos/use-session-store';
 
 const TABLET_BREAKPOINT = 768;
 
@@ -257,6 +258,11 @@ export default function PosBillingScreen() {
   const enterEditMode = useOrdersStore((s) => s.enterEditMode);
   const discardChanges = useOrdersStore((s) => s.discardChanges);
   const clearError = useOrdersStore((s) => s.clearError);
+
+  const session = useSessionStore((s) => s.session);
+  const currentBranch = useMemo(() => {
+    return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
+  }, [session]);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -789,7 +795,7 @@ export default function PosBillingScreen() {
             const updatedOrderName = updatedOrder?.order_name || orderName;
             const updatedInvoiceNumber = updatedOrder?.invoice_number || invoiceNumber;
 
-            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount);
+            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount, null, currentBranch);
             const printResult = await printReceipt(printerName, receiptText);
             if (printResult.success) {
               showToast('Provisional bill printed successfully.');
@@ -829,7 +835,8 @@ export default function PosBillingScreen() {
         activeOrder.invoice_number,
         items,
         totalAmount,
-        activeOrder.payment_method
+        activeOrder.payment_method,
+        currentBranch
       );
       const printResult = await printReceipt(printerName, receiptText);
       if (printResult.success) {
