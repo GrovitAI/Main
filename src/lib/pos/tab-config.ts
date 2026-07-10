@@ -42,14 +42,12 @@ const MANAGER_TABS: TabConfig[] = [
 
 // Owner: Management dashboard. No POS — use a dedicated cashier account to bill.
 const OWNER_TABS: TabConfig[] = [
-  { name: 'dashboard',  href: '/(app)/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
-  { name: 'inventory',  href: '/(app)/inventory',  icon: Boxes,           label: 'Inventory' },
-  { name: 'analytics',  href: '/(app)/analytics',  icon: TrendingUp,      label: 'Analytics' },
-  { name: 'orders',     href: '/(app)/orders',     icon: ShoppingCart,    label: 'Orders' },
-  { name: 'expenses',   href: '/(app)/expenses',   icon: DollarSign,      label: 'Expenses' },
-  { name: 'staff',      href: '/(app)/staff',      icon: Users,           label: 'Staff' },
-  { name: 'branches',   href: '/(app)/branches',   icon: GitBranch,       label: 'Branches' },
-  { name: 'settings',   href: '/(app)/settings',   icon: Settings2,       label: 'Settings' },
+  { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
+  { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
+  { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
+  { name: 'staff',     href: '/(app)/staff',     icon: Users,        label: 'Staff' },
+  { name: 'branches',  href: '/(app)/branches',  icon: GitBranch,    label: 'Branches' },
+  { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
 ];
 
 // Admin: Same as Owner for now
@@ -101,9 +99,9 @@ export function getDefaultScreenForRole(role: UserRole): string {
     case 'manager':
       return '/(app)/index';
     case 'owner':
-      return '/(app)/dashboard';
+      return '/(app)/orders';   // Owner lands on Orders — no Dashboard tab
     case 'admin':
-      return '/(app)/dashboard';
+      return '/(app)/orders';
     case 'kitchen':
       return '/(app)/kitchen';
     default:

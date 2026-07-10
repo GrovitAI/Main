@@ -438,6 +438,8 @@ const headerLogo = require('@/../assets/images/le-leban-logo.png') as number;
 function GlobalHeader({ session }: { session: any }) {
   if (!session) return null;
 
+  const isOwnerOrAdmin = session.role === 'owner' || session.role === 'admin';
+
   return (
     <View style={styles.headerContainer}>
       {/* Left side: Logo and Role Badge */}
@@ -451,15 +453,19 @@ function GlobalHeader({ session }: { session: any }) {
         <View style={styles.roleBadge}>
           <Text style={styles.roleText}>{session.role.toUpperCase()}</Text>
         </View>
+        {/* Tenant name — shown instead of a branch for owners */}
+        <Text style={styles.tenantName}>{session.tenantName}</Text>
       </View>
 
-      {/* Right side: Branch name and Profile */}
+      {/* Right side: Profile only (no branch badge for owner/admin) */}
       <View style={styles.rightSection}>
-        {/* Static Branch Badge */}
-        <View style={styles.branchBadge}>
-          <MapPin size={13} color="#0066b2" />
-          <Text style={styles.branchBadgeText}>{session.branchName}</Text>
-        </View>
+        {/* Show branch only for non-owner roles in the header (managers with header) */}
+        {!isOwnerOrAdmin && (
+          <View style={styles.branchBadge}>
+            <MapPin size={13} color="#0066b2" />
+            <Text style={styles.branchBadgeText}>{session.branchName}</Text>
+          </View>
+        )}
 
         {/* Profile Chip */}
         <View style={styles.profileChip}>
@@ -495,6 +501,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  tenantName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
   },
   roleBadge: {
     backgroundColor: '#EFF6FF',

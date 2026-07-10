@@ -48,9 +48,17 @@ import {
   ProductInsight,
   PaymentSplit,
 } from '@/lib/analytics/analytics-service';
+import { useSessionStore } from '@/lib/pos/use-session-store';
+import { Building2 } from 'lucide-react-native';
 
 export default function AnalyticsScreen() {
   const router = useRouter();
+  const { session } = useSessionStore();
+
+  // Branch filter — only relevant for owner/admin who can see all branches
+  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
+  const accessibleBranches = session?.accessibleBranches ?? [];
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null); // null = all branches
 
   // State for filters
   const [preset, setPreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom'>('7days');
@@ -169,6 +177,8 @@ export default function AnalyticsScreen() {
       startDate,
       endDate,
       ...(advancedTime ? { startTime, endTime } : {}),
+      // Pass selected branch for owner; undefined means all branches
+      ...(isOwnerOrAdmin && selectedBranchId ? { branchId: selectedBranchId } : {}),
     };
 
     const res = await fetchAnalyticsDashboard(filters);
@@ -1006,6 +1016,54 @@ export default function AnalyticsScreen() {
 
       {/* FILTER CONTROL TOOLBAR */}
       <View className="bg-white border-b border-border/40 py-3.5 px-6 shadow-sm">
+
+        {/* ── Branch Filter (owner/admin only) ── */}
+        {isOwnerOrAdmin && accessibleBranches.length > 0 && (
+          <View style={{ marginBottom: 10 }}>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              Branch
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {/* All Branches chip */}
+              <Pressable
+                onPress={() => { setSelectedBranchId(null); }}
+                id="branch-filter-all"
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 5,
+                  paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                  borderWidth: 1.5,
+                  borderColor: selectedBranchId === null ? '#0066b2' : '#E2E8F0',
+                  backgroundColor: selectedBranchId === null ? '#EFF6FF' : '#F8FAFC',
+                }}
+              >
+                <Building2 size={12} color={selectedBranchId === null ? '#0066b2' : '#94A3B8'} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: selectedBranchId === null ? '#0066b2' : '#64748B' }}>
+                  All Branches
+                </Text>
+              </Pressable>
+              {/* Individual branch chips */}
+              {accessibleBranches.map((b: any) => (
+                <Pressable
+                  key={b.id}
+                  onPress={() => { setSelectedBranchId(b.id); }}
+                  id={`branch-filter-${b.id}`}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 5,
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                    borderWidth: 1.5,
+                    borderColor: selectedBranchId === b.id ? '#0066b2' : '#E2E8F0',
+                    backgroundColor: selectedBranchId === b.id ? '#EFF6FF' : '#F8FAFC',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: selectedBranchId === b.id ? '#0066b2' : '#64748B' }}>
+                    {b.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
         <View className="flex-row flex-wrap items-center gap-2">
           {/* Quick presets list */}
           {(['today', 'yesterday', '7days', '30days', 'month', 'custom'] as const).map((presetKey) => {

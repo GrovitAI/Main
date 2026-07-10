@@ -2,10 +2,11 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 
 export type AnalyticsFilters = {
-  startDate: string; // ISO Date String YYYY-MM-DD
-  endDate: string; // ISO Date String YYYY-MM-DD
-  startTime?: string; // HH:MM format
-  endTime?: string; // HH:MM format
+  startDate: string;    // ISO Date String YYYY-MM-DD
+  endDate: string;      // ISO Date String YYYY-MM-DD
+  startTime?: string;   // HH:MM format
+  endTime?: string;     // HH:MM format
+  branchId?: string;    // Optional: filter to a specific branch. Omit for all-branch (owner)
 };
 
 export type SalesSeriesPoint = {
@@ -73,20 +74,28 @@ export async function fetchAnalyticsDashboard(
   filters: AnalyticsFilters,
 ): Promise<ServiceResult<AnalyticsDashboard>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
 
-    // 1. Fetch bills in date range (we append start/end times to capture full days)
     const startTimestamp = `${filters.startDate}T00:00:00.000Z`;
     const endTimestamp = `${filters.endDate}T23:59:59.999Z`;
 
-    const { data: bills, error: billsError } = await supabase
+    // Determine effective branch: explicit filter > session branch (non-owner)
+    const effectiveBranchId = filters.branchId ?? (!isOwnerOrAdmin ? branch_id : null);
+
+    let billsQuery = supabase
       .from('bills')
       .select('*')
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
       .gte('created_at', startTimestamp)
       .lte('created_at', endTimestamp)
       .order('created_at', { ascending: true });
+
+    // Apply branch filter when a specific branch is selected or user is not owner
+    if (effectiveBranchId) {
+      billsQuery = billsQuery.eq('branch_id', effectiveBranchId);
+    }
+
+    const { data: bills, error: billsError } = await billsQuery;
 
     if (billsError) {
       console.error('[AnalyticsService] Error fetching bills:', billsError);
