@@ -22,31 +22,22 @@ export type TenantContext = {
 export function getTenantContext(): TenantContext {
   const session = useSessionStore.getState().session;
   
-  if (session) {
-    let branchId: string;
-    if (session.branchScope.mode === 'single') {
-      branchId = session.branchScope.branchId;
-    } else {
-      // In ALL branches mode, we use the fallback homeBranchId during migration
-      branchId = session.homeBranchId;
-    }
-      
-    return {
-      tenant_id: session.tenantId,
-      branch_id: branchId,
-      branch_scope: session.branchScope,
-    };
+  if (!session) {
+    throw new Error('Grovit Security Exception: Active session required to retrieve tenant context.');
   }
-  
-  // ============================================================================
-  // TEMPORARY DEV FALLBACK
-  // Developer Rule: No new feature may rely on this fallback.
-  // The fallback exists only until Phase 2.5G.
-  // ============================================================================
+
+  let branchId: string;
+  if (session.branchScope.mode === 'single') {
+    branchId = session.branchScope.branchId;
+  } else {
+    // In ALL branches mode, we use the fallback homeBranchId during migration
+    branchId = session.homeBranchId;
+  }
+      
   return {
-    tenant_id: TENANT_ID,
-    branch_id: BRANCH_ID,
-    branch_scope: { mode: 'single', branchId: BRANCH_ID },
+    tenant_id: session.tenantId,
+    branch_id: branchId,
+    branch_scope: session.branchScope,
   };
 }
 
