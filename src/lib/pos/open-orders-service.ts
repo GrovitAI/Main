@@ -56,12 +56,11 @@ async function fetchProductNameMap(
     return {};
   }
 
-  const { tenant_id, branch_id } = getTenantContext();
+  const { tenant_id } = getTenantContext();
   const { data, error } = await supabase
     .from('products')
     .select('id, name')
     .eq('tenant_id', tenant_id)
-    .eq('branch_id', branch_id)
     .in('id', productIds);
 
   if (error || !data) {
