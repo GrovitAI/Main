@@ -1,6 +1,6 @@
 import type { OpenOrderItem } from './order-types';
 
-export const TAX_RATE = 0.05;
+export const TAX_RATE = 0.00;
 
 export function calculateOrderSubtotal(items: OpenOrderItem[]): number {
   return items.reduce((sum, item) => sum + item.qty * item.price, 0);

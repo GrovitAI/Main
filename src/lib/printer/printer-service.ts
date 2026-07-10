@@ -147,7 +147,7 @@ function centerTextLocal(text: string, width: number): string {
  * Generates formatting layout width based on the paper size.
  */
 function getLineWidth(paperWidth: string): number {
-  return paperWidth === '58mm' ? 32 : 42;
+  return paperWidth === '58mm' ? 32 : 48;
 }
 
 function padLeft(str: string, length: number, char = ' '): string {
@@ -225,10 +225,13 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
  */
 const SHOW_GST_INFORMATION = false;
 
-function buildHeader(width = 42, branch?: any): string[] {
+function buildHeader(width = 48, branch?: any): string[] {
   // ESC/POS bold only — do NOT use double-width here.
   const boldOn  = '\x1B\x45\x01';
   const boldOff = '\x1B\x45\x00';
+  
+  // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
+  const printNvLogo = '\x1Cp\x01\x00'; 
 
   const title = 'LE LEBAN';
   const phone = branch?.phone || '90309 13610';
@@ -240,6 +243,7 @@ function buildHeader(width = 42, branch?: any): string[] {
 
   const lines: string[] = [
     '\x1Ba\x01',   // center alignment
+    printNvLogo + '\n', // prints the engrained logo
     boldOn + title + boldOff + '\n',
     '\n',
     ...addressParts.map((part: string) => center(part, width) + '\n'),

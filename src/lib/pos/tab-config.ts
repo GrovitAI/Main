@@ -50,8 +50,14 @@ const OWNER_TABS: TabConfig[] = [
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
 ];
 
-// Admin: Same as Owner for now
-const ADMIN_TABS: TabConfig[] = OWNER_TABS;
+// Admin: Similar to Owner but does not have the branches option
+const ADMIN_TABS: TabConfig[] = [
+  { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
+  { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
+  { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
+  { name: 'staff',     href: '/(app)/staff',     icon: Users,        label: 'Staff' },
+  { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
+];
 
 // Kitchen: Kitchen display and printer settings only
 const KITCHEN_TABS: TabConfig[] = [

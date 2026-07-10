@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -90,6 +90,25 @@ export default function StaffScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const canManage = session?.role === 'owner' || session?.role === 'admin';
+  const isOwner = session?.role === 'owner';
+
+  // Filter staff members to only show members of the same branch for non-owners
+  const displayedStaff = useMemo(() => {
+    if (isOwner) return staff;
+    return staff.filter((s) => s.branch_id === session?.branchId);
+  }, [staff, isOwner, session]);
+
+  // Filter branches list to only show the assigned branch for non-owners
+  const displayedBranches = useMemo(() => {
+    if (isOwner) return branches;
+    return branches.filter((b) => b.id === session?.branchId);
+  }, [branches, isOwner, session]);
+
+  // Filter roles list to exclude owner/admin roles for non-owners
+  const displayedRoles = useMemo(() => {
+    if (isOwner) return ROLES;
+    return ROLES.filter((r) => r.value !== 'owner' && r.value !== 'admin');
+  }, [isOwner]);
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +134,7 @@ export default function StaffScreen() {
   const openNew = () => {
     setMode('new');
     setEditingId(null);
-    setForm({ ...EMPTY_FORM, branch_id: branches[0]?.id ?? '' });
+    setForm({ ...EMPTY_FORM, branch_id: displayedBranches[0]?.id ?? '', role: isOwner ? 'cashier' : 'cashier' });
     setFormError(null);
     setShowPassword(false);
     setShowForm(true);
@@ -226,8 +245,8 @@ export default function StaffScreen() {
     );
   }
 
-  const activeStaff = staff.filter((s) => s.status === 'active');
-  const inactiveStaff = staff.filter((s) => s.status !== 'active');
+  const activeStaff = displayedStaff.filter((s) => s.status === 'active');
+  const inactiveStaff = displayedStaff.filter((s) => s.status !== 'active');
 
   return (
     <View style={styles.container}>
@@ -312,7 +331,7 @@ export default function StaffScreen() {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Role *</Text>
               <View style={styles.rolePicker}>
-                {ROLES.map((r) => (
+                {displayedRoles.map((r) => (
                   <Pressable
                     key={r.value}
                     style={[
@@ -337,11 +356,19 @@ export default function StaffScreen() {
             {/* Branch Picker */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Branch *</Text>
-              {branches.length === 0 ? (
+              {!isOwner ? (
+                // Non-owners are locked to their own branch — display as static text
+                <View style={[styles.branchOption, styles.branchOptionActive, { width: '100%' }]}>
+                  <Building2 size={13} color="#0066b2" />
+                  <Text style={[styles.branchOptionText, styles.branchOptionTextActive, { fontSize: 13 }]}>
+                    {displayedBranches[0]?.name || 'Your Assigned Branch'}
+                  </Text>
+                </View>
+              ) : displayedBranches.length === 0 ? (
                 <Text style={styles.noBranchWarning}>No active branches found. Create a branch first.</Text>
               ) : (
                 <View style={styles.branchPicker}>
-                  {branches.map((b) => (
+                  {displayedBranches.map((b) => (
                     <Pressable
                       key={b.id}
                       style={[

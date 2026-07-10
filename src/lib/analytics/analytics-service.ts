@@ -45,10 +45,25 @@ export type AnalyticsDashboard = {
   }[];
 
   paymentSplit: PaymentSplit[];
+  
+  rawTransactions: TransactionRow[];
 
   topSellingItems: ProductInsight[];
   leastSellingItems: ProductInsight[];
   highestRevenueItems: ProductInsight[];
+};
+
+export type TransactionRow = {
+  id: string;
+  invoice_number: string;
+  created_at: string;
+  branch_name: string;
+  items_summary: string;
+  subtotal: number;
+  tax_amount: number;
+  discount_amount: number;
+  total_amount: number;
+  status: string;
 };
 
 export type ServiceResult<T> = {
@@ -92,7 +107,10 @@ export async function fetchAnalyticsDashboard(
 
     let billsQuery = supabase
       .from('bills')
-      .select('*')
+      .select(`
+        *,
+        branches ( name )
+      `)
       .eq('tenant_id', tenant_id)
       .gte('created_at', startTimestamp)
       .lte('created_at', endTimestamp)
@@ -300,6 +318,27 @@ export async function fetchAnalyticsDashboard(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
+    // F. Raw Transactions list (both paid and cancelled for comprehensive export)
+    const rawTransactions: TransactionRow[] = filteredBills.map((bill: any) => {
+      const itemsForBill = billItems.filter((item) => item.bill_id === bill.id);
+      const itemsSummary = itemsForBill
+        .map((item) => `${item.qty}x ${item.item_name || 'Item'}`)
+        .join(', ');
+
+      return {
+        id: bill.id,
+        invoice_number: bill.invoice_number || 'PENDING',
+        created_at: bill.created_at,
+        branch_name: bill.branches?.name || '—',
+        items_summary: itemsSummary || 'No Items',
+        subtotal: bill.subtotal || 0,
+        tax_amount: bill.tax_amount || 0,
+        discount_amount: bill.discount_amount || 0,
+        total_amount: bill.total_amount || 0,
+        status: bill.status || 'paid',
+      };
+    });
+
     return {
       data: {
         kpis: {
@@ -314,6 +353,7 @@ export async function fetchAnalyticsDashboard(
         ordersByDay,
         salesByHour,
         paymentSplit,
+        rawTransactions,
         topSellingItems,
         leastSellingItems,
         highestRevenueItems,
@@ -357,6 +397,7 @@ function getEmptyDashboard(startDate: string, endDate: string): AnalyticsDashboa
     ordersByDay: [...salesByDay],
     salesByHour,
     paymentSplit: [],
+    rawTransactions: [],
     topSellingItems: [],
     leastSellingItems: [],
     highestRevenueItems: [],

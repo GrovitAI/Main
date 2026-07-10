@@ -201,8 +201,12 @@ export function buildReceiptText(
   const addressRaw = branch?.address || `${cfg.addressLine1}, ${cfg.addressLine2}, ${cfg.addressLine3}`;
   const addressParts = addressRaw.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean);
 
+  // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
+  const printNvLogo = '\x1Cp\x01\x00'; 
+
   // ── Header ────────────────────────────────────────────────────────────────
   lines.push(ESC_CENTER);
+  lines.push(printNvLogo); // Print NV logo
   lines.push(ESC_BOLD_ON + ESC_DW_ON + centerText(title, W) + ESC_DW_OFF + ESC_BOLD_OFF);
   if (cfg.tagline && !branch) lines.push(centerText(cfg.tagline, W));
   lines.push('');

@@ -438,12 +438,14 @@ export function OrderPanel({
             {formatCurrency(subtotal)}
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-          <Text style={{ fontSize: 12, color: '#6B7280' }}>Tax (5%)</Text>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
-            {formatCurrency(tax)}
-          </Text>
-        </View>
+        {tax > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>Tax (5%)</Text>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
+              {formatCurrency(tax)}
+            </Text>
+          </View>
+        )}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: '#111827' }}>Total</Text>
           <Text style={{ fontSize: 25, fontWeight: '800', letterSpacing: -1, color: '#111827' }}>

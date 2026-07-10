@@ -49,7 +49,7 @@ import {
   PaymentSplit,
 } from '@/lib/analytics/analytics-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { Building2 } from 'lucide-react-native';
+import { Building2, Download } from 'lucide-react-native';
 
 export default function AnalyticsScreen() {
   const router = useRouter();
@@ -188,6 +188,63 @@ export default function AnalyticsScreen() {
       setDashboardData(res.data);
     }
     setLoading(false);
+  };
+
+  const handleExportCSV = () => {
+    if (!dashboardData || !dashboardData.rawTransactions || dashboardData.rawTransactions.length === 0) {
+      return;
+    }
+
+    // Helper: escape CSV cell values to prevent breaking structure
+    const escapeCsv = (str: string) => {
+      if (str === null || str === undefined) return '';
+      const stringified = String(str);
+      if (stringified.includes(',') || stringified.includes('"') || stringified.includes('\n')) {
+        return `"${stringified.replace(/"/g, '""')}"`;
+      }
+      return stringified;
+    };
+
+    const headers = [
+      'Bill Number',
+      'Date/Time',
+      'Branch Name',
+      'Items Summary',
+      'Subtotal (Rs)',
+      'Tax (Rs)',
+      'Discount (Rs)',
+      'Total Amount (Rs)',
+      'Status'
+    ];
+
+    const csvRows = [headers.join(',')];
+
+    dashboardData.rawTransactions.forEach((tx) => {
+      const formattedDate = new Date(tx.created_at).toLocaleString('en-IN');
+      const row = [
+        escapeCsv(tx.invoice_number),
+        escapeCsv(formattedDate),
+        escapeCsv(tx.branch_name),
+        escapeCsv(tx.items_summary),
+        tx.subtotal.toFixed(2),
+        tx.tax_amount.toFixed(2),
+        tx.discount_amount.toFixed(2),
+        tx.total_amount.toFixed(2),
+        escapeCsv(tx.status.toUpperCase())
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
+    
+    if (typeof window !== 'undefined') {
+      const link = document.createElement('a');
+      link.setAttribute('href', csvContent);
+      link.setAttribute('download', `grovit_sales_report_${startDate}_to_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   useEffect(() => {
@@ -1011,7 +1068,19 @@ export default function AnalyticsScreen() {
           </View>
         </View>
 
-        {loading && <ActivityIndicator color={colors.primary} size="small" />}
+        <View className="flex-row items-center gap-3">
+          {dashboardData && dashboardData.rawTransactions && dashboardData.rawTransactions.length > 0 && (
+            <Pressable
+              onPress={handleExportCSV}
+              id="btn-export-csv"
+              className="px-4 py-2 rounded-xl bg-primary flex-row items-center gap-1.5 active:opacity-90"
+            >
+              <Download size={14} color="#fff" />
+              <Text className="text-white text-xs font-bold">Export CSV</Text>
+            </Pressable>
+          )}
+          {loading && <ActivityIndicator color={colors.primary} size="small" />}
+        </View>
       </View>
 
       {/* FILTER CONTROL TOOLBAR */}

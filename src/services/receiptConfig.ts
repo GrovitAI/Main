@@ -27,7 +27,5 @@ export const RECEIPT_CONFIG = {
   footerLine2: 'Powered by Grovit POS',
 } as const;
 
-// ─── Paper width ─────────────────────────────────────────────────────────────
-
-/** Characters per line for 58 mm paper. Switch to 48 for 80 mm. */
-export const PAPER_WIDTH = 32;
+/** Characters per line for 80 mm paper (standard Font A is 48, switch to 32 for 58 mm). */
+export const PAPER_WIDTH = 48;
