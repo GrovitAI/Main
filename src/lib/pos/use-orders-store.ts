@@ -946,7 +946,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }));
 
     // Sim print KOT
-    printerService.printKot(nextKotNumber, itemsToSend);
+    await printerService.printKot(nextKotNumber, itemsToSend);
 
     // Construct optimistic mock KOT ticket
     const mockTicket: KotTicket = {
@@ -1146,7 +1146,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       // Generate bill number now (first time) or reuse if already set
       const billNumber = activeOrder.invoice_number || getNextBillNumber();
 
-      printerService.printBill(
+      await printerService.printBill(
         activeOrder.order_name,
         billNumber,
         snapshot.activeOrderItems,
@@ -1209,7 +1209,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       }));
 
       // Sim print KOT
-      printerService.printKot(nextKotNumber, itemsToSend);
+      await printerService.printKot(nextKotNumber, itemsToSend);
 
       // Construct optimistic mock KOT ticket
       mockTicket = {
@@ -1240,7 +1240,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const itemCount = orderItems.reduce((sum, item) => sum + item.qty, 0);
 
     // Print the customer bill with the generated bill number
-    printerService.printBill(
+    await printerService.printBill(
       nextOrderName,
       billNumber,
       orderItems,
