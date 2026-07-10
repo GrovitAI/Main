@@ -432,6 +432,7 @@ const headerLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 function GlobalHeader({ session, setBranchScope }: { session: any; setBranchScope: any }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  if (!session) return null;
   const currentScope = session.branchScope;
 
   const currentLabel = currentScope.mode === 'all'
