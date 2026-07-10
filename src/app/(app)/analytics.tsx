@@ -55,8 +55,8 @@ export default function AnalyticsScreen() {
   const router = useRouter();
   const { session } = useSessionStore();
 
-  // Branch filter — only relevant for owner/admin who can see all branches
-  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
+  // Branch filter — only relevant for owner who can see all branches
+  const isOwnerOrAdmin = session?.role === 'owner';
   const accessibleBranches = session?.accessibleBranches ?? [];
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null); // null = all branches
 

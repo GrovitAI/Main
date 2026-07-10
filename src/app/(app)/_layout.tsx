@@ -438,7 +438,7 @@ const headerLogo = require('@/../assets/images/le-leban-logo.png') as number;
 function GlobalHeader({ session }: { session: any }) {
   if (!session) return null;
 
-  const isOwnerOrAdmin = session.role === 'owner' || session.role === 'admin';
+  const isOwner = session.role === 'owner';
 
   return (
     <View style={styles.headerContainer}>
@@ -457,10 +457,10 @@ function GlobalHeader({ session }: { session: any }) {
         <Text style={styles.tenantName}>{session.tenantName}</Text>
       </View>
 
-      {/* Right side: Profile only (no branch badge for owner/admin) */}
+      {/* Right side: Profile and Branch (for managers/admins) */}
       <View style={styles.rightSection}>
-        {/* Show branch only for non-owner roles in the header (managers with header) */}
-        {!isOwnerOrAdmin && (
+        {/* Show branch badge only for non-owner roles */}
+        {!isOwner && (
           <View style={styles.branchBadge}>
             <MapPin size={13} color="#0066b2" />
             <Text style={styles.branchBadgeText}>{session.branchName}</Text>

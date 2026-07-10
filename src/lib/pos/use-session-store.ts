@@ -105,9 +105,9 @@ export const useSessionStore = create<SessionState>((set) => {
           .maybeSingle();
         const branchName = branch?.name || 'Main Branch';
 
-        // 3. Load accessible branches (for owner/admin reports filter; others get own branch only)
+        // 3. Load accessible branches (for owner reports filter; others get own branch only)
         let accessibleBranches: Branch[] = [];
-        if (role === 'owner' || role === 'admin') {
+        if (role === 'owner') {
           const { data: bData } = await supabase
             .from('branches')
             .select('*')
@@ -254,7 +254,7 @@ export const useSessionStore = create<SessionState>((set) => {
 
         // Load accessible branches
         let accessibleBranches: Branch[] = [];
-        if (role === 'owner' || role === 'admin') {
+        if (role === 'owner') {
           const { data: bData } = await supabase
             .from('branches')
             .select('*')

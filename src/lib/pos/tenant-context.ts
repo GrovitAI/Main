@@ -13,7 +13,7 @@ export type TenantContext = {
   branch_id: string;
   role: UserRole;
   /**
-   * True for owner and admin roles.
+   * True for owner role only.
    * Management queries (orders, settlements, inventory) should skip the
    * branch_id filter when this is true so owners can see across all branches.
    */
@@ -23,9 +23,9 @@ export type TenantContext = {
 /**
  * Returns the tenant/branch context for the currently logged-in user.
  *
- * - Cashier / Manager / Kitchen: branch_id = their assigned branch.
- * - Owner / Admin: branch_id = their home branch, but isOwnerOrAdmin = true.
- *   Management service calls should check isOwnerOrAdmin and omit the
+ * - Admin / Cashier / Manager / Kitchen: branch_id = their assigned branch.
+ * - Owner: branch_id = their home branch, but isOwnerOrAdmin = true.
+ *   Management service calls check isOwnerOrAdmin and omit the
  *   branch_id filter to show cross-branch data.
  */
 export function getTenantContext(): TenantContext {
@@ -35,7 +35,8 @@ export function getTenantContext(): TenantContext {
     throw new Error('Grovit Security Exception: Active session required to retrieve tenant context.');
   }
 
-  const isOwnerOrAdmin = session.role === 'owner' || session.role === 'admin';
+  // Only the owner role has cross-branch access
+  const isOwnerOrAdmin = session.role === 'owner';
 
   return {
     tenant_id: session.tenantId,
