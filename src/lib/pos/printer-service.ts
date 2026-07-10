@@ -5,17 +5,15 @@ export const printerService = {
   /**
    * Delegates to the production-grade kitchen ticket printer.
    */
-  printKot: (kotNumber: number, items: { name: string; quantity: number }[]) => {
-    newPrinterService.printKot(kotNumber, items).catch(err => {
-      console.warn('Deferred printKot failure:', err);
-    });
+  printKot: async (kotNumber: number, items: { name: string; quantity: number }[]) => {
+    return newPrinterService.printKot(kotNumber, items);
   },
 
   /**
    * Delegates to the production-grade billing/provisional printer.
    * Pass `kots` to include the Kitchen Tickets audit section on the receipt.
    */
-  printBill: (
+  printBill: async (
     orderName: string,
     invoiceNumber: string | null | undefined,
     items: PosOrderItem[],
@@ -24,7 +22,7 @@ export const printerService = {
     paymentMethod?: string | null,
     kots?: Pick<KotTicket, 'kot_number' | 'created_at'>[]
   ) => {
-    newPrinterService.printBill(
+    return newPrinterService.printBill(
       orderName,
       invoiceNumber,
       items,
@@ -32,8 +30,6 @@ export const printerService = {
       isFinal,
       paymentMethod ?? null,
       kots
-    ).catch(err => {
-      console.warn('Deferred printBill failure:', err);
-    });
+    );
   }
 };

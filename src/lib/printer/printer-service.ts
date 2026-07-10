@@ -504,6 +504,16 @@ export const printerService = {
         console.warn('[Printer] Unable to load printers for KOT:', res.error);
       } else {
         kitchenPrinters = res.data.filter(p => p.is_active && p.printer_role === 'kitchen');
+        
+        // Fallback: If no kitchen printers are configured, send KOT to the active/default billing printer
+        if (kitchenPrinters.length === 0) {
+          const billingFallback = res.data.find(p => p.is_active && p.printer_role === 'bill' && p.is_default)
+            || res.data.find(p => p.is_active && p.printer_role === 'bill');
+          if (billingFallback) {
+            console.log('[Printer] No kitchen printer found. Falling back to billing printer for KOT:', billingFallback.name);
+            kitchenPrinters = [billingFallback];
+          }
+        }
       }
 
       if (kitchenPrinters.length > 0) {
