@@ -192,7 +192,7 @@ export default function AnalyticsScreen() {
 
   useEffect(() => {
     loadDashboard();
-  }, [startDate, endDate, startTime, endTime, advancedTime]);
+  }, [startDate, endDate, startTime, endTime, advancedTime, selectedBranchId]);
 
   const kpis = dashboardData?.kpis;
 
