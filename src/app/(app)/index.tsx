@@ -910,15 +910,19 @@ export default function PosBillingScreen() {
     // 2. Perform DB write
     const result = await settleBill(paymentType);
     const success = !!(result && !result.error && result.data);
-    
-    // 3. Complete settlement
+
+    // 3. Always close the modal — whether success or failure
+    setSettlementVisible(false);
+
+    // 4. Show outcome toast
     if (success && result.data) {
       showToast('Bill settled successfully.');
     } else {
       showToast(result?.error || 'Settlement failed. Please try again.');
     }
     return success;
-  }, [settleBill, showToast]);
+  }, [settleBill, showToast, activeOrderItems, setSettlementVisible]);
+
 
   // Guard Modals mapping
   const activeModalConfig = useMemo(() => {
