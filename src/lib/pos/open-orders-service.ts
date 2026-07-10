@@ -969,6 +969,8 @@ export async function settleOrderById(
     const discount_amount = 0;
     const total_amount = subtotal;
 
+    const invoiceNumber = order.invoice_number || getNextBillNumber();
+
     // 3. Create or reuse existing bill
     const { data: existingBill } = await supabase
       .from('bills')
@@ -985,6 +987,7 @@ export async function settleOrderById(
         tenant_id,
         branch_id,
         open_order_id: orderId,
+        invoice_number: invoiceNumber,
         subtotal,
         tax_amount,
         discount_amount,
@@ -1088,10 +1091,6 @@ export async function settleOrderById(
 
     // 6. Mark open order as paid
     const paidAt = new Date().toISOString();
-
-    // Bill number must already exist from Save & Print.
-    // Only generate a fallback here if the order was settled without going through Save & Print.
-    const invoiceNumber = order.invoice_number || getNextBillNumber();
 
     const needsOrderNumber = !order.order_name || order.order_name.toLowerCase().includes('draft') || !order.order_name.startsWith('Order #');
     let nextOrderName = order.order_name;

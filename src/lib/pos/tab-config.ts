@@ -50,8 +50,9 @@ const OWNER_TABS: TabConfig[] = [
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
 ];
 
-// Admin: Similar to Owner but does not have the branches option
+// Admin: Similar to Owner but has POS option and no branches option
 const ADMIN_TABS: TabConfig[] = [
+  { name: 'index',     href: '/(app)/index',     icon: Receipt,      label: 'POS' },
   { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
@@ -107,7 +108,7 @@ export function getDefaultScreenForRole(role: UserRole): string {
     case 'owner':
       return '/(app)/orders';   // Owner lands on Orders — no Dashboard tab
     case 'admin':
-      return '/(app)/orders';
+      return '/(app)/index';    // Admin lands on POS
     case 'kitchen':
       return '/(app)/kitchen';
     default:
