@@ -47,6 +47,7 @@ export type AnalyticsDashboard = {
   paymentSplit: PaymentSplit[];
   
   rawTransactions: TransactionRow[];
+  itemWiseReport: ProductInsight[];
 
   topSellingItems: ProductInsight[];
   leastSellingItems: ProductInsight[];
@@ -339,6 +340,9 @@ export async function fetchAnalyticsDashboard(
       };
     });
 
+    // G. Full Item Wise Sales Report (all items sold sorted by quantity descending)
+    const itemWiseReport: ProductInsight[] = [...allProductInsights].sort((a, b) => b.qty - a.qty);
+
     return {
       data: {
         kpis: {
@@ -354,6 +358,7 @@ export async function fetchAnalyticsDashboard(
         salesByHour,
         paymentSplit,
         rawTransactions,
+        itemWiseReport,
         topSellingItems,
         leastSellingItems,
         highestRevenueItems,
@@ -398,6 +403,7 @@ function getEmptyDashboard(startDate: string, endDate: string): AnalyticsDashboa
     salesByHour,
     paymentSplit: [],
     rawTransactions: [],
+    itemWiseReport: [],
     topSellingItems: [],
     leastSellingItems: [],
     highestRevenueItems: [],

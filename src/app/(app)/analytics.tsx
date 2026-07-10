@@ -247,6 +247,44 @@ export default function AnalyticsScreen() {
     }
   };
 
+  const handleExportItemWiseCSV = () => {
+    if (!dashboardData || !dashboardData.itemWiseReport || dashboardData.itemWiseReport.length === 0) {
+      return;
+    }
+
+    const escapeCsv = (str: string) => {
+      if (str === null || str === undefined) return '';
+      const stringified = String(str);
+      if (stringified.includes(',') || stringified.includes('"') || stringified.includes('\n')) {
+        return `"${stringified.replace(/"/g, '""')}"`;
+      }
+      return stringified;
+    };
+
+    const headers = ['Menu Item Name', 'Quantity Sold', 'Total Sales Amount (Rs)'];
+    const csvRows = [headers.join(',')];
+
+    dashboardData.itemWiseReport.forEach((item) => {
+      const row = [
+        escapeCsv(item.item_name),
+        item.qty.toString(),
+        item.revenue.toFixed(2)
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
+    
+    if (typeof window !== 'undefined') {
+      const link = document.createElement('a');
+      link.setAttribute('href', csvContent);
+      link.setAttribute('download', `grovit_item_wise_sales_${startDate}_to_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   useEffect(() => {
     loadDashboard();
   }, [startDate, endDate, startTime, endTime, advancedTime, selectedBranchId]);
@@ -775,6 +813,51 @@ export default function AnalyticsScreen() {
     );
   }, [dashboardData]);
 
+  // Comprehensive Item-Wise Sales Performance Report
+  const itemWiseReportSection = useMemo(() => {
+    if (!dashboardData || !dashboardData.itemWiseReport || dashboardData.itemWiseReport.length === 0) {
+      return null;
+    }
+
+    return (
+      <View className="bg-white border border-border/60 rounded-2xl p-5 shadow-sm mb-6">
+        <View className="flex-row items-center justify-between mb-4 border-b border-border/40 pb-2">
+          <View className="flex-row items-center space-x-2">
+            <Building2 size={16} color={colors.primary} />
+            <Text className="text-sm font-bold text-textPrimary">Item-Wise Sales Performance</Text>
+          </View>
+          <Text className="text-xs text-textSecondary font-semibold">
+            {dashboardData.itemWiseReport.length} unique items sold
+          </Text>
+        </View>
+
+        <View className="max-h-[300px] overflow-y-auto">
+          {/* Table Header */}
+          <View className="flex-row justify-between py-2 border-b border-border/40 bg-surfaceTint px-2 rounded-lg">
+            <Text className="text-xs font-bold text-textSecondary flex-1">Menu Item</Text>
+            <Text className="text-xs font-bold text-textSecondary w-24 text-center">Qty Sold</Text>
+            <Text className="text-xs font-bold text-textSecondary w-28 text-right">Revenue (Rs)</Text>
+          </View>
+
+          {/* Table Rows */}
+          {dashboardData.itemWiseReport.map((item, idx) => (
+            <View key={idx} className="flex-row justify-between items-center py-2.5 border-b border-border/30 px-2 last:border-b-0">
+              <Text className="text-xs font-medium text-textPrimary flex-1" numberOfLines={1}>
+                {item.item_name}
+              </Text>
+              <Text className="text-xs font-bold text-textSecondary w-24 text-center">
+                {item.qty}
+              </Text>
+              <Text className="text-xs font-bold text-textPrimary w-28 text-right">
+                ₹{item.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  }, [dashboardData]);
+
   // Main Dashboard Content Grid
   const renderDashboardContent = () => {
     if (loading && !dashboardData) {
@@ -1034,6 +1117,9 @@ export default function AnalyticsScreen() {
               {productIntelligence}
             </View>
 
+            {/* Item-Wise Sales Performance */}
+            {itemWiseReportSection}
+
             {/* Payment breakdowns */}
             <View className="flex-col lg:flex-row gap-6">
               {paymentSplitRing}
@@ -1076,7 +1162,17 @@ export default function AnalyticsScreen() {
               className="px-4 py-2 rounded-xl bg-primary flex-row items-center gap-1.5 active:opacity-90"
             >
               <Download size={14} color="#fff" />
-              <Text className="text-white text-xs font-bold">Export CSV</Text>
+              <Text className="text-white text-xs font-bold">Export Transactions</Text>
+            </Pressable>
+          )}
+          {dashboardData && dashboardData.itemWiseReport && dashboardData.itemWiseReport.length > 0 && (
+            <Pressable
+              onPress={handleExportItemWiseCSV}
+              id="btn-export-item-wise-csv"
+              className="px-4 py-2 rounded-xl bg-emerald-600 flex-row items-center gap-1.5 active:opacity-90"
+            >
+              <Download size={14} color="#fff" />
+              <Text className="text-white text-xs font-bold">Export Item Sales</Text>
             </Pressable>
           )}
           {loading && <ActivityIndicator color={colors.primary} size="small" />}
