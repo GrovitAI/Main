@@ -333,8 +333,9 @@ export default function OrdersScreen() {
 
     const status = viewingSummary.order.status;
     const isUnpaidOrActive = status === 'draft' || status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
+    const isConfirmed = status === 'confirmed';
     const isHeld = status === 'held';
-    const buttonCount = (isUnpaidOrActive || isHeld) ? 2 : 1;
+    const buttonCount = (status === 'cancelled') ? 1 : 2;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
@@ -357,6 +358,12 @@ export default function OrdersScreen() {
           } else {
             setSettlingOrder(viewingSummary);
           }
+        } else if (isConfirmed) {
+          if (modalFooterIndex === 0) {
+            void handleReprintPreviousBill();
+          } else {
+            setSettlingOrder(viewingSummary);
+          }
         } else if (isHeld) {
           if (modalFooterIndex === 0) {
             closeViewModal();
@@ -365,7 +372,12 @@ export default function OrdersScreen() {
             void handleOpenBill(viewingOrderId);
           }
         } else {
-          closeViewModal();
+          const showReprint = status === 'paid' || status === 'completed';
+          if (showReprint && modalFooterIndex === 1) {
+            void handleReprintPreviousBill();
+          } else {
+            closeViewModal();
+          }
         }
         return;
       }
