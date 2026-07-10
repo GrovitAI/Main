@@ -233,7 +233,7 @@ function buildHeader(width = 48, branch?: any): string[] {
   // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
   const printNvLogo = '\x1Cp\x01\x00'; 
 
-  const title = 'LE LEBAN';
+  const title = 'LE LABAN';
   const phone = branch?.phone || '90309 13610';
   const gstin = branch?.gstin;
 
