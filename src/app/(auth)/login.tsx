@@ -122,14 +122,14 @@ export default function LoginScreen() {
             <Pressable
               onPress={handleLogin}
               disabled={isLoading}
-              className="mt-6 overflow-hidden rounded-2xl"
+              className="mt-6 w-full h-11 overflow-hidden rounded-xl bg-primary"
               style={({ pressed }) => ({
                 opacity: pressed ? 0.9 : 1,
               })}
             >
               <BrandedGradient
                 variant="primarySoft"
-                className="min-h-[44px] items-center justify-center px-8 py-2.5 flex-row"
+                className="flex-1 items-center justify-center flex-row"
               >
                 {isLoading ? (
                   <ActivityIndicator size="small" color="#ffffff" className="mr-2" />

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert } from 'react-native';
-import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart } from 'lucide-react-native';
+import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut } from 'lucide-react-native';
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { MenuManagement } from '@/components/settings/MenuManagement';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Trash2 } from 'lucide-react-native';
+import { useSessionStore } from '@/lib/pos/use-session-store';
 
 export default function SettingsScreen() {
+  const { session, signOut } = useSessionStore();
   const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'menu'>('printers');
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -511,6 +513,31 @@ export default function SettingsScreen() {
             </View>
 
             <View className="flex-row flex-wrap -mx-3 gap-y-6">
+              {/* Active Account / Profile Card */}
+              <View className="w-full md:w-1/2 px-3">
+                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                  <View>
+                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Active Account</Text>
+                    <Text className="text-[22px] font-semibold text-slate-800">{session?.displayName || 'Active Staff'}</Text>
+                    <View className="mt-2.5 gap-1">
+                      <Text className="text-xs text-slate-500 capitalize">
+                        Role: <Text className="font-semibold text-slate-700">{session?.role || 'user'}</Text>
+                      </Text>
+                      <Text className="text-xs text-slate-500">
+                        Home Branch: <Text className="font-semibold text-slate-700">{session?.branchName || 'Main'}</Text>
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={() => signOut()}
+                    className="mt-5 self-start flex-row items-center gap-2 px-4 py-2 border border-red-200 bg-red-50 hover:bg-red-100/80 active:bg-red-100 rounded-xl transition-all cursor-pointer"
+                  >
+                    <LogOut size={12} color="#dc2626" />
+                    <Text className="text-xs font-bold text-red-600">Sign Out</Text>
+                  </Pressable>
+                </View>
+              </View>
+
               {/* POS Brand Card */}
               <View className="w-full md:w-1/2 px-3">
                 <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
