@@ -218,11 +218,16 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       console.log('[useOrdersStore] loadOrders: restoring active order from localStorage', storedActiveOrderId);
       // Dual-tab stale session guard
       const { data: orderData } = await fetchOpenOrderById(storedActiveOrderId);
-      if (orderData && orderData.status === 'draft') {
+      const isRestorable = orderData &&
+        orderData.status !== 'paid' &&
+        orderData.status !== 'completed' &&
+        orderData.status !== 'cancelled';
+
+      if (isRestorable) {
         draftToUse = orderData;
-        console.log('[useOrdersStore] loadOrders: stored active order is valid draft');
+        console.log('[useOrdersStore] loadOrders: stored active order is restorable:', orderData.status);
       } else {
-        console.log('[useOrdersStore] loadOrders: stored order is stale (paid/cancelled/not draft). Clearing localStorage.');
+        console.log('[useOrdersStore] loadOrders: stored order is stale (paid/completed/cancelled). Clearing localStorage.');
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.removeItem('grovit_active_order_id');
         }
