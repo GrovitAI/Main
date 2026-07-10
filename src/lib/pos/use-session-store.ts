@@ -208,10 +208,14 @@ export const useSessionStore = create<SessionState>((set, get) => {
       set({ isLoading: true, error: null });
       try {
         await supabase.auth.signOut();
-        set({ isLoading: false });
+        set({ session: null, isLoading: false });
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem('grovit_active_order_id');
+          window.localStorage.removeItem('grovit_printed_orders');
+        }
       } catch (err: any) {
         console.error('[useSessionStore] signOut failed:', err);
-        set({ error: err.message || 'Logout failed.', isLoading: false });
+        set({ error: err.message || 'Logout failed.', isLoading: false, session: null });
       }
     },
 
