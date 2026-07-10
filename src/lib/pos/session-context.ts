@@ -15,9 +15,14 @@ export type Branch = {
   id: string;
   tenant_id: string;
   name: string;
-  address: string;
-  branch_type: string;
-  created_at: string;
+  code: string;
+  address: string | null;
+  phone: string | null;
+  gstin: string | null;
+  invoice_prefix: string;
+  branch_type: string | null;
+  is_active: boolean;
+  created_at?: string;
 };
 
 export type PosSession = {

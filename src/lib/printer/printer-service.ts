@@ -230,7 +230,7 @@ function buildHeader(width = 42, branch?: any): string[] {
   const boldOn  = '\x1B\x45\x01';
   const boldOff = '\x1B\x45\x00';
 
-  const title = (branch?.name || 'LE LEBAN').toUpperCase();
+  const title = 'LE LEBAN';
   const phone = branch?.phone || '90309 13610';
   const gstin = branch?.gstin;
 

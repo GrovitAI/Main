@@ -194,7 +194,7 @@ export function buildReceiptText(
 
   const lines: string[] = [];
 
-  const title = (branch?.name || cfg.restaurantName).toUpperCase();
+  const title = 'LE LEBAN';
   const phone = branch?.phone || cfg.phone.replace('PH:', '').trim();
   const gstin = branch?.gstin;
 
