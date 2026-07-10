@@ -924,7 +924,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
     const nextKotNumber = getNextKotNumber();
-    const nextOrderName = activeOrder.order_name;
+    const needsOrderNumber = !activeOrder.order_name || activeOrder.order_name.toLowerCase().includes('draft');
+    let nextOrderName = activeOrder.order_name;
+    if (needsOrderNumber) {
+      const nextOrderNum = getNextOrderNumber();
+      nextOrderName = `Order #${nextOrderNum}`;
+    }
 
     const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
 
@@ -1127,8 +1132,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
     const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
 
+    const needsOrderNumber = !activeOrder.order_name || activeOrder.order_name.toLowerCase().includes('draft');
     let nextOrderName = activeOrder.order_name;
-    let nextOrderNum = 0;
+    if (needsOrderNumber) {
+      const nextOrderNum = getNextOrderNumber();
+      nextOrderName = `Order #${nextOrderNum}`;
+    }
     
     // Scenario A: No unsent items, order already in_kitchen — generate bill number, print bill, confirm
     if (unsentItems.length === 0 && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
