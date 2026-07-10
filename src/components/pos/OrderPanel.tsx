@@ -102,6 +102,9 @@ export function OrderPanel({
       }, 800);
       
       return () => clearTimeout(loadingTimer);
+    } else {
+      // Clean up feedback immediately if action is reset to null from parent
+      setButtonFeedback({ button: null, status: 'idle' });
     }
   }, [activeAction]);
 
