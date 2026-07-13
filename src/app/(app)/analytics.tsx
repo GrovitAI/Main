@@ -903,7 +903,7 @@ export default function AnalyticsScreen() {
           <View className="flex-row flex-wrap justify-between gap-4">
             {/* 1. Total Sales */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Total Sales</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.totalSales).toLocaleString('en-IN')}
@@ -916,7 +916,7 @@ export default function AnalyticsScreen() {
 
             {/* 2. Total Orders */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Total Orders</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">{kpis.totalOrders}</Text>
               </View>
@@ -927,7 +927,7 @@ export default function AnalyticsScreen() {
 
             {/* 3. AOV */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Avg Order Value</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.avgOrderValue).toLocaleString('en-IN')}
@@ -940,7 +940,7 @@ export default function AnalyticsScreen() {
 
             {/* 4. Items Sold */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Items Sold</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">{kpis.itemsSold}</Text>
               </View>
@@ -951,7 +951,7 @@ export default function AnalyticsScreen() {
 
             {/* 5. Tax Collected */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Tax Collected</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.taxCollected).toLocaleString('en-IN')}
@@ -964,7 +964,7 @@ export default function AnalyticsScreen() {
 
             {/* 6. Cancelled Orders */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Cancelled Orders</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">{kpis.cancelledOrders}</Text>
               </View>
@@ -975,53 +975,53 @@ export default function AnalyticsScreen() {
 
             {/* 7. Collected Revenue */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Collected Revenue</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.collectedRevenue || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-green-50 items-center justify-center">
-                <DollarSign size={18} color="#16a34a" />
+              <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center">
+                <DollarSign size={18} color="#059669" />
               </View>
             </View>
 
             {/* 8. Pending Collections */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Pending Collections</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.pendingCollections || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-orange-50 items-center justify-center">
-                <DollarSign size={18} color="#ea580c" />
+              <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center">
+                <DollarSign size={18} color="#d97706" />
               </View>
             </View>
 
             {/* 9. Total Discounts */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Total Discounts</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.totalDiscounts || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
               <View className="w-9 h-9 rounded-xl bg-pink-50 items-center justify-center">
-                <Percent size={18} color="#ec4899" />
+                <Percent size={18} color="#db2777" />
               </View>
             </View>
 
             {/* 10. Cancelled Sales */}
             <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View>
+              <View className="flex-1 mr-2">
                 <Text className="text-xs font-bold text-textSecondary">Cancelled Sales</Text>
                 <Text className="text-xl font-black text-textPrimary mt-1">
                   ₹{Math.round(kpis.cancelledSales || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-red-50 items-center justify-center">
-                <XCircle size={18} color="#dc2626" />
+              <View className="w-9 h-9 rounded-xl bg-rose-50 items-center justify-center">
+                <XCircle size={18} color="#e11d48" />
               </View>
             </View>
           </View>
