@@ -10,7 +10,7 @@ import {
   Platform,
   TextInput,
 } from 'react-native';
-import { Minus, Plus, Trash2 } from 'lucide-react-native';
+import { Minus, Plus, Trash2, Percent } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
@@ -113,6 +113,14 @@ export function OrderPanel({
 
   const { discountType, discountPercent, discountAmount, setDiscount } = useOrdersStore();
 
+  const [showDiscountInputs, setShowDiscountInputs] = useState(discountAmount > 0);
+
+  useEffect(() => {
+    if (discountAmount > 0) {
+      setShowDiscountInputs(true);
+    }
+  }, [discountAmount]);
+
   const subtotal = useMemo(() => calculateOrderSubtotal(items), [items]);
   const discountedSubtotal = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
   const tax = useMemo(() => calculateTax(discountedSubtotal, TAX_RATE), [discountedSubtotal]);
@@ -155,11 +163,11 @@ export function OrderPanel({
   const hasItems       = items.length > 0;
   const hasUnsentItems = items.some((item) => !item.kot_sent);
 
-  // Save KOT: only when there are unsent items and order is in draft or kitchen stage
-  const showSaveKotButton = !isReadOnlyView && hasUnsentItems && (isDraft || isKitchen);
+  // Save KOT: only when there are unsent items and order is in draft, kitchen stage, or editing unpaid
+  const showSaveKotButton = !isReadOnlyView && hasUnsentItems && (isDraft || isKitchen || isEditingUnpaid);
 
-  // Save & Print: available from draft or kitchen — this is the "confirm order" action
-  const showSaveAndPrintButton = !isReadOnlyView && hasItems && (isDraft || isKitchen);
+  // Save & Print: available from draft, kitchen, or editing unpaid — this is the "confirm order" action
+  const showSaveAndPrintButton = !isReadOnlyView && hasItems && (isDraft || isKitchen || isEditingUnpaid);
 
   // Reprint: available once confirmed (bill already printed), no unsent items
   const showReprintButton = !isReadOnlyView && hasItems && isUnpaid && !hasUnsentItems;
@@ -442,63 +450,89 @@ export function OrderPanel({
       <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EEF2F7' }}>
         {canEdit && (
           <View style={{ marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' }}>
-            <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#4B5563', marginBottom: 6 }}>
-              Apply Discount
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {/* Percentage Input */}
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
-                <TextInput
-                  value={discountType === 'percent' ? String(discountPercent) : ''}
-                  placeholder="0"
-                  keyboardType="numeric"
-                  onChangeText={(val) => {
-                    const num = parseFloat(val) || 0;
-                    if (num < 0 || num > 100) {
-                      Alert.alert('Validation Error', 'Percentage discount must be between 0 and 100.');
-                      return;
-                    }
-                    setDiscount('percent', num);
-                  }}
-                  placeholderTextColor="#9CA3AF"
-                  style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
-                />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginLeft: 4 }}>%</Text>
-              </View>
+            {!showDiscountInputs ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowDiscountInputs(true)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#F3F4F6',
+                  borderRadius: 8,
+                  height: 36,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                }}
+              >
+                <Percent size={14} color="#4B5563" style={{ marginRight: 6 }} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#4B5563' }}>
+                  Add Discount
+                </Text>
+              </Pressable>
+            ) : (
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#4B5563' }}>
+                    Apply Discount
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      setDiscount(null, 0);
+                      setShowDiscountInputs(false);
+                    }}
+                    style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F3F4F6', borderRadius: 4 }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>Clear / Close</Text>
+                  </Pressable>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {/* Percentage Input */}
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
+                    <TextInput
+                      value={discountType === 'percent' ? String(discountPercent) : ''}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      onChangeText={(val) => {
+                        const num = parseFloat(val) || 0;
+                        if (num < 0 || num > 100) {
+                          Alert.alert('Validation Error', 'Percentage discount must be between 0 and 100.');
+                          return;
+                        }
+                        setDiscount('percent', num);
+                      }}
+                      placeholderTextColor="#9CA3AF"
+                      style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
+                    />
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginLeft: 4 }}>%</Text>
+                  </View>
 
-              {/* Fixed Amount Input */}
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginRight: 4 }}>₹</Text>
-                <TextInput
-                  value={discountType === 'fixed' ? String(discountAmount) : ''}
-                  placeholder="0"
-                  keyboardType="numeric"
-                  onChangeText={(val) => {
-                    const num = parseFloat(val) || 0;
-                    if (num < 0) {
-                      Alert.alert('Validation Error', 'Discount amount cannot be negative.');
-                      return;
-                    }
-                    if (num > subtotal) {
-                      Alert.alert('Validation Error', 'Discount amount cannot exceed subtotal.');
-                      return;
-                    }
-                    setDiscount('fixed', num);
-                  }}
-                  placeholderTextColor="#9CA3AF"
-                  style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
-                />
+                  {/* Fixed Amount Input */}
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginRight: 4 }}>₹</Text>
+                    <TextInput
+                      value={discountType === 'fixed' ? String(discountAmount) : ''}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      onChangeText={(val) => {
+                        const num = parseFloat(val) || 0;
+                        if (num < 0) {
+                          Alert.alert('Validation Error', 'Discount amount cannot be negative.');
+                          return;
+                        }
+                        if (num > subtotal) {
+                          Alert.alert('Validation Error', 'Discount amount cannot exceed subtotal.');
+                          return;
+                        }
+                        setDiscount('fixed', num);
+                      }}
+                      placeholderTextColor="#9CA3AF"
+                      style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
+                    />
+                  </View>
+                </View>
               </View>
-
-              {discountType !== null && (
-                <Pressable
-                  onPress={() => setDiscount(null, 0)}
-                  style={{ padding: 6, backgroundColor: '#F3F4F6', borderRadius: 6 }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>Clear</Text>
-                </Pressable>
-              )}
-            </View>
+            )}
           </View>
         )}
 
