@@ -23,6 +23,7 @@ import {
   getAllOrders,
   settleOrderById,
   repairMissingBills,
+  createOrUpdateBill,
   type OpenOrderSummary,
   type OrderItemPreview,
 } from './open-orders-service';
@@ -50,6 +51,10 @@ type OrdersState = {
   isReadOnlyView: boolean;
   isWorkspaceEmpty: boolean;
   error: string | null;
+  discountType: 'percent' | 'fixed' | null;
+  discountPercent: number;
+  discountAmount: number;
+  setDiscount: (type: 'percent' | 'fixed' | null, value: number) => Promise<void>;
   loadOrders: () => Promise<void>;
   loadSummaries: (silent?: boolean) => Promise<void>;
   setProductCatalog: (products: Product[]) => void;
@@ -88,6 +93,70 @@ function enrichItems(
   }));
 }
 
+function calculateDiscountLocal(
+  subtotal: number,
+  type: 'percent' | 'fixed' | null,
+  percent: number,
+  amount: number
+) {
+  if (!type) {
+    return { percent: 0, amount: 0 };
+  }
+  if (type === 'percent') {
+    const p = Math.min(100, Math.max(0, percent));
+    const a = Math.round((subtotal * p / 100.0) * 100) / 100;
+    return { percent: p, amount: a };
+  } else {
+    const a = Math.min(subtotal, Math.max(0, amount));
+    const p = subtotal > 0 ? Math.min(100, Math.max(0, (a / subtotal) * 100)) : 0;
+    return { percent: p, amount: a };
+  }
+}
+
+async function syncActiveOrderDiscountInDb(
+  orderId: string,
+  type: 'percent' | 'fixed' | null,
+  value: number,
+  amount: number
+) {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    await supabase
+      .from('open_orders')
+      .update({
+        discount_type: type,
+        discount_value: value,
+        discount_amount: amount
+      })
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+  } catch (err) {
+    console.error('[syncActiveOrderDiscountInDb] Failed to update discount:', err);
+  }
+}
+
+function updateDiscountStateAndDb(
+  state: any,
+  nextItems: PosOrderItem[],
+  activeOrderId: string
+) {
+  const nextSubtotal = nextItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
+  const { percent, amount } = calculateDiscountLocal(
+    nextSubtotal,
+    state.discountType,
+    state.discountPercent,
+    state.discountAmount
+  );
+  void syncActiveOrderDiscountInDb(
+    activeOrderId,
+    state.discountType,
+    state.discountType === 'percent' ? percent : amount,
+    amount
+  );
+  return { percent, amount };
+}
+
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
   heldOrders: [],
@@ -117,8 +186,39 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   isReadOnlyView: false,
   isWorkspaceEmpty: true,
   error: null,
+  discountType: null,
+  discountPercent: 0,
+  discountAmount: 0,
 
   clearError: () => set({ error: null }),
+
+  setDiscount: async (type, value) => {
+    const { activeOrderId, activeOrderItems } = get();
+    if (!activeOrderId) return;
+
+    const subtotal = activeOrderItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
+    
+    let percent = 0;
+    let amount = 0;
+
+    if (type === 'percent') {
+      percent = Math.min(100, Math.max(0, value));
+      amount = Math.round((subtotal * percent / 100.0) * 100) / 100;
+    } else if (type === 'fixed') {
+      amount = Math.min(subtotal, Math.max(0, value));
+      percent = subtotal > 0 ? Math.min(100, Math.max(0, (amount / subtotal) * 100)) : 0;
+    }
+
+    set((state) => ({
+      discountType: type,
+      discountPercent: percent,
+      discountAmount: amount,
+      hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
+    }));
+
+    const valInDb = type === 'percent' ? percent : amount;
+    void syncActiveOrderDiscountInDb(activeOrderId, type, valInDb, amount);
+  },
 
   setProductCatalog: (products) => {
     const productNameById: Record<string, string> = {};
@@ -280,8 +380,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
             const dbStatus = dbSum.order.status;
             const localStatus = localSum.order.status;
             if (
-              ((localStatus === 'unpaid' || localStatus === 'confirmed' || localStatus === 'in_kitchen') && dbStatus === 'draft') ||
-              (localStatus === 'confirmed' && dbStatus === 'in_kitchen') ||
+              ((localStatus === 'unpaid' || localStatus === 'in_kitchen') && dbStatus === 'draft') ||
+              (localStatus === 'unpaid' && dbStatus === 'in_kitchen') ||
               (localStatus === 'held' && dbStatus === 'draft') ||
               (localStatus === 'paid' && dbStatus !== 'paid') ||
               (localStatus === 'cancelled' && dbStatus !== 'cancelled')
@@ -364,6 +464,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       productNameById,
     );
 
+    const subtotal = activeOrderItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
+    const discountType = order.discount_type || null;
+    const discountValue = Number(order.discount_value) || 0;
+    const discountAmountVal = Number(order.discount_amount) || 0;
+
+    let discountPercent = 0;
+    if (discountType === 'percent') {
+      discountPercent = discountValue;
+    } else if (discountType === 'fixed') {
+      discountPercent = subtotal > 0 ? (discountAmountVal / subtotal) * 100 : 0;
+    }
+
     console.log('[useOrdersStore] selectOrder: selected order', orderId);
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem('grovit_active_order_id', orderId);
@@ -383,6 +495,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         orders: updatedOrders,
         activeOrderId: orderId,
         activeOrderItems,
+        discountType,
+        discountPercent,
+        discountAmount: discountAmountVal,
         kotNumbersByOrderId: {
           ...state.kotNumbersByOrderId,
           [orderId]: kotNumbers,
@@ -392,7 +507,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           [orderId]: orderKots,
         },
         isLoadingActiveOrder: false,
-        isEditingUnpaid: !isReadOnly && order.status === 'in_kitchen',
+        isEditingUnpaid: !isReadOnly && (order.status === 'in_kitchen' || order.status === 'unpaid' || order.status === 'payment_pending'),
         hasUnsavedChanges: false,
         isReadOnlyView: isReadOnly,
         isWorkspaceEmpty: false,
@@ -429,6 +544,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       isEditingUnpaid: false,
       hasUnsavedChanges: false,
       isReadOnlyView: false,
+      discountType: null,
+      discountPercent: 0,
+      discountAmount: 0,
     });
   },
 
@@ -493,8 +611,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
             window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
           }
         }
+        const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId);
         return {
           activeOrderItems: nextItems,
+          discountPercent: percent,
+          discountAmount: amount,
           itemCountByOrderId: {
             ...state.itemCountByOrderId,
             [activeOrderId]: getItemCount(nextItems),
@@ -554,8 +675,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
         }
       }
+      const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId);
       return {
         activeOrderItems: nextItems,
+        discountPercent: percent,
+        discountAmount: amount,
         itemCountByOrderId: {
           ...state.itemCountByOrderId,
           [activeOrderId]: nextCount,
@@ -631,8 +755,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
         }
       }
+      const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId || '');
       return {
         activeOrderItems: nextItems,
+        discountPercent: percent,
+        discountAmount: amount,
         itemCountByOrderId: {
           ...state.itemCountByOrderId,
           [activeOrderId || '']: getItemCount(nextItems),
@@ -699,8 +826,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
         }
       }
+      const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId || '');
       return {
         activeOrderItems: nextItems,
+        discountPercent: percent,
+        discountAmount: amount,
         itemCountByOrderId: {
           ...state.itemCountByOrderId,
           [activeOrderId || '']: getItemCount(nextItems),
@@ -758,8 +888,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
         }
       }
+      const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId || '');
       return {
         activeOrderItems: nextItems,
+        discountPercent: percent,
+        discountAmount: amount,
         itemCountByOrderId: {
           ...state.itemCountByOrderId,
           [activeOrderId || '']: getItemCount(nextItems),
@@ -1115,6 +1248,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const snapshot = get();
     const activeOrderId = snapshot.activeOrderId;
     if (!activeOrderId) {
+      set({ error: 'No active order selected.' });
       return false;
     }
 
@@ -1129,6 +1263,20 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return false;
     }
 
+    // Concurrency Guard: Check if the bill has already been settled in the DB
+    if (activeOrder.status === 'unpaid') {
+      const { data: dbBill, error: dbBillErr } = await supabase
+        .from('bills')
+        .select('status, payment_status')
+        .eq('open_order_id', activeOrderId)
+        .maybeSingle();
+
+      if (dbBill && (dbBill.status === 'paid' || dbBill.payment_status === 'paid')) {
+        set({ error: 'This bill has already been settled and can no longer be edited.' });
+        return false;
+      }
+    }
+
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
     const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
 
@@ -1139,12 +1287,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       nextOrderName = `Order #${nextOrderNum}`;
     }
     
-    // Scenario A: No unsent items, order already in_kitchen — generate bill number, print bill, confirm
+    // Scenario A: No unsent items, order already unpaid or in_kitchen — generate bill number, print bill, save
     if (unsentItems.length === 0 && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
       const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
-
-      // Generate bill number now (first time) or reuse if already set
       const billNumber = activeOrder.invoice_number || getNextBillNumber();
+
+      const discountType = snapshot.discountType;
+      const discountPercent = snapshot.discountPercent;
+      const discountAmount = snapshot.discountAmount;
+      const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
+      const taxAmount = 0; // GST disabled
+      const grandTotal = discountedSubtotal + taxAmount;
+      const discountValue = discountType === 'percent' ? discountPercent : discountAmount;
 
       await printerService.printBill(
         activeOrder.order_name,
@@ -1153,8 +1307,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         totalAmount,
         false, // provisional bill
         null,  // paymentMethod
-        snapshot.kotsByOrderId[activeOrderId] ?? []
+        snapshot.kotsByOrderId[activeOrderId] ?? [],
+        discountAmount,
+        discountType,
+        discountValue
       );
+
       set((state) => {
         const nextPrinted = {
           ...state.billPrintedByOrderId,
@@ -1165,11 +1323,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         }
         return {
           orders: state.orders.map((o) =>
-            o.id === activeOrderId ? { ...o, status: 'confirmed' as const, invoice_number: billNumber } : o
+            o.id === activeOrderId ? { ...o, status: 'unpaid' as const, invoice_number: billNumber } : o
           ),
           summaries: state.summaries.map((s) =>
             s.order.id === activeOrderId
-              ? { ...s, order: { ...s.order, status: 'confirmed' as const, invoice_number: billNumber } }
+              ? { ...s, order: { ...s.order, status: 'unpaid' as const, invoice_number: billNumber } }
               : s
           ),
           billPrintedByOrderId: nextPrinted,
@@ -1177,14 +1335,35 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           hasUnsavedChanges: false,
         };
       });
-      // Background DB: persist bill number + confirmed status
+
+      // Background DB: persist bill number + unpaid status + discount metadata
       const { tenant_id, branch_id } = getTenantContext();
       void supabase
         .from('open_orders')
-        .update({ status: 'confirmed', invoice_number: billNumber })
+        .update({
+          status: 'unpaid',
+          invoice_number: billNumber,
+          discount_type: discountType,
+          discount_value: discountValue,
+          discount_amount: discountAmount,
+        })
         .eq('id', activeOrderId)
         .eq('tenant_id', tenant_id)
         .eq('branch_id', branch_id);
+
+      void createOrUpdateBill(
+        activeOrderId,
+        billNumber,
+        totalAmount,
+        taxAmount,
+        discountAmount,
+        grandTotal,
+        'unpaid',
+        discountType,
+        discountValue,
+        snapshot.activeOrderItems
+      );
+
       return true;
     }
 
@@ -1239,6 +1418,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const totalAmount = orderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
     const itemCount = orderItems.reduce((sum, item) => sum + item.qty, 0);
 
+    const discountType = snapshot.discountType;
+    const discountPercent = snapshot.discountPercent;
+    const discountAmount = snapshot.discountAmount;
+    const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
+    const taxAmount = 0; // GST disabled
+    const grandTotal = discountedSubtotal + taxAmount;
+    const discountValue = discountType === 'percent' ? discountPercent : discountAmount;
+
     // Print the customer bill with the generated bill number
     await printerService.printBill(
       nextOrderName,
@@ -1247,7 +1434,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       totalAmount,
       false, // provisional
       null,  // paymentMethod
-      nextKots  // includes the new KOT optimistically
+      nextKots,  // includes the new KOT optimistically
+      discountAmount,
+      discountType,
+      discountValue
     );
 
     // Optimistically transition cart items to kot_sent: true
@@ -1272,15 +1462,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const optimisticSummary: OpenOrderSummary = {
       order: {
         ...activeOrder,
-        status: 'confirmed' as const,
+        status: 'unpaid' as const,
         order_name: nextOrderName,
         invoice_number: billNumber,
+        discount_type: discountType,
+        discount_value: discountValue,
+        discount_amount: discountAmount,
       },
       itemCount,
       created_at: activeOrder.created_at || new Date().toISOString(),
       previewItems,
       remainingItemLines,
-      totalAmount,
+      totalAmount: grandTotal,
       kotNumbers: nextKotNumbers,
     };
 
@@ -1301,7 +1494,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return {
         orders: state.orders.map((o) =>
           o.id === activeOrderId
-            ? { ...o, status: 'confirmed' as const, order_name: nextOrderName, invoice_number: billNumber }
+            ? { ...o, status: 'unpaid' as const, order_name: nextOrderName, invoice_number: billNumber }
             : o
         ),
         summaries: nextSummaries,
@@ -1357,14 +1550,17 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           });
         }
 
-        // Always write order status + bill number to DB (regardless of prior status)
+        // Always write order status + bill number + discount metadata to DB
         const { tenant_id, branch_id } = getTenantContext();
         const { error: orderError } = await supabase
           .from('open_orders')
           .update({
-            status: 'confirmed',
+            status: 'unpaid',
             order_name: nextOrderName,
             invoice_number: billNumber,
+            discount_type: discountType,
+            discount_value: discountValue,
+            discount_amount: discountAmount,
           })
           .eq('id', activeOrderId)
           .eq('tenant_id', tenant_id)
@@ -1372,6 +1568,24 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
         if (orderError) {
           throw orderError;
+        }
+
+        // Call createOrUpdateBill to save/update bill and sync bill items
+        const billResult = await createOrUpdateBill(
+          activeOrderId,
+          billNumber,
+          totalAmount,
+          taxAmount,
+          discountAmount,
+          grandTotal,
+          'unpaid',
+          discountType,
+          discountValue,
+          orderItems
+        );
+
+        if (billResult.error) {
+          throw new Error(billResult.error);
         }
 
         console.log('[useOrdersStore] Background saveAndPrint success!');
@@ -1468,7 +1682,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
-    const allowed = ['draft', 'held', 'unpaid', 'open', 'in_kitchen', 'confirmed'].includes(activeOrder.status);
+    const allowed = ['draft', 'held', 'unpaid', 'open', 'in_kitchen'].includes(activeOrder.status);
     if (!allowed) {
       set({ error: 'This order status cannot be cancelled.' });
       return;
@@ -1532,6 +1746,20 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         if (error) {
           throw error;
         }
+
+        // Centralized createOrUpdateBill call to cancel existing bill if set
+        if (activeOrder.invoice_number) {
+          await createOrUpdateBill(
+            activeOrderId,
+            activeOrder.invoice_number,
+            0,
+            0,
+            0,
+            0,
+            'cancelled'
+          );
+        }
+
         console.log('[useOrdersStore] Background cancelOrder success!');
       } catch (dbErr) {
         console.error('[useOrdersStore] Background cancelOrder failed, rolling back:', dbErr);

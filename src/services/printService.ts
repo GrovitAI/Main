@@ -187,6 +187,9 @@ export function buildReceiptText(
   totalAmount: number,
   paymentMethod?: string | null,
   branch?: any,
+  discountAmount = 0,
+  discountType: 'percent' | 'fixed' | null = null,
+  discountValue = 0
 ): string {
   const W   = PAPER_WIDTH;
   const div = '-'.repeat(W);
@@ -273,19 +276,30 @@ export function buildReceiptText(
   lines.push('');
   lines.push(alignLeftRight('Sub Total', totalAmount.toFixed(2), W));
 
+  if (discountAmount > 0) {
+    const label = discountType === 'percent' ? `Discount (${discountValue}%)` : 'Discount';
+    lines.push(alignLeftRight(label, `-\u20B9${discountAmount.toFixed(2)}`, W));
+  }
+
+  const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
+
   // GST breakdown — shown only when SHOW_GST_INFORMATION = true
+  let taxAmount = 0;
   if (SHOW_GST_INFORMATION) {
-    const cgst = totalAmount * 0.025;
-    const sgst = totalAmount * 0.025;
+    const cgst = discountedSubtotal * 0.025;
+    const sgst = discountedSubtotal * 0.025;
+    taxAmount = cgst + sgst;
     lines.push(alignLeftRight('CGST (2.5%)', cgst.toFixed(2), W));
     lines.push(alignLeftRight('SGST (2.5%)', sgst.toFixed(2), W));
   }
+
+  const grandTotal = discountedSubtotal + taxAmount;
 
   lines.push(div);
 
   // Grand Total — bold + double width
   const grandTotalLabel = 'Grand Total';
-  const grandTotalAmt   = `\u20B9${totalAmount.toFixed(2)}`;
+  const grandTotalAmt   = `\u20B9${grandTotal.toFixed(2)}`;
   lines.push(ESC_CENTER);
   lines.push(
     ESC_BOLD_ON + ESC_DW_ON

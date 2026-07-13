@@ -19,11 +19,9 @@ export function getStatusConfig(status: OrderStatus): StatusConfig {
       return { label: 'HELD', bg: '#FFFBEB', text: '#D97706' };
     case 'unpaid':
     case 'payment_pending':
-      return { label: 'UNPAID', bg: '#FFF7ED', text: '#F97316' };
+      return { label: 'TO BE PAID', bg: '#EFF6FF', text: '#2563EB' };
     case 'in_kitchen':
       return { label: 'KITCHEN', bg: '#FFF7ED', text: '#EA580C' };
-    case 'confirmed':
-      return { label: 'TO BE PAID', bg: '#EFF6FF', text: '#2563EB' };
     case 'paid':
     case 'completed':
       return { label: status === 'completed' ? 'COMPLETED' : 'PAID', bg: '#F0FDF4', text: '#16A34A' };

@@ -34,6 +34,10 @@ export type AnalyticsDashboard = {
     itemsSold: number;
     taxCollected: number;
     cancelledOrders: number;
+    collectedRevenue: number;
+    pendingCollections: number;
+    totalDiscounts: number;
+    cancelledSales: number;
   };
 
   salesByDay: SalesSeriesPoint[];
@@ -165,25 +169,25 @@ export async function fetchAnalyticsDashboard(
 
     // Apply time-of-day filters
     const filteredBills = bills.filter((b) => filterByTime(b.created_at));
-    const paidBills = filteredBills.filter((b) => b.status === 'paid');
+    const salesBills = filteredBills.filter((b) => b.status === 'paid' || b.status === 'unpaid');
     const cancelledBills = filteredBills.filter((b) => b.status === 'cancelled');
-    const paidBillIds = paidBills.map((b) => b.id);
+    const salesBillIds = salesBills.map((b) => b.id);
 
-    // 3. Parallel fetch of items and settlements for the matching paid bills
+    // 3. Parallel fetch of items and settlements for the matching sales bills
     const [itemsResult, settlementsResult] = await Promise.all([
-      paidBillIds.length > 0
+      salesBillIds.length > 0
         ? supabase
             .from('bill_items')
             .select('*')
-            .in('bill_id', paidBillIds)
+            .in('bill_id', salesBillIds)
         : Promise.resolve({ data: [] as any[], error: null }),
-      paidBillIds.length > 0
+      salesBillIds.length > 0
         ? supabase
             .from('settlements')
             .select('*')
             .eq('tenant_id', tenant_id)
             .eq('branch_id', branch_id)
-            .in('bill_id', paidBillIds)
+            .in('bill_id', salesBillIds)
         : Promise.resolve({ data: [] as any[], error: null }),
     ]);
 
@@ -203,12 +207,17 @@ export async function fetchAnalyticsDashboard(
     // --- AGGREGATIONS ---
 
     // A. KPIs
-    const totalSales = paidBills.reduce((acc, b) => acc + (b.total_amount || 0), 0);
-    const totalOrders = paidBills.length;
+    const totalSales = salesBills.reduce((acc, b) => acc + (b.total_amount || 0), 0);
+    const totalOrders = salesBills.length;
     const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
-    const taxCollected = paidBills.reduce((acc, b) => acc + (b.tax_amount || 0), 0);
+    const taxCollected = salesBills.reduce((acc, b) => acc + (b.tax_amount || 0), 0);
     const itemsSold = billItems.reduce((acc, item) => acc + (item.qty || 0), 0);
     const cancelledOrders = cancelledBills.length;
+
+    const collectedRevenue = filteredBills.filter(b => b.status === 'paid').reduce((acc, b) => acc + (b.total_amount || 0), 0);
+    const pendingCollections = filteredBills.filter(b => b.status === 'unpaid').reduce((acc, b) => acc + (b.total_amount || 0), 0);
+    const totalDiscounts = salesBills.reduce((acc, b) => acc + (b.discount_amount || 0), 0);
+    const cancelledSales = cancelledBills.reduce((acc, b) => acc + (b.total_amount || 0), 0);
 
     // B. Sales by Day & Orders by Day
     // Construct calendar day keys between start and end dates to avoid gaps
@@ -221,8 +230,8 @@ export async function fetchAnalyticsDashboard(
       dayMap.set(label, { sales: 0, orders: 0 });
     }
 
-    // Populate day values from actual paid bills using their business date
-    paidBills.forEach((bill) => {
+    // Populate day values from actual sales bills using their business date
+    salesBills.forEach((bill) => {
       const bizDate = getBusinessDate(bill.created_at);
       const label = formatDateLabel(bizDate.toISOString());
       const current = dayMap.get(label) || { sales: 0, orders: 0 };
@@ -255,7 +264,7 @@ export async function fetchAnalyticsDashboard(
       hourMap.set(label, 0);
     }
 
-    paidBills.forEach((bill) => {
+    salesBills.forEach((bill) => {
       const hour = new Date(bill.created_at).getHours();
       const label = `${String(hour).padStart(2, '0')}:00`;
       hourMap.set(label, (hourMap.get(label) || 0) + (bill.total_amount || 0));
@@ -319,7 +328,7 @@ export async function fetchAnalyticsDashboard(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // F. Raw Transactions list (both paid and cancelled for comprehensive export)
+    // F. Raw Transactions list (both paid, unpaid and cancelled for comprehensive export)
     const rawTransactions: TransactionRow[] = filteredBills.map((bill: any) => {
       const itemsForBill = billItems.filter((item) => item.bill_id === bill.id);
       const itemsSummary = itemsForBill
@@ -352,6 +361,10 @@ export async function fetchAnalyticsDashboard(
           itemsSold,
           taxCollected: Math.round(taxCollected * 100) / 100,
           cancelledOrders,
+          collectedRevenue: Math.round(collectedRevenue * 100) / 100,
+          pendingCollections: Math.round(pendingCollections * 100) / 100,
+          totalDiscounts: Math.round(totalDiscounts * 100) / 100,
+          cancelledSales: Math.round(cancelledSales * 100) / 100,
         },
         salesByDay,
         ordersByDay,
@@ -397,6 +410,10 @@ function getEmptyDashboard(startDate: string, endDate: string): AnalyticsDashboa
       itemsSold: 0,
       taxCollected: 0,
       cancelledOrders: 0,
+      collectedRevenue: 0,
+      pendingCollections: 0,
+      totalDiscounts: 0,
+      cancelledSales: 0,
     },
     salesByDay,
     ordersByDay: [...salesByDay],

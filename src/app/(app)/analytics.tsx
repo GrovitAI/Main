@@ -972,6 +972,58 @@ export default function AnalyticsScreen() {
                 <XCircle size={18} color="#ef4444" />
               </View>
             </View>
+
+            {/* 7. Collected Revenue */}
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
+              <View>
+                <Text className="text-xs font-bold text-textSecondary">Collected Revenue</Text>
+                <Text className="text-xl font-black text-textPrimary mt-1">
+                  ₹{Math.round(kpis.collectedRevenue || 0).toLocaleString('en-IN')}
+                </Text>
+              </View>
+              <View className="w-9 h-9 rounded-xl bg-green-50 items-center justify-center">
+                <DollarSign size={18} color="#16a34a" />
+              </View>
+            </View>
+
+            {/* 8. Pending Collections */}
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
+              <View>
+                <Text className="text-xs font-bold text-textSecondary">Pending Collections</Text>
+                <Text className="text-xl font-black text-textPrimary mt-1">
+                  ₹{Math.round(kpis.pendingCollections || 0).toLocaleString('en-IN')}
+                </Text>
+              </View>
+              <View className="w-9 h-9 rounded-xl bg-orange-50 items-center justify-center">
+                <DollarSign size={18} color="#ea580c" />
+              </View>
+            </View>
+
+            {/* 9. Total Discounts */}
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
+              <View>
+                <Text className="text-xs font-bold text-textSecondary">Total Discounts</Text>
+                <Text className="text-xl font-black text-textPrimary mt-1">
+                  ₹{Math.round(kpis.totalDiscounts || 0).toLocaleString('en-IN')}
+                </Text>
+              </View>
+              <View className="w-9 h-9 rounded-xl bg-pink-50 items-center justify-center">
+                <Percent size={18} color="#ec4899" />
+              </View>
+            </View>
+
+            {/* 10. Cancelled Sales */}
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
+              <View>
+                <Text className="text-xs font-bold text-textSecondary">Cancelled Sales</Text>
+                <Text className="text-xl font-black text-textPrimary mt-1">
+                  ₹{Math.round(kpis.cancelledSales || 0).toLocaleString('en-IN')}
+                </Text>
+              </View>
+              <View className="w-9 h-9 rounded-xl bg-red-50 items-center justify-center">
+                <XCircle size={18} color="#dc2626" />
+              </View>
+            </View>
           </View>
         )}
 

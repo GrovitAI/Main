@@ -20,7 +20,10 @@ export const printerService = {
     totalAmount: number,
     isFinal = false,
     paymentMethod?: string | null,
-    kots?: Pick<KotTicket, 'kot_number' | 'created_at'>[]
+    kots?: Pick<KotTicket, 'kot_number' | 'created_at'>[],
+    discountAmount = 0,
+    discountType: 'percent' | 'fixed' | null = null,
+    discountValue = 0
   ) => {
     return newPrinterService.printBill(
       orderName,
@@ -29,7 +32,10 @@ export const printerService = {
       totalAmount,
       isFinal,
       paymentMethod ?? null,
-      kots
+      kots,
+      discountAmount,
+      discountType,
+      discountValue
     );
   }
 };

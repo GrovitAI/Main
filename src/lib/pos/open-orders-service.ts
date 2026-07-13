@@ -15,8 +15,7 @@ function isOpenOrderRow(order: OpenOrder): boolean {
     order.status === 'draft' ||
     order.status === 'held' ||
     order.status === 'unpaid' ||
-    order.status === 'in_kitchen' ||
-    order.status === 'confirmed'
+    order.status === 'in_kitchen'
   );
 }
 
@@ -930,6 +929,135 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
   }
 }
 
+export async function createOrUpdateBill(
+  orderId: string,
+  invoiceNumber: string,
+  subtotal: number,
+  taxAmount: number,
+  discountAmount: number,
+  totalAmount: number,
+  status: 'paid' | 'unpaid' | 'cancelled',
+  discountType: 'percent' | 'fixed' | null = null,
+  discountValue: number = 0,
+  items?: any[]
+): Promise<ServiceResult<any>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+
+    // Check if bill already exists
+    const { data: existingBill, error: fetchErr } = await supabase
+      .from('bills')
+      .select('*')
+      .eq('open_order_id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .maybeSingle();
+
+    if (fetchErr) {
+      logSupabaseError('createOrUpdateBill.fetch', fetchErr);
+      return { data: null, error: 'Failed to check existing bill.' };
+    }
+
+    const subtotal_paise = Math.round(subtotal * 100);
+    const tax_paise = Math.round(taxAmount * 100);
+    const discount_paise = Math.round(discountAmount * 100);
+    const grand_total_paise = Math.round(totalAmount * 100);
+
+    const billPayload = {
+      tenant_id,
+      branch_id,
+      open_order_id: orderId,
+      invoice_number: invoiceNumber,
+      subtotal,
+      tax_amount: taxAmount,
+      discount_amount: discountAmount,
+      total_amount: totalAmount,
+      status, // 'unpaid', 'paid', or 'cancelled'
+      payment_status: (status === 'paid' ? 'paid' : 'unpaid') as any,
+      document_status: (status === 'cancelled' ? 'cancelled' : 'confirmed') as any,
+      subtotal_paise,
+      tax_paise,
+      discount_paise,
+      grand_total_paise,
+      discount_type: discountType,
+      discount_value: discountValue,
+      settled_at: status === 'paid' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    };
+
+    let bill: any;
+    if (existingBill) {
+      const { data: updatedBill, error: updateErr } = await supabase
+        .from('bills')
+        .update(billPayload)
+        .eq('id', existingBill.id)
+        .select()
+        .single();
+
+      if (updateErr) {
+        logSupabaseError('createOrUpdateBill.update', updateErr);
+        return { data: null, error: 'Failed to update bill.' };
+      }
+      bill = updatedBill;
+    } else {
+      const { data: newBill, error: insertErr } = await supabase
+        .from('bills')
+        .insert({
+          ...billPayload,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (insertErr) {
+        logSupabaseError('createOrUpdateBill.insert', insertErr);
+        return { data: null, error: 'Failed to create bill.' };
+      }
+      bill = newBill;
+    }
+
+    // Sync bill items if provided
+    if (items && items.length > 0) {
+      const { error: deleteBillItemsErr } = await supabase
+        .from('bill_items')
+        .delete()
+        .eq('bill_id', bill.id);
+
+      if (deleteBillItemsErr) {
+        console.error('[createOrUpdateBill] Failed to delete existing bill items:', deleteBillItemsErr);
+      }
+
+      const billItemsPayload = items.map((item) => {
+        const price_paise = Math.round((item.price || 0) * 100);
+        return {
+          bill_id: bill.id,
+          product_id: item.product_id,
+          item_name: item.product_name || item.item_name || 'Item',
+          qty: item.qty,
+          price: item.price || 0,
+          price_paise,
+          tax_rate: taxAmount > 0 ? 5 : 0, // simple GST percentage indicator
+          gst_percentage: taxAmount > 0 ? 5 : 0,
+          discount_amount_paise: 0,
+        };
+      });
+
+      const { error: billItemsErr } = await supabase
+        .from('bill_items')
+        .insert(billItemsPayload);
+
+      if (billItemsErr) {
+        console.error('[createOrUpdateBill] Bill items sync failed', billItemsErr);
+        return { data: null, error: `Unable to sync bill items: ${billItemsErr.message}` };
+      }
+    }
+
+    return { data: bill, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
 export async function settleOrderById(
   orderId: string,
   paymentType: string = 'cash',
@@ -964,94 +1092,48 @@ export async function settleOrderById(
     }
 
     const subtotal = orderItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
-    const tax_amount = 0;
-    const discount_amount = 0;
-    const total_amount = subtotal;
+    const discountType = order.discount_type || null;
+    const discountValue = order.discount_value || 0;
+    const discountAmount = order.discount_amount || 0;
 
-    const invoiceNumber = order.invoice_number || getNextBillNumber();
+    const discountedSubtotal = Math.max(0, subtotal - discountAmount);
 
-    // 3. Create or reuse existing bill
-    const { data: existingBill } = await supabase
-      .from('bills')
-      .select('*')
-      .eq('open_order_id', orderId)
+    let tax_percentage = 0;
+    const { data: posSettings } = await supabase
+      .from('pos_settings')
+      .select('tax_percentage')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
       .maybeSingle();
 
-    let bill = existingBill;
-
-    if (!bill) {
-      const billPayload = {
-        tenant_id,
-        branch_id,
-        open_order_id: orderId,
-        invoice_number: invoiceNumber,
-        subtotal,
-        tax_amount,
-        discount_amount,
-        total_amount,
-        status: 'paid',
-        settled_at: new Date().toISOString(),
-        created_by: null,
-      };
-
-      console.log('[settleOrderById] Bill payload', billPayload);
-
-      const { data: newBill, error: billErr } = await supabase
-        .from('bills')
-        .insert(billPayload)
-        .select()
-        .single();
-
-      if (billErr || !newBill) {
-        console.error(
-          '[settleOrderById] Bill creation failed',
-          {
-            error: billErr,
-            payload: billPayload,
-            orderId,
-          }
-        );
-        throw new Error(`Unable to create bill: ${billErr?.message || 'Unknown error'}`);
-      }
-      bill = newBill;
+    if (posSettings) {
+      tax_percentage = posSettings.tax_percentage || 0;
     }
 
-    // 4. Copy order items -> bill_items (prevent duplicates)
-    const { data: existingBillItems } = await supabase
-      .from('bill_items')
-      .select('id')
-      .eq('bill_id', bill.id)
-      .limit(1);
+    const tax_amount = Math.round((discountedSubtotal * tax_percentage / 100.0) * 100) / 100;
+    const total_amount = discountedSubtotal + tax_amount;
 
-    if (!existingBillItems || existingBillItems.length === 0) {
-      const billItemsPayload = orderItems.map((item) => ({
-        bill_id: bill.id,
-        product_id: item.product_id,
-        item_name: item.item_name || 'Item',
-        qty: item.qty,
-        price: item.price,
-      }));
+    const invoiceNumber = order.invoice_number || getNextBillNumber();
 
-      console.log('[settleOrderById] Bill items payload', billItemsPayload);
+    // 3. Create or update bill record using centralized method (which also handles items sync)
+    const billResult = await createOrUpdateBill(
+      orderId,
+      invoiceNumber,
+      subtotal,
+      tax_amount,
+      discountAmount,
+      total_amount,
+      'paid',
+      discountType,
+      discountValue,
+      orderItems
+    );
 
-      const { error: billItemsErr } = await supabase
-        .from('bill_items')
-        .insert(billItemsPayload);
-
-      if (billItemsErr) {
-        console.error(
-          '[settleOrderById] Bill items creation failed',
-          {
-            error: billItemsErr,
-            payload: billItemsPayload,
-            billId: bill.id,
-          }
-        );
-        throw new Error(`Unable to create bill items: ${billItemsErr.message}`);
-      }
+    if (billResult.error || !billResult.data) {
+      throw new Error(billResult.error ?? 'Failed to write bill to database.');
     }
+
+    const bill = billResult.data;
 
     // 5. Create settlement record
     const { data: existingSettlement } = await supabase

@@ -51,7 +51,7 @@ const EDITABLE_STATUSES: OrderStatus[] = ['draft', 'open', 'held', 'unpaid', 'in
 function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
     case 'held':      return status === 'held';
-    case 'unpaid':    return status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen' || status === 'confirmed';
+    case 'unpaid':    return status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
     case 'paid':      return status === 'paid' || status === 'completed';
     case 'cancelled': return status === 'cancelled';
     case 'draft':     return status === 'draft';
@@ -88,7 +88,7 @@ function computeKpi(summaries: OpenOrderSummary[]): KpiCounts {
   let unpaid = 0, held = 0, paid = 0, cancelled = 0, draft = 0;
   for (const s of summaries) {
     const st = s.order.status;
-    if (st === 'unpaid' || st === 'payment_pending' || st === 'in_kitchen' || st === 'confirmed') unpaid++;
+    if (st === 'unpaid' || st === 'payment_pending' || st === 'in_kitchen') unpaid++;
     if (st === 'held') held++;
     if (st === 'paid' || st === 'completed') paid++;
     if (st === 'cancelled') cancelled++;
@@ -333,10 +333,21 @@ export default function OrdersScreen() {
     if (Platform.OS !== 'web' || !viewingOrderId || !viewingSummary) return;
 
     const status = viewingSummary.order.status;
-    const isUnpaidOrActive = status === 'draft' || status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
-    const isConfirmed = status === 'confirmed';
+    const isDraftOrActive = status === 'draft' || status === 'payment_pending' || status === 'in_kitchen';
+    const isUnpaidBill = status === 'unpaid';
     const isHeld = status === 'held';
-    const buttonCount = (status === 'cancelled') ? 1 : 2;
+    
+    // Compute number of buttons
+    let buttonCount = 1;
+    if (isDraftOrActive) {
+      buttonCount = 2;
+    } else if (isUnpaidBill) {
+      buttonCount = 3;
+    } else if (isHeld) {
+      buttonCount = 2;
+    } else if (status === 'paid' || status === 'completed') {
+      buttonCount = 2; // Close + Reprint
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
@@ -352,16 +363,26 @@ export default function OrdersScreen() {
       if (e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();
-        if (isUnpaidOrActive) {
+        if (isDraftOrActive) {
           if (modalFooterIndex === 0) {
             closeViewModal();
             void handleOpenBill(viewingOrderId);
           } else {
             setSettlingOrder(viewingSummary);
           }
-        } else if (isConfirmed) {
+        } else if (isUnpaidBill) {
           if (modalFooterIndex === 0) {
             void handleReprintPreviousBill();
+          } else if (modalFooterIndex === 1) {
+            closeViewModal();
+            // Open in POS and enter edit mode
+            void (async () => {
+              const success = await selectOrder(viewingOrderId);
+              if (success) {
+                useOrdersStore.getState().enterEditMode();
+                router.push('/');
+              }
+            })();
           } else {
             setSettlingOrder(viewingSummary);
           }
@@ -756,8 +777,8 @@ export default function OrdersScreen() {
             {/* Footer Actions */}
             {viewingOrderId && viewingSummary && (() => {
               const status = viewingSummary.order.status;
-              const isDraftOrKitchen = status === 'draft' || status === 'unpaid' || status === 'payment_pending' || status === 'in_kitchen';
-              const isConfirmedOrder = status === 'confirmed';
+              const isDraftOrKitchen = status === 'draft' || status === 'payment_pending' || status === 'in_kitchen';
+              const isUnpaidBill = status === 'unpaid';
               const isHeld = status === 'held';
 
               // Draft / Kitchen — open in POS to continue working
@@ -831,8 +852,8 @@ export default function OrdersScreen() {
                 );
               }
 
-              // Confirmed — locked order: Reprint + Settle only
-              if (isConfirmedOrder) {
+              // Unpaid Bill — Reprint + Edit + Settle
+              if (isUnpaidBill) {
                 return (
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                     <Pressable
@@ -843,6 +864,12 @@ export default function OrdersScreen() {
                       style={({ pressed }: any) => [
                         { flex: 1, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 0 && Platform.OS === 'web' && {
+                          borderWidth: 2, borderColor: '#0284c7',
+                          shadowColor: '#0284c7', shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
+                          transform: [{ scale: 1.02 }],
+                        },
                       ]}
                     >
                       <LinearGradient
@@ -857,13 +884,46 @@ export default function OrdersScreen() {
 
                     <Pressable
                       accessibilityRole="button"
+                      accessibilityLabel="Edit Bill"
+                      onPress={async () => {
+                        closeViewModal();
+                        const success = await selectOrder(viewingOrderId);
+                        if (success) {
+                          useOrdersStore.getState().enterEditMode();
+                          router.push('/');
+                        }
+                      }}
+                      onHoverIn={() => setModalFooterIndex(1)}
+                      style={({ pressed }: any) => [
+                        { flex: 1, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        pressed && { transform: [{ scale: 0.98 }] },
+                        modalFooterIndex === 1 && Platform.OS === 'web' && {
+                          borderWidth: 2, borderColor: '#d97706',
+                          shadowColor: '#d97706', shadowOffset: { width: 0, height: 0 },
+                          shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
+                          transform: [{ scale: 1.02 }],
+                        },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={['#f59e0b', '#d97706']}
+                        style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>
+                          Edit Bill
+                        </Text>
+                      </LinearGradient>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
-                      onHoverIn={() => setModalFooterIndex(1)}
+                      onHoverIn={() => setModalFooterIndex(2)}
                       style={({ pressed }: any) => [
                         { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
-                        modalFooterIndex === 1 && Platform.OS === 'web' && {
+                        modalFooterIndex === 2 && Platform.OS === 'web' && {
                           borderWidth: 2, borderColor: '#4ADE80',
                           shadowColor: '#16a34a', shadowOffset: { width: 0, height: 0 },
                           shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,

@@ -306,20 +306,27 @@ function buildItemsHeader(width = 42): string[] {
 
 function buildTotals(
   totalQty: number,
-  totalAmount: number,
-  width = 42
+  subtotal: number,
+  width = 42,
+  discountAmount = 0,
+  discountType: 'percent' | 'fixed' | null = null,
+  discountValue = 0
 ): string[] {
   const lines: string[] = [
     separator(width) + '\n',
     padLine('Total Qty:', String(totalQty), width) + '\n',
+    padLine('Sub Total', 'Rs. ' + subtotal.toFixed(2), width) + '\n',
   ];
 
+  if (discountAmount > 0) {
+    const label = discountType === 'percent' ? `Discount (${discountValue}%)` : 'Discount';
+    lines.push(padLine(label, '-Rs. ' + discountAmount.toFixed(2), width) + '\n');
+  }
+
   if (SHOW_GST_INFORMATION) {
-    const subtotal = totalAmount / 1.05;
-    const cgst = (totalAmount - subtotal) / 2;
+    const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+    const cgst = discountedSubtotal * 0.025;
     const sgst = cgst;
-    lines.push('\n');
-    lines.push(padLine('Sub Total', 'Rs. ' + subtotal.toFixed(2), width) + '\n');
     lines.push(padLine('CGST (2.5%)', 'Rs. ' + cgst.toFixed(2), width) + '\n');
     lines.push(padLine('SGST (2.5%)', 'Rs. ' + sgst.toFixed(2), width) + '\n');
   }
@@ -625,7 +632,10 @@ export const printerService = {
     totalAmount: number,
     isFinal = false,
     paymentMethod?: string | null,
-    kots?: Array<{ kot_number: number; created_at: string }>
+    kots?: Array<{ kot_number: number; created_at: string }>,
+    discountAmount = 0,
+    discountType: 'percent' | 'fixed' | null = null,
+    discountValue = 0
   ): Promise<void> => {
     try {
       const res = await fetchPrinters();
@@ -692,14 +702,21 @@ export const printerService = {
       }
 
       // 6. Totals Section
-      const totalsLines = buildTotals(totalQty, totalAmount, width);
+      const totalsLines = buildTotals(totalQty, totalAmount, width, discountAmount, discountType, discountValue);
 
       // 7. Grand Total — bold, right-aligned, Rs. prefix (no Unicode ₹ — not supported on all Epson code pages)
       const boldOn  = '\x1B\x45\x01';
       const boldOff = '\x1B\x45\x00';
+      const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
+      let taxAmount = 0;
+      if (SHOW_GST_INFORMATION) {
+        taxAmount = discountedSubtotal * 0.05;
+      }
+      const grandTotal = discountedSubtotal + taxAmount;
+
       const grandTotalLines = [
         separator(width) + '\n',
-        boldOn + padLine('Grand Total', 'Rs. ' + totalAmount.toFixed(2), width) + boldOff + '\n',
+        boldOn + padLine('Grand Total', 'Rs. ' + grandTotal.toFixed(2), width) + boldOff + '\n',
         separator(width) + '\n',
       ];
 
@@ -734,8 +751,11 @@ export const printerService = {
     orderName: string,
     invoiceNumber: string | null | undefined,
     items: any[],
-    totalAmount: number
+    totalAmount: number,
+    discountAmount = 0,
+    discountType: 'percent' | 'fixed' | null = null,
+    discountValue = 0
   ): Promise<void> => {
-    return printerService.printBill(orderName, invoiceNumber, items, totalAmount, true);
+    return printerService.printBill(orderName, invoiceNumber, items, totalAmount, true, null, undefined, discountAmount, discountType, discountValue);
   }
 };

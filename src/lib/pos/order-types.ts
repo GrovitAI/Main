@@ -3,7 +3,6 @@ export type OrderStatus =
   | 'held'
   | 'unpaid'
   | 'in_kitchen'
-  | 'confirmed'
   | 'payment_pending'
   | 'paid'
   | 'completed'
@@ -31,6 +30,10 @@ export type OpenOrder = {
 
   // Numbering readiness fields (Phase 1A.5)
   internal_order_number?: string | null;
+
+  discount_type?: 'percent' | 'fixed' | null;
+  discount_value?: number | null;
+  discount_amount?: number | null;
 };
 
 export type KotTicketItem = {
