@@ -284,6 +284,7 @@ export function OrderPanel({
             <View style={{ flex: 1 }}>
               {items.map((item) => {
                 const isItemEditable = canEdit && !item.kot_sent;
+                const canDecrementOrRemove = canEdit;
                 return (
                   <View key={item.id} style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', opacity: item.kot_sent ? 0.85 : 1 }}>
                     <View style={{ flex: 1, marginRight: 4 }}>
@@ -301,19 +302,19 @@ export function OrderPanel({
                         alignItems: 'center', 
                         height: 30, 
                         borderRadius: 10, 
-                        backgroundColor: isItemEditable ? '#F4F8FD' : '#E2E8F0', 
+                        backgroundColor: canDecrementOrRemove ? '#F4F8FD' : '#E2E8F0', 
                         paddingHorizontal: 2,
-                        opacity: isItemEditable ? 1 : 0.85
+                        opacity: canDecrementOrRemove ? 1 : 0.85
                       }}
                     >
                       <Pressable
-                        disabled={!isItemEditable || isMutating}
+                        disabled={!canDecrementOrRemove || isMutating}
                         onPress={() => onDecrementItem(item.id)}
-                        style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: isItemEditable ? '#FFFFFF' : '#CBD5E1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 }}
+                        style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: canDecrementOrRemove ? '#FFFFFF' : '#CBD5E1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 }}
                       >
-                        <Minus color={isItemEditable ? '#4B5563' : '#4B5563'} size={10} />
+                        <Minus color={canDecrementOrRemove ? '#4B5563' : '#4B5563'} size={10} />
                       </Pressable>
-                      <Text style={{ width: 20, textAlign: 'center', fontSize: 12, fontWeight: '800', color: isItemEditable ? '#111827' : '#4B5563' }}>
+                      <Text style={{ width: 20, textAlign: 'center', fontSize: 12, fontWeight: '800', color: canDecrementOrRemove ? '#111827' : '#4B5563' }}>
                         {item.qty}
                       </Text>
                       <Pressable
@@ -326,11 +327,11 @@ export function OrderPanel({
                     </View>
      
                     <Pressable
-                      disabled={!isItemEditable || isMutating}
+                      disabled={!canDecrementOrRemove || isMutating}
                       onPress={() => onRemoveItem(item.id)}
-                      style={{ marginLeft: 6, padding: 2, opacity: isItemEditable ? 1 : 0.85 }}
+                      style={{ marginLeft: 6, padding: 2, opacity: canDecrementOrRemove ? 1 : 0.85 }}
                     >
-                      <Trash2 color={isItemEditable ? '#EF4444' : '#94A3B8'} size={14} opacity={isItemEditable ? 0.6 : 0.4} />
+                      <Trash2 color={canDecrementOrRemove ? '#EF4444' : '#94A3B8'} size={14} opacity={canDecrementOrRemove ? 0.6 : 0.4} />
                     </Pressable>
                   </View>
                 );
@@ -392,6 +393,7 @@ export function OrderPanel({
           }
           renderItem={({ item }) => {
             const isItemEditable = canEdit && !item.kot_sent;
+            const canDecrementOrRemove = canEdit;
             return (
               <View style={{ flexDirection: 'row', paddingVertical: 8, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', opacity: item.kot_sent ? 0.85 : 1 }}>
                 <View style={{ flex: 1, marginRight: 4 }}>
@@ -409,19 +411,19 @@ export function OrderPanel({
                     alignItems: 'center', 
                     height: 30, 
                     borderRadius: 10, 
-                    backgroundColor: isItemEditable ? '#F4F8FD' : '#E2E8F0', 
+                    backgroundColor: canDecrementOrRemove ? '#F4F8FD' : '#E2E8F0', 
                     paddingHorizontal: 2,
-                    opacity: isItemEditable ? 1 : 0.85
+                    opacity: canDecrementOrRemove ? 1 : 0.85
                   }}
                 >
                   <Pressable
-                    disabled={!isItemEditable || isMutating}
+                    disabled={!canDecrementOrRemove || isMutating}
                     onPress={() => onDecrementItem(item.id)}
-                    style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: isItemEditable ? '#FFFFFF' : '#CBD5E1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 }}
+                    style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: canDecrementOrRemove ? '#FFFFFF' : '#CBD5E1', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 }}
                   >
-                    <Minus color={isItemEditable ? '#4B5563' : '#4B5563'} size={10} />
+                    <Minus color={canDecrementOrRemove ? '#4B5563' : '#4B5563'} size={10} />
                   </Pressable>
-                  <Text style={{ width: 20, textAlign: 'center', fontSize: 12, fontWeight: '800', color: isItemEditable ? '#111827' : '#4B5563' }}>
+                  <Text style={{ width: 20, textAlign: 'center', fontSize: 12, fontWeight: '800', color: canDecrementOrRemove ? '#111827' : '#4B5563' }}>
                     {item.qty}
                   </Text>
                   <Pressable
@@ -434,11 +436,11 @@ export function OrderPanel({
                 </View>
  
                 <Pressable
-                  disabled={!isItemEditable || isMutating}
+                  disabled={!canDecrementOrRemove || isMutating}
                   onPress={() => onRemoveItem(item.id)}
-                  style={{ marginLeft: 6, padding: 2, opacity: isItemEditable ? 1 : 0.85 }}
+                  style={{ marginLeft: 6, padding: 2, opacity: canDecrementOrRemove ? 1 : 0.85 }}
                 >
-                  <Trash2 color={isItemEditable ? '#EF4444' : '#94A3B8'} size={14} opacity={isItemEditable ? 0.6 : 0.4} />
+                  <Trash2 color={canDecrementOrRemove ? '#EF4444' : '#94A3B8'} size={14} opacity={canDecrementOrRemove ? 0.6 : 0.4} />
                 </Pressable>
               </View>
             );

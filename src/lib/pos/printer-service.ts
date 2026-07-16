@@ -5,8 +5,8 @@ export const printerService = {
   /**
    * Delegates to the production-grade kitchen ticket printer.
    */
-  printKot: async (kotNumber: number, items: { name: string; quantity: number }[]) => {
-    return newPrinterService.printKot(kotNumber, items);
+  printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false) => {
+    return newPrinterService.printKot(kotNumber, items, isCancel);
   },
 
   /**

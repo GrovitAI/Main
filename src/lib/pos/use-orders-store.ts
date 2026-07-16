@@ -157,6 +157,37 @@ function updateDiscountStateAndDb(
   return { percent, amount };
 }
 
+function calculateKotCancellations(
+  kots: KotTicket[],
+  activeOrderItems: PosOrderItem[]
+): { name: string; quantity: number; notes: string }[] {
+  const sentQuantities: Record<string, number> = {};
+  for (const kot of kots) {
+    if (kot.kot_items) {
+      for (const item of kot.kot_items) {
+        sentQuantities[item.item_name] = (sentQuantities[item.item_name] ?? 0) + item.qty;
+      }
+    }
+  }
+
+  const currentQuantities: Record<string, number> = {};
+  for (const item of activeOrderItems) {
+    const name = item.product_name || item.item_name;
+    currentQuantities[name] = (currentQuantities[name] ?? 0) + item.qty;
+  }
+
+  const itemsToCancel: { name: string; quantity: number; notes: string }[] = [];
+  for (const [name, qty] of Object.entries(sentQuantities)) {
+    const currQty = currentQuantities[name] ?? 0;
+    if (currQty < qty) {
+      const diff = qty - currQty;
+      const reason = currQty === 0 ? 'Item Removed' : 'Quantity Reduced';
+      itemsToCancel.push({ name, quantity: -diff, notes: reason });
+    }
+  }
+  return itemsToCancel;
+}
+
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
   heldOrders: [],
@@ -803,7 +834,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const snapshot = get();
     const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
-    if (!target || !snapshot.activeOrderId || target.kot_sent) {
+    if (!target || !snapshot.activeOrderId || (target.kot_sent && !isEditingUnpaid)) {
       return;
     }
 
@@ -867,14 +898,16 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
   removeItem: async (itemId) => {
     const activeOrder = get().orders.find((o) => o.id === get().activeOrderId);
-    const status = activeOrder?.status ?? 'draft';
+    if (!activeOrder) return;
+
+    const status = activeOrder.status;
     const isEditingUnpaid = get().isEditingUnpaid;
     const canEdit = status === 'draft' || status === 'open' || isEditingUnpaid;
     if (!canEdit) return;
 
     const snapshot = get();
     const target = snapshot.activeOrderItems.find((item) => item.id === itemId);
-    if (!target || !snapshot.activeOrderId || target.kot_sent) {
+    if (!target || !snapshot.activeOrderId || (target.kot_sent && !isEditingUnpaid)) {
       return;
     }
 
@@ -920,6 +953,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         error: result.error,
       });
     } else {
+      if (activeOrder.status === 'unpaid' && nextItems.length === 0) {
+        await get().cancelOrder();
+        return;
+      }
       set((state) => ({
         isMutating: false,
         hasUnsavedChanges: state.isEditingUnpaid ? true : state.hasUnsavedChanges,
@@ -943,6 +980,11 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const result = await clearOpenOrderItems(activeOrderId);
     if (result.error) {
       set({ isMutating: false, error: result.error });
+      return;
+    }
+
+    if (activeOrder && activeOrder.status === 'unpaid') {
+      await get().cancelOrder();
       return;
     }
 
@@ -1056,7 +1098,6 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
-    const nextKotNumber = getNextKotNumber();
     const needsOrderNumber = !activeOrder.order_name || activeOrder.order_name.toLowerCase().includes('draft');
     let nextOrderName = activeOrder.order_name;
     if (needsOrderNumber) {
@@ -1065,8 +1106,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
+    const itemsToCancel = calculateKotCancellations(
+      snapshot.kotsByOrderId[activeOrderId] ?? [],
+      snapshot.activeOrderItems
+    );
 
-    if (unsentItems.length === 0) {
+    if (unsentItems.length === 0 && itemsToCancel.length === 0) {
       set({ error: 'No changes since last KOT.' });
       console.timeEnd('saveKot_ui');
       console.timeEnd('saveKot_total');
@@ -1078,30 +1123,66 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       quantity: item.qty,
     }));
 
-    // Sim print KOT
-    await printerService.printKot(nextKotNumber, itemsToSend);
+    let printedRegular = false;
+    let nextKotNumber = 0;
+    if (unsentItems.length > 0) {
+      nextKotNumber = getNextKotNumber();
+      await printerService.printKot(nextKotNumber, itemsToSend);
+      printedRegular = true;
+    }
 
-    // Construct optimistic mock KOT ticket
-    const mockTicket: KotTicket = {
-      id: `kot-uuid-optimistic-${Date.now()}`,
-      tenant_id: activeOrder.tenant_id,
-      branch_id: activeOrder.branch_id,
-      open_order_id: activeOrderId,
-      kot_number: nextKotNumber,
-      status: 'pending',
-      printed_at: null,
-      created_at: new Date().toISOString(),
-      kot_items: itemsToSend.map((item, idx) => ({
-        id: `kot-item-uuid-optimistic-${idx}-${Date.now()}`,
-        kot_id: `kot-uuid-optimistic-${Date.now()}`,
-        item_name: item.name,
-        qty: item.quantity,
-        notes: null,
-      })),
-    };
+    let printedCancel = false;
+    let cancelKotNumber = 0;
+    if (itemsToCancel.length > 0) {
+      cancelKotNumber = getNextKotNumber();
+      await printerService.printKot(cancelKotNumber, itemsToCancel, true);
+      printedCancel = true;
+    }
 
-    const nextKotNumbers = [...(snapshot.kotNumbersByOrderId[activeOrderId] ?? []), nextKotNumber];
-    const nextKots = [...(snapshot.kotsByOrderId[activeOrderId] ?? []), mockTicket];
+    const nextKotNumbers = [...(snapshot.kotNumbersByOrderId[activeOrderId] ?? [])];
+    const nextKots = [...(snapshot.kotsByOrderId[activeOrderId] ?? [])];
+
+    if (printedRegular) {
+      nextKotNumbers.push(nextKotNumber);
+      nextKots.push({
+        id: `kot-uuid-optimistic-reg-${Date.now()}`,
+        tenant_id: activeOrder.tenant_id,
+        branch_id: activeOrder.branch_id,
+        open_order_id: activeOrderId,
+        kot_number: nextKotNumber,
+        status: 'pending',
+        printed_at: null,
+        created_at: new Date().toISOString(),
+        kot_items: itemsToSend.map((item, idx) => ({
+          id: `kot-item-uuid-optimistic-reg-${idx}-${Date.now()}`,
+          kot_id: `kot-uuid-optimistic-reg-${Date.now()}`,
+          item_name: item.name,
+          qty: item.quantity,
+          notes: null,
+        })),
+      });
+    }
+
+    if (printedCancel) {
+      nextKotNumbers.push(cancelKotNumber);
+      nextKots.push({
+        id: `kot-uuid-optimistic-cancel-${Date.now()}`,
+        tenant_id: activeOrder.tenant_id,
+        branch_id: activeOrder.branch_id,
+        open_order_id: activeOrderId,
+        kot_number: cancelKotNumber,
+        status: 'pending',
+        printed_at: null,
+        created_at: new Date().toISOString(),
+        kot_items: itemsToCancel.map((item, idx) => ({
+          id: `kot-item-uuid-optimistic-cancel-${idx}-${Date.now()}`,
+          kot_id: `kot-uuid-optimistic-cancel-${Date.now()}`,
+          item_name: item.name,
+          qty: item.quantity,
+          notes: item.notes,
+        })),
+      });
+    }
 
     // Build optimistic OpenOrderSummary (merging duplicate products for clean bill presentation)
     const orderItems = snapshot.activeOrderItems;
@@ -1120,10 +1201,12 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const previewItems = mergedPreviews.slice(0, 3);
     const remainingItemLines = Math.max(0, mergedPreviews.length - 3);
 
+    const nextStatus = activeOrder.status === 'unpaid' ? 'unpaid' : 'in_kitchen';
+
     const optimisticSummary: OpenOrderSummary = {
       order: {
         ...activeOrder,
-        status: 'in_kitchen' as const,
+        status: nextStatus,
         order_name: nextOrderName,
       },
       itemCount,
@@ -1148,7 +1231,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // OPTIMISTIC UPDATE: transition status, update items inside cart to kot_sent: true, DO NOT CLEAR CART OR DESELECT ORDER!
     set((state) => ({
       orders: state.orders.map((o) =>
-        o.id === activeOrderId ? { ...o, status: 'unpaid' as const, order_name: nextOrderName } : o
+        o.id === activeOrderId ? { ...o, status: nextStatus, order_name: nextOrderName } : o
       ),
       summaries: nextSummaries,
       activeOrderItems: updatedOrderItems, // KEEP IN CART BUT MARK KOT_SENT
@@ -1172,23 +1255,37 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     console.time('saveKot_db');
     (async () => {
       try {
-        const createResult = await createKot(activeOrderId, itemsToSend);
-        if (createResult.error || !createResult.data) {
-          throw new Error(createResult.error ?? 'Database KOT insert failed');
+        let finalRegTicket = null;
+        let finalCancelTicket = null;
+
+        if (unsentItems.length > 0) {
+          const createResult = await createKot(activeOrderId, itemsToSend);
+          if (createResult.error || !createResult.data) {
+            throw new Error(createResult.error ?? 'Database KOT insert failed');
+          }
+          finalRegTicket = createResult.data;
+
+          const unsentItemIds = unsentItems.map((item) => item.id);
+          const { error: itemsUpdateError } = await supabase
+            .from('open_order_items')
+            .update({ kot_sent: true })
+            .in('id', unsentItemIds);
+
+          if (itemsUpdateError) {
+            throw itemsUpdateError;
+          }
         }
 
-        const unsentItemIds = unsentItems.map((item) => item.id);
-        const { error: itemsUpdateError } = await supabase
-          .from('open_order_items')
-          .update({ kot_sent: true })
-          .in('id', unsentItemIds);
-
-        if (itemsUpdateError) {
-          throw itemsUpdateError;
+        if (itemsToCancel.length > 0) {
+          const cancelResult = await createKot(activeOrderId, itemsToCancel);
+          if (cancelResult.error || !cancelResult.data) {
+            throw new Error(cancelResult.error ?? 'Database Cancel KOT insert failed');
+          }
+          finalCancelTicket = cancelResult.data;
         }
 
         const { tenant_id, branch_id } = getTenantContext();
-        const updatePayload: any = { status: 'in_kitchen' };
+        const updatePayload: any = { status: nextStatus };
         if (wasDraft) {
           updatePayload.order_name = nextOrderName;
         }
@@ -1205,12 +1302,17 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         }
 
         // Replace mock optimistic ticket with final confirmed database ticket
-        const dbTicket = createResult.data;
         set((state) => {
           const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
-          const cleanedKots = currentKots.map((k) =>
-            k.id.includes('optimistic') ? dbTicket : k
-          );
+          const cleanedKots = currentKots.map((k) => {
+            if (k.id.includes('reg') && finalRegTicket) {
+              return finalRegTicket;
+            }
+            if (k.id.includes('cancel') && finalCancelTicket) {
+              return finalCancelTicket;
+            }
+            return k;
+          });
           return {
             kotsByOrderId: {
               ...state.kotsByOrderId,
@@ -1279,6 +1381,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     const wasDraft = activeOrder.status === 'draft' || activeOrder.status === 'open';
     const unsentItems = snapshot.activeOrderItems.filter((item) => !item.kot_sent);
+    const itemsToCancel = calculateKotCancellations(
+      snapshot.kotsByOrderId[activeOrderId] ?? [],
+      snapshot.activeOrderItems
+    );
 
     const needsOrderNumber = !activeOrder.order_name || activeOrder.order_name.toLowerCase().includes('draft');
     let nextOrderName = activeOrder.order_name;
@@ -1287,8 +1393,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       nextOrderName = `Order #${nextOrderNum}`;
     }
     
-    // Scenario A: No unsent items, order already unpaid or in_kitchen — generate bill number, print bill, save
-    if (unsentItems.length === 0 && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
+    // Scenario A: No unsent items and no cancelled items, order already unpaid or in_kitchen — generate bill number, print bill, save
+    if (unsentItems.length === 0 && itemsToCancel.length === 0 && (activeOrder.status === 'unpaid' || activeOrder.status === 'in_kitchen')) {
       const totalAmount = snapshot.activeOrderItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
       const billNumber = activeOrder.invoice_number || getNextBillNumber();
 
@@ -1367,7 +1473,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return true;
     }
 
-    // Scenario B: Has unsent items or is a fresh draft — generate KOT + bill number + print both
+    // Scenario B: Has unsent items, cancelled items, or is a fresh draft — generate KOT(s) + bill number + print all
 
     // Generate the bill number now. This is the permanent number on the receipt.
     // Settlement must NOT generate or overwrite this.
@@ -1376,9 +1482,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // Handle KOT if there are unsent items
     let nextKotNumber = 0;
     let itemsToSend: { name: string; quantity: number }[] = [];
-    let mockTicket: KotTicket | null = null;
     let nextKotNumbers = snapshot.kotNumbersByOrderId[activeOrderId] ?? [];
     let nextKots = snapshot.kotsByOrderId[activeOrderId] ?? [];
+    let printedRegular = false;
 
     if (unsentItems.length > 0) {
       nextKotNumber = getNextKotNumber();
@@ -1389,10 +1495,24 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
       // Sim print KOT
       await printerService.printKot(nextKotNumber, itemsToSend);
+      printedRegular = true;
+    }
 
-      // Construct optimistic mock KOT ticket
-      mockTicket = {
-        id: `kot-uuid-optimistic-${Date.now()}`,
+    // Handle Cancel KOT if there are cancelled items
+    let cancelKotNumber = 0;
+    let printedCancel = false;
+
+    if (itemsToCancel.length > 0) {
+      cancelKotNumber = getNextKotNumber();
+      // Sim print Cancel KOT
+      await printerService.printKot(cancelKotNumber, itemsToCancel, true);
+      printedCancel = true;
+    }
+
+    if (printedRegular) {
+      nextKotNumbers = [...nextKotNumbers, nextKotNumber];
+      nextKots = [...nextKots, {
+        id: `kot-uuid-optimistic-reg-${Date.now()}`,
         tenant_id: activeOrder.tenant_id,
         branch_id: activeOrder.branch_id,
         open_order_id: activeOrderId,
@@ -1401,16 +1521,34 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         printed_at: null,
         created_at: new Date().toISOString(),
         kot_items: itemsToSend.map((item, idx) => ({
-          id: `kot-item-uuid-optimistic-${idx}-${Date.now()}`,
-          kot_id: `kot-uuid-optimistic-${Date.now()}`,
+          id: `kot-item-uuid-optimistic-reg-${idx}-${Date.now()}`,
+          kot_id: `kot-uuid-optimistic-reg-${Date.now()}`,
           item_name: item.name,
           qty: item.quantity,
           notes: null,
         })),
-      };
+      }];
+    }
 
-      nextKotNumbers = [...nextKotNumbers, nextKotNumber];
-      nextKots = [...nextKots, mockTicket];
+    if (printedCancel) {
+      nextKotNumbers = [...nextKotNumbers, cancelKotNumber];
+      nextKots = [...nextKots, {
+        id: `kot-uuid-optimistic-cancel-${Date.now()}`,
+        tenant_id: activeOrder.tenant_id,
+        branch_id: activeOrder.branch_id,
+        open_order_id: activeOrderId,
+        kot_number: cancelKotNumber,
+        status: 'pending',
+        printed_at: null,
+        created_at: new Date().toISOString(),
+        kot_items: itemsToCancel.map((item, idx) => ({
+          id: `kot-item-uuid-optimistic-cancel-${idx}-${Date.now()}`,
+          kot_id: `kot-uuid-optimistic-cancel-${Date.now()}`,
+          item_name: item.name,
+          qty: item.quantity,
+          notes: item.notes,
+        })),
+      }];
     }
 
     // Prepare billing items (all of them since F3 prints everything provisional)
@@ -1434,7 +1572,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       totalAmount,
       false, // provisional
       null,  // paymentMethod
-      nextKots,  // includes the new KOT optimistically
+      nextKots,  // includes the KOTs
       discountAmount,
       discountType,
       discountValue
@@ -1518,11 +1656,15 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // Background Database Persistence
     (async () => {
       try {
+        let finalRegTicket = null;
+        let finalCancelTicket = null;
+
         if (unsentItems.length > 0) {
           const createResult = await createKot(activeOrderId, itemsToSend);
           if (createResult.error || !createResult.data) {
             throw new Error(createResult.error ?? 'Database KOT insert failed');
           }
+          finalRegTicket = createResult.data;
 
           const unsentItemIds = unsentItems.map((item) => item.id);
           const { error: itemsUpdateError } = await supabase
@@ -1533,22 +1675,35 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           if (itemsUpdateError) {
             throw itemsUpdateError;
           }
-
-          // Replace mock optimistic ticket with final confirmed database ticket
-          const dbTicket = createResult.data;
-          set((state) => {
-            const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
-            const cleanedKots = currentKots.map((k) =>
-              k.id.includes('optimistic') ? dbTicket : k
-            );
-            return {
-              kotsByOrderId: {
-                ...state.kotsByOrderId,
-                [activeOrderId]: cleanedKots,
-              },
-            };
-          });
         }
+
+        if (itemsToCancel.length > 0) {
+          const cancelResult = await createKot(activeOrderId, itemsToCancel);
+          if (cancelResult.error || !cancelResult.data) {
+            throw new Error(cancelResult.error ?? 'Database Cancel KOT insert failed');
+          }
+          finalCancelTicket = cancelResult.data;
+        }
+
+        // Replace mock optimistic ticket with final database tickets
+        set((state) => {
+          const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
+          const cleanedKots = currentKots.map((k) => {
+            if (k.id.includes('reg') && finalRegTicket) {
+              return finalRegTicket;
+            }
+            if (k.id.includes('cancel') && finalCancelTicket) {
+              return finalCancelTicket;
+            }
+            return k;
+          });
+          return {
+            kotsByOrderId: {
+              ...state.kotsByOrderId,
+              [activeOrderId]: cleanedKots,
+            },
+          };
+        });
 
         // Always write order status + bill number + discount metadata to DB
         const { tenant_id, branch_id } = getTenantContext();
@@ -1602,7 +1757,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           hasUnsavedChanges: snapshot.hasUnsavedChanges,
           kotNumbersByOrderId: snapshot.kotNumbersByOrderId,
           kotsByOrderId: snapshot.kotsByOrderId,
-          error: 'Connection issue. Changes were not saved. Please check internet and try again.',
+          billPrintedByOrderId: snapshot.billPrintedByOrderId,
+          error: 'Connection issue. Bill was not saved. Please check internet and try again.',
         });
       }
     })();
@@ -1688,6 +1844,24 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       return;
     }
 
+    // Calculate all items previously sent to the kitchen
+    const sentQuantities: Record<string, number> = {};
+    const kots = snapshot.kotsByOrderId[activeOrderId] ?? [];
+    for (const kot of kots) {
+      if (kot.kot_items) {
+        for (const item of kot.kot_items) {
+          sentQuantities[item.item_name] = (sentQuantities[item.item_name] ?? 0) + item.qty;
+        }
+      }
+    }
+
+    const itemsToCancel: { name: string; quantity: number; notes: string }[] = [];
+    for (const [name, qty] of Object.entries(sentQuantities)) {
+      if (qty > 0) {
+        itemsToCancel.push({ name, quantity: -qty, notes: 'Order Cancelled' });
+      }
+    }
+
     set({ isMutating: true, error: null });
 
     const cancelledAt = new Date().toISOString();
@@ -1733,6 +1907,16 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     // Background Database Persistence
     (async () => {
       try {
+        if (itemsToCancel.length > 0) {
+          const cancelKotNumber = getNextKotNumber();
+          await printerService.printKot(cancelKotNumber, itemsToCancel, true);
+
+          const cancelResult = await createKot(activeOrderId, itemsToCancel);
+          if (cancelResult.error) {
+            console.error('[cancelOrder] failed to create Cancel KOT in DB:', cancelResult.error);
+          }
+        }
+
         const { error } = await supabase
           .from('open_orders')
           .update({

@@ -511,7 +511,7 @@ export const printerService = {
   /**
    * Prints KOT ticket to all active kitchen printers.
    */
-  printKot: async (kotNumber: number, items: { name: string; quantity: number }[]): Promise<void> => {
+  printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false): Promise<void> => {
     try {
       const res = await fetchPrinters();
       let kitchenPrinters: any[] = [];
@@ -539,7 +539,7 @@ export const printerService = {
           const lines: string[] = [
             '\x1Ba\x01', // Center
             '\x1B!\x18', // Bold double height
-            '     KITCHEN TICKET     \n\n',
+            `     ${isCancel ? 'CANCEL KOT' : 'KITCHEN TICKET'}     \n\n`,
             '\x1B!\x00', // Reset
             '\x1Ba\x00', // Left
             `KOT Number: #${kotNumber}\n`,
@@ -547,7 +547,13 @@ export const printerService = {
             divider,
             padLine('Qty & Item', '', width) + '\n',
             divider,
-            ...items.map(item => `${item.quantity}x ${item.name}\n`),
+            ...items.map(item => {
+              let line = `${Math.abs(item.quantity)}x ${item.name}${isCancel ? ' (CANCELLED)' : ''}\n`;
+              if (isCancel && item.notes) {
+                line += `  * Reason: ${item.notes}\n`;
+              }
+              return line;
+            }),
             divider,
           ];
 
@@ -570,7 +576,7 @@ export const printerService = {
           const dashedDivider = '-'.repeat(width);
 
           const lines: string[] = [];
-          lines.push(centerTextLocal('*** KITCHEN TICKET ***', width));
+          lines.push(centerTextLocal(isCancel ? '*** CANCEL KOT ***' : '*** KITCHEN TICKET ***', width));
           lines.push(divider);
           lines.push(padLine(`KOT Number: #${kotNumber}`, '', width));
           
@@ -583,7 +589,12 @@ export const printerService = {
           lines.push(dashedDivider);
           
           items.forEach((item) => {
-            lines.push(padLine(`${item.quantity}x`, item.name, width));
+            const qtyText = `${Math.abs(item.quantity)}x`;
+            const nameText = item.name + (isCancel ? ' (CANCELLED)' : '');
+            lines.push(padLine(qtyText, nameText, width));
+            if (isCancel && item.notes) {
+              lines.push(`  * Reason: ${item.notes}`);
+            }
           });
 
           lines.push(divider);
