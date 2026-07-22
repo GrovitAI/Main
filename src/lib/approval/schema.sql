@@ -1,6 +1,49 @@
--- Migration: Branch Approval System for Grovit AI POS (Production Hardened v1.0)
+-- Migration: Branch Approval System for Grovit AI POS (v1.0 Production Hardened)
 
--- 1. Branch Approval Settings Table
+-- 1. PostgreSQL ENUM Types
+DO $$ BEGIN
+    CREATE TYPE approval_action_enum AS ENUM (
+        'REPRINT_BILL',
+        'CANCEL_BILL',
+        'APPLY_DISCOUNT',
+        'COMPLIMENTARY_BILL'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE approval_status_enum AS ENUM (
+        'PENDING',
+        'APPROVED',
+        'COMPLETED',
+        'FAILED',
+        'EXPIRED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE approval_resource_type_enum AS ENUM (
+        'bill',
+        'order',
+        'settlement'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- 2. Automatic updated_at Trigger Function
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Branch Approval Settings Table
 CREATE TABLE IF NOT EXISTS branch_approval_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,
@@ -18,7 +61,13 @@ CREATE TABLE IF NOT EXISTS branch_approval_settings (
 CREATE INDEX IF NOT EXISTS idx_branch_approval_settings_tenant_branch 
   ON branch_approval_settings(tenant_id, branch_id);
 
--- 2. Branch Approval Settings History Audit Table
+DROP TRIGGER IF EXISTS trigger_branch_approval_settings_updated_at ON branch_approval_settings;
+CREATE TRIGGER trigger_branch_approval_settings_updated_at
+  BEFORE UPDATE ON branch_approval_settings
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- 4. Branch Approval Settings History Audit Table
 CREATE TABLE IF NOT EXISTS branch_approval_settings_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,
@@ -34,20 +83,21 @@ CREATE TABLE IF NOT EXISTS branch_approval_settings_history (
 CREATE INDEX IF NOT EXISTS idx_branch_approval_settings_history 
   ON branch_approval_settings_history(tenant_id, branch_id);
 
--- 3. Approval Requests & Audit Log Table
+-- 5. Approval Requests & Audit Log Table
 CREATE TABLE IF NOT EXISTS approval_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,
   branch_id UUID NOT NULL,
   request_uuid UUID NOT NULL UNIQUE,
-  action TEXT NOT NULL, -- REPRINT_BILL, CANCEL_BILL, APPLY_DISCOUNT, COMPLIMENTARY_BILL
-  resource_type TEXT NOT NULL, -- bill, order, settlement
+  action approval_action_enum NOT NULL,
+  resource_type approval_resource_type_enum NOT NULL,
   resource_id TEXT NOT NULL,
   requested_by TEXT NOT NULL,
   cashier_id TEXT NULL,
   cashier_name TEXT NULL,
   branch_name TEXT NULL,
   approval_email TEXT NULL,
+  approved_by_email TEXT NULL,
   reason TEXT NOT NULL,
   approval_code_hash TEXT NOT NULL,
   attempts INT NOT NULL DEFAULT 0,
@@ -55,11 +105,10 @@ CREATE TABLE IF NOT EXISTS approval_requests (
   verified_at TIMESTAMPTZ NULL,
   code_verified_at TIMESTAMPTZ NULL,
   completed_at TIMESTAMPTZ NULL,
-  status TEXT NOT NULL, -- PENDING, APPROVED, COMPLETED, FAILED, EXPIRED
+  status approval_status_enum NOT NULL DEFAULT 'PENDING',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT check_approval_attempts CHECK (attempts >= 0 AND attempts <= 5),
-  CONSTRAINT check_approval_status CHECK (status IN ('PENDING', 'APPROVED', 'COMPLETED', 'FAILED', 'EXPIRED'))
+  CONSTRAINT check_approval_attempts CHECK (attempts >= 0 AND attempts <= 5)
 );
 
 CREATE INDEX IF NOT EXISTS idx_approval_requests_tenant_branch 
@@ -69,7 +118,13 @@ CREATE INDEX IF NOT EXISTS idx_approval_requests_uuid
 CREATE INDEX IF NOT EXISTS idx_approval_requests_action_resource 
   ON approval_requests(tenant_id, branch_id, action, resource_type, resource_id);
 
--- 4. Email Verification Codes Table
+DROP TRIGGER IF EXISTS trigger_approval_requests_updated_at ON approval_requests;
+CREATE TRIGGER trigger_approval_requests_updated_at
+  BEFORE UPDATE ON approval_requests
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- 6. Email Verification Codes Table
 CREATE TABLE IF NOT EXISTS approval_email_verifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL,

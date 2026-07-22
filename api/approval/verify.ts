@@ -97,6 +97,7 @@ export default async function handler(req: any, res: any) {
         status: 'APPROVED',
         verified_at: nowIso,
         code_verified_at: nowIso,
+        approved_by_email: record.approval_email || null,
       });
 
       res.statusCode = 200;

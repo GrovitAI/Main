@@ -34,6 +34,7 @@ export interface ApprovalRequestRecord {
   cashier_name?: string | null;
   branch_name?: string | null;
   approval_email?: string | null;
+  approved_by_email?: string | null;
   reason: string;
   approval_code_hash: string;
   attempts: number;
