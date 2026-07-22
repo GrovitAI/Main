@@ -23,6 +23,29 @@ export default async function handler(req: any, res: any) {
 
     console.log(`[TestEmail] Attempting to send test email to: ${targetEmail}`);
 
+    const smtpPass = process.env.SMTP_PASS || '';
+    const smtpUser = process.env.SMTP_USER || 'team@grovitai.com';
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = process.env.SMTP_PORT || '465';
+
+    if (!smtpPass) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'SMTP_PASS is not set or empty in environment variables.',
+          diagnostics: {
+            smtpHost,
+            smtpPort,
+            smtpUser,
+            smtpPassSet: false,
+          },
+        })
+      );
+      return;
+    }
+
     const result = await sendApprovalEmail({
       toEmail: targetEmail,
       restaurantName: 'Le Laban (Test)',
@@ -34,25 +57,22 @@ export default async function handler(req: any, res: any) {
       requestId: 'TEST-SMTP-001',
     });
 
-    if (result.success) {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({
-          success: true,
-          message: `Test email sent successfully to ${targetEmail}`,
-        })
-      );
-    } else {
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({
-          success: false,
-          error: result.error || 'SMTP dispatch failed.',
-        })
-      );
-    }
+    res.statusCode = result.success ? 200 : 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({
+        success: result.success,
+        toEmail: targetEmail,
+        result,
+        diagnostics: {
+          smtpHost,
+          smtpPort,
+          smtpUser,
+          smtpPassLength: smtpPass.length,
+          smtpPassSet: true,
+        },
+      })
+    );
   } catch (err: any) {
     console.error('[TestEmail] Exception:', err);
     res.statusCode = 500;
