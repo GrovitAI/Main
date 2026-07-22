@@ -36,38 +36,19 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
   const shortUuid = input.requestId ? input.requestId.slice(0, 6).toUpperCase() : '3F7C8A';
 
   const emailBody = [
-    'Grovit AI POS',
-    '',
-    'Approval Required',
-    '',
-    'Request ID:',
-    `APR-${shortUuid}`,
-    '',
-    `Restaurant:`,
-    `${input.restaurantName || 'Le Laban'}`,
-    '',
-    `Branch:`,
-    `${input.branchName || 'Anna Nagar'}`,
-    '',
-    `Action:`,
-    `${input.actionLabel}`,
-    '',
-    `Cashier:`,
-    `${input.cashierName}`,
-    '',
-    `Reason:`,
-    `${input.reason}`,
-    '',
-    'Approval Code',
-    '',
     `${input.approvalCode}`,
     '',
-    'This code expires in 5 minutes.',
+    `${input.actionLabel} (${input.branchName || 'Anna Nagar'})`,
     '',
-    'If you did not expect this request, do not share this approval code.',
+    `Reason: ${input.reason}`,
+    '',
+    'Expires in 5 minutes.',
+    `Request ID: APR-${shortUuid}`,
+    '',
+    'If you did not expect this request, ignore this email.',
   ].join('\r\n');
 
-  const subjectLine = `[Grovit AI POS] ${input.branchName || 'Anna Nagar'} - Approval Required`;
+  const subjectLine = `Approval Code: ${input.approvalCode} - ${input.actionLabel}`;
 
   const mailMessage = [
     `From: ${smtpFrom}`,
