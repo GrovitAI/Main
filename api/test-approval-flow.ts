@@ -24,6 +24,52 @@ export default async function handler(req: any, res: any) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
     const targetEmail = body.toEmail || req.query?.toEmail || 'sinanlegend287@gmail.com';
 
+    const mode = req.query?.mode || body.mode || 'request';
+    const requestId = req.query?.requestId || body.requestId;
+    const code = req.query?.code || body.code || body.approvalCode;
+
+    // Mode: Verify
+    if (mode === 'verify') {
+      if (!requestId || !code) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Missing requestId or code query parameter. Example: ?mode=verify&requestId=UUID&code=123456' }));
+        return;
+      }
+
+      const verifyRes = await fetch(`http://${req.headers.host || 'localhost:3000'}/api/approval/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, branchId, requestId, approvalCode: code }),
+      });
+      const verifyData = await verifyRes.json();
+      res.statusCode = verifyRes.status;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ step: 'Step 7: Verify Code', result: verifyData }));
+      return;
+    }
+
+    // Mode: Complete
+    if (mode === 'complete') {
+      if (!requestId) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Missing requestId query parameter. Example: ?mode=complete&requestId=UUID' }));
+        return;
+      }
+
+      const completeRes = await fetch(`http://${req.headers.host || 'localhost:3000'}/api/approval/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, branchId, requestId }),
+      });
+      const completeData = await completeRes.json();
+      res.statusCode = completeRes.status;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ step: 'Step 8: Complete Action', result: completeData }));
+      return;
+    }
+
     // Step 1: Configure branch approval settings
     await upsertBranchApprovalSettings(tenantId, branchId, targetEmail, true, 'Test Admin');
 
@@ -80,6 +126,10 @@ export default async function handler(req: any, res: any) {
         generatedApprovalCodeForTesting: approvalCode,
         expiresAt,
         emailResult,
+        browserTestingLinks: {
+          verifyLink: `https://${req.headers.host || 'leleban.grovitai.com'}/api/test-approval-flow?mode=verify&requestId=${requestUuid}&code=${approvalCode}`,
+          completeLink: `https://${req.headers.host || 'leleban.grovitai.com'}/api/test-approval-flow?mode=complete&requestId=${requestUuid}`,
+        },
       })
     );
   } catch (err: any) {
