@@ -117,8 +117,8 @@ export function ApprovalCodeDialog({
                 ref={inputRef}
                 value={code}
                 onChangeText={(val) => {
-                  const numOnly = val.replace(/\D/g, '').slice(0, 6);
-                  setCode(numOnly);
+                  const cleaned = val.replace(/[\s-]/g, '').replace(/\D/g, '').slice(0, 6);
+                  setCode(cleaned);
                   if (errorMsg) setErrorMsg(null);
                 }}
                 placeholder="6-digit code"

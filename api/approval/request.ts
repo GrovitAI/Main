@@ -147,6 +147,7 @@ export default async function handler(req: any, res: any) {
       cashierName: requestedBy || 'Cashier',
       reason: reason.trim(),
       approvalCode,
+      requestId: requestUuid,
     });
 
     if (!emailResult.success) {

@@ -65,7 +65,13 @@ export default async function handler(req: any, res: any) {
 
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ success: true, expiresAt }));
+    res.end(
+      JSON.stringify({
+        success: true,
+        message: 'If verification is required, a verification email has been sent.',
+        expiresAt,
+      })
+    );
   } catch (err: any) {
     console.error('[API /verify-email/request] Exception:', err);
     res.statusCode = 500;

@@ -115,6 +115,7 @@ export default async function handler(req: any, res: any) {
       cashierName: record.requested_by,
       reason: record.reason,
       approvalCode: newCode,
+      requestId,
     });
 
     if (!emailResult.success) {

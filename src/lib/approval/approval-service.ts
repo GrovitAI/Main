@@ -40,16 +40,20 @@ export async function upsertBranchApprovalSettings(
   tenantId: string,
   branchId: string,
   approvalEmail: string,
-  enabled: boolean
+  enabled: boolean,
+  changedBy: string = 'Admin'
 ): Promise<ServiceResult<BranchApprovalSettings>> {
   try {
+    const existing = await getBranchApprovalSettings(tenantId, branchId);
+    const cleanEmail = approvalEmail.trim().toLowerCase();
+
     const { data, error } = await supabase
       .from('branch_approval_settings')
       .upsert(
         {
           tenant_id: tenantId,
           branch_id: branchId,
-          approval_email: approvalEmail.trim().toLowerCase(),
+          approval_email: cleanEmail,
           enabled,
           updated_at: new Date().toISOString(),
         },
@@ -62,6 +66,18 @@ export async function upsertBranchApprovalSettings(
       logSupabaseError('upsertBranchApprovalSettings', error);
       return { data: null, error: error.message };
     }
+
+    // Record audit history entry
+    void supabase.from('branch_approval_settings_history').insert({
+      tenant_id: tenantId,
+      branch_id: branchId,
+      changed_by: changedBy,
+      previous_email: existing.data?.approval_email || null,
+      new_email: cleanEmail,
+      previous_enabled: existing.data?.enabled ?? null,
+      new_enabled: enabled,
+      created_at: new Date().toISOString(),
+    });
 
     return { data: data as BranchApprovalSettings, error: null };
   } catch (err: any) {

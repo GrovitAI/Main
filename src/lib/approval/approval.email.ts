@@ -8,6 +8,7 @@ export interface SendApprovalEmailInput {
   cashierName: string;
   reason: string;
   approvalCode: string;
+  requestId?: string;
 }
 
 /**
@@ -32,10 +33,15 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
     return { success: true };
   }
 
+  const shortUuid = input.requestId ? input.requestId.slice(0, 6).toUpperCase() : '3F7C8A';
+
   const emailBody = [
     'Grovit AI POS',
     '',
     'Approval Required',
+    '',
+    'Request ID:',
+    `APR-${shortUuid}`,
     '',
     `Restaurant:`,
     `${input.restaurantName || 'Le Laban'}`,
@@ -61,10 +67,12 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
     'If you did not expect this request, do not share this approval code.',
   ].join('\r\n');
 
+  const subjectLine = `[Grovit AI POS] ${input.branchName || 'Anna Nagar'} - Approval Required`;
+
   const mailMessage = [
     `From: ${smtpFrom}`,
     `To: ${input.toEmail}`,
-    `Subject: Grovit AI POS - Approval Code (${input.actionLabel})`,
+    `Subject: ${subjectLine}`,
     'Content-Type: text/plain; charset=utf-8',
     '',
     emailBody,

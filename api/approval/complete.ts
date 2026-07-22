@@ -1,4 +1,4 @@
-import { updateApprovalRequest } from '../../src/lib/approval/approval-service';
+import { updateApprovalRequest, getApprovalRequestByUuid } from '../../src/lib/approval/approval-service';
 
 export default async function handler(req: any, res: any) {
   // CORS
@@ -31,6 +31,15 @@ export default async function handler(req: any, res: any) {
       res.statusCode = 400;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ error: 'Missing required parameters (requestId, tenantId, branchId).' }));
+      return;
+    }
+
+    const existing = await getApprovalRequestByUuid(tenantId, branchId, requestId);
+    if (existing.data && existing.data.status === 'COMPLETED') {
+      console.log(`[Approval Request ${requestId}] Already marked COMPLETED (idempotent call).`);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ success: true, alreadyCompleted: true }));
       return;
     }
 
