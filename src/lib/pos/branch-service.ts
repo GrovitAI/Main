@@ -14,6 +14,7 @@ export type Branch = {
   invoice_prefix: string;
   is_active: boolean;
   approval_email?: string;
+  approval_email_verified?: boolean;
   approval_enabled?: boolean;
   created_at: string;
 };
@@ -57,14 +58,15 @@ export async function fetchBranches(): Promise<{ data: Branch[]; error: string |
       .select('*')
       .eq('tenant_id', tenant_id);
 
-    const approvalMap = (approvalSettings ?? []).reduce((acc: Record<string, { approval_email: string; enabled: boolean }>, item: any) => {
-      acc[item.branch_id] = { approval_email: item.approval_email, enabled: item.enabled };
+    const approvalMap = (approvalSettings ?? []).reduce((acc: Record<string, { approval_email: string; enabled: boolean; verified: boolean }>, item: any) => {
+      acc[item.branch_id] = { approval_email: item.approval_email, enabled: item.enabled, verified: !!item.approval_email_verified };
       return acc;
     }, {});
 
     const enriched = (data ?? []).map((b: any) => ({
       ...b,
       approval_email: approvalMap[b.id]?.approval_email || '',
+      approval_email_verified: approvalMap[b.id]?.verified ?? false,
       approval_enabled: approvalMap[b.id]?.enabled ?? true,
     }));
 

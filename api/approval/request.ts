@@ -109,6 +109,8 @@ export default async function handler(req: any, res: any) {
     const requestUuid = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
 
+    console.log(`[Approval Request ${requestUuid}] Created for Action: ${action}, Resource: ${resourceType}#${resourceId}, Requested by: ${requestedBy}`);
+
     const createRes = await createApprovalRequest({
       tenant_id: tenantId,
       branch_id: branchId,
@@ -117,6 +119,9 @@ export default async function handler(req: any, res: any) {
       resource_type: resourceType,
       resource_id: String(resourceId),
       requested_by: requestedBy || 'Cashier',
+      cashier_name: requestedBy || 'Cashier',
+      branch_name: branchName || 'Anna Nagar',
+      approval_email: settings.approval_email,
       reason: reason.trim(),
       approval_code_hash: approvalCodeHash,
       attempts: 0,
@@ -125,6 +130,7 @@ export default async function handler(req: any, res: any) {
     });
 
     if (createRes.error || !createRes.data) {
+      console.error(`[Approval Request ${requestUuid}] DB insert failed:`, createRes.error);
       res.statusCode = 500;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ error: createRes.error || 'Failed to record approval request.' }));

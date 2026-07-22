@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { ShieldAlert, X } from 'lucide-react-native';
 
-interface ReasonModalProps {
+interface ReasonDialogProps {
   visible: boolean;
   actionTitle: string;
   onClose: () => void;
@@ -10,13 +10,13 @@ interface ReasonModalProps {
   isSubmitting?: boolean;
 }
 
-export function ReasonModal({
+export function ReasonDialog({
   visible,
   actionTitle,
   onClose,
   onSubmit,
   isSubmitting = false,
-}: ReasonModalProps) {
+}: ReasonDialogProps) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 

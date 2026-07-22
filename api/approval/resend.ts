@@ -89,7 +89,9 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // 4. Generate new code & update database record
+    console.log(`[Approval Request ${requestId}] Action: ${record.action}, Resend requested by ${record.requested_by}`);
+
+    // 4. Generate new code & update database record (reset attempts to 0!)
     const newCode = generateApprovalCode();
     const newHash = hashApprovalCode(newCode);
     const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -97,26 +99,33 @@ export default async function handler(req: any, res: any) {
     await updateApprovalRequest(tenantId, branchId, requestId, {
       approval_code_hash: newHash,
       expires_at: newExpiresAt,
+      attempts: 0, // RESET ATTEMPTS BACK TO ZERO
       status: 'PENDING',
     });
 
+    console.log(`[Approval Request ${requestId}] Code hash updated, attempts reset to 0, expiry extended to ${newExpiresAt}`);
+
     // 5. Send email
     const actionLabel = getActionLabel(record.action);
-    await sendApprovalEmail({
+    const emailResult = await sendApprovalEmail({
       toEmail: settings.approval_email,
       restaurantName: restaurantName || 'Le Laban',
-      branchName: branchName || 'Anna Nagar',
+      branchName: branchName || record.branch_name || 'Anna Nagar',
       actionLabel,
       cashierName: record.requested_by,
       reason: record.reason,
       approvalCode: newCode,
     });
 
+    if (!emailResult.success) {
+      console.warn(`[Approval Request ${requestId}] Email send failed:`, emailResult.error);
+    }
+
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ success: true, expiresAt: newExpiresAt }));
   } catch (err: any) {
-    console.error('[API /resend] Exception:', err);
+    console.error(`[API /resend] Exception:`, err);
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }));

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Modal,
 } from 'react-native';
 import {
   Building2,
@@ -71,6 +72,74 @@ export default function BranchesScreen() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const canManage = session?.role === 'owner' || session?.role === 'admin';
+
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  const [verifyModalVisible, setVerifyModalVisible] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+
+  const handleSendEmailVerification = async () => {
+    if (!form.approval_email.trim()) {
+      setFormError('Please enter an approval email first.');
+      return;
+    }
+    setVerifyingEmail(true);
+    setFormError(null);
+    try {
+      const targetBranchId = editingId === 'new' ? 'new' : (editingId || session?.branchId || '');
+      const res = await fetch('/api/approval/verify-email/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: session?.tenantId,
+          branchId: targetBranchId,
+          approvalEmail: form.approval_email,
+          restaurantName: session?.tenantName,
+          branchName: form.name,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVerifyModalVisible(true);
+      } else {
+        setFormError(data.error || 'Failed to send verification code.');
+      }
+    } catch (err: any) {
+      setFormError(err.message || 'Verification request error.');
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
+
+  const handleConfirmVerificationCode = async () => {
+    if (!verifyCode.trim()) return;
+    setVerifyingEmail(true);
+    try {
+      const targetBranchId = editingId === 'new' ? 'new' : (editingId || session?.branchId || '');
+      const res = await fetch('/api/approval/verify-email/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: session?.tenantId,
+          branchId: targetBranchId,
+          approvalEmail: form.approval_email,
+          verificationCode: verifyCode.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVerifyModalVisible(false);
+        setVerifyCode('');
+        setFormError(null);
+        void load();
+      } else {
+        setFormError(data.error || 'Invalid verification code.');
+      }
+    } catch (err: any) {
+      setFormError(err.message || 'Verification confirmation error.');
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -291,6 +360,19 @@ export default function BranchesScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
+            {form.approval_email.trim() ? (
+              <View style={{ marginTop: -8, marginBottom: 12, alignItems: 'flex-start' }}>
+                <Pressable
+                  disabled={verifyingEmail}
+                  onPress={handleSendEmailVerification}
+                  style={{ backgroundColor: '#E0F2FE', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}
+                >
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#0369A1' }}>
+                    {verifyingEmail ? 'Sending Code...' : 'Verify Owner Email Ownership'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             <View style={styles.formActions}>
               <Pressable style={styles.cancelBtn} onPress={closeForm} id="btn-cancel-branch">
@@ -347,6 +429,19 @@ export default function BranchesScreen() {
                   <Text style={styles.branchAddress} numberOfLines={1}>{b.address}</Text>
                   <Text style={styles.branchPhone}>{b.phone}</Text>
                   {b.gstin ? <Text style={styles.branchGstin}>GST: {b.gstin}</Text> : null}
+
+                  {b.approval_email ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                      <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#475569' }}>
+                        Approval Email: {b.approval_email}
+                      </Text>
+                      <View style={{ backgroundColor: b.approval_email_verified ? '#DCFCE7' : '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: b.approval_email_verified ? '#166534' : '#92400E' }}>
+                          {b.approval_email_verified ? 'Verified ✓' : 'Unverified ⚠️'}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
 
                 {canManage && (
@@ -375,6 +470,45 @@ export default function BranchesScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Verification Code Modal */}
+      <Modal visible={verifyModalVisible} transparent animationType="fade" onRequestClose={() => setVerifyModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#0F172A' }}>Verify Owner Email</Text>
+            <Text style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
+              Enter the 6-digit verification code sent to {form.approval_email}
+            </Text>
+
+            <TextInput
+              value={verifyCode}
+              onChangeText={(v) => setVerifyCode(v.replace(/\D/g, '').slice(0, 6))}
+              placeholder="6-digit code"
+              keyboardType="number-pad"
+              maxLength={6}
+              style={{ marginTop: 16, height: 48, borderRadius: 10, borderWidth: 1.5, borderColor: '#0284C7', backgroundColor: '#F0F9FF', textAlign: 'center', fontSize: 20, fontWeight: '700', letterSpacing: 6, color: '#0F172A' }}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <Pressable
+                onPress={() => setVerifyModalVisible(false)}
+                style={{ flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#475569' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={verifyingEmail || verifyCode.length !== 6}
+                onPress={handleConfirmVerificationCode}
+                style={{ flex: 1, height: 42, borderRadius: 10, backgroundColor: (verifyingEmail || verifyCode.length !== 6) ? '#94A3B8' : '#0284C7', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                  {verifyingEmail ? 'Verifying...' : 'Confirm'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

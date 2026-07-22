@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { ReasonModal } from './ReasonModal';
-import { ApprovalCodeModal } from './ApprovalCodeModal';
+import React, { useState } from 'react';
+import { ReasonDialog } from './ReasonDialog';
+import { ApprovalCodeDialog } from './ApprovalCodeDialog';
 import { approvalService } from '@/lib/approval/approval.service';
 import type { ApprovalAction, ResourceType } from '@/lib/approval/approval.types';
 
@@ -123,7 +123,7 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
 
   return (
     <>
-      <ReasonModal
+      <ReasonDialog
         visible={step === 'reason'}
         actionTitle={state.actionTitle}
         onClose={handleCloseAll}
@@ -132,11 +132,9 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
       />
 
       {requestId && (
-        <ApprovalCodeModal
+        <ApprovalCodeDialog
           visible={step === 'code'}
           actionTitle={state.actionTitle}
-          requestId={requestId}
-          expiresAt={expiresAt}
           onClose={handleCloseAll}
           onVerify={handleVerifyCode}
           onResend={handleResendCode}

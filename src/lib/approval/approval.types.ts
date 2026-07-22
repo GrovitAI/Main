@@ -14,6 +14,8 @@ export interface BranchApprovalSettings {
   tenant_id: string;
   branch_id: string;
   approval_email: string;
+  approval_email_verified?: boolean;
+  approval_email_verified_at?: string | null;
   enabled: boolean;
   created_at?: string;
   updated_at?: string;
@@ -28,11 +30,16 @@ export interface ApprovalRequestRecord {
   resource_type: ResourceType;
   resource_id: string;
   requested_by: string;
+  cashier_id?: string | null;
+  cashier_name?: string | null;
+  branch_name?: string | null;
+  approval_email?: string | null;
   reason: string;
   approval_code_hash: string;
   attempts: number;
   expires_at: string;
   verified_at?: string | null;
+  code_verified_at?: string | null;
   completed_at?: string | null;
   status: ApprovalStatus;
   created_at: string;

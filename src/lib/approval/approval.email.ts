@@ -57,6 +57,8 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
     `${input.approvalCode}`,
     '',
     'This code expires in 5 minutes.',
+    '',
+    'If you did not expect this request, do not share this approval code.',
   ].join('\r\n');
 
   const mailMessage = [

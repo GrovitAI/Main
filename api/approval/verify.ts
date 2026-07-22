@@ -89,10 +89,14 @@ export default async function handler(req: any, res: any) {
     const isMatch = inputHash === record.approval_code_hash;
 
     if (isMatch) {
+      const nowIso = new Date().toISOString();
+      console.log(`[Approval Request ${requestId}] Code verified successfully!`);
+
       // Success! Update status to APPROVED
       await updateApprovalRequest(tenantId, branchId, requestId, {
         status: 'APPROVED',
-        verified_at: new Date().toISOString(),
+        verified_at: nowIso,
+        code_verified_at: nowIso,
       });
 
       res.statusCode = 200;
@@ -103,6 +107,8 @@ export default async function handler(req: any, res: any) {
       const nextAttempts = record.attempts + 1;
       const isFailed = nextAttempts >= 5;
       const nextStatus = isFailed ? 'FAILED' : 'PENDING';
+
+      console.warn(`[Approval Request ${requestId}] Incorrect code attempt ${nextAttempts}/5.`);
 
       await updateApprovalRequest(tenantId, branchId, requestId, {
         attempts: nextAttempts,
