@@ -14,7 +14,6 @@ import { Minus, Plus, Trash2, Percent } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
-import { ApprovalDialogContainer } from '@/components/approval/ApprovalDialogContainer';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 
@@ -115,7 +114,7 @@ export function OrderPanel({
   }, [activeAction]);
 
   const { discountType, discountPercent, discountAmount, setDiscount, activeOrderId } = useOrdersStore();
-  const { approvalDialogState, requestApproval, closeApprovalDialog } = useApprovalFlow();
+  const { requestApproval } = useApprovalFlow();
 
   const handleApplyDiscount = (type: 'percent' | 'fixed', value: number) => {
     if (value <= 0) {
@@ -960,11 +959,6 @@ export function OrderPanel({
         )}
       </View>
 
-      {/* Approval Engine Modal Container */}
-      <ApprovalDialogContainer
-        state={approvalDialogState}
-        onClose={closeApprovalDialog}
-      />
     </View>
   );
 }

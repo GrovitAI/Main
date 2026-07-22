@@ -27,7 +27,6 @@ import { Sidebar } from '@/components/pos/Sidebar';
 import { OrderPanel } from '@/components/pos/OrderPanel';
 import { ProductCard } from '@/components/pos/ProductCard';
 import { SettlementModal } from '@/components/pos/SettlementModal';
-import { ApprovalDialogContainer } from '@/components/approval/ApprovalDialogContainer';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 import { colors } from '@/lib/pos/brand';
@@ -263,7 +262,7 @@ export default function PosBillingScreen() {
   const clearError = useOrdersStore((s) => s.clearError);
 
   const session = useSessionStore((s) => s.session);
-  const { approvalDialogState, requestApproval, closeApprovalDialog } = useApprovalFlow();
+  const { requestApproval } = useApprovalFlow();
   const currentBranch = useMemo(() => {
     return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
   }, [session]);
@@ -1802,11 +1801,6 @@ export default function PosBillingScreen() {
         isMutating={isMutating}
       />
 
-      {/* Approval Engine Modal Container */}
-      <ApprovalDialogContainer
-        state={approvalDialogState}
-        onClose={closeApprovalDialog}
-      />
 
       {/* Root Toast Indicator */}
       {toastMessage && (

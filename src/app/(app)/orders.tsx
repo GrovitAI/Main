@@ -22,13 +22,7 @@ import {
 } from '@/components/orders/OrderCard';
 import { colors } from '@/lib/pos/brand';
 import type { OrderStatus } from '@/lib/pos/order-types';
-import {
-  fetchOpenOrderById,
-  getAllOrders,
-  settleOrderById,
-  type OpenOrderSummary,
-} from '@/lib/pos/open-orders-service';
-import { ApprovalDialogContainer } from '@/components/approval/ApprovalDialogContainer';
+import { fetchOpenOrderById, getAllOrders, settleOrderById, type OpenOrderSummary } from '@/lib/pos/open-orders-service';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
@@ -294,7 +288,7 @@ export default function OrdersScreen() {
     [summaries, viewingOrderId],
   );
 
-  const { approvalDialogState, requestApproval, closeApprovalDialog } = useApprovalFlow();
+  const { requestApproval } = useApprovalFlow();
 
   const doReprintPreviousBill = useCallback(async () => {
     if (!viewingSummary) return;
@@ -1124,11 +1118,6 @@ export default function OrdersScreen() {
         />
       )}
 
-      {/* Approval Engine Modal Container */}
-      <ApprovalDialogContainer
-        state={approvalDialogState}
-        onClose={closeApprovalDialog}
-      />
 
       {/* Premium Root Toast Notification Alert */}
       {toastMessage && (

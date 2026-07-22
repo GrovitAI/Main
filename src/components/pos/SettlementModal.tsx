@@ -6,6 +6,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import { colors } from '@/lib/pos/brand';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
+import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
+import { ApprovalAction } from '@/lib/approval/approval.types';
 
 type SettlementModalProps = {
   visible: boolean;
@@ -34,14 +36,32 @@ export function SettlementModal({
   // Keyboard owner — a plain <div> (View), NOT TextInput. Avoids Enter/submit/blur quirks.
   const keyboardOwnerRef = useRef<View>(null);
 
+  const { requestApproval } = useApprovalFlow();
+
   const handleConfirm = useCallback(async () => {
-    setLocalMutating(true);
-    const success = await onConfirm(selectedMethod.toLowerCase());
-    setLocalMutating(false);
-    if (success) {
-      onClose();
+    const doConfirm = async () => {
+      setLocalMutating(true);
+      const success = await onConfirm(selectedMethod.toLowerCase());
+      setLocalMutating(false);
+      if (success) {
+        onClose();
+      }
+    };
+
+    if (selectedMethod === 'Complimentary') {
+      requestApproval({
+        action: ApprovalAction.COMPLIMENTARY_BILL,
+        actionTitle: 'Complimentary Bill',
+        resourceType: 'settlement',
+        resourceId: 'active_settlement',
+        onApproved: () => {
+          void doConfirm();
+        },
+      });
+    } else {
+      void doConfirm();
     }
-  }, [onConfirm, onClose]);
+  }, [selectedMethod, onConfirm, onClose, requestApproval]);
 
   const isProcessing = isMutating || localMutating;
 

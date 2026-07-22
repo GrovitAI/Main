@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { ApprovalProvider } from '@/lib/approval/ApprovalContext';
 
 export const unstable_settings = {
   initialRouteName: '(auth)',
@@ -41,12 +42,12 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <ApprovalProvider>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
       </Stack>
-    </>
+    </ApprovalProvider>
   );
 }
