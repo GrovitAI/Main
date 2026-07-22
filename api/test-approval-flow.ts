@@ -87,6 +87,12 @@ export default async function handler(req: any, res: any) {
     console.error('[TestApprovalFlow] Exception:', err);
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }));
+    res.end(
+      JSON.stringify({
+        success: false,
+        error: err?.message || String(err) || 'Internal Server Error',
+        stack: err?.stack || null,
+      })
+    );
   }
 }
