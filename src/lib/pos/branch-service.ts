@@ -13,6 +13,8 @@ export type Branch = {
   gstin: string | null;
   invoice_prefix: string;
   is_active: boolean;
+  approval_email?: string;
+  approval_enabled?: boolean;
   created_at: string;
 };
 
@@ -23,6 +25,8 @@ export type CreateBranchPayload = {
   phone: string;
   gstin?: string;
   invoice_prefix: string;
+  approval_email?: string;
+  approval_enabled?: boolean;
 };
 
 export type UpdateBranchPayload = Partial<CreateBranchPayload & { is_active: boolean }>;
@@ -48,7 +52,23 @@ export async function fetchBranches(): Promise<{ data: Branch[]; error: string |
       return { data: [], error: error.message };
     }
 
-    return { data: (data ?? []) as Branch[], error: null };
+    const { data: approvalSettings } = await supabase
+      .from('branch_approval_settings')
+      .select('*')
+      .eq('tenant_id', tenant_id);
+
+    const approvalMap = (approvalSettings ?? []).reduce((acc: Record<string, { approval_email: string; enabled: boolean }>, item: any) => {
+      acc[item.branch_id] = { approval_email: item.approval_email, enabled: item.enabled };
+      return acc;
+    }, {});
+
+    const enriched = (data ?? []).map((b: any) => ({
+      ...b,
+      approval_email: approvalMap[b.id]?.approval_email || '',
+      approval_enabled: approvalMap[b.id]?.enabled ?? true,
+    }));
+
+    return { data: enriched as Branch[], error: null };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch branches.';
     console.error('[branch-service] fetchBranches exception:', err);
@@ -85,6 +105,16 @@ export async function createBranch(
       return { data: null, error: error.message };
     }
 
+    if (payload.approval_email !== undefined) {
+      await supabase.from('branch_approval_settings').upsert({
+        tenant_id,
+        branch_id: data.id,
+        approval_email: payload.approval_email.trim().toLowerCase(),
+        enabled: payload.approval_enabled ?? true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'tenant_id,branch_id' });
+    }
+
     return { data: data as Branch, error: null };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to create branch.';
@@ -113,20 +143,46 @@ export async function updateBranch(
       updates['invoice_prefix'] = payload.invoice_prefix.trim().toUpperCase();
     if (payload.is_active !== undefined) updates['is_active'] = payload.is_active;
 
-    const { data, error } = await supabase
-      .from('branches')
-      .update(updates)
-      .eq('id', branchId)
-      .eq('tenant_id', tenant_id)
-      .select()
-      .single();
+    if (Object.keys(updates).length > 0) {
+      const { data, error } = await supabase
+        .from('branches')
+        .update(updates)
+        .eq('id', branchId)
+        .eq('tenant_id', tenant_id)
+        .select()
+        .single();
 
-    if (error) {
-      console.error('[branch-service] updateBranch error:', error);
-      return { data: null, error: error.message };
+      if (error) {
+        console.error('[branch-service] updateBranch error:', error);
+        return { data: null, error: error.message };
+      }
     }
 
-    return { data: data as Branch, error: null };
+    if (payload.approval_email !== undefined || payload.approval_enabled !== undefined) {
+      const existingSettings = await supabase
+        .from('branch_approval_settings')
+        .select('*')
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branchId)
+        .maybeSingle();
+
+      const nextEmail = payload.approval_email !== undefined 
+        ? payload.approval_email.trim().toLowerCase() 
+        : (existingSettings.data?.approval_email || '');
+      const nextEnabled = payload.approval_enabled !== undefined 
+        ? payload.approval_enabled 
+        : (existingSettings.data?.enabled ?? true);
+
+      await supabase.from('branch_approval_settings').upsert({
+        tenant_id,
+        branch_id: branchId,
+        approval_email: nextEmail,
+        enabled: nextEnabled,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'tenant_id,branch_id' });
+    }
+
+    return { data: null, error: null };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to update branch.';
     console.error('[branch-service] updateBranch exception:', err);

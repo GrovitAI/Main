@@ -27,6 +27,9 @@ import { Sidebar } from '@/components/pos/Sidebar';
 import { OrderPanel } from '@/components/pos/OrderPanel';
 import { ProductCard } from '@/components/pos/ProductCard';
 import { SettlementModal } from '@/components/pos/SettlementModal';
+import { ApprovalDialogContainer } from '@/components/approval/ApprovalDialogContainer';
+import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
+import { ApprovalAction } from '@/lib/approval/approval.types';
 import { colors } from '@/lib/pos/brand';
 import {
   calculateOrderSubtotal,
@@ -260,6 +263,7 @@ export default function PosBillingScreen() {
   const clearError = useOrdersStore((s) => s.clearError);
 
   const session = useSessionStore((s) => s.session);
+  const { approvalDialogState, requestApproval, closeApprovalDialog } = useApprovalFlow();
   const currentBranch = useMemo(() => {
     return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
   }, [session]);
@@ -810,8 +814,10 @@ export default function PosBillingScreen() {
     }
   }, [isMutating, activeOrderId, activeOrder, activeOrderItems, saveAndPrint, showToast]);
 
+  // ── Handlers ────────────────────────────────────────────────────────────────
+
   // Reprint active bill handler
-  const handleReprintActiveBill = useCallback(async () => {
+  const doReprintActiveBill = useCallback(async () => {
     if (!activeOrder) return;
     try {
       const printerName = typeof window !== 'undefined' && window.localStorage
@@ -848,7 +854,20 @@ export default function PosBillingScreen() {
       console.warn('[Reprint] Failed to reprint:', err);
       showToast('Failed to reprint bill.');
     }
-  }, [activeOrder, activeOrderItems, showToast]);
+  }, [activeOrder, activeOrderItems, currentBranch, showToast]);
+
+  const handleReprintActiveBill = useCallback(() => {
+    if (!activeOrder) return;
+    requestApproval({
+      action: ApprovalAction.REPRINT_BILL,
+      actionTitle: 'Reprint Bill',
+      resourceType: 'bill',
+      resourceId: activeOrder.invoice_number || activeOrder.id,
+      onApproved: () => {
+        void doReprintActiveBill();
+      },
+    });
+  }, [activeOrder, requestApproval, doReprintActiveBill]);
 
   // Cancel order handler
   const handleCancelClick = useCallback(() => {
@@ -856,11 +875,20 @@ export default function PosBillingScreen() {
     setActiveModal('cancel_order');
   }, [isMutating]);
 
-  const confirmCancelOrder = useCallback(async () => {
+  const confirmCancelOrder = useCallback(() => {
     setActiveModal(null);
-    await cancelOrder();
-    showToast('Order cancelled.');
-  }, [cancelOrder, showToast]);
+    if (!activeOrderId) return;
+    requestApproval({
+      action: ApprovalAction.CANCEL_BILL,
+      actionTitle: 'Cancel Bill',
+      resourceType: 'order',
+      resourceId: activeOrderId,
+      onApproved: async () => {
+        await cancelOrder();
+        showToast('Order cancelled.');
+      },
+    });
+  }, [activeOrderId, requestApproval, cancelOrder, showToast]);
 
   // Hold order wrapper
   const confirmHoldOrder = useCallback(async () => {
@@ -904,7 +932,7 @@ export default function PosBillingScreen() {
     setSettlementVisible(true);
   }, [isMutating, activeOrder, showToast]);
 
-  const confirmSettlement = useCallback(async (paymentType: string = 'cash') => {
+  const doPerformSettlement = useCallback(async (paymentType: string) => {
     setActiveAction('settle');
     // 1. Capture order details before settleBill wipes the active cart state
     const items = activeOrderItems.map((item) => ({
@@ -930,6 +958,27 @@ export default function PosBillingScreen() {
     return success;
   }, [settleBill, showToast, activeOrderItems, setSettlementVisible]);
 
+  const confirmSettlement = useCallback(async (paymentType: string = 'cash') => {
+    if (paymentType.toLowerCase() === 'complimentary') {
+      return new Promise<boolean>((resolve) => {
+        requestApproval({
+          action: ApprovalAction.COMPLIMENTARY_BILL,
+          actionTitle: 'Complimentary Bill',
+          resourceType: 'order',
+          resourceId: activeOrderId || 'active_order',
+          onApproved: async () => {
+            const success = await doPerformSettlement(paymentType);
+            resolve(success);
+          },
+          onCancelled: () => {
+            resolve(false);
+          },
+        });
+      });
+    } else {
+      return await doPerformSettlement(paymentType);
+    }
+  }, [activeOrderId, requestApproval, doPerformSettlement]);
 
   // Guard Modals mapping
   const activeModalConfig = useMemo(() => {
@@ -1751,6 +1800,12 @@ export default function PosBillingScreen() {
         }}
         onConfirm={confirmSettlement}
         isMutating={isMutating}
+      />
+
+      {/* Approval Engine Modal Container */}
+      <ApprovalDialogContainer
+        state={approvalDialogState}
+        onClose={closeApprovalDialog}
       />
 
       {/* Root Toast Indicator */}

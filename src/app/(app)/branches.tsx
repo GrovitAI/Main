@@ -41,6 +41,8 @@ type FormState = {
   phone: string;
   gstin: string;
   invoice_prefix: string;
+  approval_email: string;
+  approval_enabled: boolean;
 };
 
 const EMPTY_FORM: FormState = {
@@ -50,6 +52,8 @@ const EMPTY_FORM: FormState = {
   phone: '',
   gstin: '',
   invoice_prefix: '',
+  approval_email: '',
+  approval_enabled: true,
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -99,6 +103,8 @@ export default function BranchesScreen() {
       phone: b.phone,
       gstin: b.gstin ?? '',
       invoice_prefix: b.invoice_prefix,
+      approval_email: b.approval_email || '',
+      approval_enabled: b.approval_enabled ?? true,
     });
     setFormError(null);
     setEditingId(b.id);
@@ -130,6 +136,8 @@ export default function BranchesScreen() {
       phone: form.phone,
       gstin: form.gstin || undefined,
       invoice_prefix: form.invoice_prefix,
+      approval_email: form.approval_email,
+      approval_enabled: form.approval_enabled,
     };
 
     let err: string | null;
@@ -273,6 +281,15 @@ export default function BranchesScreen() {
               placeholder="22AAAAA0000A1Z5"
               maxLength={15}
               autoCapitalize="characters"
+            />
+            <FormField
+              label="Approval Email (for POS protected actions)"
+              icon={<FileText size={14} color="#0066b2" />}
+              value={form.approval_email}
+              onChangeText={(v) => setForm({ ...form, approval_email: v })}
+              placeholder="owner@grovitai.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
 
             <View style={styles.formActions}>

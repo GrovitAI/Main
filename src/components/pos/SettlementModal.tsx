@@ -15,10 +15,10 @@ type SettlementModalProps = {
   isMutating?: boolean;
 };
 
-const PAYMENT_OPTIONS = ['Cash', 'UPI', 'Card'] as const;
+const PAYMENT_OPTIONS = ['Cash', 'UPI', 'Card', 'Complimentary'] as const;
 
-// Focus zones: 0-2 = payment methods, 3 = cancel, 4 = confirm
-const TOTAL_ITEMS = 5;
+// Focus zones: 0-3 = payment methods, 4 = cancel, 5 = confirm
+const TOTAL_ITEMS = 6;
 
 export function SettlementModal({
   visible,
@@ -27,9 +27,9 @@ export function SettlementModal({
   onConfirm,
   isMutating = false,
 }: SettlementModalProps) {
-  const [selectedMethod, setSelectedMethod] = useState<'Cash' | 'UPI' | 'Card'>('Cash');
+  const [selectedMethod, setSelectedMethod] = useState<'Cash' | 'UPI' | 'Card' | 'Complimentary'>('Cash');
   const [localMutating, setLocalMutating] = useState(false);
-  const [focusIndex, setFocusIndex] = useState(4);
+  const [focusIndex, setFocusIndex] = useState(5);
 
   // Keyboard owner — a plain <div> (View), NOT TextInput. Avoids Enter/submit/blur quirks.
   const keyboardOwnerRef = useRef<View>(null);
@@ -110,9 +110,9 @@ export function SettlementModal({
       }
       if (key === 'ArrowDown') {
         setFocusIndex((prev) => {
-          if (prev <= 2) {
-            currentFocusIndex = 4;
-            return 4;
+          if (prev <= 3) {
+            currentFocusIndex = 5;
+            return 5;
           }
           return prev;
         });
@@ -120,7 +120,7 @@ export function SettlementModal({
       }
       if (key === 'ArrowUp') {
         setFocusIndex((prev) => {
-          if (prev >= 3) {
+          if (prev >= 4) {
             const idx = PAYMENT_OPTIONS.indexOf(currentSelectedMethod);
             const next = idx >= 0 ? idx : 0;
             currentFocusIndex = next;
@@ -134,13 +134,13 @@ export function SettlementModal({
       // Enter: activate focused element
       if (key === 'Enter') {
         if (currentIsProcessing) return;
-        if (currentFocusIndex <= 2) {
+        if (currentFocusIndex <= 3) {
           const method = PAYMENT_OPTIONS[currentFocusIndex];
           currentSelectedMethod = method;
           setSelectedMethod(method);
-        } else if (currentFocusIndex === 3) {
-          onClose();
         } else if (currentFocusIndex === 4) {
+          onClose();
+        } else if (currentFocusIndex === 5) {
           void handleConfirm();
         }
         return;
@@ -273,10 +273,10 @@ export function SettlementModal({
               accessibilityRole="button"
               disabled={isProcessing}
               onPress={() => { onClose(); }}
-              onHoverIn={() => setFocusIndex(3)}
+              onHoverIn={() => setFocusIndex(4)}
               className="min-h-[48px] flex-1 items-center justify-center rounded-2xl border-2 border-primary-mid bg-surface-elevated"
               style={[
-                focusIndex === 3 && Platform.OS === 'web' && {
+                focusIndex === 4 && Platform.OS === 'web' && {
                   borderColor: '#80B3FF',
                   shadowColor: '#0066b2',
                   shadowOffset: { width: 0, height: 0 },
@@ -297,10 +297,10 @@ export function SettlementModal({
               onPress={() => {
                 void handleConfirm();
               }}
-              onHoverIn={() => setFocusIndex(4)}
+              onHoverIn={() => setFocusIndex(5)}
               className="min-h-[48px] flex-1 overflow-hidden rounded-2xl"
               style={[
-                focusIndex === 4 && Platform.OS === 'web' && {
+                focusIndex === 5 && Platform.OS === 'web' && {
                   borderWidth: 2,
                   borderColor: '#80B3FF',
                   shadowColor: '#0066b2',

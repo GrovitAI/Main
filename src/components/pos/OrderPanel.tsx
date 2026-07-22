@@ -14,6 +14,9 @@ import { Minus, Plus, Trash2, Percent } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
+import { ApprovalDialogContainer } from '@/components/approval/ApprovalDialogContainer';
+import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
+import { ApprovalAction } from '@/lib/approval/approval.types';
 
 import { colors } from '@/lib/pos/brand';
 import type { OpenOrder, PosOrderItem } from '@/lib/pos/order-types';
@@ -111,7 +114,25 @@ export function OrderPanel({
     }
   }, [activeAction]);
 
-  const { discountType, discountPercent, discountAmount, setDiscount } = useOrdersStore();
+  const { discountType, discountPercent, discountAmount, setDiscount, activeOrderId } = useOrdersStore();
+  const { approvalDialogState, requestApproval, closeApprovalDialog } = useApprovalFlow();
+
+  const handleApplyDiscount = (type: 'percent' | 'fixed', value: number) => {
+    if (value <= 0) {
+      setDiscount(null, 0);
+      return;
+    }
+
+    requestApproval({
+      action: ApprovalAction.APPLY_DISCOUNT,
+      actionTitle: 'Apply Discount',
+      resourceType: 'order',
+      resourceId: activeOrderId || 'active_order',
+      onApproved: () => {
+        setDiscount(type, value);
+      },
+    });
+  };
 
   const [showDiscountInputs, setShowDiscountInputs] = useState(discountAmount > 0);
 
@@ -501,7 +522,7 @@ export function OrderPanel({
                           Alert.alert('Validation Error', 'Percentage discount must be between 0 and 100.');
                           return;
                         }
-                        setDiscount('percent', num);
+                        handleApplyDiscount('percent', num);
                       }}
                       placeholderTextColor="#9CA3AF"
                       style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
@@ -526,7 +547,7 @@ export function OrderPanel({
                           Alert.alert('Validation Error', 'Discount amount cannot exceed subtotal.');
                           return;
                         }
-                        setDiscount('fixed', num);
+                        handleApplyDiscount('fixed', num);
                       }}
                       placeholderTextColor="#9CA3AF"
                       style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
@@ -938,6 +959,12 @@ export function OrderPanel({
         </View>
         )}
       </View>
+
+      {/* Approval Engine Modal Container */}
+      <ApprovalDialogContainer
+        state={approvalDialogState}
+        onClose={closeApprovalDialog}
+      />
     </View>
   );
 }

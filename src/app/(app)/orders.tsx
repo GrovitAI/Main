@@ -28,6 +28,9 @@ import {
   settleOrderById,
   type OpenOrderSummary,
 } from '@/lib/pos/open-orders-service';
+import { ApprovalDialogContainer } from '@/components/approval/ApprovalDialogContainer';
+import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
+import { ApprovalAction } from '@/lib/approval/approval.types';
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
 import { SettlementModal } from '@/components/pos/SettlementModal';
 import { supabase } from '@/lib/pos/supabase';
@@ -291,7 +294,9 @@ export default function OrdersScreen() {
     [summaries, viewingOrderId],
   );
 
-  const handleReprintPreviousBill = useCallback(async () => {
+  const { approvalDialogState, requestApproval, closeApprovalDialog } = useApprovalFlow();
+
+  const doReprintPreviousBill = useCallback(async () => {
     if (!viewingSummary) return;
     try {
       const orderName = viewingSummary.order.order_name || `Order #${viewingSummary.order.id}`;
@@ -326,7 +331,20 @@ export default function OrdersScreen() {
       console.warn('[Reprint] Failed to reprint bill:', err);
       showToast('Failed to reprint bill.');
     }
-  }, [viewingSummary, viewingItems, showToast]);
+  }, [viewingSummary, viewingItems, currentBranch, showToast]);
+
+  const handleReprintPreviousBill = useCallback(() => {
+    if (!viewingSummary) return;
+    requestApproval({
+      action: ApprovalAction.REPRINT_BILL,
+      actionTitle: 'Reprint Bill',
+      resourceType: 'bill',
+      resourceId: viewingSummary.order.invoice_number || viewingSummary.order.id,
+      onApproved: () => {
+        void doReprintPreviousBill();
+      },
+    });
+  }, [viewingSummary, requestApproval, doReprintPreviousBill]);
 
   // ── Modal footer keyboard navigation ────────────────────────────────────────────
   useEffect(() => {
@@ -1105,6 +1123,12 @@ export default function OrdersScreen() {
           isMutating={isSettlingMutating}
         />
       )}
+
+      {/* Approval Engine Modal Container */}
+      <ApprovalDialogContainer
+        state={approvalDialogState}
+        onClose={closeApprovalDialog}
+      />
 
       {/* Premium Root Toast Notification Alert */}
       {toastMessage && (
