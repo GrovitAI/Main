@@ -19,7 +19,7 @@ export default async function handler(req: any, res: any) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
     const queryEmail = req.query?.toEmail;
-    const targetEmail = body.toEmail || queryEmail || process.env.SMTP_USER || 'security@grovitai.com';
+    const targetEmail = body.toEmail || queryEmail || process.env.SMTP_USER || 'team@grovitai.com';
 
     console.log(`[TestEmail] Attempting to send test email to: ${targetEmail}`);
 

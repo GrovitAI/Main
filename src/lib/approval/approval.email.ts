@@ -16,14 +16,14 @@ export interface SendApprovalEmailInput {
  * Uses environment variables for configuration:
  * - SMTP_HOST (default: smtp.gmail.com)
  * - SMTP_PORT (default: 465)
- * - SMTP_USER (default: security@grovitai.com)
+ * - SMTP_USER (default: team@grovitai.com)
  * - SMTP_PASS (Google Workspace App Password)
- * - SMTP_FROM (default: "Grovit AI POS Security" <security@grovitai.com>)
+ * - SMTP_FROM (default: "Grovit AI POS Security" <team@grovitai.com>)
  */
 export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<{ success: boolean; error?: string }> {
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
-  const smtpUser = process.env.SMTP_USER || 'security@grovitai.com';
+  const smtpUser = process.env.SMTP_USER || 'team@grovitai.com';
   const smtpPass = process.env.SMTP_PASS || '';
   const smtpFrom = process.env.SMTP_FROM || `"Grovit AI POS Security" <${smtpUser}>`;
 
