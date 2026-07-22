@@ -1,7 +1,6 @@
-import { upsertBranchApprovalSettings, getApprovalRequestByUuid } from '../src/lib/approval/approval-service';
+import { upsertBranchApprovalSettings, createApprovalRequest } from '../src/lib/approval/approval-service';
 import { sendApprovalEmail } from '../src/lib/approval/approval.email';
 import { hashApprovalCode, generateApprovalCode } from '../src/lib/approval/approval.hash';
-import { createApprovalRequest } from '../src/lib/approval/approval-service';
 import crypto from 'crypto';
 
 export default async function handler(req: any, res: any) {
