@@ -1,5 +1,4 @@
-import { supabase } from '@/lib/pos/supabase';
-import { logSupabaseError } from '@/lib/pos/supabase-debug';
+import { approvalSupabase } from './approval-supabase';
 import type { BranchApprovalSettings, ApprovalRequestRecord, ApprovalStatus } from './approval.types';
 
 export interface ServiceResult<T> {
@@ -15,7 +14,7 @@ export async function getBranchApprovalSettings(
   branchId: string
 ): Promise<ServiceResult<BranchApprovalSettings>> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await approvalSupabase
       .from('branch_approval_settings')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -23,7 +22,7 @@ export async function getBranchApprovalSettings(
       .maybeSingle();
 
     if (error) {
-      logSupabaseError('getBranchApprovalSettings', error);
+      console.error('[approval-service] getBranchApprovalSettings error:', error);
       return { data: null, error: error.message };
     }
 
@@ -47,7 +46,7 @@ export async function upsertBranchApprovalSettings(
     const existing = await getBranchApprovalSettings(tenantId, branchId);
     const cleanEmail = approvalEmail.trim().toLowerCase();
 
-    const { data, error } = await supabase
+    const { data, error } = await approvalSupabase
       .from('branch_approval_settings')
       .upsert(
         {
@@ -63,12 +62,12 @@ export async function upsertBranchApprovalSettings(
       .single();
 
     if (error) {
-      logSupabaseError('upsertBranchApprovalSettings', error);
+      console.error('[approval-service] upsertBranchApprovalSettings error:', error);
       return { data: null, error: error.message };
     }
 
     // Record audit history entry
-    void supabase.from('branch_approval_settings_history').insert({
+    void approvalSupabase.from('branch_approval_settings_history').insert({
       tenant_id: tenantId,
       branch_id: branchId,
       changed_by: changedBy,
@@ -92,7 +91,7 @@ export async function createApprovalRequest(
   payload: Omit<ApprovalRequestRecord, 'id' | 'created_at'>
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await approvalSupabase
       .from('approval_requests')
       .insert({
         ...payload,
@@ -103,7 +102,7 @@ export async function createApprovalRequest(
       .single();
 
     if (error) {
-      logSupabaseError('createApprovalRequest', error);
+      console.error('[approval-service] createApprovalRequest error:', error);
       return { data: null, error: error.message };
     }
 
@@ -125,7 +124,7 @@ export async function findActivePendingRequest(
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
     const nowIso = new Date().toISOString();
-    const { data, error } = await supabase
+    const { data, error } = await approvalSupabase
       .from('approval_requests')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -140,7 +139,7 @@ export async function findActivePendingRequest(
       .maybeSingle();
 
     if (error) {
-      logSupabaseError('findActivePendingRequest', error);
+      console.error('[approval-service] findActivePendingRequest error:', error);
       return { data: null, error: error.message };
     }
 
@@ -159,7 +158,7 @@ export async function getApprovalRequestByUuid(
   requestUuid: string
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await approvalSupabase
       .from('approval_requests')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -168,7 +167,7 @@ export async function getApprovalRequestByUuid(
       .maybeSingle();
 
     if (error) {
-      logSupabaseError('getApprovalRequestByUuid', error);
+      console.error('[approval-service] getApprovalRequestByUuid error:', error);
       return { data: null, error: error.message };
     }
 
@@ -188,7 +187,7 @@ export async function updateApprovalRequest(
   updates: Partial<ApprovalRequestRecord>
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await approvalSupabase
       .from('approval_requests')
       .update({
         ...updates,
@@ -201,7 +200,7 @@ export async function updateApprovalRequest(
       .single();
 
     if (error) {
-      logSupabaseError('updateApprovalRequest', error);
+      console.error('[approval-service] updateApprovalRequest error:', error);
       return { data: null, error: error.message };
     }
 
