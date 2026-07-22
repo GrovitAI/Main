@@ -29,6 +29,7 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
   const [isSubmittingReason, setIsSubmittingReason] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   if (!state || !state.visible) {
     return null;
@@ -79,8 +80,6 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
       setStep('code');
     }
   };
-
-  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleVerifyCode = async (code: string) => {
     if (!requestId || isVerifying) {
