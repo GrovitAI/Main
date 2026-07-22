@@ -80,31 +80,45 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
     }
   };
 
+  const [isVerifying, setIsVerifying] = useState(false);
+
   const handleVerifyCode = async (code: string) => {
-    if (!requestId) {
-      return { success: false, error: 'Invalid approval request state.' };
+    if (!requestId || isVerifying) {
+      return { success: false, error: 'Verification in progress.' };
     }
 
-    const result = await approvalService.verifyApproval({
-      requestId,
-      approvalCode: code,
-      tenantId: state.tenantId,
-      branchId: state.branchId,
-    });
-
-    if (result.success) {
-      // Mark as completed in background
-      void approvalService.completeApproval({
+    setIsVerifying(true);
+    try {
+      const result = await approvalService.verifyApproval({
         requestId,
+        approvalCode: code,
         tenantId: state.tenantId,
         branchId: state.branchId,
       });
 
-      onClose();
-      void state.onApproved();
-    }
+      if (result.success) {
+        // Close dialog first
+        onClose();
 
-    return result;
+        // Execute protected action
+        try {
+          await state.onApproved();
+        } catch (actionErr: any) {
+          console.error('[ApprovalContainer] Protected action failed:', actionErr);
+        } finally {
+          // Always complete/consume the approval request
+          void approvalService.completeApproval({
+            requestId,
+            tenantId: state.tenantId,
+            branchId: state.branchId,
+          });
+        }
+      }
+
+      return result;
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleResendCode = async () => {
