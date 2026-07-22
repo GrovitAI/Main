@@ -33,6 +33,15 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
     return { success: true };
   }
 
+  const recipientEmails = input.toEmail
+    .split(',')
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0);
+
+  if (recipientEmails.length === 0) {
+    return { success: false, error: 'No recipient email addresses provided.' };
+  }
+
   const shortUuid = input.requestId ? input.requestId.slice(0, 6).toUpperCase() : '3F7C8A';
 
   const emailBody = [
@@ -52,7 +61,7 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
 
   const mailMessage = [
     `From: ${smtpFrom}`,
-    `To: ${input.toEmail}`,
+    `To: ${recipientEmails.join(', ')}`,
     `Subject: ${subjectLine}`,
     'Content-Type: text/plain; charset=utf-8',
     '',
@@ -64,6 +73,7 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
     try {
       const socket = tls.connect(smtpPort, smtpHost, { rejectUnauthorized: false }, () => {
         let step = 0;
+        let rcptIndex = 0;
 
         socket.on('data', (data) => {
           const response = data.toString();
@@ -84,8 +94,12 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
             socket.write(`MAIL FROM:<${smtpUser}>\r\n`);
             step = 5;
           } else if (step === 5 && response.startsWith('250')) {
-            socket.write(`RCPT TO:<${input.toEmail}>\r\n`);
-            step = 6;
+            // Send RCPT TO for each recipient email
+            socket.write(`RCPT TO:<${recipientEmails[rcptIndex]}>\r\n`);
+            rcptIndex++;
+            if (rcptIndex >= recipientEmails.length) {
+              step = 6;
+            }
           } else if (step === 6 && response.startsWith('250')) {
             socket.write('DATA\r\n');
             step = 7;

@@ -871,12 +871,13 @@ export default function PosBillingScreen() {
   // Cancel order handler
   const handleCancelClick = useCallback(() => {
     if (isMutating) return;
-    setActiveModal('cancel_order');
-  }, [isMutating]);
 
-  const confirmCancelOrder = useCallback(() => {
-    setActiveModal(null);
-    if (!activeOrderId) return;
+    if (!activeOrderId || activeOrder?.status === 'draft') {
+      void resetCart();
+      showToast('Cart cleared.');
+      return;
+    }
+
     requestApproval({
       action: ApprovalAction.CANCEL_BILL,
       actionTitle: 'Cancel Bill',
@@ -887,7 +888,7 @@ export default function PosBillingScreen() {
         showToast('Order cancelled.');
       },
     });
-  }, [activeOrderId, requestApproval, cancelOrder, showToast]);
+  }, [isMutating, activeOrderId, activeOrder, requestApproval, cancelOrder, resetCart, showToast]);
 
   // Hold order wrapper
   const confirmHoldOrder = useCallback(async () => {
@@ -1007,7 +1008,7 @@ export default function PosBillingScreen() {
           title: 'Cancel this order?',
           description: 'This order will be cancelled permanently and removed from active billing.',
           buttons: [
-            { text: 'Cancel Order', onPress: confirmCancelOrder, variant: 'danger' as const },
+            { text: 'Cancel Order', onPress: () => { setActiveModal(null); handleCancelClick(); }, variant: 'danger' as const },
             { text: 'Back', onPress: () => setActiveModal(null), variant: 'secondary' as const },
           ],
         };
@@ -1016,7 +1017,7 @@ export default function PosBillingScreen() {
           title: 'Bill cannot be empty',
           description: 'You cannot save an empty kitchen order. Would you like to cancel this order instead?',
           buttons: [
-            { text: 'Cancel Order instead', onPress: confirmCancelOrder, variant: 'danger' as const },
+            { text: 'Cancel Order instead', onPress: () => { setActiveModal(null); handleCancelClick(); }, variant: 'danger' as const },
             { text: 'Back', onPress: () => setActiveModal(null), variant: 'secondary' as const },
           ],
         };
@@ -1110,7 +1111,7 @@ export default function PosBillingScreen() {
     pendingAction,
     confirmSaveKotFirst,
     confirmSaveKotUpdate,
-    confirmCancelOrder,
+    handleCancelClick,
     saveKot,
     discardChanges,
     holdOrder,
