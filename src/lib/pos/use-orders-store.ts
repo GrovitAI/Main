@@ -1348,14 +1348,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
   saveAndPrint: async () => {
     const snapshot = get();
+    if (snapshot.isMutating) {
+      return false;
+    }
+    set({ isMutating: true, error: null });
     const activeOrderId = snapshot.activeOrderId;
     if (!activeOrderId) {
-      set({ error: 'No active order selected.' });
+      set({ isMutating: false, error: 'No active order selected.' });
       return false;
     }
 
     if (snapshot.activeOrderItems.length === 0) {
-      set({ error: 'Cannot Save & Print for an empty cart.' });
+      set({ isMutating: false, error: 'Cannot Save & Print for an empty cart.' });
       return false;
     }
 
@@ -1442,9 +1446,9 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         };
       });
 
-      // Background DB: persist bill number + unpaid status + discount metadata
+      // Awaited DB persistence (Phase 0: No fire-and-forget background tasks)
       const { tenant_id, branch_id } = getTenantContext();
-      void supabase
+      await supabase
         .from('open_orders')
         .update({
           status: 'unpaid',
@@ -1457,7 +1461,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         .eq('tenant_id', tenant_id)
         .eq('branch_id', branch_id);
 
-      void createOrUpdateBill(
+      await createOrUpdateBill(
         activeOrderId,
         billNumber,
         totalAmount,
@@ -1470,6 +1474,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         snapshot.activeOrderItems
       );
 
+      set({ isMutating: false });
       return true;
     }
 
@@ -1640,7 +1645,6 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         isWorkspaceEmpty: false,
         isEditingUnpaid: false, // Exit edit mode upon printing provisional bill
         hasUnsavedChanges: false,
-        isMutating: false,
         kotNumbersByOrderId: {
           ...state.kotNumbersByOrderId,
           [activeOrderId]: nextKotNumbers,
@@ -1653,115 +1657,116 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       };
     });
 
-    // Background Database Persistence
-    (async () => {
-      try {
-        let finalRegTicket = null;
-        let finalCancelTicket = null;
+    // Awaited Database Persistence (Phase 0: No fire-and-forget background tasks)
+    try {
+      let finalRegTicket = null;
+      let finalCancelTicket = null;
 
-        if (unsentItems.length > 0) {
-          const createResult = await createKot(activeOrderId, itemsToSend);
-          if (createResult.error || !createResult.data) {
-            throw new Error(createResult.error ?? 'Database KOT insert failed');
-          }
-          finalRegTicket = createResult.data;
-
-          const unsentItemIds = unsentItems.map((item) => item.id);
-          const { error: itemsUpdateError } = await supabase
-            .from('open_order_items')
-            .update({ kot_sent: true })
-            .in('id', unsentItemIds);
-
-          if (itemsUpdateError) {
-            throw itemsUpdateError;
-          }
+      if (unsentItems.length > 0) {
+        const createResult = await createKot(activeOrderId, itemsToSend);
+        if (createResult.error || !createResult.data) {
+          throw new Error(createResult.error ?? 'Database KOT insert failed');
         }
+        finalRegTicket = createResult.data;
 
-        if (itemsToCancel.length > 0) {
-          const cancelResult = await createKot(activeOrderId, itemsToCancel);
-          if (cancelResult.error || !cancelResult.data) {
-            throw new Error(cancelResult.error ?? 'Database Cancel KOT insert failed');
-          }
-          finalCancelTicket = cancelResult.data;
+        const unsentItemIds = unsentItems.map((item) => item.id);
+        const { error: itemsUpdateError } = await supabase
+          .from('open_order_items')
+          .update({ kot_sent: true })
+          .in('id', unsentItemIds);
+
+        if (itemsUpdateError) {
+          throw itemsUpdateError;
         }
-
-        // Replace mock optimistic ticket with final database tickets
-        set((state) => {
-          const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
-          const cleanedKots = currentKots.map((k) => {
-            if (k.id.includes('reg') && finalRegTicket) {
-              return finalRegTicket;
-            }
-            if (k.id.includes('cancel') && finalCancelTicket) {
-              return finalCancelTicket;
-            }
-            return k;
-          });
-          return {
-            kotsByOrderId: {
-              ...state.kotsByOrderId,
-              [activeOrderId]: cleanedKots,
-            },
-          };
-        });
-
-        // Always write order status + bill number + discount metadata to DB
-        const { tenant_id, branch_id } = getTenantContext();
-        const { error: orderError } = await supabase
-          .from('open_orders')
-          .update({
-            status: 'unpaid',
-            order_name: nextOrderName,
-            invoice_number: billNumber,
-            discount_type: discountType,
-            discount_value: discountValue,
-            discount_amount: discountAmount,
-          })
-          .eq('id', activeOrderId)
-          .eq('tenant_id', tenant_id)
-          .eq('branch_id', branch_id);
-
-        if (orderError) {
-          throw orderError;
-        }
-
-        // Call createOrUpdateBill to save/update bill and sync bill items
-        const billResult = await createOrUpdateBill(
-          activeOrderId,
-          billNumber,
-          totalAmount,
-          taxAmount,
-          discountAmount,
-          grandTotal,
-          'unpaid',
-          discountType,
-          discountValue,
-          orderItems
-        );
-
-        if (billResult.error) {
-          throw new Error(billResult.error);
-        }
-
-        console.log('[useOrdersStore] Background saveAndPrint success!');
-      } catch (dbErr) {
-        console.error('[useOrdersStore] Background saveAndPrint failed, rolling back:', dbErr);
-        // Rollback states
-        set({
-          orders: snapshot.orders,
-          summaries: snapshot.summaries,
-          activeOrderId: snapshot.activeOrderId,
-          activeOrderItems: snapshot.activeOrderItems,
-          isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
-          isEditingUnpaid: snapshot.isEditingUnpaid,
-          hasUnsavedChanges: snapshot.hasUnsavedChanges,
-          kotNumbersByOrderId: snapshot.kotNumbersByOrderId,
-          kotsByOrderId: snapshot.kotsByOrderId,
-          billPrintedByOrderId: snapshot.billPrintedByOrderId,
-          error: 'Connection issue. Bill was not saved. Please check internet and try again.',
-        });
       }
-    })();
+
+      if (itemsToCancel.length > 0) {
+        const cancelResult = await createKot(activeOrderId, itemsToCancel);
+        if (cancelResult.error || !cancelResult.data) {
+          throw new Error(cancelResult.error ?? 'Database Cancel KOT insert failed');
+        }
+        finalCancelTicket = cancelResult.data;
+      }
+
+      // Replace mock optimistic ticket with final database tickets
+      set((state) => {
+        const currentKots = state.kotsByOrderId[activeOrderId] ?? [];
+        const cleanedKots = currentKots.map((k) => {
+          if (k.id.includes('reg') && finalRegTicket) {
+            return finalRegTicket;
+          }
+          if (k.id.includes('cancel') && finalCancelTicket) {
+            return finalCancelTicket;
+          }
+          return k;
+        });
+        return {
+          kotsByOrderId: {
+            ...state.kotsByOrderId,
+            [activeOrderId]: cleanedKots,
+          },
+        };
+      });
+
+      // Always write order status + bill number + discount metadata to DB
+      const { tenant_id, branch_id } = getTenantContext();
+      const { error: orderError } = await supabase
+        .from('open_orders')
+        .update({
+          status: 'unpaid',
+          order_name: nextOrderName,
+          invoice_number: billNumber,
+          discount_type: discountType,
+          discount_value: discountValue,
+          discount_amount: discountAmount,
+        })
+        .eq('id', activeOrderId)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+
+      if (orderError) {
+        throw orderError;
+      }
+
+      // Call createOrUpdateBill to save/update bill and sync bill items
+      const billResult = await createOrUpdateBill(
+        activeOrderId,
+        billNumber,
+        totalAmount,
+        taxAmount,
+        discountAmount,
+        grandTotal,
+        'unpaid',
+        discountType,
+        discountValue,
+        orderItems
+      );
+
+      if (billResult.error) {
+        throw new Error(billResult.error);
+      }
+
+      console.log('[useOrdersStore] Awaited saveAndPrint success!');
+    } catch (dbErr) {
+      console.error('[useOrdersStore] Awaited saveAndPrint failed, rolling back:', dbErr);
+      // Rollback states
+      set({
+        orders: snapshot.orders,
+        summaries: snapshot.summaries,
+        activeOrderId: snapshot.activeOrderId,
+        activeOrderItems: snapshot.activeOrderItems,
+        isWorkspaceEmpty: snapshot.isWorkspaceEmpty,
+        isEditingUnpaid: snapshot.isEditingUnpaid,
+        hasUnsavedChanges: snapshot.hasUnsavedChanges,
+        kotNumbersByOrderId: snapshot.kotNumbersByOrderId,
+        kotsByOrderId: snapshot.kotsByOrderId,
+        billPrintedByOrderId: snapshot.billPrintedByOrderId,
+        error: 'Connection issue. Bill was not saved. Please check internet and try again.',
+      });
+      return false;
+    } finally {
+      set({ isMutating: false });
+    }
 
     return true;
   },

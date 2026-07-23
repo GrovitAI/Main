@@ -1010,10 +1010,31 @@ export async function createOrUpdateBill(
         .single();
 
       if (insertErr) {
-        logSupabaseError('createOrUpdateBill.insert', insertErr);
-        return { data: null, error: 'Failed to create bill.' };
+        // Handle PostgreSQL 23505 Unique Constraint Violation idempotently
+        if (insertErr.code === '23505' || insertErr.message?.includes('unique_open_order_id') || insertErr.message?.includes('duplicate key')) {
+          console.log(`[Grovit POS] Duplicate bill creation prevented for open_order_id: ${orderId}, invoice: ${invoiceNumber}, branch: ${branch_id}, timestamp: ${new Date().toISOString()}`);
+
+          const { data: existingPostgresBill, error: fetchFallbackErr } = await supabase
+            .from('bills')
+            .select('*')
+            .eq('open_order_id', orderId)
+            .eq('tenant_id', tenant_id)
+            .eq('branch_id', branch_id)
+            .single();
+
+          if (existingPostgresBill) {
+            bill = existingPostgresBill;
+          } else {
+            logSupabaseError('createOrUpdateBill.insertFallback', fetchFallbackErr || insertErr);
+            return { data: null, error: 'Failed to retrieve existing bill after constraint handling.' };
+          }
+        } else {
+          logSupabaseError('createOrUpdateBill.insert', insertErr);
+          return { data: null, error: 'Failed to create bill.' };
+        }
+      } else {
+        bill = newBill;
       }
-      bill = newBill;
     }
 
     // Sync bill items if provided
@@ -1113,7 +1134,16 @@ export async function settleOrderById(
     const tax_amount = Math.round((discountedSubtotal * tax_percentage / 100.0) * 100) / 100;
     const total_amount = discountedSubtotal + tax_amount;
 
-    const invoiceNumber = order.invoice_number || getNextBillNumber();
+    let invoiceNumber = order.invoice_number;
+    if (!invoiceNumber) {
+      invoiceNumber = getNextBillNumber();
+      await supabase
+        .from('open_orders')
+        .update({ invoice_number: invoiceNumber })
+        .eq('id', orderId)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+    }
 
     // 3. Create or update bill record using centralized method (which also handles items sync)
     const billResult = await createOrUpdateBill(

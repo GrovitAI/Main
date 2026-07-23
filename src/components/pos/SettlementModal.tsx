@@ -39,12 +39,17 @@ export function SettlementModal({
   const { requestApproval } = useApprovalFlow();
 
   const handleConfirm = useCallback(async () => {
+    if (localMutating || isMutating) return;
+    setLocalMutating(true);
+
     const doConfirm = async () => {
-      setLocalMutating(true);
-      const success = await onConfirm(selectedMethod.toLowerCase());
-      setLocalMutating(false);
-      if (success) {
-        onClose();
+      try {
+        const success = await onConfirm(selectedMethod.toLowerCase());
+        if (success) {
+          onClose();
+        }
+      } finally {
+        setLocalMutating(false);
       }
     };
 
@@ -57,11 +62,14 @@ export function SettlementModal({
         onApproved: () => {
           void doConfirm();
         },
+        onCancelled: () => {
+          setLocalMutating(false);
+        },
       });
     } else {
       void doConfirm();
     }
-  }, [selectedMethod, onConfirm, onClose, requestApproval]);
+  }, [localMutating, isMutating, selectedMethod, onConfirm, onClose, requestApproval]);
 
   const isProcessing = isMutating || localMutating;
 
