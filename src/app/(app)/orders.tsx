@@ -147,6 +147,7 @@ export default function OrdersScreen() {
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('unpaid');
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'all'>('today');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'upi' | 'card' | 'complimentary'>('all');
   const [searchInputValue, setSearchInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -225,10 +226,41 @@ export default function OrdersScreen() {
   }, [kpi]);
 
   // ── Filtered + searched results ──────────────────────────────────────────────
-  const filteredSummaries = useMemo(
-    () => summaries.filter((s) => matchesFilter(s.order.status, activeFilter)),
-    [summaries, activeFilter],
-  );
+  const filteredSummaries = useMemo(() => {
+    return summaries.filter((s) => {
+      if (activeTab === 'active') {
+        if (!matchesFilter(s.order.status, activeFilter)) return false;
+      }
+
+      if (activeTab === 'history') {
+        if (paymentFilter !== 'all') {
+          const pm = (s.order.payment_method || '').toLowerCase();
+          if (pm !== paymentFilter) return false;
+        }
+
+        if (datePreset !== 'all') {
+          const orderDate = new Date(s.order.created_at);
+          const now = new Date();
+          if (datePreset === 'today') {
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            if (orderDate < startOfToday) return false;
+          } else if (datePreset === 'yesterday') {
+            const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+            const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+            if (orderDate < startOfYesterday || orderDate > endOfYesterday) return false;
+          } else if (datePreset === '7days') {
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            if (orderDate < sevenDaysAgo) return false;
+          } else if (datePreset === '30days') {
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            if (orderDate < thirtyDaysAgo) return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [summaries, activeTab, activeFilter, paymentFilter, datePreset]);
 
   const displayedSummaries = useMemo(
     () => filteredSummaries.filter((s) => matchesSearch(s, searchQuery)),
@@ -722,32 +754,116 @@ export default function OrdersScreen() {
           )}
         </View>
 
-        {/* Filter pills — single row, tap to filter, count badge built-in */}
-        <FlatList
-          horizontal
-          data={[
-            { id: 'unpaid'    as OrderFilter, label: 'Unpaid',    count: kpi.unpaid,    color: '#F97316', bg: '#FFF4EC' },
-            { id: 'draft'     as OrderFilter, label: 'Draft',     count: kpi.draft,     color: '#475569', bg: '#F1F5F9' },
-            { id: 'held'      as OrderFilter, label: 'Held',      count: kpi.held,      color: '#D97706', bg: '#FEF3C7' },
-            { id: 'paid'      as OrderFilter, label: 'Paid',      count: kpi.paid,      color: '#16A34A', bg: '#F0FDF4' },
-            { id: 'cancelled' as OrderFilter, label: 'Cancelled', count: kpi.cancelled, color: '#64748B', bg: '#F1F5F9' },
-            { id: 'all'       as OrderFilter, label: 'All',       count: kpi.all,       color: '#64748B', bg: '#F1F5F9' },
-          ]}
-          keyExtractor={(item) => item.id}
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 6 }}
-          contentContainerStyle={{ gap: 8 }}
-          renderItem={({ item }) => (
-            <FilterPill
-              label={item.label}
-              count={item.count}
-              color={item.color}
-              bg={item.bg}
-              isActive={activeFilter === item.id}
-              onPress={() => setActiveFilter(item.id)}
+        {/* Date Preset Filter Bar (Shown on Sales & Order History tab) */}
+        {activeTab === 'history' && (
+          <View style={{ marginTop: 6, marginBottom: 4 }}>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Date Range</Text>
+            <FlatList
+              horizontal
+              data={[
+                { id: 'today', label: 'Today' },
+                { id: 'yesterday', label: 'Yesterday' },
+                { id: '7days', label: 'Last 7 Days' },
+                { id: '30days', label: 'Last 30 Days' },
+                { id: 'all', label: 'All Time' },
+              ]}
+              keyExtractor={(item) => item.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6 }}
+              renderItem={({ item }) => {
+                const isActive = datePreset === item.id;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setDatePreset(item.id as any)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: isActive ? '#0066b2' : '#CBD5E1',
+                      backgroundColor: isActive ? '#E8F2FA' : '#FFFFFF',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: isActive ? '700' : '600', color: isActive ? '#0066b2' : '#475569' }}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              }}
             />
-          )}
-        />
+          </View>
+        )}
+
+        {/* Payment Method Filter Bar (Shown on Sales & Order History tab) */}
+        {activeTab === 'history' && (
+          <View style={{ marginTop: 4, marginBottom: 4 }}>
+            <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Payment Method</Text>
+            <FlatList
+              horizontal
+              data={[
+                { id: 'all', label: 'All Payments' },
+                { id: 'cash', label: 'Cash' },
+                { id: 'upi', label: 'UPI' },
+                { id: 'card', label: 'Card' },
+                { id: 'complimentary', label: 'Complimentary' },
+              ]}
+              keyExtractor={(item) => item.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6 }}
+              renderItem={({ item }) => {
+                const isActive = paymentFilter === item.id;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setPaymentFilter(item.id as any)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: isActive ? '#16A34A' : '#CBD5E1',
+                      backgroundColor: isActive ? '#F0FDF4' : '#FFFFFF',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: isActive ? '700' : '600', color: isActive ? '#166534' : '#475569' }}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
+
+        {/* Active Tab Order Status Filter Pills */}
+        {activeTab === 'active' && (
+          <FlatList
+            horizontal
+            data={[
+              { id: 'unpaid'    as OrderFilter, label: 'Unpaid',    count: kpi.unpaid,    color: '#F97316', bg: '#FFF4EC' },
+              { id: 'draft'     as OrderFilter, label: 'Draft',     count: kpi.draft,     color: '#475569', bg: '#F1F5F9' },
+              { id: 'held'      as OrderFilter, label: 'Held',      count: kpi.held,      color: '#D97706', bg: '#FEF3C7' },
+              { id: 'paid'      as OrderFilter, label: 'Paid',      count: kpi.paid,      color: '#16A34A', bg: '#F0FDF4' },
+              { id: 'cancelled' as OrderFilter, label: 'Cancelled', count: kpi.cancelled, color: '#64748B', bg: '#F1F5F9' },
+              { id: 'all'       as OrderFilter, label: 'All',       count: kpi.all,       color: '#64748B', bg: '#F1F5F9' },
+            ]}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 6 }}
+            contentContainerStyle={{ gap: 8 }}
+            renderItem={({ item }) => (
+              <FilterPill
+                label={item.label}
+                count={item.count}
+                color={item.color}
+                bg={item.bg}
+                isActive={activeFilter === item.id}
+                onPress={() => setActiveFilter(item.id)}
+              />
+            )}
+          />
+        )}
       </View>
 
       {/* ── Inline error banner ── */}
@@ -757,7 +873,7 @@ export default function OrdersScreen() {
         </View>
       )}
 
-      {/* ── List ── */}
+      {/* ── List / Table ── */}
       {displayedSummaries.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 32, width: '100%', maxWidth: 400, borderWidth: 1, borderColor: '#EEF2F7', alignItems: 'center' }}>
@@ -767,13 +883,90 @@ export default function OrdersScreen() {
             <Text style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', marginTop: 6 }}>
               {searchQuery
                 ? `No results for "${searchQuery}"`
-                : activeFilter === 'unpaid'
-                  ? 'No unpaid bills right now'
-                  : `No ${activeFilter} orders today`}
+                : activeTab === 'active'
+                  ? 'No active orders right now'
+                  : 'No order history records found for selected filters'}
             </Text>
           </View>
         </View>
+      ) : activeTab === 'history' ? (
+        /* ── Row-Wise Report Data Table View ── */
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', flex: 1 }}>
+            {/* Table Header Row */}
+            <View style={{ flexDirection: 'row', backgroundColor: '#F8FAFC', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', alignItems: 'center' }}>
+              <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Invoice / Order</Text>
+              <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Date & Time</Text>
+              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Status</Text>
+              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Payment</Text>
+              <Text style={{ flex: 1.5, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Items Breakdown</Text>
+              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Total (₹)</Text>
+              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>Actions</Text>
+            </View>
+
+            {/* Table Body FlatList */}
+            <FlatList
+              data={displayedSummaries}
+              keyExtractor={(item) => item.order.id}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              renderItem={({ item, index }) => {
+                const inv = item.order.invoice_number || `Order #${item.order.id.slice(0, 6)}`;
+                const dateStr = new Date(item.order.created_at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const st = item.order.status;
+                const statusCfg = getStatusConfig(st);
+                const payMode = (item.order.payment_method || 'Unpaid').toUpperCase();
+                const isEven = index % 2 === 0;
+
+                return (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      backgroundColor: isEven ? '#FFFFFF' : '#FAFCFF',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#F1F5F9',
+                    }}
+                  >
+                    <View style={{ flex: 1.2 }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#0F172A' }}>{inv}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '500', color: '#64748B' }}>#{item.order.id.slice(0, 8)}</Text>
+                    </View>
+                    <Text style={{ flex: 1.2, fontSize: 11.5, fontWeight: '500', color: '#334155' }}>{dateStr}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: statusCfg.bg }}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: statusCfg.text, letterSpacing: 0.5 }}>{statusCfg.label}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: payMode === 'COMPLIMENTARY' ? '#16A34A' : '#0284C7' }}>
+                        {payMode}
+                      </Text>
+                    </View>
+                    <Text style={{ flex: 1.5, fontSize: 11.5, fontWeight: '500', color: '#475569' }} numberOfLines={1}>
+                      {item.previewItems.map(i => `${i.name} ×${i.quantity}`).join(', ')}
+                    </Text>
+                    <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: '#0F172A', textAlign: 'right' }}>
+                      ₹{item.totalAmount.toLocaleString('en-IN')}
+                    </Text>
+                    <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => void handleViewOrder(item)}
+                        style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: '#E8F2FA' }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#0066b2' }}>View</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }}
+            />
+          </View>
+        </View>
       ) : (
+        /* ── Active Orders Grid Card View ── */
         <FlatList
           data={displayedSummaries}
           key={listColumns}
