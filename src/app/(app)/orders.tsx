@@ -22,7 +22,7 @@ import {
 } from '@/components/orders/OrderCard';
 import { colors } from '@/lib/pos/brand';
 import type { OrderStatus } from '@/lib/pos/order-types';
-import { fetchOpenOrderById, getAllOrders, settleOrderById, type OpenOrderSummary } from '@/lib/pos/open-orders-service';
+import { fetchOpenOrderById, getAllOrders, getOrders, settleOrderById, type OpenOrderSummary } from '@/lib/pos/open-orders-service';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
@@ -184,16 +184,47 @@ export default function OrdersScreen() {
     }, 3000);
   }, []);
 
+  // ── History Tab Data State ──────────────────────────────────────────────────
+  const [historySummaries, setHistorySummaries] = useState<OpenOrderSummary[]>([]);
+  const [historyMetrics, setHistoryMetrics] = useState({
+    grossSales: 0,
+    discountsGiven: 0,
+    complimentarySales: 0,
+    netCollected: 0,
+  });
+
   // ── Load data ────────────────────────────────────────────────────────────────
   const loadOrders = useCallback(async (silent = false) => {
-    if (!silent) {
-      await loadSummaries(false);
+    if (activeTab === 'active') {
+      if (!silent) {
+        await loadSummaries(false);
+      } else {
+        setIsRefreshing(true);
+        await loadSummaries(true);
+        setIsRefreshing(false);
+      }
     } else {
-      setIsRefreshing(true);
-      await loadSummaries(true);
+      if (!silent) setIsRefreshing(true);
+      const res = await getOrders({
+        targetTable: 'bills',
+        preset: datePreset,
+        fromDate: customFromDate,
+        toDate: customToDate,
+        paymentMethod: paymentFilter,
+        search: searchQuery,
+      });
+      if (res.data) {
+        setHistorySummaries(res.data.summaries);
+        setHistoryMetrics({
+          grossSales: res.data.grossSales,
+          discountsGiven: res.data.discountsGiven,
+          complimentarySales: res.data.complimentarySales,
+          netCollected: res.data.netCollected,
+        });
+      }
       setIsRefreshing(false);
     }
-  }, [loadSummaries]);
+  }, [activeTab, datePreset, customFromDate, customToDate, paymentFilter, searchQuery, loadSummaries]);
 
   useEffect(() => {
     void loadOrders();
@@ -266,13 +297,19 @@ export default function OrdersScreen() {
     });
   }, [summaries, activeTab, activeFilter, paymentFilter, datePreset, customFromDate, customToDate]);
 
-  const displayedSummaries = useMemo(
-    () => filteredSummaries.filter((s) => matchesSearch(s, searchQuery)),
-    [filteredSummaries, searchQuery],
-  );
+  const displayedSummaries = useMemo(() => {
+    if (activeTab === 'history') {
+      return historySummaries;
+    }
+    return filteredSummaries.filter((s) => matchesSearch(s, searchQuery));
+  }, [activeTab, historySummaries, filteredSummaries, searchQuery]);
 
   // ── Revenue Analytics Metrics Calculation ─────────────────────────────
   const analyticsMetrics = useMemo(() => {
+    if (activeTab === 'history') {
+      return historyMetrics;
+    }
+
     let grossSales = 0;
     let discountsGiven = 0;
     let complimentarySales = 0;
@@ -294,7 +331,7 @@ export default function OrdersScreen() {
     }
 
     return { grossSales, discountsGiven, complimentarySales, netCollected };
-  }, [displayedSummaries]);
+  }, [activeTab, historyMetrics, displayedSummaries]);
 
   // ── CSV Export Engine with Metadata Header ───────────────────────────
   const handleExportCsv = useCallback(() => {

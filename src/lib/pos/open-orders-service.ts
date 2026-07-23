@@ -418,6 +418,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
 }
 
 export type GetOrdersParams = {
+  targetTable?: 'bills' | 'open_orders';
   preset?: 'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom';
   fromDate?: Date | string;
   toDate?: Date | string;
@@ -446,6 +447,7 @@ export async function getOrders(
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const {
+      targetTable = 'open_orders',
       preset = 'today',
       fromDate,
       toDate,
@@ -459,13 +461,143 @@ export async function getOrders(
       sortOrder = 'desc',
     } = params;
 
+    const now = new Date();
+
+    // ── 1. Query bills table if targetTable === 'bills' or historical presets ──
+    if (targetTable === 'bills' || preset === 'yesterday' || preset === '7days' || preset === '30days' || preset === 'custom') {
+      let billQuery = supabase
+        .from('bills')
+        .select('*', { count: 'exact' })
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+
+      if (preset === 'today') {
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+        billQuery = billQuery.gte('created_at', startOfToday);
+      } else if (preset === 'yesterday') {
+        const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
+        const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
+        billQuery = billQuery.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
+      } else if (preset === '7days') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        billQuery = billQuery.gte('created_at', sevenDaysAgo);
+      } else if (preset === '30days') {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        billQuery = billQuery.gte('created_at', thirtyDaysAgo);
+      } else if (preset === 'custom' || fromDate || toDate) {
+        if (fromDate) {
+          const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
+          dFrom.setHours(0, 0, 0, 0);
+          billQuery = billQuery.gte('created_at', dFrom.toISOString());
+        }
+        if (toDate) {
+          const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
+          dTo.setHours(23, 59, 59, 999);
+          billQuery = billQuery.lte('created_at', dTo.toISOString());
+        }
+      }
+
+      if (paymentMethod && paymentMethod !== 'all') {
+        billQuery = billQuery.eq('payment_method', paymentMethod);
+      }
+
+      if (search && search.trim().length > 0) {
+        billQuery = billQuery.ilike('invoice_number', `%${search.trim()}%`);
+      }
+
+      billQuery = billQuery.order('created_at', { ascending: sortOrder === 'asc' });
+
+      const fromIndex = (page - 1) * pageSize;
+      const toIndex = fromIndex + pageSize - 1;
+      billQuery = billQuery.range(fromIndex, toIndex);
+
+      const { data: rawBills, error: billErr, count: billCount } = await billQuery;
+      if (!billErr && rawBills && rawBills.length > 0) {
+        const billIds = rawBills.map((b) => b.id);
+        const { data: billItemsData } = await supabase
+          .from('bill_items')
+          .select('*')
+          .in('bill_id', billIds);
+
+        const itemsByBillId: Record<string, OrderItemPreview[]> = {};
+        const itemCountByBillId: Record<string, number> = {};
+
+        for (const item of (billItemsData || [])) {
+          const preview: OrderItemPreview = {
+            name: item.item_name || 'Item',
+            quantity: item.qty || 1,
+          };
+          const existing = itemsByBillId[item.bill_id] ?? [];
+          existing.push(preview);
+          itemsByBillId[item.bill_id] = existing;
+          itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
+        }
+
+        let grossSales = 0;
+        let discountsGiven = 0;
+        let complimentarySales = 0;
+        let netCollected = 0;
+
+        const billSummaries: OpenOrderSummary[] = rawBills.map((b) => {
+          const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
+          const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
+          const subtotal = b.subtotal || b.total_amount || 0;
+          const disc = b.discount_amount || 0;
+          const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
+
+          grossSales += subtotal;
+          discountsGiven += disc;
+          if (isComp) {
+            complimentarySales += subtotal;
+          } else if (b.status === 'paid' || b.status === 'completed') {
+            netCollected += Math.max(0, subtotal - disc);
+          }
+
+          const mockOrder: OpenOrder = {
+            id: b.open_order_id || b.id,
+            tenant_id: b.tenant_id,
+            branch_id: b.branch_id,
+            order_name: b.invoice_number ? `Invoice #${b.invoice_number}` : `Bill #${b.id.slice(0, 6)}`,
+            status: b.status || 'paid',
+            created_by: null,
+            created_at: b.created_at,
+            invoice_number: b.invoice_number,
+            payment_method: b.payment_method,
+            discount_amount: b.discount_amount,
+          };
+
+          return {
+            order: mockOrder,
+            itemCount: itemCountByBillId[b.id] ?? previewItems.reduce((acc, i) => acc + i.quantity, 0),
+            created_at: b.created_at,
+            previewItems,
+            remainingItemLines,
+            totalAmount: subtotal,
+            kotNumbers: [],
+          };
+        });
+
+        return {
+          data: {
+            summaries: billSummaries,
+            totalCount: billCount ?? billSummaries.length,
+            grossSales,
+            discountsGiven,
+            complimentarySales,
+            netCollected,
+          },
+          error: null,
+        };
+      }
+    }
+
+    // ── 2. Query open_orders table for active orders tab ──
     let query = supabase
       .from('open_orders')
       .select('*', { count: 'exact' })
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id);
 
-    const now = new Date();
     if (preset === 'today') {
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
       query = query.gte('created_at', startOfToday);
