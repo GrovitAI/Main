@@ -278,7 +278,7 @@ export default function OrdersScreen() {
     let complimentarySales = 0;
     let netCollected = 0;
 
-    for (const s of summaries) {
+    for (const s of displayedSummaries) {
       const subtotal = s.totalAmount || 0;
       const disc = s.order.discount_amount || 0;
       const isComp = (s.order.payment_method || '').toLowerCase() === 'complimentary';
@@ -294,7 +294,7 @@ export default function OrdersScreen() {
     }
 
     return { grossSales, discountsGiven, complimentarySales, netCollected };
-  }, [summaries]);
+  }, [displayedSummaries]);
 
   // ── CSV Export Engine with Metadata Header ───────────────────────────
   const handleExportCsv = useCallback(() => {
