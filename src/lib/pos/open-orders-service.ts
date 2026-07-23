@@ -439,6 +439,7 @@ export type OrdersQueryResult = {
   discountsGiven: number;
   complimentarySales: number;
   netCollected: number;
+  source: 'bills' | 'open_orders';
 };
 
 export async function getOrders(
@@ -598,6 +599,7 @@ export async function getOrders(
           discountsGiven,
           complimentarySales,
           netCollected,
+          source: 'bills',
         },
         error: null,
       };
@@ -718,6 +720,7 @@ export async function getOrders(
         discountsGiven,
         complimentarySales,
         netCollected,
+        source: 'open_orders',
       },
       error: null,
     };
