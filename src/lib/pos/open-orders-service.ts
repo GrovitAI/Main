@@ -418,7 +418,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
 }
 
 export type GetOrdersParams = {
-  preset?: 'today' | 'yesterday' | '7days' | '30days' | 'all';
+  preset?: 'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom';
   fromDate?: Date | string;
   toDate?: Date | string;
   status?: OrderStatus | 'all';
@@ -452,6 +452,7 @@ export async function getOrders(
       status = 'all',
       paymentMethod,
       cashierId,
+      search,
       page = 1,
       pageSize = 50,
       sortBy = 'created_at',
@@ -466,10 +467,10 @@ export async function getOrders(
 
     const now = new Date();
     if (preset === 'today') {
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
       query = query.gte('created_at', startOfToday);
     } else if (preset === 'yesterday') {
-      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString();
+      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
       const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
       query = query.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
     } else if (preset === '7days') {
@@ -478,15 +479,17 @@ export async function getOrders(
     } else if (preset === '30days') {
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
       query = query.gte('created_at', thirtyDaysAgo);
-    }
-
-    if (fromDate) {
-      const fromStr = typeof fromDate === 'string' ? fromDate : fromDate.toISOString();
-      query = query.gte('created_at', fromStr);
-    }
-    if (toDate) {
-      const toStr = typeof toDate === 'string' ? toDate : toDate.toISOString();
-      query = query.lte('created_at', toStr);
+    } else if (preset === 'custom' || fromDate || toDate) {
+      if (fromDate) {
+        const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
+        dFrom.setHours(0, 0, 0, 0);
+        query = query.gte('created_at', dFrom.toISOString());
+      }
+      if (toDate) {
+        const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
+        dTo.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', dTo.toISOString());
+      }
     }
 
     if (status && status !== 'all') {

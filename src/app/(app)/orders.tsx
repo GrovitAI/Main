@@ -146,7 +146,9 @@ export default function OrdersScreen() {
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('unpaid');
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
-  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'all'>('today');
+  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom'>('today');
+  const [customFromDate, setCustomFromDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [customToDate, setCustomToDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'upi' | 'card' | 'complimentary'>('all');
   const [searchInputValue, setSearchInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -254,13 +256,19 @@ export default function OrdersScreen() {
           } else if (datePreset === '30days') {
             const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
             if (orderDate < thirtyDaysAgo) return false;
+          } else if (datePreset === 'custom') {
+            const dFrom = new Date(customFromDate);
+            dFrom.setHours(0, 0, 0, 0);
+            const dTo = new Date(customToDate);
+            dTo.setHours(23, 59, 59, 999);
+            if (orderDate < dFrom || orderDate > dTo) return false;
           }
         }
       }
 
       return true;
     });
-  }, [summaries, activeTab, activeFilter, paymentFilter, datePreset]);
+  }, [summaries, activeTab, activeFilter, paymentFilter, datePreset, customFromDate, customToDate]);
 
   const displayedSummaries = useMemo(
     () => filteredSummaries.filter((s) => matchesSearch(s, searchQuery)),
@@ -765,6 +773,7 @@ export default function OrdersScreen() {
                 { id: 'yesterday', label: 'Yesterday' },
                 { id: '7days', label: 'Last 7 Days' },
                 { id: '30days', label: 'Last 30 Days' },
+                { id: 'custom', label: 'Custom Range' },
                 { id: 'all', label: 'All Time' },
               ]}
               keyExtractor={(item) => item.id}
@@ -792,6 +801,54 @@ export default function OrdersScreen() {
                 );
               }}
             />
+
+            {/* Custom Date Inputs (Shown when Custom Range is selected) */}
+            {datePreset === 'custom' && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748B' }}>From:</Text>
+                  <TextInput
+                    id="from-date-input"
+                    value={customFromDate}
+                    onChangeText={setCustomFromDate}
+                    placeholder="YYYY-MM-DD"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '600',
+                      color: '#0F172A',
+                      backgroundColor: '#F8FAFC',
+                      borderWidth: 1,
+                      borderColor: '#CBD5E1',
+                      borderRadius: 6,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      outlineStyle: 'none',
+                    } as any}
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748B' }}>To:</Text>
+                  <TextInput
+                    id="to-date-input"
+                    value={customToDate}
+                    onChangeText={setCustomToDate}
+                    placeholder="YYYY-MM-DD"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '600',
+                      color: '#0F172A',
+                      backgroundColor: '#F8FAFC',
+                      borderWidth: 1,
+                      borderColor: '#CBD5E1',
+                      borderRadius: 6,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      outlineStyle: 'none',
+                    } as any}
+                  />
+                </View>
+              </View>
+            )}
           </View>
         )}
 
