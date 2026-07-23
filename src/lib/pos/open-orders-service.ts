@@ -432,19 +432,25 @@ export type GetOrdersParams = {
   sortOrder?: 'asc' | 'desc';
 };
 
-export type OrdersQueryResult = {
+export type OrdersQueryResponse = {
   summaries: OpenOrderSummary[];
   totalCount: number;
-  grossSales: number;
-  discountsGiven: number;
-  complimentarySales: number;
-  netCollected: number;
-  source: 'bills' | 'open_orders';
+  metrics: {
+    grossSales: number;
+    discountsGiven: number;
+    complimentarySales: number;
+    netCollected: number;
+  };
+  metadata: {
+    source: 'bills' | 'open_orders';
+    generatedAt: string;
+    filtersApplied: GetOrdersParams;
+  };
 };
 
 export async function getOrders(
   params: GetOrdersParams = {}
-): Promise<ServiceResult<OrdersQueryResult>> {
+): Promise<ServiceResult<OrdersQueryResponse>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
     const {
@@ -591,19 +597,25 @@ export async function getOrders(
         };
       });
 
-      return {
-        data: {
-          summaries: billSummaries,
-          totalCount: billCount ?? billSummaries.length,
+    return {
+      data: {
+        summaries: billSummaries,
+        totalCount: billCount ?? billSummaries.length,
+        metrics: {
           grossSales,
           discountsGiven,
           complimentarySales,
           netCollected,
-          source: 'bills',
         },
-        error: null,
-      };
-    }
+        metadata: {
+          source: 'bills',
+          generatedAt: new Date().toISOString(),
+          filtersApplied: params,
+        },
+      },
+      error: null,
+    };
+  }
 
     // ── 2. Query open_orders table for active orders tab ──
     let query = supabase
@@ -716,11 +728,17 @@ export async function getOrders(
       data: {
         summaries,
         totalCount: count ?? summaries.length,
-        grossSales,
-        discountsGiven,
-        complimentarySales,
-        netCollected,
-        source: 'open_orders',
+        metrics: {
+          grossSales,
+          discountsGiven,
+          complimentarySales,
+          netCollected,
+        },
+        metadata: {
+          source: 'open_orders',
+          generatedAt: new Date().toISOString(),
+          filtersApplied: params,
+        },
       },
       error: null,
     };

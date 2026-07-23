@@ -214,13 +214,11 @@ export default function OrdersScreen() {
         search: searchQuery,
       });
       if (res.data) {
+        if (res.data.metadata.source !== 'bills') {
+          console.warn('[Orders] History query returned unexpected source:', res.data.metadata.source);
+        }
         setHistorySummaries(res.data.summaries);
-        setHistoryMetrics({
-          grossSales: res.data.grossSales,
-          discountsGiven: res.data.discountsGiven,
-          complimentarySales: res.data.complimentarySales,
-          netCollected: res.data.netCollected,
-        });
+        setHistoryMetrics(res.data.metrics);
       }
       setIsRefreshing(false);
     }
