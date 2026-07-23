@@ -732,25 +732,27 @@ export default function OrdersScreen() {
             </Pressable>
           </View>
 
-          {/* Export CSV Action Button */}
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleExportCsv}
-            style={({ pressed }: any) => [
-              {
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: '#0066b2',
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                gap: 6,
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Export CSV</Text>
-          </Pressable>
+          {/* Export CSV Action Button (Shown on Sales & Order History tab) */}
+          {activeTab === 'history' && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleExportCsv}
+              style={({ pressed }: any) => [
+                {
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#0066b2',
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  gap: 6,
+                },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Export CSV</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Revenue Analytics Cards (Shown on Sales & Order History tab) */}

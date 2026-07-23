@@ -501,6 +501,10 @@ export async function getOrders(
         billQuery = billQuery.eq('payment_method', paymentMethod);
       }
 
+      if (status && status !== 'all') {
+        billQuery = billQuery.eq('status', status);
+      }
+
       if (search && search.trim().length > 0) {
         billQuery = billQuery.ilike('invoice_number', `%${search.trim()}%`);
       }
@@ -512,83 +516,91 @@ export async function getOrders(
       billQuery = billQuery.range(fromIndex, toIndex);
 
       const { data: rawBills, error: billErr, count: billCount } = await billQuery;
-      if (!billErr && rawBills && rawBills.length > 0) {
-        const billIds = rawBills.map((b) => b.id);
-        const { data: billItemsData } = await supabase
+      if (billErr) {
+        logSupabaseError('getOrders.bills', billErr);
+        return { data: null, error: 'Unable to load bills history.' };
+      }
+
+      const billsList = rawBills || [];
+      const billIds = billsList.map((b) => b.id);
+      let billItemsData: any[] = [];
+      if (billIds.length > 0) {
+        const { data: itemsData } = await supabase
           .from('bill_items')
           .select('*')
           .in('bill_id', billIds);
+        billItemsData = itemsData || [];
+      }
 
-        const itemsByBillId: Record<string, OrderItemPreview[]> = {};
-        const itemCountByBillId: Record<string, number> = {};
+      const itemsByBillId: Record<string, OrderItemPreview[]> = {};
+      const itemCountByBillId: Record<string, number> = {};
 
-        for (const item of (billItemsData || [])) {
-          const preview: OrderItemPreview = {
-            name: item.item_name || 'Item',
-            quantity: item.qty || 1,
-          };
-          const existing = itemsByBillId[item.bill_id] ?? [];
-          existing.push(preview);
-          itemsByBillId[item.bill_id] = existing;
-          itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
+      for (const item of billItemsData) {
+        const preview: OrderItemPreview = {
+          name: item.item_name || 'Item',
+          quantity: item.qty || 1,
+        };
+        const existing = itemsByBillId[item.bill_id] ?? [];
+        existing.push(preview);
+        itemsByBillId[item.bill_id] = existing;
+        itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
+      }
+
+      let grossSales = 0;
+      let discountsGiven = 0;
+      let complimentarySales = 0;
+      let netCollected = 0;
+
+      const billSummaries: OpenOrderSummary[] = billsList.map((b) => {
+        const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
+        const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
+        const subtotal = b.subtotal || b.total_amount || 0;
+        const disc = b.discount_amount || 0;
+        const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
+
+        grossSales += subtotal;
+        discountsGiven += disc;
+        if (isComp) {
+          complimentarySales += subtotal;
+        } else if (b.status === 'paid' || b.status === 'completed') {
+          netCollected += Math.max(0, subtotal - disc);
         }
 
-        let grossSales = 0;
-        let discountsGiven = 0;
-        let complimentarySales = 0;
-        let netCollected = 0;
-
-        const billSummaries: OpenOrderSummary[] = rawBills.map((b) => {
-          const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
-          const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
-          const subtotal = b.subtotal || b.total_amount || 0;
-          const disc = b.discount_amount || 0;
-          const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
-
-          grossSales += subtotal;
-          discountsGiven += disc;
-          if (isComp) {
-            complimentarySales += subtotal;
-          } else if (b.status === 'paid' || b.status === 'completed') {
-            netCollected += Math.max(0, subtotal - disc);
-          }
-
-          const mockOrder: OpenOrder = {
-            id: b.open_order_id || b.id,
-            tenant_id: b.tenant_id,
-            branch_id: b.branch_id,
-            order_name: b.invoice_number ? `Invoice #${b.invoice_number}` : `Bill #${b.id.slice(0, 6)}`,
-            status: b.status || 'paid',
-            created_by: null,
-            created_at: b.created_at,
-            invoice_number: b.invoice_number,
-            payment_method: b.payment_method,
-            discount_amount: b.discount_amount,
-          };
-
-          return {
-            order: mockOrder,
-            itemCount: itemCountByBillId[b.id] ?? previewItems.reduce((acc, i) => acc + i.quantity, 0),
-            created_at: b.created_at,
-            previewItems,
-            remainingItemLines,
-            totalAmount: subtotal,
-            kotNumbers: [],
-          };
-        });
+        const mockOrder: OpenOrder = {
+          id: b.open_order_id || b.id,
+          tenant_id: b.tenant_id,
+          branch_id: b.branch_id,
+          order_name: b.invoice_number ? `Invoice #${b.invoice_number}` : `Bill #${b.id.slice(0, 6)}`,
+          status: b.status || 'paid',
+          created_by: null,
+          created_at: b.created_at,
+          invoice_number: b.invoice_number,
+          payment_method: b.payment_method,
+          discount_amount: b.discount_amount,
+        };
 
         return {
-          data: {
-            summaries: billSummaries,
-            totalCount: billCount ?? billSummaries.length,
-            grossSales,
-            discountsGiven,
-            complimentarySales,
-            netCollected,
-          },
-          error: null,
+          order: mockOrder,
+          itemCount: itemCountByBillId[b.id] ?? previewItems.reduce((acc, i) => acc + i.quantity, 0),
+          created_at: b.created_at,
+          previewItems,
+          remainingItemLines,
+          totalAmount: subtotal,
+          kotNumbers: [],
         };
-      }
+      });
+
+      return {
+        data: {
+          summaries: billSummaries,
+          totalCount: billCount ?? billSummaries.length,
+          grossSales,
+          discountsGiven,
+          complimentarySales,
+          netCollected,
+        },
+        error: null,
+      };
     }
 
     // ── 2. Query open_orders table for active orders tab ──
@@ -601,27 +613,6 @@ export async function getOrders(
     if (preset === 'today') {
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
       query = query.gte('created_at', startOfToday);
-    } else if (preset === 'yesterday') {
-      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
-      const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
-      query = query.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
-    } else if (preset === '7days') {
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      query = query.gte('created_at', sevenDaysAgo);
-    } else if (preset === '30days') {
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      query = query.gte('created_at', thirtyDaysAgo);
-    } else if (preset === 'custom' || fromDate || toDate) {
-      if (fromDate) {
-        const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
-        dFrom.setHours(0, 0, 0, 0);
-        query = query.gte('created_at', dFrom.toISOString());
-      }
-      if (toDate) {
-        const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
-        dTo.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', dTo.toISOString());
-      }
     }
 
     if (status && status !== 'all') {
