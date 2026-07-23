@@ -173,36 +173,55 @@ export async function fetchAnalyticsDashboard(
     const cancelledBills = filteredBills.filter((b) => b.status === 'cancelled');
     const salesBillIds = salesBills.map((b) => b.id);
 
-    // 3. Parallel fetch of items and settlements for the matching sales bills
-    const [itemsResult, settlementsResult] = await Promise.all([
-      salesBillIds.length > 0
-        ? supabase
-            .from('bill_items')
-            .select('*')
-            .in('bill_id', salesBillIds)
-        : Promise.resolve({ data: [] as any[], error: null }),
-      salesBillIds.length > 0
-        ? supabase
-            .from('settlements')
-            .select('*')
-            .eq('tenant_id', tenant_id)
-            .eq('branch_id', branch_id)
-            .in('bill_id', salesBillIds)
-        : Promise.resolve({ data: [] as any[], error: null }),
+    // 3. Parallel fetch of items and settlements for the matching sales bills (batched in chunks of 50 to prevent URL length HTTP 400 errors)
+    const CHUNK_SIZE = 50;
+    const billIdChunks: string[][] = [];
+    for (let i = 0; i < salesBillIds.length; i += CHUNK_SIZE) {
+      billIdChunks.push(salesBillIds.slice(i, i + CHUNK_SIZE));
+    }
+
+    const [itemsChunks, settlementsChunks] = await Promise.all([
+      billIdChunks.length > 0
+        ? Promise.all(
+            billIdChunks.map((chunk) =>
+              supabase
+                .from('bill_items')
+                .select('*')
+                .in('bill_id', chunk)
+            )
+          )
+        : Promise.resolve([]),
+      billIdChunks.length > 0
+        ? Promise.all(
+            billIdChunks.map((chunk) =>
+              supabase
+                .from('settlements')
+                .select('*')
+                .eq('tenant_id', tenant_id)
+                .eq('branch_id', branch_id)
+                .in('bill_id', chunk)
+            )
+          )
+        : Promise.resolve([]),
     ]);
 
-    if (itemsResult.error) {
-      console.error('[AnalyticsService] Error fetching bill items:', itemsResult.error);
-      return { data: null, error: 'Unable to load bill items.' };
+    // Check for any chunk errors
+    for (const res of itemsChunks) {
+      if (res.error) {
+        console.error('[AnalyticsService] Error fetching bill items chunk:', res.error);
+        return { data: null, error: 'Unable to load bill items.' };
+      }
     }
 
-    if (settlementsResult.error) {
-      console.error('[AnalyticsService] Error fetching settlements:', settlementsResult.error);
-      return { data: null, error: 'Unable to load settlements.' };
+    for (const res of settlementsChunks) {
+      if (res.error) {
+        console.error('[AnalyticsService] Error fetching settlements chunk:', res.error);
+        return { data: null, error: 'Unable to load settlements.' };
+      }
     }
 
-    const billItems = itemsResult.data || [];
-    const settlements = settlementsResult.data || [];
+    const billItems = itemsChunks.flatMap((res) => res.data || []);
+    const settlements = settlementsChunks.flatMap((res) => res.data || []);
 
     // --- AGGREGATIONS ---
 
