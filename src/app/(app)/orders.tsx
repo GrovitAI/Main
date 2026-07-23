@@ -145,11 +145,13 @@ export default function OrdersScreen() {
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('unpaid');
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
+  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'all'>('today');
   const [searchInputValue, setSearchInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Detail modal state ──────────────────────────────────────────────────────────────────
+  // ── Detail modal state ───────────────────────────────────────────────────────
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
   const [viewingItems, setViewingItems] = useState<{ name: string; qty: number }[]>([]);
   const [viewLoading, setViewLoading] = useState(false);
@@ -232,6 +234,93 @@ export default function OrdersScreen() {
     () => filteredSummaries.filter((s) => matchesSearch(s, searchQuery)),
     [filteredSummaries, searchQuery],
   );
+
+  // ── Revenue Analytics Metrics Calculation ─────────────────────────────
+  const analyticsMetrics = useMemo(() => {
+    let grossSales = 0;
+    let discountsGiven = 0;
+    let complimentarySales = 0;
+    let netCollected = 0;
+
+    for (const s of summaries) {
+      const subtotal = s.totalAmount || 0;
+      const disc = s.order.discount_amount || 0;
+      const isComp = (s.order.payment_method || '').toLowerCase() === 'complimentary';
+
+      grossSales += subtotal;
+      discountsGiven += disc;
+
+      if (isComp) {
+        complimentarySales += subtotal;
+      } else if (s.order.status === 'paid' || s.order.status === 'completed') {
+        netCollected += Math.max(0, subtotal - disc);
+      }
+    }
+
+    return { grossSales, discountsGiven, complimentarySales, netCollected };
+  }, [summaries]);
+
+  // ── CSV Export Engine with Metadata Header ───────────────────────────
+  const handleExportCsv = useCallback(() => {
+    if (displayedSummaries.length === 0) {
+      showToast('No orders available to export.');
+      return;
+    }
+
+    const exportTime = new Date().toLocaleString('en-IN');
+    const branchName = currentBranch?.name || 'Main Branch';
+    const filterLabel = activeTab === 'active' ? activeFilter.toUpperCase() : datePreset.toUpperCase();
+
+    const metadataHeader = [
+      `Grovit AI POS - Sales & Order History Export`,
+      `Export Generated:,${exportTime}`,
+      `Branch Name:,${branchName}`,
+      `Sub-View Tab:,${activeTab === 'active' ? 'Active Orders' : 'Sales History'}`,
+      `Filter Preset:,${filterLabel}`,
+      `Total Orders Count:,${displayedSummaries.length}`,
+      `Gross Sales (INR):,${analyticsMetrics.grossSales.toFixed(2)}`,
+      `Total Discounts Given (INR):,${analyticsMetrics.discountsGiven.toFixed(2)}`,
+      `Complimentary Sales (INR):,${analyticsMetrics.complimentarySales.toFixed(2)}`,
+      `Net Revenue Collected (INR):,${analyticsMetrics.netCollected.toFixed(2)}`,
+      `---------------------------------------------------------------------------------`,
+    ].join('\n');
+
+    const columnHeaders = 'Invoice Number,Order ID,Status,Created Date,Created Time,Cashier,Payment Method,Items Breakdown,Total Items,Subtotal (INR),Discount (INR),Grand Total (INR)';
+
+    const rows = displayedSummaries.map((s) => {
+      const inv = s.order.invoice_number || 'N/A';
+      const id = s.order.id;
+      const st = s.order.status.toUpperCase();
+      const dt = new Date(s.order.created_at);
+      const dateStr = dt.toLocaleDateString('en-IN');
+      const timeStr = dt.toLocaleTimeString('en-IN');
+      const cashier = s.order.created_by || 'Cashier';
+      const payMode = (s.order.payment_method || 'UNPAID').toUpperCase();
+      const itemsStr = `"${s.previewItems.map((i) => `${i.name} (${i.quantity})`).join('; ')}"`;
+      const count = s.itemCount;
+      const subtotal = s.totalAmount || 0;
+      const disc = s.order.discount_amount || 0;
+      const grandTotal = Math.max(0, subtotal - disc);
+
+      return `${inv},${id},${st},${dateStr},${timeStr},${cashier},${payMode},${itemsStr},${count},${subtotal.toFixed(2)},${disc.toFixed(2)},${grandTotal.toFixed(2)}`;
+    });
+
+    const csvContent = `${metadataHeader}\n${columnHeaders}\n${rows.join('\n')}`;
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Grovit_Sales_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Exported ${displayedSummaries.length} orders to CSV.`);
+    } else {
+      showToast('CSV Export available on Web browser.');
+    }
+  }, [activeTab, activeFilter, datePreset, displayedSummaries, analyticsMetrics, currentBranch, showToast]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
@@ -524,15 +613,102 @@ export default function OrdersScreen() {
         </View>
       </LinearGradient>
 
-      {/* ── Control Bar (Search + Filters) ── */}
-      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 20, paddingVertical: 8 }}>
+      {/* ── Control Bar (Search + Sub-Nav + Filters + Export) ── */}
+      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 20, paddingVertical: 10 }}>
+        {/* Top Row: Sub-Nav View Toggle + Export CSV Button */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
+          {/* Sub-Nav Banner Pills */}
+          <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 8, padding: 3 }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setActiveTab('active')}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+                borderRadius: 6,
+                backgroundColor: activeTab === 'active' ? '#FFFFFF' : 'transparent',
+                shadowColor: activeTab === 'active' ? '#0F172A' : 'transparent',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.08,
+                shadowRadius: 2,
+                elevation: activeTab === 'active' ? 2 : 0,
+              }}
+            >
+              <Text style={{ fontSize: 12.5, fontWeight: activeTab === 'active' ? '700' : '600', color: activeTab === 'active' ? '#0066b2' : '#64748B' }}>
+                Active Orders
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setActiveTab('history')}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+                borderRadius: 6,
+                backgroundColor: activeTab === 'history' ? '#FFFFFF' : 'transparent',
+                shadowColor: activeTab === 'history' ? '#0F172A' : 'transparent',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.08,
+                shadowRadius: 2,
+                elevation: activeTab === 'history' ? 2 : 0,
+              }}
+            >
+              <Text style={{ fontSize: 12.5, fontWeight: activeTab === 'history' ? '700' : '600', color: activeTab === 'history' ? '#0066b2' : '#64748B' }}>
+                Sales & Order History
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Export CSV Action Button */}
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleExportCsv}
+            style={({ pressed }: any) => [
+              {
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#0066b2',
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                gap: 6,
+              },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Export CSV</Text>
+          </Pressable>
+        </View>
+
+        {/* Revenue Analytics Cards (Shown on Sales & Order History tab) */}
+        {activeTab === 'history' && (
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <View style={{ flex: 1, minWidth: 110, backgroundColor: '#F8FAFC', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#E2E8F0' }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Gross Sales</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#0F172A', marginTop: 2 }}>₹{analyticsMetrics.grossSales.toLocaleString('en-IN')}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 110, backgroundColor: '#FEF2F2', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#FCA5A5' }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#991B1B', textTransform: 'uppercase' }}>Discounts</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#DC2626', marginTop: 2 }}>₹{analyticsMetrics.discountsGiven.toLocaleString('en-IN')}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 110, backgroundColor: '#F0FDF4', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#86EFAC' }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>Complimentary</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#16A34A', marginTop: 2 }}>₹{analyticsMetrics.complimentarySales.toLocaleString('en-IN')}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 110, backgroundColor: '#E0F2FE', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#7DD3FC' }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#075985', textTransform: 'uppercase' }}>Net Collected</Text>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#0284C7', marginTop: 2 }}>₹{analyticsMetrics.netCollected.toLocaleString('en-IN')}</Text>
+            </View>
+          </View>
+        )}
+
         {/* Search bar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 36 }}>
           <Search color="#94A3B8" size={15} />
           <TextInput
             ref={searchInputRef}
             id="orders-search-input"
-            placeholder="Search orders..."
+            placeholder="Search invoice no, order ID, item name, token..."
             placeholderTextColor="#94A3B8"
             value={searchInputValue}
             onChangeText={handleSearchChange}

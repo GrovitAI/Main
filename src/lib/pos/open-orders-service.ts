@@ -1,4 +1,4 @@
-import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket, KotTicketItem } from './order-types';
+import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket, KotTicketItem, OrderStatus } from './order-types';
 import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
@@ -414,6 +414,189 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
       }
     }
     return { data: null, error: 'Unable to load open orders.' };
+  }
+}
+
+export type GetOrdersParams = {
+  preset?: 'today' | 'yesterday' | '7days' | '30days' | 'all';
+  fromDate?: Date | string;
+  toDate?: Date | string;
+  status?: OrderStatus | 'all';
+  paymentMethod?: string;
+  cashierId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: 'created_at' | 'invoice_number' | 'grand_total';
+  sortOrder?: 'asc' | 'desc';
+};
+
+export type OrdersQueryResult = {
+  summaries: OpenOrderSummary[];
+  totalCount: number;
+  grossSales: number;
+  discountsGiven: number;
+  complimentarySales: number;
+  netCollected: number;
+};
+
+export async function getOrders(
+  params: GetOrdersParams = {}
+): Promise<ServiceResult<OrdersQueryResult>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const {
+      preset = 'today',
+      fromDate,
+      toDate,
+      status = 'all',
+      paymentMethod,
+      cashierId,
+      page = 1,
+      pageSize = 50,
+      sortBy = 'created_at',
+      sortOrder = 'desc',
+    } = params;
+
+    let query = supabase
+      .from('open_orders')
+      .select('*', { count: 'exact' })
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+
+    const now = new Date();
+    if (preset === 'today') {
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      query = query.gte('created_at', startOfToday);
+    } else if (preset === 'yesterday') {
+      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString();
+      const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
+      query = query.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
+    } else if (preset === '7days') {
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte('created_at', sevenDaysAgo);
+    } else if (preset === '30days') {
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte('created_at', thirtyDaysAgo);
+    }
+
+    if (fromDate) {
+      const fromStr = typeof fromDate === 'string' ? fromDate : fromDate.toISOString();
+      query = query.gte('created_at', fromStr);
+    }
+    if (toDate) {
+      const toStr = typeof toDate === 'string' ? toDate : toDate.toISOString();
+      query = query.lte('created_at', toStr);
+    }
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    if (paymentMethod && paymentMethod !== 'all') {
+      query = query.eq('payment_method', paymentMethod);
+    }
+
+    if (cashierId) {
+      query = query.eq('created_by', cashierId);
+    }
+
+    const sortCol = sortBy === 'grand_total' ? 'discount_amount' : sortBy;
+    query = query.order(sortCol, { ascending: sortOrder === 'asc' });
+
+    const fromIndex = (page - 1) * pageSize;
+    const toIndex = fromIndex + pageSize - 1;
+    query = query.range(fromIndex, toIndex);
+
+    const { data: rawOrders, error: queryErr, count } = await query;
+    if (queryErr) {
+      logSupabaseError('getOrders', queryErr);
+      return { data: null, error: 'Unable to query orders.' };
+    }
+
+    const orders = (rawOrders ?? []) as OpenOrderRow[];
+    const orderIds = orders.map((o) => o.id);
+
+    let itemRows: OrderItemRow[] = [];
+    if (orderIds.length > 0) {
+      const { data: fetchedItems } = await supabase
+        .from('open_order_items')
+        .select('open_order_id, qty, product_id, price, item_name')
+        .in('open_order_id', orderIds);
+      itemRows = (fetchedItems ?? []) as any[];
+    }
+
+    const productIds = [...new Set(itemRows.map((item) => item.product_id))];
+    const productNames = await fetchProductNameMap(productIds);
+
+    const itemsByOrderId: Record<string, OrderItemPreview[]> = {};
+    const itemCountByOrderId: Record<string, number> = {};
+    const totalAmountByOrderId: Record<string, number> = {};
+
+    for (const item of itemRows) {
+      const pName = (item as any).item_name || productNames[item.product_id] || 'Item';
+      const preview: OrderItemPreview = {
+        name: pName,
+        quantity: item.qty,
+      };
+      const existing = itemsByOrderId[item.open_order_id] ?? [];
+      existing.push(preview);
+      itemsByOrderId[item.open_order_id] = existing;
+      itemCountByOrderId[item.open_order_id] = (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
+      totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + (item.qty * ((item as any).price || 0));
+    }
+
+    const kotResult = await fetchKotsForOrders(orderIds);
+    const kotsMap = kotResult.data ?? {};
+
+    let grossSales = 0;
+    let discountsGiven = 0;
+    let complimentarySales = 0;
+    let netCollected = 0;
+
+    const summaries: OpenOrderSummary[] = orders.map((order) => {
+      const orderItems = itemsByOrderId[order.id] ?? [];
+      const previewItems = orderItems.slice(0, 3);
+      const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
+      const orderKots = kotsMap[order.id] ?? [];
+      const kotNumbers = orderKots.map((k) => k.kot_number);
+
+      const calculatedSubtotal = totalAmountByOrderId[order.id] ?? 0;
+      const discAmt = order.discount_amount ?? 0;
+      const isComp = (order.payment_method || '').toLowerCase() === 'complimentary';
+
+      grossSales += calculatedSubtotal;
+      discountsGiven += discAmt;
+      if (isComp) {
+        complimentarySales += calculatedSubtotal;
+      } else if (order.status === 'paid' || order.status === 'completed') {
+        netCollected += Math.max(0, calculatedSubtotal - discAmt);
+      }
+
+      return {
+        order,
+        itemCount: itemCountByOrderId[order.id] ?? 0,
+        created_at: order.created_at,
+        previewItems,
+        remainingItemLines,
+        totalAmount: calculatedSubtotal,
+        kotNumbers,
+      };
+    });
+
+    return {
+      data: {
+        summaries,
+        totalCount: count ?? summaries.length,
+        grossSales,
+        discountsGiven,
+        complimentarySales,
+        netCollected,
+      },
+      error: null,
+    };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Failed to query orders.' };
   }
 }
 
@@ -1113,11 +1296,6 @@ export async function settleOrderById(
     }
 
     const subtotal = orderItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
-    const discountType = order.discount_type || null;
-    const discountValue = order.discount_value || 0;
-    const discountAmount = order.discount_amount || 0;
-
-    const discountedSubtotal = Math.max(0, subtotal - discountAmount);
 
     let tax_percentage = 0;
     const { data: posSettings } = await supabase
@@ -1131,8 +1309,23 @@ export async function settleOrderById(
       tax_percentage = posSettings.tax_percentage || 0;
     }
 
-    const tax_amount = Math.round((discountedSubtotal * tax_percentage / 100.0) * 100) / 100;
-    const total_amount = discountedSubtotal + tax_amount;
+    const isComplimentary = paymentType.toLowerCase() === 'complimentary';
+    let discountType = order.discount_type || null;
+    let discountValue = order.discount_value || 0;
+    let discountAmount = order.discount_amount || 0;
+    let discountedSubtotal = Math.max(0, subtotal - discountAmount);
+    let tax_amount = Math.round((discountedSubtotal * tax_percentage / 100.0) * 100) / 100;
+    let total_amount = discountedSubtotal + tax_amount;
+
+    if (isComplimentary) {
+      // Preserve gross sales revenue analytics by applying 100% discount (subtotal + tax)
+      const grossTax = Math.round((subtotal * tax_percentage / 100.0) * 100) / 100;
+      discountType = 'percent';
+      discountValue = 100;
+      discountAmount = subtotal + grossTax;
+      tax_amount = grossTax;
+      total_amount = 0;
+    }
 
     let invoiceNumber = order.invoice_number;
     if (!invoiceNumber) {
@@ -1177,7 +1370,7 @@ export async function settleOrderById(
         bill_id: bill.id,
         tenant_id,
         branch_id,
-        payment_type: paymentType.toLowerCase(),
+        payment_type: isComplimentary ? 'complimentary' : paymentType.toLowerCase(),
         amount: total_amount,
       };
 
