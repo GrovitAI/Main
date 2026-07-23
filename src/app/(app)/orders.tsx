@@ -201,14 +201,10 @@ export default function OrdersScreen() {
     return () => clearInterval(id);
   }, [loadOrders]);
 
-  // ── Search debounce ──────────────────────────────────────────────────────────
-  const handleSearchChange = useCallback((text: string) => {
-    setSearchInputValue(text);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setSearchQuery(text);
-    }, SEARCH_DEBOUNCE_MS);
-  }, []);
+  // ── Search handler ──────────────────────────────────────────────────────────
+  const handleSearchSubmit = useCallback(() => {
+    setSearchQuery(searchInputValue.trim());
+  }, [searchInputValue]);
 
   const clearSearch = useCallback(() => {
     setSearchInputValue('');
@@ -742,24 +738,44 @@ export default function OrdersScreen() {
           </View>
         )}
 
-        {/* Search bar */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 36 }}>
-          <Search color="#94A3B8" size={15} />
-          <TextInput
-            ref={searchInputRef}
-            id="orders-search-input"
-            placeholder="Search invoice no, order ID, item name, token..."
-            placeholderTextColor="#94A3B8"
-            value={searchInputValue}
-            onChangeText={handleSearchChange}
-            style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' } as any}
-            returnKeyType="search"
-          />
-          {searchInputValue.length > 0 && (
-            <Pressable accessibilityRole="button" onPress={clearSearch} style={{ padding: 4 }}>
-              <X color="#94A3B8" size={15} />
-            </Pressable>
-          )}
+        {/* Search bar with explicit Search action button */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, height: 36 }}>
+            <Search color="#94A3B8" size={15} />
+            <TextInput
+              ref={searchInputRef}
+              id="orders-search-input"
+              placeholder="Search invoice no, order ID, item name, token..."
+              placeholderTextColor="#94A3B8"
+              value={searchInputValue}
+              onChangeText={setSearchInputValue}
+              onSubmitEditing={handleSearchSubmit}
+              style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' } as any}
+              returnKeyType="search"
+            />
+            {searchInputValue.length > 0 && (
+              <Pressable accessibilityRole="button" onPress={clearSearch} style={{ padding: 4 }}>
+                <X color="#94A3B8" size={15} />
+              </Pressable>
+            )}
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleSearchSubmit}
+            style={({ pressed }: any) => [
+              {
+                backgroundColor: '#0066b2',
+                borderRadius: 8,
+                paddingHorizontal: 14,
+                height: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>Search</Text>
+          </Pressable>
         </View>
 
         {/* Date Preset Filter Bar (Shown on Sales & Order History tab) */}
