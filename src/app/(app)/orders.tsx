@@ -1005,11 +1005,10 @@ export default function OrdersScreen() {
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', flex: 1 }}>
             {/* Table Header Row */}
             <View style={{ flexDirection: 'row', backgroundColor: '#F8FAFC', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', alignItems: 'center' }}>
-              <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Invoice / Order</Text>
-              <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Date & Time</Text>
-              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Status</Text>
-              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Payment</Text>
-              <Text style={{ flex: 1.5, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Items Breakdown</Text>
+              <Text style={{ flex: 1.5, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Invoice / Order</Text>
+              <Text style={{ flex: 1.5, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Date & Time</Text>
+              <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Status</Text>
+              <Text style={{ flex: 2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Items Breakdown</Text>
               <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Total (₹)</Text>
               <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>Actions</Text>
             </View>
@@ -1024,7 +1023,7 @@ export default function OrdersScreen() {
                 const dateStr = new Date(item.order.created_at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 const st = item.order.status;
                 const statusCfg = getStatusConfig(st);
-                const payMode = (item.order.payment_method || 'Unpaid').toUpperCase();
+                const payMode = (item.order.payment_method || '').toUpperCase();
                 const isEven = index % 2 === 0;
 
                 return (
@@ -1039,22 +1038,17 @@ export default function OrdersScreen() {
                       borderBottomColor: '#F1F5F9',
                     }}
                   >
-                    <View style={{ flex: 1.2 }}>
+                    <View style={{ flex: 1.5 }}>
                       <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#0F172A' }}>{inv}</Text>
                       <Text style={{ fontSize: 10, fontWeight: '500', color: '#64748B' }}>#{item.order.id.slice(0, 8)}</Text>
                     </View>
-                    <Text style={{ flex: 1.2, fontSize: 11.5, fontWeight: '500', color: '#334155' }}>{dateStr}</Text>
-                    <View style={{ flex: 1 }}>
+                    <Text style={{ flex: 1.5, fontSize: 11.5, fontWeight: '500', color: '#334155' }}>{dateStr}</Text>
+                    <View style={{ flex: 1.2 }}>
                       <View style={{ alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: statusCfg.bg }}>
-                        <Text style={{ fontSize: 9, fontWeight: '800', color: statusCfg.text, letterSpacing: 0.5 }}>{statusCfg.label}</Text>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: statusCfg.text, letterSpacing: 0.5 }}>{statusCfg.label}{payMode ? ` (${payMode})` : ''}</Text>
                       </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: payMode === 'COMPLIMENTARY' ? '#16A34A' : '#0284C7' }}>
-                        {payMode}
-                      </Text>
-                    </View>
-                    <Text style={{ flex: 1.5, fontSize: 11.5, fontWeight: '500', color: '#475569' }} numberOfLines={1}>
+                    <Text style={{ flex: 2, fontSize: 11.5, fontWeight: '500', color: '#475569' }} numberOfLines={1}>
                       {item.previewItems.map(i => `${i.name} ×${i.quantity}`).join(', ')}
                     </Text>
                     <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: '#0F172A', textAlign: 'right' }}>

@@ -463,7 +463,7 @@ export async function getOrders(
       cashierId,
       search,
       page = 1,
-      pageSize = 50,
+      pageSize = params.pageSize ?? (targetTable === 'bills' ? 1000 : 50),
       sortBy = 'created_at',
       sortOrder = 'desc',
     } = params;
