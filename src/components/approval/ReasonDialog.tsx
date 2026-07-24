@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
-import { ShieldAlert, FileText, X } from 'lucide-react-native';
+import { ShieldCheck, FileText, X } from 'lucide-react-native';
 
 interface ReasonDialogProps {
   visible: boolean;
@@ -48,11 +48,11 @@ export function ReasonDialog({
             <View className="flex-row items-center gap-3">
               <View
                 className={`h-10 w-10 items-center justify-center rounded-full ${
-                  isOtpRequired ? 'bg-amber-50' : 'bg-sky-50'
+                  isOtpRequired ? 'bg-blue-50' : 'bg-sky-50'
                 }`}
               >
                 {isOtpRequired ? (
-                  <ShieldAlert size={22} color="#D97706" />
+                  <ShieldCheck size={22} color="#2563eb" />
                 ) : (
                   <FileText size={22} color="#0284c7" />
                 )}
@@ -63,7 +63,7 @@ export function ReasonDialog({
                 </Text>
                 <Text
                   className={`text-xs font-medium ${
-                    isOtpRequired ? 'text-amber-700' : 'text-sky-700'
+                    isOtpRequired ? 'text-blue-700' : 'text-sky-700'
                   }`}
                 >
                   {actionTitle}
@@ -123,9 +123,9 @@ export function ReasonDialog({
             <Pressable
               disabled={isSubmitting}
               onPress={handleSubmit}
-              className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-2 rounded-xl ${
-                isOtpRequired ? 'bg-amber-600' : 'bg-blue-600'
-              } ${isSubmitting ? 'opacity-70' : ''}`}
+              className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-blue-600 ${
+                isSubmitting ? 'opacity-70' : ''
+              }`}
             >
               {isSubmitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
