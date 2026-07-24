@@ -770,21 +770,21 @@ export default function OrdersScreen() {
         {/* Revenue Analytics Cards (Shown on Sales & Order History tab) */}
         {activeTab === 'history' && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#F8FAFC', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }} numberOfLines={1}>Gross Sales</Text>
-              <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0F172A', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.grossSales.toLocaleString('en-IN')}</Text>
+            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#F8FAFC', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Gross</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.grossSales.toLocaleString('en-IN')}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#FCA5A5', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#991B1B', textTransform: 'uppercase' }} numberOfLines={1}>Discounts</Text>
-              <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#DC2626', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.discountsGiven.toLocaleString('en-IN')}</Text>
+            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#FCA5A5', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#991B1B', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Discounts</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#DC2626', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.discountsGiven.toLocaleString('en-IN')}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#86EFAC', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', textTransform: 'uppercase' }} numberOfLines={1}>Complimentary</Text>
-              <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#16A34A', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.complimentarySales.toLocaleString('en-IN')}</Text>
+            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#86EFAC', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Comp</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#16A34A', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.complimentarySales.toLocaleString('en-IN')}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#E0F2FE', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#7DD3FC', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#075985', textTransform: 'uppercase' }} numberOfLines={1}>Net Revenue</Text>
-              <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0284C7', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.netCollected.toLocaleString('en-IN')}</Text>
+            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#E0F2FE', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#7DD3FC', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', color: '#075985', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Net Sales</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0284C7', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.netCollected.toLocaleString('en-IN')}</Text>
             </View>
           </View>
         )}
