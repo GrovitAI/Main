@@ -902,125 +902,125 @@ export default function AnalyticsScreen() {
         {kpis && (
           <View className="flex-row flex-wrap justify-between gap-4">
             {/* 1. Total Sales */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Total Sales</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Total Sales</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.totalSales).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-blue-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-blue-50 items-center justify-center flex-shrink-0">
                 <DollarSign size={18} color={colors.primary} />
               </View>
             </View>
 
             {/* 2. Total Orders */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Total Orders</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">{kpis.totalOrders}</Text>
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Total Orders</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.totalOrders}</Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-[#e8f2fa] items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-[#e8f2fa] items-center justify-center flex-shrink-0">
                 <ShoppingBag size={18} color={colors.primaryLight} />
               </View>
             </View>
 
             {/* 3. AOV */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Avg Order Value</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Avg Order Value</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.avgOrderValue).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-purple-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-purple-50 items-center justify-center flex-shrink-0">
                 <CreditCard size={18} color="#8b5cf6" />
               </View>
             </View>
 
             {/* 4. Items Sold */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Items Sold</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">{kpis.itemsSold}</Text>
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Items Sold</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.itemsSold}</Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-sky-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-sky-50 items-center justify-center flex-shrink-0">
                 <ShoppingCart size={18} color="#0ea5e9" />
               </View>
             </View>
 
             {/* 5. Tax Collected */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Tax Collected</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Tax Collected</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.taxCollected).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-teal-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-teal-50 items-center justify-center flex-shrink-0">
                 <Percent size={18} color="#10b981" />
               </View>
             </View>
 
             {/* 6. Cancelled Orders */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Cancelled Orders</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">{kpis.cancelledOrders}</Text>
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Cancelled Orders</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.cancelledOrders}</Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-red-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-red-50 items-center justify-center flex-shrink-0">
                 <XCircle size={18} color="#ef4444" />
               </View>
             </View>
 
             {/* 7. Collected Revenue */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Collected Revenue</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Collected Revenue</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.collectedRevenue || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center flex-shrink-0">
                 <DollarSign size={18} color="#059669" />
               </View>
             </View>
 
             {/* 8. Pending Collections */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Pending Collections</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Pending Collections</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.pendingCollections || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center flex-shrink-0">
                 <DollarSign size={18} color="#d97706" />
               </View>
             </View>
 
             {/* 9. Total Discounts */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Total Discounts</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Total Discounts</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.totalDiscounts || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-pink-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-pink-50 items-center justify-center flex-shrink-0">
                 <Percent size={18} color="#db2777" />
               </View>
             </View>
 
             {/* 10. Cancelled Sales */}
-            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-start justify-between">
-              <View className="flex-1 mr-2">
-                <Text className="text-xs font-bold text-textSecondary">Cancelled Sales</Text>
-                <Text className="text-xl font-black text-textPrimary mt-1">
+            <View className="flex-1 min-w-[150px] bg-white border border-border/50 rounded-2xl p-5 shadow-sm flex-row items-center justify-between">
+              <View className="flex-1 mr-2 min-w-0">
+                <Text className="text-xs font-bold text-textSecondary" numberOfLines={1}>Cancelled Sales</Text>
+                <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                   ₹{Math.round(kpis.cancelledSales || 0).toLocaleString('en-IN')}
                 </Text>
               </View>
-              <View className="w-9 h-9 rounded-xl bg-rose-50 items-center justify-center">
+              <View className="w-9 h-9 rounded-xl bg-rose-50 items-center justify-center flex-shrink-0">
                 <XCircle size={18} color="#e11d48" />
               </View>
             </View>
