@@ -19,6 +19,32 @@ function getApiBaseUrl(): string {
 
 export const approvalService = {
   /**
+   * Fast client/service pre-check to determine if an action requires approval
+   * before opening any modal dialogs.
+   */
+  async checkPolicyRequired(tenantId: string, branchId: string, action: string): Promise<{ required: boolean }> {
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/approval/settings?tenantId=${tenantId}&branchId=${branchId}`);
+      if (!response.ok) return { required: true };
+      const resData = await response.json();
+      const settings = resData.data;
+
+      if (!settings || !settings.enabled || !settings.approval_email) {
+        return { required: false };
+      }
+
+      const policyEnabled = settings.policies ? settings.policies[action] ?? true : true;
+      if (policyEnabled === false) {
+        return { required: false };
+      }
+
+      return { required: true };
+    } catch {
+      return { required: true };
+    }
+  },
+
+  /**
    * Submits a new approval request.
    * If branch approval is disabled, returns { required: false, approved: true }.
    */
