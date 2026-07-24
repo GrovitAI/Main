@@ -30,6 +30,15 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
   const [requestId, setRequestId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isOtpRequired, setIsOtpRequired] = useState<boolean>(true);
+
+  React.useEffect(() => {
+    if (state && state.visible) {
+      void approvalService
+        .checkPolicyRequired(state.tenantId, state.branchId, state.action)
+        .then((res) => setIsOtpRequired(res.required));
+    }
+  }, [state?.visible, state?.tenantId, state?.branchId, state?.action]);
 
   if (!state || !state.visible) {
     return null;
@@ -142,6 +151,7 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
         onClose={handleCloseAll}
         onSubmit={handleReasonSubmit}
         isSubmitting={isSubmittingReason}
+        isOtpRequired={isOtpRequired}
       />
 
       {requestId && (

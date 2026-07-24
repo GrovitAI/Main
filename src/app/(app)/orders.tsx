@@ -21,6 +21,7 @@ import {
   getStatusConfig,
   getElapsedLabel,
 } from '@/components/orders/OrderCard';
+import { formatPaymentMode } from '@/lib/pos/format-utils';
 import { colors } from '@/lib/pos/brand';
 import type { OrderStatus } from '@/lib/pos/order-types';
 import { fetchOpenOrderById, getAllOrders, getOrders, settleOrderById, type OpenOrderSummary } from '@/lib/pos/open-orders-service';
@@ -1100,7 +1101,7 @@ export default function OrdersScreen() {
                     <View style={{ flex: 1.2 }}>
                       <View style={{ alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: payMode ? '#E8F2FA' : '#F1F5F9' }}>
                         <Text style={{ fontSize: 9.5, fontWeight: '800', color: payMode ? '#0251B8' : '#64748B', letterSpacing: 0.3 }}>
-                          {payMode || (st === 'paid' ? 'PAID' : 'UNPAID')}
+                          {formatPaymentMode(item.order.payment_method) || (st === 'paid' ? 'Paid' : 'Unpaid')}
                         </Text>
                       </View>
                     </View>
@@ -1309,10 +1310,14 @@ export default function OrdersScreen() {
                   <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#334155', marginTop: 1.5 }}>{createdTime}</Text>
                 </View>
                 <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
+                <View style={{ flex: 1.3, alignItems: 'center', paddingHorizontal: 4 }}>
                   <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>Payment Mode</Text>
-                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#0251B8', marginTop: 1.5 }}>
-                    {(viewingSummary.order.payment_method || (viewingSummary.order.status === 'paid' ? 'PAID' : 'UNPAID')).toUpperCase()}
+                  <Text
+                    style={{ fontSize: 11, fontWeight: '800', color: '#0251B8', marginTop: 1.5, textAlign: 'center' }}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {formatPaymentMode(viewingSummary.order.payment_method || (viewingSummary.order.status === 'paid' ? 'Paid' : 'Unpaid'))}
                   </Text>
                 </View>
                 <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />

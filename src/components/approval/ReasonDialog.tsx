@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
-import { ShieldAlert, X } from 'lucide-react-native';
+import { ShieldAlert, FileText, X } from 'lucide-react-native';
 
 interface ReasonDialogProps {
   visible: boolean;
@@ -8,6 +8,7 @@ interface ReasonDialogProps {
   onClose: () => void;
   onSubmit: (reason: string) => void;
   isSubmitting?: boolean;
+  isOtpRequired?: boolean;
 }
 
 export function ReasonDialog({
@@ -16,6 +17,7 @@ export function ReasonDialog({
   onClose,
   onSubmit,
   isSubmitting = false,
+  isOtpRequired = true,
 }: ReasonDialogProps) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function ReasonDialog({
   const handleSubmit = () => {
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError('Please provide a reason for this request.');
+      setError('Please provide a reason before proceeding.');
       return;
     }
     setError(null);
@@ -44,12 +46,28 @@ export function ReasonDialog({
           {/* Header */}
           <View className="flex-row items-center justify-between border-b border-gray-100 pb-4">
             <View className="flex-row items-center gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-amber-50">
-                <ShieldAlert size={22} color="#D97706" />
+              <View
+                className={`h-10 w-10 items-center justify-center rounded-full ${
+                  isOtpRequired ? 'bg-amber-50' : 'bg-sky-50'
+                }`}
+              >
+                {isOtpRequired ? (
+                  <ShieldAlert size={22} color="#D97706" />
+                ) : (
+                  <FileText size={22} color="#0284c7" />
+                )}
               </View>
               <View>
-                <Text className="text-base font-bold text-gray-900">Approval Required</Text>
-                <Text className="text-xs font-medium text-amber-700">{actionTitle}</Text>
+                <Text className="text-base font-bold text-gray-900">
+                  {isOtpRequired ? 'Approval Required' : 'Action Reason Required'}
+                </Text>
+                <Text
+                  className={`text-xs font-medium ${
+                    isOtpRequired ? 'text-amber-700' : 'text-sky-700'
+                  }`}
+                >
+                  {actionTitle}
+                </Text>
               </View>
             </View>
             <Pressable
@@ -64,10 +82,12 @@ export function ReasonDialog({
           {/* Content */}
           <View className="py-4">
             <Text className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Reason for Request *
+              {isOtpRequired ? 'Reason for Request *' : 'Reason for Action *'}
             </Text>
             <Text className="mt-1 text-xs text-gray-500">
-              Please enter the operational reason for performing this sensitive action. An email code will be sent to the branch owner.
+              {isOtpRequired
+                ? 'Please enter the operational reason for performing this sensitive action. An email code will be sent to the branch owner.'
+                : 'Please enter the operational reason for audit logging before proceeding.'}
             </Text>
 
             <TextInput
@@ -103,14 +123,16 @@ export function ReasonDialog({
             <Pressable
               disabled={isSubmitting}
               onPress={handleSubmit}
-              className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-amber-600 ${
-                isSubmitting ? 'opacity-70' : ''
-              }`}
+              className={`min-h-[44px] flex-1 flex-row items-center justify-center gap-2 rounded-xl ${
+                isOtpRequired ? 'bg-amber-600' : 'bg-blue-600'
+              } ${isSubmitting ? 'opacity-70' : ''}`}
             >
               {isSubmitting ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text className="text-sm font-bold text-white">Send Request</Text>
+                <Text className="text-sm font-bold text-white">
+                  {isOtpRequired ? 'Send Request' : 'Submit'}
+                </Text>
               )}
             </Pressable>
           </View>
