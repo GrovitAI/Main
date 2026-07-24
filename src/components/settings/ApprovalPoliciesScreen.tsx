@@ -16,7 +16,10 @@ import { DEFAULT_APPROVAL_POLICIES, APPROVAL_ACTION_META } from '@/lib/approval/
 
 export function ApprovalPoliciesScreen() {
   const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
+  const session = useSessionStore((state) => state.session);
+  const accessibleBranches = session?.accessibleBranches || [];
 
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(branch_id);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -34,14 +37,14 @@ export function ApprovalPoliciesScreen() {
     JSON.stringify(policies) !== JSON.stringify(initialPolicies);
 
   useEffect(() => {
-    loadSettings();
-  }, [tenant_id, branch_id]);
+    loadSettings(selectedBranchId);
+  }, [tenant_id, selectedBranchId]);
 
-  const loadSettings = async () => {
+  const loadSettings = async (targetBranchId: string) => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await getBranchApprovalSettings(tenant_id, branch_id);
+      const res = await getBranchApprovalSettings(tenant_id, targetBranchId);
       if (res.error) {
         setErrorMsg(res.error);
       } else if (res.data) {
@@ -87,7 +90,7 @@ export function ApprovalPoliciesScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenantId: tenant_id,
-          branchId: branch_id,
+          branchId: selectedBranchId,
           approvalEmail,
           enabled: masterEnabled,
           policies,
@@ -182,6 +185,36 @@ export function ApprovalPoliciesScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Multi-Branch Selector for Owner Role */}
+        {accessibleBranches.length > 1 && (
+          <View className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex-row items-center justify-between">
+            <View>
+              <Text className="text-xs font-bold text-slate-800">Target Branch</Text>
+              <Text className="text-[11px] text-slate-500">Select which branch to configure approval policies for</Text>
+            </View>
+            <View className="flex-row items-center space-x-2">
+              {accessibleBranches.map((b) => {
+                const isSelected = b.id === selectedBranchId;
+                return (
+                  <Pressable
+                    key={b.id}
+                    onPress={() => setSelectedBranchId(b.id)}
+                    className={`px-3 py-1.5 rounded-xl border ${
+                      isSelected
+                        ? 'bg-blue-50 border-blue-600'
+                        : 'bg-slate-50 border-slate-200 active:bg-slate-100'
+                    }`}
+                  >
+                    <Text className={`text-xs font-bold ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
+                      {b.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Success / Error Messages */}
         {successMsg && (
