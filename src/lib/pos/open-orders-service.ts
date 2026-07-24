@@ -419,7 +419,7 @@ export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>
 
 export type GetOrdersParams = {
   targetTable?: 'bills' | 'open_orders';
-  preset?: 'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom';
+  preset?: 'today' | 'yesterday' | '7days' | '30days' | 'custom';
   fromDate?: Date | string;
   toDate?: Date | string;
   status?: OrderStatus | 'all';
@@ -443,6 +443,10 @@ export type OrdersQueryResponse = {
   };
   metadata: {
     source: 'bills' | 'open_orders';
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
     generatedAt: string;
     filtersApplied: GetOrdersParams;
   };
@@ -463,7 +467,7 @@ export async function getOrders(
       cashierId,
       search,
       page = 1,
-      pageSize = params.pageSize ?? (targetTable === 'bills' ? 1000 : 50),
+      pageSize = 50,
       sortBy = 'created_at',
       sortOrder = 'desc',
     } = params;
@@ -597,25 +601,32 @@ export async function getOrders(
         };
       });
 
-    return {
-      data: {
-        summaries: billSummaries,
-        totalCount: billCount ?? billSummaries.length,
-        metrics: {
-          grossSales,
-          discountsGiven,
-          complimentarySales,
-          netCollected,
+      const totalCount = billCount ?? billSummaries.length;
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+      return {
+        data: {
+          summaries: billSummaries,
+          totalCount,
+          metrics: {
+            grossSales,
+            discountsGiven,
+            complimentarySales,
+            netCollected,
+          },
+          metadata: {
+            source: 'bills',
+            page,
+            pageSize,
+            totalCount,
+            totalPages,
+            generatedAt: new Date().toISOString(),
+            filtersApplied: params,
+          },
         },
-        metadata: {
-          source: 'bills',
-          generatedAt: new Date().toISOString(),
-          filtersApplied: params,
-        },
-      },
-      error: null,
-    };
-  }
+        error: null,
+      };
+    }
 
     // ── 2. Query open_orders table for active orders tab ──
     let query = supabase
@@ -724,10 +735,13 @@ export async function getOrders(
       };
     });
 
+    const totalCount = count ?? summaries.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
     return {
       data: {
         summaries,
-        totalCount: count ?? summaries.length,
+        totalCount,
         metrics: {
           grossSales,
           discountsGiven,
@@ -736,6 +750,10 @@ export async function getOrders(
         },
         metadata: {
           source: 'open_orders',
+          page,
+          pageSize,
+          totalCount,
+          totalPages,
           generatedAt: new Date().toISOString(),
           filtersApplied: params,
         },

@@ -144,15 +144,27 @@ export default function OrdersScreen() {
   const error = storeError;
 
   // ── UI state ────────────────────────────────────────────────────────────────
+  // ── UI state ────────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<OrderFilter>('unpaid');
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
-  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'all' | 'custom'>('today');
+  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'custom'>('today');
   const [customFromDate, setCustomFromDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [customToDate, setCustomToDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'upi' | 'card' | 'complimentary'>('all');
   const [searchInputValue, setSearchInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Pagination State ────────────────────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 50;
+
+  // Reset page to 1 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [datePreset, customFromDate, customToDate, paymentFilter, searchQuery]);
 
   // ── Detail modal state ───────────────────────────────────────────────────────
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
@@ -212,6 +224,8 @@ export default function OrdersScreen() {
         toDate: customToDate,
         paymentMethod: paymentFilter,
         search: searchQuery,
+        page: currentPage,
+        pageSize,
       });
       if (res.data) {
         if (res.data.metadata.source !== 'bills') {
@@ -219,10 +233,12 @@ export default function OrdersScreen() {
         }
         setHistorySummaries(res.data.summaries);
         setHistoryMetrics(res.data.metrics);
+        setTotalCount(res.data.metadata.totalCount);
+        setTotalPages(res.data.metadata.totalPages);
       }
       setIsRefreshing(false);
     }
-  }, [activeTab, datePreset, customFromDate, customToDate, paymentFilter, searchQuery, loadSummaries]);
+  }, [activeTab, datePreset, customFromDate, customToDate, paymentFilter, searchQuery, currentPage, loadSummaries]);
 
   useEffect(() => {
     void loadOrders();
@@ -265,29 +281,27 @@ export default function OrdersScreen() {
           if (pm !== paymentFilter) return false;
         }
 
-        if (datePreset !== 'all') {
-          const orderDate = new Date(s.order.created_at);
-          const now = new Date();
-          if (datePreset === 'today') {
-            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            if (orderDate < startOfToday) return false;
-          } else if (datePreset === 'yesterday') {
-            const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-            const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-            if (orderDate < startOfYesterday || orderDate > endOfYesterday) return false;
-          } else if (datePreset === '7days') {
-            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            if (orderDate < sevenDaysAgo) return false;
-          } else if (datePreset === '30days') {
-            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            if (orderDate < thirtyDaysAgo) return false;
-          } else if (datePreset === 'custom') {
-            const dFrom = new Date(customFromDate);
-            dFrom.setHours(0, 0, 0, 0);
-            const dTo = new Date(customToDate);
-            dTo.setHours(23, 59, 59, 999);
-            if (orderDate < dFrom || orderDate > dTo) return false;
-          }
+        const orderDate = new Date(s.order.created_at);
+        const now = new Date();
+        if (datePreset === 'today') {
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          if (orderDate < startOfToday) return false;
+        } else if (datePreset === 'yesterday') {
+          const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+          const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+          if (orderDate < startOfYesterday || orderDate > endOfYesterday) return false;
+        } else if (datePreset === '7days') {
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (orderDate < sevenDaysAgo) return false;
+        } else if (datePreset === '30days') {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          if (orderDate < thirtyDaysAgo) return false;
+        } else if (datePreset === 'custom') {
+          const dFrom = new Date(customFromDate);
+          dFrom.setHours(0, 0, 0, 0);
+          const dTo = new Date(customToDate);
+          dTo.setHours(23, 59, 59, 999);
+          if (orderDate < dFrom || orderDate > dTo) return false;
         }
       }
 
@@ -827,7 +841,6 @@ export default function OrdersScreen() {
                 { id: '7days', label: 'Last 7 Days' },
                 { id: '30days', label: 'Last 30 Days' },
                 { id: 'custom', label: 'Custom Range' },
-                { id: 'all', label: 'All Time' },
               ]}
               keyExtractor={(item) => item.id}
               showsHorizontalScrollIndicator={false}
@@ -1067,6 +1080,59 @@ export default function OrdersScreen() {
                 );
               }}
             />
+
+            {/* Table Pagination Footer */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F8FAFC', borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569' }}>
+                {totalCount === 0
+                  ? 'Showing 0 of 0 transactions'
+                  : `Showing ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, totalCount)} of ${totalCount} transactions`}
+              </Text>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={currentPage <= 1}
+                  onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: currentPage <= 1 ? '#CBD5E1' : '#0066b2',
+                    backgroundColor: currentPage <= 1 ? '#F1F5F9' : '#FFFFFF',
+                    opacity: currentPage <= 1 ? 0.5 : 1,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: currentPage <= 1 ? '#94A3B8' : '#0066b2' }}>
+                    ← Previous
+                  </Text>
+                </Pressable>
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>
+                  Page {currentPage} of {totalPages}
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={currentPage >= totalPages}
+                  onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: currentPage >= totalPages ? '#CBD5E1' : '#0066b2',
+                    backgroundColor: currentPage >= totalPages ? '#F1F5F9' : '#FFFFFF',
+                    opacity: currentPage >= totalPages ? 0.5 : 1,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: currentPage >= totalPages ? '#94A3B8' : '#0066b2' }}>
+                    Next →
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         </View>
       ) : (
