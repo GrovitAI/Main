@@ -1,5 +1,10 @@
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
+import {
+  getEffectiveReportingTimestamp,
+  getBusinessDate as getBusinessDateString,
+  getBusinessDayBounds,
+} from '@/lib/pos/reporting-utils';
 
 export type AnalyticsFilters = {
   startDate: string;    // ISO Date String YYYY-MM-DD
@@ -96,16 +101,11 @@ export async function fetchAnalyticsDashboard(
   try {
     const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
 
-    // The restaurant business day runs from 1 PM afternoon to 1 PM the next afternoon
-    // (covering the operational hours of 2 PM to 2 AM).
-    // Construct local Date objects and let JS convert them to UTC ISO strings.
-    const startLocal = new Date(`${filters.startDate}T13:00:00`);
-    
-    const endLocal = new Date(`${filters.endDate}T13:00:00`);
-    endLocal.setDate(endLocal.getDate() + 1); // Extend to 1 PM of the day after endDate
-
-    const startTimestamp = startLocal.toISOString();
-    const endTimestamp = endLocal.toISOString();
+    const { startTimestamp, endTimestamp } = getBusinessDayBounds(
+      'custom',
+      filters.startDate,
+      filters.endDate
+    );
 
     // Determine effective branch: explicit filter > session branch (non-owner)
     const effectiveBranchId = filters.branchId ?? (!isOwnerOrAdmin ? branch_id : null);
@@ -117,8 +117,9 @@ export async function fetchAnalyticsDashboard(
         branches ( name )
       `)
       .eq('tenant_id', tenant_id)
-      .gte('created_at', startTimestamp)
-      .lte('created_at', endTimestamp)
+      .or(
+        `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lte.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lte.${endTimestamp})`
+      )
       .order('created_at', { ascending: true });
 
     // Apply branch filter when a specific branch is selected or user is not owner
@@ -140,20 +141,13 @@ export async function fetchAnalyticsDashboard(
       };
     }
 
-    // Helper: Shift bills created before 1 PM local time to the previous business date
-    const getBusinessDate = (dateStr: string): Date => {
-      const date = new Date(dateStr);
-      if (date.getHours() < 13) {
-        date.setDate(date.getDate() - 1);
-      }
-      return date;
-    };
-
     // 2. Dynamic time filter function
-    const filterByTime = (dateStr: string) => {
+    const filterByTime = (bill: any) => {
       if (!filters.startTime || !filters.endTime) return true;
-      const date = new Date(dateStr);
-      
+      const ts = getEffectiveReportingTimestamp(bill);
+      const date = new Date(ts);
+      if (isNaN(date.getTime())) return true;
+
       // Convert to local time values
       const hour = date.getHours();
       const minute = date.getMinutes();
@@ -167,8 +161,8 @@ export async function fetchAnalyticsDashboard(
       return timeVal >= startVal && timeVal <= endVal;
     };
 
-    // Apply time-of-day filters
-    const filteredBills = bills.filter((b) => filterByTime(b.created_at));
+    // Apply time-of-day filters using effective reporting timestamp
+    const filteredBills = bills.filter((b) => filterByTime(b));
     const salesBills = filteredBills.filter((b) => b.status === 'paid' || b.status === 'unpaid');
     const cancelledBills = filteredBills.filter((b) => b.status === 'cancelled');
     const salesBillIds = salesBills.map((b) => b.id);
@@ -249,10 +243,11 @@ export async function fetchAnalyticsDashboard(
       dayMap.set(label, { sales: 0, orders: 0 });
     }
 
-    // Populate day values from actual sales bills using their business date
+    // Populate day values from actual sales bills using their effective reporting timestamp & business date
     salesBills.forEach((bill) => {
-      const bizDate = getBusinessDate(bill.created_at);
-      const label = formatDateLabel(bizDate.toISOString());
+      const ts = getEffectiveReportingTimestamp(bill);
+      const bizDateStr = getBusinessDateString(ts);
+      const label = formatDateLabel(bizDateStr);
       const current = dayMap.get(label) || { sales: 0, orders: 0 };
       dayMap.set(label, {
         sales: current.sales + (bill.total_amount || 0),
@@ -284,7 +279,8 @@ export async function fetchAnalyticsDashboard(
     }
 
     salesBills.forEach((bill) => {
-      const hour = new Date(bill.created_at).getHours();
+      const ts = getEffectiveReportingTimestamp(bill);
+      const hour = new Date(ts).getHours();
       const label = `${String(hour).padStart(2, '0')}:00`;
       hourMap.set(label, (hourMap.get(label) || 0) + (bill.total_amount || 0));
     });

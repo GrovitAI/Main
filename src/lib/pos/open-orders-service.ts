@@ -3,6 +3,11 @@ import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
 import type { ServiceResult } from './settlement-service';
+import {
+  getEffectiveReportingTimestamp,
+  getBusinessDate,
+  getBusinessDayBounds,
+} from './reporting-utils';
 
 const ACTIVE_ORDER_STATUS = 'open';
 
@@ -457,8 +462,7 @@ function applyBillFilters(
   query: any,
   params: GetOrdersParams,
   tenant_id: string,
-  branch_id: string,
-  now: Date
+  branch_id: string
 ) {
   let q = query
     .eq('tenant_id', tenant_id)
@@ -466,30 +470,20 @@ function applyBillFilters(
 
   const { preset = 'today', fromDate, toDate, status, search } = params;
 
-  if (preset === 'today') {
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-    q = q.gte('created_at', startOfToday);
-  } else if (preset === 'yesterday') {
-    const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
-    const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
-    q = q.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
-  } else if (preset === '7days') {
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    q = q.gte('created_at', sevenDaysAgo);
-  } else if (preset === '30days') {
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    q = q.gte('created_at', thirtyDaysAgo);
-  } else if (preset === 'custom' || fromDate || toDate) {
-    if (fromDate) {
-      const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
-      dFrom.setHours(0, 0, 0, 0);
-      q = q.gte('created_at', dFrom.toISOString());
-    }
-    if (toDate) {
-      const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
-      dTo.setHours(23, 59, 59, 999);
-      q = q.lte('created_at', dTo.toISOString());
-    }
+  const { startTimestamp, endTimestamp } = getBusinessDayBounds(preset, fromDate, toDate);
+
+  if (status === 'paid' || status === 'completed') {
+    // Explicitly filter paid bills on settled_at
+    q = q.gte('settled_at', startTimestamp).lte('settled_at', endTimestamp);
+  } else if (status === 'draft' || status === 'unpaid' || status === 'cancelled') {
+    // Explicitly filter unpaid/draft/cancelled bills on created_at
+    q = q.gte('created_at', startTimestamp).lte('created_at', endTimestamp);
+  } else {
+    // When status is 'all', filter paid bills via settled_at and unpaid bills via created_at
+    // Using explicit OR clause for settled_at range vs created_at range
+    q = q.or(
+      `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lte.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lte.${endTimestamp})`
+    );
   }
 
   if (status && status !== 'all') {
@@ -523,17 +517,14 @@ export async function getOrders(
       sortOrder = 'desc',
     } = params;
 
-    const now = new Date();
-
     // ── 1. Query bills table if targetTable === 'bills' or historical presets ──
     if (targetTable === 'bills' || preset === 'yesterday' || preset === '7days' || preset === '30days' || preset === 'custom') {
       // 1A. Unpaginated query for aggregate metrics across the ENTIRE filtered dataset
       const metricsQuery = applyBillFilters(
-        supabase.from('bills').select('subtotal, total_amount, discount_amount, status'),
+        supabase.from('bills').select('subtotal, total_amount, discount_amount, status, settled_at, created_at'),
         params,
         tenant_id,
-        branch_id,
-        now
+        branch_id
       );
 
       const { data: allMetricsBills, error: metricsErr } = await metricsQuery;
@@ -546,7 +537,7 @@ export async function getOrders(
       let complimentarySales = 0;
       let netCollected = 0;
 
-      const metricsBillsList: Array<{ subtotal?: number; total_amount?: number; discount_amount?: number; status?: string }> = (allMetricsBills || []) as any[];
+      const metricsBillsList: Array<{ subtotal?: number; total_amount?: number; discount_amount?: number; status?: string; settled_at?: string; created_at?: string }> = (allMetricsBills || []) as any[];
 
       for (const b of metricsBillsList) {
         const subtotal = b.subtotal || b.total_amount || 0;
@@ -567,8 +558,7 @@ export async function getOrders(
         supabase.from('bills').select('*', { count: 'exact' }),
         params,
         tenant_id,
-        branch_id,
-        now
+        branch_id
       );
 
       pageBillQuery = pageBillQuery.order('created_at', { ascending: sortOrder === 'asc' });
@@ -672,8 +662,8 @@ export async function getOrders(
       .eq('branch_id', branch_id);
 
     if (preset === 'today') {
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-      query = query.gte('created_at', startOfToday);
+      const { startTimestamp } = getBusinessDayBounds('today');
+      query = query.gte('created_at', startTimestamp);
     }
 
     if (status && status !== 'all') {

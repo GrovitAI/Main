@@ -11,8 +11,9 @@ import {
   View,
 } from 'react-native';
 import { router, useNavigation } from 'expo-router';
-import { RefreshCw, Search, X } from 'lucide-react-native';
+import { RefreshCw, Search, X, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 import {
   OrderCard,
@@ -151,6 +152,7 @@ export default function OrdersScreen() {
   const [customFromDate, setCustomFromDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [customToDate, setCustomToDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'cash' | 'upi' | 'card' | 'complimentary'>('all');
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [searchInputValue, setSearchInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -868,7 +870,7 @@ export default function OrdersScreen() {
               }}
             />
 
-            {/* Custom Date Inputs (Shown when Custom Range is selected) */}
+            {/* Custom Date Inputs & Calendar Picker Button (Shown when Custom Range is selected) */}
             {datePreset === 'custom' && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -913,10 +915,43 @@ export default function OrdersScreen() {
                     } as any}
                   />
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setIsDatePickerOpen(true)}
+                  style={({ pressed }: any) => [
+                    {
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      backgroundColor: '#E8F2FA',
+                      borderWidth: 1,
+                      borderColor: '#0066b2',
+                      borderRadius: 6,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                    },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Calendar size={13} color="#0066b2" />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#0066b2' }}>Pick Date</Text>
+                </Pressable>
               </View>
             )}
           </View>
         )}
+
+        <DatePickerModal
+          visible={isDatePickerOpen}
+          onClose={() => setIsDatePickerOpen(false)}
+          startDate={customFromDate}
+          endDate={customToDate}
+          onApply={(start, end) => {
+            setCustomFromDate(start);
+            setCustomToDate(end);
+            setDatePreset('custom');
+          }}
+        />
 
         {/* Payment Method Filter Bar (Shown on Sales & Order History tab) */}
         {activeTab === 'history' && (

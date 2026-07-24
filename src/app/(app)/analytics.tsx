@@ -40,6 +40,7 @@ import {
 } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import {
   fetchAnalyticsDashboard,
   AnalyticsFilters,
