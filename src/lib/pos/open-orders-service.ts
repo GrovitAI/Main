@@ -576,12 +576,14 @@ export async function getOrders(
       const billsList: any[] = (rawBills || []) as any[];
       const billIds = billsList.map((b: any) => b.id);
       let billItemsData: any[] = [];
+      let settlementsData: any[] = [];
       if (billIds.length > 0) {
-        const { data: itemsData } = await supabase
-          .from('bill_items')
-          .select('*')
-          .in('bill_id', billIds);
-        billItemsData = itemsData || [];
+        const [itemsRes, settlementsRes] = await Promise.all([
+          supabase.from('bill_items').select('*').in('bill_id', billIds),
+          supabase.from('settlements').select('bill_id, payment_type, amount').in('bill_id', billIds),
+        ]);
+        billItemsData = itemsRes.data || [];
+        settlementsData = settlementsRes.data || [];
       }
 
       const itemsByBillId: Record<string, OrderItemPreview[]> = {};
@@ -598,10 +600,26 @@ export async function getOrders(
         itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
       }
 
+      const settlementsByBillId: Record<string, string[]> = {};
+      for (const s of settlementsData) {
+        if (!s.payment_type) continue;
+        const existing = settlementsByBillId[s.bill_id] || [];
+        const typeLabel = s.payment_type.toUpperCase();
+        if (!existing.includes(typeLabel)) {
+          existing.push(typeLabel);
+        }
+        settlementsByBillId[s.bill_id] = existing;
+      }
+
       const billSummaries: OpenOrderSummary[] = billsList.map((b: any) => {
         const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
         const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
         const subtotal = b.subtotal || b.total_amount || 0;
+
+        const rawTypes = settlementsByBillId[b.id] || [];
+        let resolvedPaymentMethod = rawTypes.length > 0
+          ? rawTypes.join(' + ')
+          : (b.status === 'complimentary' ? 'COMPLIMENTARY' : (b.payment_method || (b.status === 'paid' ? 'PAID' : null)));
 
         const mockOrder: OpenOrder = {
           id: b.open_order_id || b.id,
@@ -612,7 +630,7 @@ export async function getOrders(
           created_by: null,
           created_at: b.created_at,
           invoice_number: b.invoice_number,
-          payment_method: b.payment_method,
+          payment_method: resolvedPaymentMethod,
           discount_amount: b.discount_amount,
         };
 

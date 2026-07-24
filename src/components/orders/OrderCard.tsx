@@ -148,10 +148,10 @@ export const OrderCard = memo(function OrderCard({
                     ? (order.notes || 'Takeaway')
                     : (order.status === 'paid' || order.status === 'completed')
                       ? (order.invoice_number
-                        ? `${order.invoice_number}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
-                        : 'Bill settled'
+                        ? `${order.invoice_number}${order.payment_method ? ` · ${order.payment_method}` : ''}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
+                        : `Bill settled${order.payment_method ? ` · ${order.payment_method}` : ''}`
                       )
-                      : `${order.notes || 'Takeaway'}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
+                      : `${order.notes || 'Takeaway'}${order.payment_method ? ` · ${order.payment_method}` : ''}${ticketsCount > 0 ? ` · ${ticketsText}` : ''}`
                 }
               </Text>
             </View>
@@ -162,7 +162,7 @@ export const OrderCard = memo(function OrderCard({
                   style={{ fontSize: 12, fontWeight: '900', color: statusConfig.text, letterSpacing: 0.5 }}
                   numberOfLines={1}
                 >
-                  {statusConfig.label}
+                  {statusConfig.label}{order.payment_method && (order.status === 'paid' || order.status === 'completed') ? ` (${order.payment_method})` : ''}
                 </Text>
                 <Text
                   style={{ fontSize: 11, fontWeight: '600', color: '#64748B', marginTop: 2 }}
