@@ -476,6 +476,73 @@ export async function getOrders(
 
     // ── 1. Query bills table if targetTable === 'bills' or historical presets ──
     if (targetTable === 'bills' || preset === 'yesterday' || preset === '7days' || preset === '30days' || preset === 'custom') {
+      // 1A. Unpaginated query for aggregate metrics across the ENTIRE filtered dataset
+      let metricsQuery = supabase
+        .from('bills')
+        .select('subtotal, total_amount, discount_amount, payment_method, status')
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+
+      if (preset === 'today') {
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+        metricsQuery = metricsQuery.gte('created_at', startOfToday);
+      } else if (preset === 'yesterday') {
+        const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
+        const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
+        metricsQuery = metricsQuery.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
+      } else if (preset === '7days') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        metricsQuery = metricsQuery.gte('created_at', sevenDaysAgo);
+      } else if (preset === '30days') {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        metricsQuery = metricsQuery.gte('created_at', thirtyDaysAgo);
+      } else if (preset === 'custom' || fromDate || toDate) {
+        if (fromDate) {
+          const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
+          dFrom.setHours(0, 0, 0, 0);
+          metricsQuery = metricsQuery.gte('created_at', dFrom.toISOString());
+        }
+        if (toDate) {
+          const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
+          dTo.setHours(23, 59, 59, 999);
+          metricsQuery = metricsQuery.lte('created_at', dTo.toISOString());
+        }
+      }
+
+      if (paymentMethod && paymentMethod !== 'all') {
+        metricsQuery = metricsQuery.eq('payment_method', paymentMethod);
+      }
+
+      if (status && status !== 'all') {
+        metricsQuery = metricsQuery.eq('status', status);
+      }
+
+      if (search && search.trim().length > 0) {
+        metricsQuery = metricsQuery.ilike('invoice_number', `%${search.trim()}%`);
+      }
+
+      const { data: allMetricsBills } = await metricsQuery;
+
+      let grossSales = 0;
+      let discountsGiven = 0;
+      let complimentarySales = 0;
+      let netCollected = 0;
+
+      for (const b of (allMetricsBills || [])) {
+        const subtotal = b.subtotal || b.total_amount || 0;
+        const disc = b.discount_amount || 0;
+        const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
+
+        grossSales += subtotal;
+        discountsGiven += disc;
+        if (isComp) {
+          complimentarySales += subtotal;
+        } else if (b.status === 'paid' || b.status === 'completed') {
+          netCollected += Math.max(0, subtotal - disc);
+        }
+      }
+
+      // 1B. Paginated query for the requested page of rows
       let billQuery = supabase
         .from('bills')
         .select('*', { count: 'exact' })
@@ -557,25 +624,10 @@ export async function getOrders(
         itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
       }
 
-      let grossSales = 0;
-      let discountsGiven = 0;
-      let complimentarySales = 0;
-      let netCollected = 0;
-
       const billSummaries: OpenOrderSummary[] = billsList.map((b) => {
         const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
         const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
         const subtotal = b.subtotal || b.total_amount || 0;
-        const disc = b.discount_amount || 0;
-        const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
-
-        grossSales += subtotal;
-        discountsGiven += disc;
-        if (isComp) {
-          complimentarySales += subtotal;
-        } else if (b.status === 'paid' || b.status === 'completed') {
-          netCollected += Math.max(0, subtotal - disc);
-        }
 
         const mockOrder: OpenOrder = {
           id: b.open_order_id || b.id,
