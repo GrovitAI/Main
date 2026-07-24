@@ -30,23 +30,11 @@ export function ApprovalProvider({ children }: ApprovalProviderProps) {
   const [approvalDialogState, setApprovalDialogState] = useState<ApprovalDialogState | null>(null);
 
   const requestApproval = useCallback(
-    async (input: TriggerApprovalInput) => {
+    (input: TriggerApprovalInput) => {
       const cashierName = session?.displayName || 'Cashier';
       const branchName = session?.branchName || 'Anna Nagar';
       const tenantId = session?.tenantId || TENANT_ID;
       const branchId = session?.branchId || BRANCH_ID;
-
-      // 1. Pre-check if approval is required for this action/branch before opening dialog
-      try {
-        const checkResult = await approvalService.checkPolicyRequired(tenantId, branchId, input.action);
-        if (!checkResult.required) {
-          // Approval system disabled or specific policy toggle OFF -> auto-pass immediately!
-          void input.onApproved();
-          return;
-        }
-      } catch (err) {
-        console.warn('[ApprovalContext] Policy pre-check exception, falling back to dialog:', err);
-      }
 
       setApprovalDialogState({
         visible: true,
