@@ -452,6 +452,57 @@ export type OrdersQueryResponse = {
   };
 };
 
+// Helper function to build consistent filter criteria for bills queries
+function applyBillFilters(
+  query: any,
+  params: GetOrdersParams,
+  tenant_id: string,
+  branch_id: string,
+  now: Date
+) {
+  let q = query
+    .eq('tenant_id', tenant_id)
+    .eq('branch_id', branch_id);
+
+  const { preset = 'today', fromDate, toDate, status, search } = params;
+
+  if (preset === 'today') {
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+    q = q.gte('created_at', startOfToday);
+  } else if (preset === 'yesterday') {
+    const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
+    const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
+    q = q.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
+  } else if (preset === '7days') {
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    q = q.gte('created_at', sevenDaysAgo);
+  } else if (preset === '30days') {
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    q = q.gte('created_at', thirtyDaysAgo);
+  } else if (preset === 'custom' || fromDate || toDate) {
+    if (fromDate) {
+      const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
+      dFrom.setHours(0, 0, 0, 0);
+      q = q.gte('created_at', dFrom.toISOString());
+    }
+    if (toDate) {
+      const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
+      dTo.setHours(23, 59, 59, 999);
+      q = q.lte('created_at', dTo.toISOString());
+    }
+  }
+
+  if (status && status !== 'all') {
+    q = q.eq('status', status);
+  }
+
+  if (search && search.trim().length > 0) {
+    q = q.ilike('invoice_number', `%${search.trim()}%`);
+  }
+
+  return q;
+}
+
 export async function getOrders(
   params: GetOrdersParams = {}
 ): Promise<ServiceResult<OrdersQueryResponse>> {
@@ -477,61 +528,30 @@ export async function getOrders(
     // ── 1. Query bills table if targetTable === 'bills' or historical presets ──
     if (targetTable === 'bills' || preset === 'yesterday' || preset === '7days' || preset === '30days' || preset === 'custom') {
       // 1A. Unpaginated query for aggregate metrics across the ENTIRE filtered dataset
-      let metricsQuery = supabase
-        .from('bills')
-        .select('subtotal, total_amount, discount_amount, payment_method, status')
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id);
+      const metricsQuery = applyBillFilters(
+        supabase.from('bills').select('subtotal, total_amount, discount_amount, status'),
+        params,
+        tenant_id,
+        branch_id,
+        now
+      );
 
-      if (preset === 'today') {
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-        metricsQuery = metricsQuery.gte('created_at', startOfToday);
-      } else if (preset === 'yesterday') {
-        const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
-        const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
-        metricsQuery = metricsQuery.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
-      } else if (preset === '7days') {
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        metricsQuery = metricsQuery.gte('created_at', sevenDaysAgo);
-      } else if (preset === '30days') {
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        metricsQuery = metricsQuery.gte('created_at', thirtyDaysAgo);
-      } else if (preset === 'custom' || fromDate || toDate) {
-        if (fromDate) {
-          const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
-          dFrom.setHours(0, 0, 0, 0);
-          metricsQuery = metricsQuery.gte('created_at', dFrom.toISOString());
-        }
-        if (toDate) {
-          const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
-          dTo.setHours(23, 59, 59, 999);
-          metricsQuery = metricsQuery.lte('created_at', dTo.toISOString());
-        }
+      const { data: allMetricsBills, error: metricsErr } = await metricsQuery;
+      if (metricsErr) {
+        logSupabaseError('getOrders.metrics', metricsErr);
       }
-
-      if (paymentMethod && paymentMethod !== 'all') {
-        metricsQuery = metricsQuery.eq('payment_method', paymentMethod);
-      }
-
-      if (status && status !== 'all') {
-        metricsQuery = metricsQuery.eq('status', status);
-      }
-
-      if (search && search.trim().length > 0) {
-        metricsQuery = metricsQuery.ilike('invoice_number', `%${search.trim()}%`);
-      }
-
-      const { data: allMetricsBills } = await metricsQuery;
 
       let grossSales = 0;
       let discountsGiven = 0;
       let complimentarySales = 0;
       let netCollected = 0;
 
-      for (const b of (allMetricsBills || [])) {
+      const metricsBillsList: Array<{ subtotal?: number; total_amount?: number; discount_amount?: number; status?: string }> = (allMetricsBills || []) as any[];
+
+      for (const b of metricsBillsList) {
         const subtotal = b.subtotal || b.total_amount || 0;
         const disc = b.discount_amount || 0;
-        const isComp = (b.payment_method || '').toLowerCase() === 'complimentary';
+        const isComp = b.status === 'complimentary';
 
         grossSales += subtotal;
         discountsGiven += disc;
@@ -543,64 +563,28 @@ export async function getOrders(
       }
 
       // 1B. Paginated query for the requested page of rows
-      let billQuery = supabase
-        .from('bills')
-        .select('*', { count: 'exact' })
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id);
+      let pageBillQuery = applyBillFilters(
+        supabase.from('bills').select('*', { count: 'exact' }),
+        params,
+        tenant_id,
+        branch_id,
+        now
+      );
 
-      if (preset === 'today') {
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
-        billQuery = billQuery.gte('created_at', startOfToday);
-      } else if (preset === 'yesterday') {
-        const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0).toISOString();
-        const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999).toISOString();
-        billQuery = billQuery.gte('created_at', startOfYesterday).lte('created_at', endOfYesterday);
-      } else if (preset === '7days') {
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        billQuery = billQuery.gte('created_at', sevenDaysAgo);
-      } else if (preset === '30days') {
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        billQuery = billQuery.gte('created_at', thirtyDaysAgo);
-      } else if (preset === 'custom' || fromDate || toDate) {
-        if (fromDate) {
-          const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : fromDate;
-          dFrom.setHours(0, 0, 0, 0);
-          billQuery = billQuery.gte('created_at', dFrom.toISOString());
-        }
-        if (toDate) {
-          const dTo = typeof toDate === 'string' ? new Date(toDate) : toDate;
-          dTo.setHours(23, 59, 59, 999);
-          billQuery = billQuery.lte('created_at', dTo.toISOString());
-        }
-      }
-
-      if (paymentMethod && paymentMethod !== 'all') {
-        billQuery = billQuery.eq('payment_method', paymentMethod);
-      }
-
-      if (status && status !== 'all') {
-        billQuery = billQuery.eq('status', status);
-      }
-
-      if (search && search.trim().length > 0) {
-        billQuery = billQuery.ilike('invoice_number', `%${search.trim()}%`);
-      }
-
-      billQuery = billQuery.order('created_at', { ascending: sortOrder === 'asc' });
+      pageBillQuery = pageBillQuery.order('created_at', { ascending: sortOrder === 'asc' });
 
       const fromIndex = (page - 1) * pageSize;
       const toIndex = fromIndex + pageSize - 1;
-      billQuery = billQuery.range(fromIndex, toIndex);
+      pageBillQuery = pageBillQuery.range(fromIndex, toIndex);
 
-      const { data: rawBills, error: billErr, count: billCount } = await billQuery;
+      const { data: rawBills, error: billErr, count: billCount } = await pageBillQuery;
       if (billErr) {
         logSupabaseError('getOrders.bills', billErr);
         return { data: null, error: 'Unable to load bills history.' };
       }
 
-      const billsList = rawBills || [];
-      const billIds = billsList.map((b) => b.id);
+      const billsList: any[] = (rawBills || []) as any[];
+      const billIds = billsList.map((b: any) => b.id);
       let billItemsData: any[] = [];
       if (billIds.length > 0) {
         const { data: itemsData } = await supabase
@@ -624,7 +608,7 @@ export async function getOrders(
         itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
       }
 
-      const billSummaries: OpenOrderSummary[] = billsList.map((b) => {
+      const billSummaries: OpenOrderSummary[] = billsList.map((b: any) => {
         const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
         const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
         const subtotal = b.subtotal || b.total_amount || 0;
