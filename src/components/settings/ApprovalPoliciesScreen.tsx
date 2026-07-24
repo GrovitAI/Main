@@ -282,7 +282,18 @@ export function ApprovalPoliciesScreen() {
               return (
                 <View key={action} className="py-3.5 flex-row items-center justify-between space-x-4">
                   <View className="flex-1 pr-4">
-                    <Text className="text-xs font-bold text-slate-800">{meta.title}</Text>
+                    <View className="flex-row items-center space-x-2">
+                      <Text className="text-xs font-bold text-slate-800">{meta.title}</Text>
+                      {meta.isEnforced ? (
+                        <View className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <Text className="text-[10px] font-bold text-emerald-700">ACTIVE</Text>
+                        </View>
+                      ) : (
+                        <View className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          <Text className="text-[10px] font-bold text-slate-500">UPCOMING</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text className="text-[11px] text-slate-500 mt-0.5">{meta.description}</Text>
                   </View>
                   <Switch
