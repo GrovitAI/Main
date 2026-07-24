@@ -1,9 +1,17 @@
 export enum ApprovalAction {
-  REPRINT_BILL = 'REPRINT_BILL',
-  CANCEL_BILL = 'CANCEL_BILL',
-  APPLY_DISCOUNT = 'APPLY_DISCOUNT',
-  COMPLIMENTARY_BILL = 'COMPLIMENTARY_BILL',
+  REPRINT_BILL = 'reprint_bill',
+  CANCEL_BILL = 'cancel_bill',
+  APPLY_DISCOUNT = 'discount',
+  COMPLIMENTARY_BILL = 'complimentary_bill',
+  EDIT_UNPAID_BILL = 'edit_unpaid_bill',
+  REMOVE_SENT_ITEMS = 'remove_sent_items',
+  VOID_PAYMENT = 'void_payment',
+  EDIT_CUSTOMER = 'edit_customer',
+  REOPEN_BILL = 'reopen_bill',
+  DELETE_DRAFT_ORDER = 'delete_draft_order',
 }
+
+export type BranchApprovalPolicies = Record<ApprovalAction, boolean>;
 
 export type ResourceType = 'bill' | 'order' | 'settlement' | string;
 
@@ -17,6 +25,7 @@ export interface BranchApprovalSettings {
   approval_email_verified?: boolean;
   approval_email_verified_at?: string | null;
   enabled: boolean;
+  policies?: Record<string, boolean> | null;
   created_at?: string;
   updated_at?: string;
 }

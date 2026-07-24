@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS branch_approval_settings (
   approval_email_verified BOOLEAN NOT NULL DEFAULT false,
   approval_email_verified_at TIMESTAMPTZ NULL,
   enabled BOOLEAN NOT NULL DEFAULT true,
+  policies JSONB NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT unique_branch_approval_settings UNIQUE (tenant_id, branch_id),
@@ -77,6 +78,8 @@ CREATE TABLE IF NOT EXISTS branch_approval_settings_history (
   new_email TEXT NOT NULL,
   previous_enabled BOOLEAN NULL,
   new_enabled BOOLEAN NOT NULL,
+  previous_policies JSONB NULL,
+  new_policies JSONB NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

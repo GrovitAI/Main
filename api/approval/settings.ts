@@ -41,7 +41,7 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
-      const { tenantId, branchId, approvalEmail, enabled } = body;
+      const { tenantId, branchId, approvalEmail, enabled, policies, changedBy } = body;
 
       if (!tenantId || !branchId) {
         res.statusCode = 400;
@@ -50,7 +50,14 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      const result = await upsertBranchApprovalSettings(tenantId, branchId, approvalEmail || '', enabled ?? false);
+      const result = await upsertBranchApprovalSettings(
+        tenantId,
+        branchId,
+        approvalEmail || '',
+        enabled ?? false,
+        policies ?? null,
+        changedBy || 'Owner'
+      );
       if (result.error) {
         res.statusCode = 500;
         res.setHeader('Content-Type', 'application/json');

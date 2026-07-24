@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert } from 'react-native';
-import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut } from 'lucide-react-native';
+import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck } from 'lucide-react-native';
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { MenuManagement } from '@/components/settings/MenuManagement';
+import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
+import { getTenantContext } from '@/lib/pos/tenant-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Trash2 } from 'lucide-react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 
 export default function SettingsScreen() {
   const { session, signOut } = useSessionStore();
-  const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'menu'>('printers');
+  const { isOwnerOrAdmin } = getTenantContext();
+  const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'menu' | 'approvals'>('printers');
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -238,7 +241,8 @@ export default function SettingsScreen() {
             {[
               { key: 'system', label: 'System Settings', icon: Settings },
               { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
-              { key: 'menu', label: 'Menu Catalog Manager', icon: BookOpen }
+              ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approval Policies', icon: ShieldCheck }] : []),
+              { key: 'menu', label: 'Menu Catalog Manager', icon: BookOpen },
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
@@ -585,6 +589,8 @@ export default function SettingsScreen() {
               </View>
             </View>
           </ScrollView>
+        ) : activeTab === 'approvals' ? (
+          <ApprovalPoliciesScreen />
         ) : (
           <MenuManagement onBack={() => setActiveTab('system')} />
         )}

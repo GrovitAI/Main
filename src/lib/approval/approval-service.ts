@@ -33,13 +33,14 @@ export async function getBranchApprovalSettings(
 }
 
 /**
- * Inserts or updates the branch approval settings.
+ * Inserts or updates the branch approval settings including action policies.
  */
 export async function upsertBranchApprovalSettings(
   tenantId: string,
   branchId: string,
   approvalEmail: string,
   enabled: boolean,
+  policies: Record<string, boolean> | null = null,
   changedBy: string = 'Admin'
 ): Promise<ServiceResult<BranchApprovalSettings>> {
   try {
@@ -54,6 +55,7 @@ export async function upsertBranchApprovalSettings(
           branch_id: branchId,
           approval_email: cleanEmail,
           enabled,
+          policies,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'tenant_id,branch_id' }
@@ -66,7 +68,7 @@ export async function upsertBranchApprovalSettings(
       return { data: null, error: error.message };
     }
 
-    // Record audit history entry
+    // Record detailed audit history entry including policy diffs
     void approvalSupabase.from('branch_approval_settings_history').insert({
       tenant_id: tenantId,
       branch_id: branchId,
@@ -75,6 +77,8 @@ export async function upsertBranchApprovalSettings(
       new_email: cleanEmail,
       previous_enabled: existing.data?.enabled ?? null,
       new_enabled: enabled,
+      previous_policies: existing.data?.policies || null,
+      new_policies: policies,
       created_at: new Date().toISOString(),
     });
 

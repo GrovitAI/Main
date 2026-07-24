@@ -18,6 +18,18 @@ function getActionLabel(action: string): string {
       return 'Apply Discount';
     case ApprovalAction.COMPLIMENTARY_BILL:
       return 'Complimentary Bill';
+    case ApprovalAction.EDIT_UNPAID_BILL:
+      return 'Edit Unpaid Bill';
+    case ApprovalAction.REMOVE_SENT_ITEMS:
+      return 'Remove Sent Kitchen Items';
+    case ApprovalAction.VOID_PAYMENT:
+      return 'Void Payment';
+    case ApprovalAction.EDIT_CUSTOMER:
+      return 'Edit Customer Details';
+    case ApprovalAction.REOPEN_BILL:
+      return 'Reopen Closed Bill';
+    case ApprovalAction.DELETE_DRAFT_ORDER:
+      return 'Delete Draft Order';
     default:
       return action;
   }
@@ -65,7 +77,17 @@ export default async function handler(req: any, res: any) {
 
     const settings = settingsRes.data;
     if (!settings || !settings.enabled || !settings.approval_email) {
-      // Approval is disabled for this branch or email not configured — auto-pass
+      // Approval system disabled for this branch or email not configured — auto-pass
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ required: false, approved: true }));
+      return;
+    }
+
+    // Check specific action policy toggle (defaults to true if omitted or not configured)
+    const actionPolicyEnabled = settings.policies ? settings.policies[action] ?? true : true;
+    if (actionPolicyEnabled === false) {
+      // Approval for this specific action disabled by Branch Owner — auto-pass without OTP
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ required: false, approved: true }));
