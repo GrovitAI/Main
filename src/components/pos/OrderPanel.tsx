@@ -185,6 +185,49 @@ export function OrderPanel({
     handleApplyDiscount('fixed', num);
   };
 
+  const handleActionWithUnappliedDiscountGuard = (actionCallback: () => void) => {
+    const pendingPercent = parseFloat(localPercentStr) || 0;
+    const pendingFixed = parseFloat(localFixedStr) || 0;
+
+    if (pendingPercent > 0 && (discountType !== 'percent' || discountPercent !== pendingPercent)) {
+      if (pendingPercent > 100) {
+        Alert.alert('Validation Error', 'Percentage discount must be between 0 and 100.');
+        return;
+      }
+      requestApproval({
+        action: ApprovalAction.APPLY_DISCOUNT,
+        actionTitle: 'Apply Discount',
+        resourceType: 'order',
+        resourceId: activeOrderId || 'active_order',
+        onApproved: () => {
+          setDiscount('percent', pendingPercent);
+          actionCallback();
+        },
+      });
+      return;
+    }
+
+    if (pendingFixed > 0 && (discountType !== 'fixed' || discountAmount !== pendingFixed)) {
+      if (pendingFixed > subtotal) {
+        Alert.alert('Validation Error', 'Discount amount cannot exceed subtotal.');
+        return;
+      }
+      requestApproval({
+        action: ApprovalAction.APPLY_DISCOUNT,
+        actionTitle: 'Apply Discount',
+        resourceType: 'order',
+        resourceId: activeOrderId || 'active_order',
+        onApproved: () => {
+          setDiscount('fixed', pendingFixed);
+          actionCallback();
+        },
+      });
+      return;
+    }
+
+    actionCallback();
+  };
+
   const subtotal = useMemo(() => calculateOrderSubtotal(items), [items]);
   const discountedSubtotal = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
   const tax = useMemo(() => calculateTax(discountedSubtotal, TAX_RATE), [discountedSubtotal]);
@@ -681,7 +724,7 @@ export function OrderPanel({
               <WebPressable
                 accessibilityRole="button"
                 disabled={!hasItems || isMutating || buttonFeedback.button !== null}
-                onPress={onSaveKot}
+                onPress={() => handleActionWithUnappliedDiscountGuard(onSaveKot)}
                 onMouseEnter={() => setSaveKotHovered(true)}
                 onMouseLeave={() => setSaveKotHovered(false)}
                 style={({ pressed }: { pressed: boolean }) => [
@@ -740,7 +783,7 @@ export function OrderPanel({
               <WebPressable
                 accessibilityRole="button"
                 disabled={!hasItems || isMutating || buttonFeedback.button !== null}
-                onPress={onSaveAndPrint}
+                onPress={() => handleActionWithUnappliedDiscountGuard(onSaveAndPrint)}
                 onMouseEnter={() => setSavePrintHovered(true)}
                 onMouseLeave={() => setSavePrintHovered(false)}
                 style={({ pressed }: { pressed: boolean }) => [
@@ -799,7 +842,7 @@ export function OrderPanel({
               <WebPressable
                 accessibilityRole="button"
                 disabled={isMutating || buttonFeedback.button !== null}
-                onPress={onSaveAndPrint}
+                onPress={() => handleActionWithUnappliedDiscountGuard(onSaveAndPrint)}
                 onMouseEnter={() => setSavePrintHovered(true)}
                 onMouseLeave={() => setSavePrintHovered(false)}
                 style={({ pressed }: { pressed: boolean }) => [
@@ -858,7 +901,7 @@ export function OrderPanel({
               <Pressable
                 accessibilityRole="button"
                 disabled={isMutating || buttonFeedback.button !== null}
-                onPress={onSettle}
+                onPress={() => handleActionWithUnappliedDiscountGuard(onSettle)}
                 style={({ pressed }) => [
                   { flex: 1, shadowColor: '#047857', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 2 },
                   ((isMutating || (buttonFeedback.button !== null && buttonFeedback.button !== 'settle'))) && { opacity: 0.5 },
