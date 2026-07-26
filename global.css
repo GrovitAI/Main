@@ -16,3 +16,18 @@ body {
   background-color: var(--leban-surface);
   color: var(--leban-text);
 }
+
+/* Universal Input Focus Reset — Prevents browser focus rings from expanding outside parent container boundaries */
+input, textarea, select, button, [contenteditable="true"] {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input:focus, textarea:focus, select:focus, button:focus, [tabindex]:focus, input:focus-visible, textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+*:focus {
+  outline: none !important;
+}

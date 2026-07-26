@@ -140,6 +140,7 @@ export function OrderPanel({
   const [localFixedStr, setLocalFixedStr] = useState(
     discountType === 'fixed' && discountAmount > 0 ? String(discountAmount) : ''
   );
+  const [focusedDiscountInput, setFocusedDiscountInput] = useState<'percent' | 'fixed' | null>(null);
 
   useEffect(() => {
     if (discountAmount > 0) {
@@ -627,36 +628,78 @@ export function OrderPanel({
                 {/* Custom Inputs with Apply Button */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   {/* Percentage Input */}
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
+                  <View
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#F9FAFB',
+                      borderWidth: focusedDiscountInput === 'percent' ? 1.5 : 1,
+                      borderColor: focusedDiscountInput === 'percent' ? '#2563EB' : '#D1D5DB',
+                      borderRadius: 8,
+                      height: 36,
+                      paddingHorizontal: 8,
+                    }}
+                  >
                     <TextInput
                       value={localPercentStr}
                       placeholder="0"
                       keyboardType="numeric"
+                      onFocus={() => setFocusedDiscountInput('percent')}
+                      onBlur={() => setFocusedDiscountInput(null)}
                       onChangeText={(text) => {
                         setLocalPercentStr(text);
                         if (localFixedStr) setLocalFixedStr('');
                       }}
                       onSubmitEditing={() => handleApplyLocalPercent()}
                       placeholderTextColor="#9CA3AF"
-                      style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
+                      style={{
+                        flex: 1,
+                        fontSize: 12.5,
+                        fontWeight: '600',
+                        color: '#111827',
+                        padding: 0,
+                        ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+                      } as any}
                     />
                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginLeft: 4 }}>%</Text>
                   </View>
 
                   {/* Fixed Amount Input */}
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
+                  <View
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#F9FAFB',
+                      borderWidth: focusedDiscountInput === 'fixed' ? 1.5 : 1,
+                      borderColor: focusedDiscountInput === 'fixed' ? '#2563EB' : '#D1D5DB',
+                      borderRadius: 8,
+                      height: 36,
+                      paddingHorizontal: 8,
+                    }}
+                  >
                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginRight: 4 }}>₹</Text>
                     <TextInput
                       value={localFixedStr}
                       placeholder="0"
                       keyboardType="numeric"
+                      onFocus={() => setFocusedDiscountInput('fixed')}
+                      onBlur={() => setFocusedDiscountInput(null)}
                       onChangeText={(text) => {
                         setLocalFixedStr(text);
                         if (localPercentStr) setLocalPercentStr('');
                       }}
                       onSubmitEditing={() => handleApplyLocalFixed()}
                       placeholderTextColor="#9CA3AF"
-                      style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
+                      style={{
+                        flex: 1,
+                        fontSize: 12.5,
+                        fontWeight: '600',
+                        color: '#111827',
+                        padding: 0,
+                        ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+                      } as any}
                     />
                   </View>
 
