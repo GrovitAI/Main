@@ -134,12 +134,56 @@ export function OrderPanel({
   };
 
   const [showDiscountInputs, setShowDiscountInputs] = useState(discountAmount > 0);
+  const [localPercentStr, setLocalPercentStr] = useState(
+    discountType === 'percent' && discountPercent > 0 ? String(discountPercent) : ''
+  );
+  const [localFixedStr, setLocalFixedStr] = useState(
+    discountType === 'fixed' && discountAmount > 0 ? String(discountAmount) : ''
+  );
 
   useEffect(() => {
     if (discountAmount > 0) {
       setShowDiscountInputs(true);
     }
-  }, [discountAmount]);
+    if (discountType === 'percent' && discountPercent > 0) {
+      setLocalPercentStr(String(discountPercent));
+      setLocalFixedStr('');
+    } else if (discountType === 'fixed' && discountAmount > 0) {
+      setLocalFixedStr(String(discountAmount));
+      setLocalPercentStr('');
+    } else if (discountAmount === 0) {
+      setLocalPercentStr('');
+      setLocalFixedStr('');
+    }
+  }, [discountType, discountPercent, discountAmount]);
+
+  const handleApplyLocalPercent = (overrideStr?: string) => {
+    const val = overrideStr !== undefined ? overrideStr : localPercentStr;
+    const num = parseFloat(val) || 0;
+    if (num <= 0) {
+      setDiscount(null, 0);
+      return;
+    }
+    if (num > 100) {
+      Alert.alert('Validation Error', 'Percentage discount must be between 0 and 100.');
+      return;
+    }
+    handleApplyDiscount('percent', num);
+  };
+
+  const handleApplyLocalFixed = (overrideStr?: string) => {
+    const val = overrideStr !== undefined ? overrideStr : localFixedStr;
+    const num = parseFloat(val) || 0;
+    if (num <= 0) {
+      setDiscount(null, 0);
+      return;
+    }
+    if (num > subtotal) {
+      Alert.alert('Validation Error', 'Discount amount cannot exceed subtotal.');
+      return;
+    }
+    handleApplyDiscount('fixed', num);
+  };
 
   const subtotal = useMemo(() => calculateOrderSubtotal(items), [items]);
   const discountedSubtotal = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
@@ -493,36 +537,63 @@ export function OrderPanel({
                 </Text>
               </Pressable>
             ) : (
-              <View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#4B5563' }}>
+              <View style={{ gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#374151' }}>
                     Apply Discount
                   </Text>
                   <Pressable
                     onPress={() => {
                       setDiscount(null, 0);
+                      setLocalPercentStr('');
+                      setLocalFixedStr('');
                       setShowDiscountInputs(false);
                     }}
-                    style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F3F4F6', borderRadius: 4 }}
+                    style={{ paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FEE2E2', borderRadius: 4 }}
                   >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>Clear / Close</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#DC2626' }}>Clear / Close</Text>
                   </Pressable>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+
+                {/* Quick Preset Pills */}
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                  {[5, 10, 15, 20, 50].map((pct) => (
+                    <Pressable
+                      key={pct}
+                      onPress={() => {
+                        setLocalPercentStr(String(pct));
+                        setLocalFixedStr('');
+                        handleApplyLocalPercent(String(pct));
+                      }}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 6,
+                        backgroundColor: discountType === 'percent' && discountPercent === pct ? '#DBEAFE' : '#F3F4F6',
+                        borderWidth: 1,
+                        borderColor: discountType === 'percent' && discountPercent === pct ? '#2563EB' : '#E5E7EB',
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: discountType === 'percent' && discountPercent === pct ? '#1D4ED8' : '#4B5563' }}>
+                        {pct}%
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Custom Inputs with Apply Button */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   {/* Percentage Input */}
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
                     <TextInput
-                      value={discountType === 'percent' ? String(discountPercent) : ''}
+                      value={localPercentStr}
                       placeholder="0"
                       keyboardType="numeric"
-                      onChangeText={(val) => {
-                        const num = parseFloat(val) || 0;
-                        if (num < 0 || num > 100) {
-                          Alert.alert('Validation Error', 'Percentage discount must be between 0 and 100.');
-                          return;
-                        }
-                        handleApplyDiscount('percent', num);
+                      onChangeText={(text) => {
+                        setLocalPercentStr(text);
+                        if (localFixedStr) setLocalFixedStr('');
                       }}
+                      onSubmitEditing={() => handleApplyLocalPercent()}
                       placeholderTextColor="#9CA3AF"
                       style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
                     />
@@ -533,25 +604,39 @@ export function OrderPanel({
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, height: 36, paddingHorizontal: 8 }}>
                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginRight: 4 }}>₹</Text>
                     <TextInput
-                      value={discountType === 'fixed' ? String(discountAmount) : ''}
+                      value={localFixedStr}
                       placeholder="0"
                       keyboardType="numeric"
-                      onChangeText={(val) => {
-                        const num = parseFloat(val) || 0;
-                        if (num < 0) {
-                          Alert.alert('Validation Error', 'Discount amount cannot be negative.');
-                          return;
-                        }
-                        if (num > subtotal) {
-                          Alert.alert('Validation Error', 'Discount amount cannot exceed subtotal.');
-                          return;
-                        }
-                        handleApplyDiscount('fixed', num);
+                      onChangeText={(text) => {
+                        setLocalFixedStr(text);
+                        if (localPercentStr) setLocalPercentStr('');
                       }}
+                      onSubmitEditing={() => handleApplyLocalFixed()}
                       placeholderTextColor="#9CA3AF"
                       style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: '#111827', padding: 0 }}
                     />
                   </View>
+
+                  {/* Apply Button */}
+                  <Pressable
+                    onPress={() => {
+                      if (localPercentStr) {
+                        handleApplyLocalPercent();
+                      } else if (localFixedStr) {
+                        handleApplyLocalFixed();
+                      }
+                    }}
+                    style={{
+                      height: 36,
+                      paddingHorizontal: 12,
+                      backgroundColor: '#2563EB',
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>Apply</Text>
+                  </Pressable>
                 </View>
               </View>
             )}
