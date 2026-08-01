@@ -1,9 +1,8 @@
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import {
-  getEffectiveReportingTimestamp,
-  getBusinessDate as getBusinessDateString,
   getBusinessDayBounds,
+  DEFAULT_BUSINESS_DAY_CONFIG,
 } from '@/lib/pos/reporting-utils';
 
 export type AnalyticsFilters = {
@@ -82,17 +81,47 @@ export type ServiceResult<T> = {
 };
 
 /**
- * Format a Date object to "D MMM" (e.g., "27 May")
+ * RPC response types for type-safe mapping
  */
-function formatDateLabel(dateStr: string): string {
-  const date = new Date(dateStr);
-  const day = date.getDate();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${day} ${months[date.getMonth()]}`;
-}
+type RpcSummaryResult = {
+  totalSales: number;
+  totalOrders: number;
+  avgOrderValue: number;
+  itemsSold: number;
+  taxCollected: number;
+  cancelledOrders: number;
+  collectedRevenue: number;
+  pendingCollections: number;
+  totalDiscounts: number;
+  cancelledSales: number;
+  complimentaryValue: number;
+  complimentaryCount: number;
+};
+
+type RpcSalesTrendResult = {
+  salesByDay: { label: string; sales: number; orders: number }[];
+  salesByHour: { hour: string; sales: number }[];
+};
+
+type RpcPaymentSplitItem = {
+  payment_type: string;
+  total: number;
+};
+
+type RpcItemPerformanceItem = {
+  item_name: string;
+  qty: number;
+  revenue: number;
+};
 
 /**
  * Retrieve comprehensive POS analytics for a given time range and date range.
+ *
+ * Uses PostgreSQL RPC functions for server-side aggregation to:
+ * 1. Eliminate the PostgREST 1,000-row response limit on raw queries
+ * 2. Reduce network egress from ~4,800 raw rows to compact aggregated JSON
+ * 3. Ensure accurate financial totals regardless of data volume
+ *
  * All DB queries are scoped strictly to tenant_id and branch_id.
  */
 export async function fetchAnalyticsDashboard(
@@ -110,277 +139,145 @@ export async function fetchAnalyticsDashboard(
     // Determine effective branch: explicit filter > session branch (non-owner)
     const effectiveBranchId = filters.branchId ?? (!isOwnerOrAdmin ? branch_id : null);
 
-    let billsQuery = supabase
-      .from('bills')
-      .select(`
-        *,
-        branches ( name )
-      `)
-      .eq('tenant_id', tenant_id)
-      .or(
-        `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lte.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lte.${endTimestamp})`
-      )
-      .order('created_at', { ascending: true });
+    const timezone = DEFAULT_BUSINESS_DAY_CONFIG.timezone;
 
-    // Apply branch filter when a specific branch is selected or user is not owner
-    if (effectiveBranchId) {
-      billsQuery = billsQuery.eq('branch_id', effectiveBranchId);
+    // ---------- PARALLEL RPC CALLS ----------
+    // All 4 RPCs execute simultaneously for minimal latency
+    const [summaryRes, trendRes, paymentRes, itemRes] = await Promise.all([
+      supabase.rpc('get_analytics_summary', {
+        p_tenant_id: tenant_id,
+        p_branch_id: effectiveBranchId,
+        p_start_ts: startTimestamp,
+        p_end_ts: endTimestamp,
+        p_timezone: timezone,
+      }),
+      supabase.rpc('get_analytics_sales_trend', {
+        p_tenant_id: tenant_id,
+        p_branch_id: effectiveBranchId,
+        p_start_ts: startTimestamp,
+        p_end_ts: endTimestamp,
+        p_timezone: timezone,
+      }),
+      supabase.rpc('get_analytics_payment_split', {
+        p_tenant_id: tenant_id,
+        p_branch_id: effectiveBranchId,
+        p_start_ts: startTimestamp,
+        p_end_ts: endTimestamp,
+      }),
+      supabase.rpc('get_analytics_item_performance', {
+        p_tenant_id: tenant_id,
+        p_branch_id: effectiveBranchId,
+        p_start_ts: startTimestamp,
+        p_end_ts: endTimestamp,
+      }),
+    ]);
+
+    // ---------- ERROR HANDLING ----------
+    // Financial analytics must never silently return partial results
+    if (summaryRes.error) {
+      console.error('[AnalyticsService] RPC get_analytics_summary error:', summaryRes.error);
+      return { data: null, error: 'Unable to load analytics summary.' };
+    }
+    if (trendRes.error) {
+      console.error('[AnalyticsService] RPC get_analytics_sales_trend error:', trendRes.error);
+      return { data: null, error: 'Unable to load sales trend data.' };
+    }
+    if (paymentRes.error) {
+      console.error('[AnalyticsService] RPC get_analytics_payment_split error:', paymentRes.error);
+      return { data: null, error: 'Unable to load payment breakdown.' };
+    }
+    if (itemRes.error) {
+      console.error('[AnalyticsService] RPC get_analytics_item_performance error:', itemRes.error);
+      return { data: null, error: 'Unable to load item performance data.' };
     }
 
-    const { data: bills, error: billsError } = await billsQuery;
+    // ---------- MAP RPC RESULTS ----------
+    const summary: RpcSummaryResult = summaryRes.data as RpcSummaryResult;
+    const trends: RpcSalesTrendResult = trendRes.data as RpcSalesTrendResult;
+    const paymentSplitRaw: RpcPaymentSplitItem[] = (paymentRes.data ?? []) as RpcPaymentSplitItem[];
+    const itemPerformanceRaw: RpcItemPerformanceItem[] = (itemRes.data ?? []) as RpcItemPerformanceItem[];
 
-    if (billsError) {
-      console.error('[AnalyticsService] Error fetching bills:', billsError);
-      return { data: null, error: 'Unable to load bills.' };
-    }
-
-    if (!bills || bills.length === 0) {
+    // Handle empty dashboard case
+    if (!summary || (summary.totalSales === 0 && summary.totalOrders === 0)) {
       return {
         data: getEmptyDashboard(filters.startDate, filters.endDate),
         error: null,
       };
     }
 
-    // 2. Dynamic time filter function
-    const filterByTime = (bill: any) => {
-      if (!filters.startTime || !filters.endTime) return true;
-      const ts = getEffectiveReportingTimestamp(bill);
-      const date = new Date(ts);
-      if (isNaN(date.getTime())) return true;
-
-      // Convert to local time values
-      const hour = date.getHours();
-      const minute = date.getMinutes();
-      const timeVal = hour * 60 + minute;
-
-      const [startH, startM] = filters.startTime.split(':').map(Number);
-      const [endH, endM] = filters.endTime.split(':').map(Number);
-      const startVal = startH * 60 + startM;
-      const endVal = endH * 60 + endM;
-
-      return timeVal >= startVal && timeVal <= endVal;
+    // ---------- KPIs ----------
+    const kpis = {
+      totalSales: Number(summary.totalSales) || 0,
+      totalOrders: Number(summary.totalOrders) || 0,
+      avgOrderValue: Number(summary.avgOrderValue) || 0,
+      itemsSold: Number(summary.itemsSold) || 0,
+      taxCollected: Number(summary.taxCollected) || 0,
+      cancelledOrders: Number(summary.cancelledOrders) || 0,
+      collectedRevenue: Number(summary.collectedRevenue) || 0,
+      pendingCollections: Number(summary.pendingCollections) || 0,
+      totalDiscounts: Number(summary.totalDiscounts) || 0,
+      cancelledSales: Number(summary.cancelledSales) || 0,
     };
 
-    // Apply time-of-day filters using effective reporting timestamp
-    const filteredBills = bills.filter((b) => filterByTime(b));
-    const salesBills = filteredBills.filter((b) => b.status === 'paid' || b.status === 'unpaid');
-    const cancelledBills = filteredBills.filter((b) => b.status === 'cancelled');
-    const salesBillIds = salesBills.map((b) => b.id);
-
-    // 3. Parallel fetch of items and settlements for the matching sales bills (batched in chunks of 50 to prevent URL length HTTP 400 errors)
-    const CHUNK_SIZE = 50;
-    const billIdChunks: string[][] = [];
-    for (let i = 0; i < salesBillIds.length; i += CHUNK_SIZE) {
-      billIdChunks.push(salesBillIds.slice(i, i + CHUNK_SIZE));
-    }
-
-    const [itemsChunks, settlementsChunks] = await Promise.all([
-      billIdChunks.length > 0
-        ? Promise.all(
-            billIdChunks.map((chunk) =>
-              supabase
-                .from('bill_items')
-                .select('*')
-                .in('bill_id', chunk)
-            )
-          )
-        : Promise.resolve([]),
-      billIdChunks.length > 0
-        ? Promise.all(
-            billIdChunks.map((chunk) =>
-              supabase
-                .from('settlements')
-                .select('*')
-                .eq('tenant_id', tenant_id)
-                .eq('branch_id', branch_id)
-                .in('bill_id', chunk)
-            )
-          )
-        : Promise.resolve([]),
-    ]);
-
-    // Check for any chunk errors
-    for (const res of itemsChunks) {
-      if (res.error) {
-        console.error('[AnalyticsService] Error fetching bill items chunk:', res.error);
-        return { data: null, error: 'Unable to load bill items.' };
-      }
-    }
-
-    for (const res of settlementsChunks) {
-      if (res.error) {
-        console.error('[AnalyticsService] Error fetching settlements chunk:', res.error);
-        return { data: null, error: 'Unable to load settlements.' };
-      }
-    }
-
-    const billItems = itemsChunks.flatMap((res) => res.data || []);
-    const settlements = settlementsChunks.flatMap((res) => res.data || []);
-
-    // --- AGGREGATIONS ---
-
-    // A. KPIs
-    const totalSales = salesBills.reduce((acc, b) => acc + (b.total_amount || 0), 0);
-    const totalOrders = salesBills.length;
-    const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
-    const taxCollected = salesBills.reduce((acc, b) => acc + (b.tax_amount || 0), 0);
-    const itemsSold = billItems.reduce((acc, item) => acc + (item.qty || 0), 0);
-    const cancelledOrders = cancelledBills.length;
-
-    const collectedRevenue = filteredBills.filter(b => b.status === 'paid').reduce((acc, b) => acc + (b.total_amount || 0), 0);
-    const pendingCollections = filteredBills.filter(b => b.status === 'unpaid').reduce((acc, b) => acc + (b.total_amount || 0), 0);
-    const totalDiscounts = salesBills.reduce((acc, b) => acc + (b.discount_amount || 0), 0);
-    const cancelledSales = cancelledBills.reduce((acc, b) => acc + (b.total_amount || 0), 0);
-
-    // B. Sales by Day & Orders by Day
-    // Construct calendar day keys between start and end dates to avoid gaps
-    const dayMap = new Map<string, { sales: number; orders: number }>();
-    const start = new Date(filters.startDate);
-    const end = new Date(filters.endDate);
-
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const label = formatDateLabel(d.toISOString());
-      dayMap.set(label, { sales: 0, orders: 0 });
-    }
-
-    // Populate day values from actual sales bills using their effective reporting timestamp & business date
-    salesBills.forEach((bill) => {
-      const ts = getEffectiveReportingTimestamp(bill);
-      const bizDateStr = getBusinessDateString(ts);
-      const label = formatDateLabel(bizDateStr);
-      const current = dayMap.get(label) || { sales: 0, orders: 0 };
-      dayMap.set(label, {
-        sales: current.sales + (bill.total_amount || 0),
-        orders: current.orders + 1,
-      });
-    });
-
-    const salesByDay: SalesSeriesPoint[] = [];
-    const ordersByDay: SalesSeriesPoint[] = [];
-
-    dayMap.forEach((val, label) => {
-      salesByDay.push({
-        label,
-        sales: Math.round(val.sales * 100) / 100,
-        orders: val.orders,
-      });
-      ordersByDay.push({
-        label,
-        sales: Math.round(val.sales * 100) / 100,
-        orders: val.orders,
-      });
-    });
-
-    // C. Sales by Time (Hourly)
-    const hourMap = new Map<string, number>();
-    for (let h = 0; h < 24; h++) {
-      const label = `${String(h).padStart(2, '0')}:00`;
-      hourMap.set(label, 0);
-    }
-
-    salesBills.forEach((bill) => {
-      const ts = getEffectiveReportingTimestamp(bill);
-      const hour = new Date(ts).getHours();
-      const label = `${String(hour).padStart(2, '0')}:00`;
-      hourMap.set(label, (hourMap.get(label) || 0) + (bill.total_amount || 0));
-    });
-
-    const salesByHour = Array.from(hourMap.entries()).map(([hour, sales]) => ({
-      hour,
-      sales: Math.round(sales * 100) / 100,
+    // ---------- SALES TREND ----------
+    const salesByDay: SalesSeriesPoint[] = (trends?.salesByDay ?? []).map((p) => ({
+      label: String(p.label),
+      sales: Number(p.sales) || 0,
+      orders: Number(p.orders) || 0,
     }));
 
-    // D. Payment Split
-    const splitMap = new Map<string, number>();
-    splitMap.set('upi', 0);
-    splitMap.set('cash', 0);
-    splitMap.set('card', 0);
+    const ordersByDay: SalesSeriesPoint[] = salesByDay.map((p) => ({
+      label: p.label,
+      sales: p.sales,
+      orders: p.orders,
+    }));
 
-    settlements.forEach((s) => {
-      const type = s.payment_type ? s.payment_type.toLowerCase() : 'unknown';
-      splitMap.set(type, (splitMap.get(type) || 0) + (s.amount || 0));
-    });
+    const salesByHour = (trends?.salesByHour ?? []).map((p) => ({
+      hour: String(p.hour),
+      sales: Number(p.sales) || 0,
+    }));
 
-    const paymentSplit: PaymentSplit[] = Array.from(splitMap.entries())
-      .map(([payment_type, total]) => ({
-        payment_type: payment_type.toUpperCase(),
-        total: Math.round(total * 100) / 100,
-      }))
-      .filter((item) => item.total > 0);
+    // ---------- PAYMENT SPLIT ----------
+    const paymentSplit: PaymentSplit[] = paymentSplitRaw.map((p) => ({
+      payment_type: String(p.payment_type),
+      total: Number(p.total) || 0,
+    }));
 
-    // E. Product Intelligence
-    const productMap = new Map<string, { qty: number; revenue: number }>();
-    billItems.forEach((item) => {
-      const name = item.item_name || 'Unknown Item';
-      const current = productMap.get(name) || { qty: 0, revenue: 0 };
-      productMap.set(name, {
-        qty: current.qty + (item.qty || 0),
-        revenue: current.revenue + (item.price || 0) * (item.qty || 0),
-      });
-    });
+    // ---------- ITEM PERFORMANCE ----------
+    const allItemInsights: ProductInsight[] = itemPerformanceRaw.map((p) => ({
+      item_name: String(p.item_name),
+      qty: Number(p.qty) || 0,
+      revenue: Number(p.revenue) || 0,
+    }));
 
-    const allProductInsights: ProductInsight[] = Array.from(productMap.entries()).map(
-      ([item_name, val]) => ({
-        item_name,
-        qty: val.qty,
-        revenue: Math.round(val.revenue * 100) / 100,
-      }),
-    );
+    // Item-wise report (full list, sorted by qty desc — already sorted by RPC)
+    const itemWiseReport = allItemInsights;
 
-    // 1. Top Sellers
-    const topSellingItems = [...allProductInsights]
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 10);
+    // Top Sellers (top 10 by qty)
+    const topSellingItems = allItemInsights.slice(0, 10);
 
-    // 2. Least Sold (excluding zero quantities)
-    const leastSellingItems = [...allProductInsights]
+    // Least Sold (bottom 10 by qty, excluding zero)
+    const leastSellingItems = [...allItemInsights]
       .filter((p) => p.qty > 0)
       .sort((a, b) => a.qty - b.qty)
       .slice(0, 10);
 
-    // 3. Highest Revenue
-    const highestRevenueItems = [...allProductInsights]
+    // Highest Revenue (top 10 by revenue)
+    const highestRevenueItems = [...allItemInsights]
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // F. Raw Transactions list (both paid, unpaid and cancelled for comprehensive export)
-    const rawTransactions: TransactionRow[] = filteredBills.map((bill: any) => {
-      const itemsForBill = billItems.filter((item) => item.bill_id === bill.id);
-      const itemsSummary = itemsForBill
-        .map((item) => `${item.qty}x ${item.item_name || 'Item'}`)
-        .join(', ');
-
-      return {
-        id: bill.id,
-        invoice_number: bill.invoice_number || 'PENDING',
-        created_at: bill.created_at,
-        branch_name: bill.branches?.name || '—',
-        items_summary: itemsSummary || 'No Items',
-        subtotal: bill.subtotal || 0,
-        tax_amount: bill.tax_amount || 0,
-        discount_amount: bill.discount_amount || 0,
-        total_amount: bill.total_amount || 0,
-        status: bill.status || 'paid',
-      };
-    });
-
-    // G. Full Item Wise Sales Report (all items sold sorted by quantity descending)
-    const itemWiseReport: ProductInsight[] = [...allProductInsights].sort((a, b) => b.qty - a.qty);
+    // ---------- RAW TRANSACTIONS (Paginated for CSV export) ----------
+    const rawTransactions = await fetchRawTransactions(
+      tenant_id,
+      effectiveBranchId,
+      startTimestamp,
+      endTimestamp,
+    );
 
     return {
       data: {
-        kpis: {
-          totalSales: Math.round(totalSales * 100) / 100,
-          totalOrders,
-          avgOrderValue: Math.round(avgOrderValue * 100) / 100,
-          itemsSold,
-          taxCollected: Math.round(taxCollected * 100) / 100,
-          cancelledOrders,
-          collectedRevenue: Math.round(collectedRevenue * 100) / 100,
-          pendingCollections: Math.round(pendingCollections * 100) / 100,
-          totalDiscounts: Math.round(totalDiscounts * 100) / 100,
-          cancelledSales: Math.round(cancelledSales * 100) / 100,
-        },
+        kpis,
         salesByDay,
         ordersByDay,
         salesByHour,
@@ -393,9 +290,127 @@ export async function fetchAnalyticsDashboard(
       },
       error: null,
     };
-  } catch (error: any) {
-    console.error('[AnalyticsService] Error compiling analytics:', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[AnalyticsService] Error compiling analytics:', message);
     return { data: null, error: 'Internal system error occurred.' };
+  }
+}
+
+/**
+ * Fetch raw transaction rows using pagination to avoid the 1,000-row PostgREST limit.
+ * Used exclusively for CSV export — not for KPI/chart calculations.
+ */
+async function fetchRawTransactions(
+  tenantId: string,
+  branchId: string | null,
+  startTimestamp: string,
+  endTimestamp: string,
+): Promise<TransactionRow[]> {
+  try {
+    const PAGE_SIZE = 1000;
+    const allBills: Record<string, unknown>[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      let query = supabase
+        .from('bills')
+        .select(`
+          id, invoice_number, created_at, subtotal, tax_amount,
+          discount_amount, total_amount, status,
+          branches ( name )
+        `)
+        .eq('tenant_id', tenantId)
+        .or(
+          `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lt.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lt.${endTimestamp})`
+        )
+        .order('created_at', { ascending: true })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (branchId) {
+        query = query.eq('branch_id', branchId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[AnalyticsService] Error fetching raw transactions page:', error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allBills.push(...data);
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    // Fetch bill_items for all retrieved bills (for items_summary in CSV)
+    const billIds = allBills.map((b) => String((b as Record<string, unknown>).id));
+    const CHUNK_SIZE = 50;
+    const itemChunks: string[][] = [];
+    for (let i = 0; i < billIds.length; i += CHUNK_SIZE) {
+      itemChunks.push(billIds.slice(i, i + CHUNK_SIZE));
+    }
+
+    const itemResults = await Promise.all(
+      itemChunks.map((chunk) =>
+        supabase
+          .from('bill_items')
+          .select('bill_id, qty, item_name')
+          .in('bill_id', chunk)
+      )
+    );
+
+    const allItems: Record<string, unknown>[] = [];
+    for (const res of itemResults) {
+      if (res.error) {
+        console.error('[AnalyticsService] Error fetching bill items chunk:', res.error);
+      } else if (res.data) {
+        allItems.push(...res.data);
+      }
+    }
+
+    // Build items lookup by bill_id
+    const itemsByBill = new Map<string, string[]>();
+    for (const item of allItems) {
+      const billId = String((item as Record<string, unknown>).bill_id);
+      const qty = Number((item as Record<string, unknown>).qty) || 0;
+      const name = String((item as Record<string, unknown>).item_name || 'Item');
+      const existing = itemsByBill.get(billId) ?? [];
+      existing.push(`${qty}x ${name}`);
+      itemsByBill.set(billId, existing);
+    }
+
+    return allBills.map((bill) => {
+      const b = bill as Record<string, unknown>;
+      const billId = String(b.id);
+      const branches = b.branches as Record<string, unknown> | null;
+      const itemsSummary = itemsByBill.get(billId)?.join(', ') ?? 'No Items';
+
+      return {
+        id: billId,
+        invoice_number: String(b.invoice_number ?? 'PENDING'),
+        created_at: String(b.created_at),
+        branch_name: String(branches?.name ?? '—'),
+        items_summary: itemsSummary,
+        subtotal: Number(b.subtotal) || 0,
+        tax_amount: Number(b.tax_amount) || 0,
+        discount_amount: Number(b.discount_amount) || 0,
+        total_amount: Number(b.total_amount) || 0,
+        status: String(b.status ?? 'paid'),
+      };
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[AnalyticsService] Error in fetchRawTransactions:', message);
+    return [];
   }
 }
 
@@ -440,4 +455,14 @@ function getEmptyDashboard(startDate: string, endDate: string): AnalyticsDashboa
     leastSellingItems: [],
     highestRevenueItems: [],
   };
+}
+
+/**
+ * Format a Date object to "D MMM" (e.g., "27 May")
+ */
+function formatDateLabel(dateStr: string): string {
+  const date = new Date(dateStr);
+  const day = date.getDate();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${day} ${months[date.getMonth()]}`;
 }
