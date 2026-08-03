@@ -68,6 +68,7 @@ export default function AnalyticsScreen() {
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('23:00');
   const [advancedTime, setAdvancedTime] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   // Layout responsiveness
   const [salesChartWidth, setSalesChartWidth] = useState(600);
@@ -119,6 +120,10 @@ export default function AnalyticsScreen() {
   // Dynamic date preset calculations
   const applyPreset = (presetType: typeof preset) => {
     setPreset(presetType);
+    if (presetType === 'custom') {
+      setIsDatePickerOpen(true);
+      return;
+    }
     const now = new Date();
     let start = new Date();
     let end = new Date();
@@ -1265,34 +1270,47 @@ export default function AnalyticsScreen() {
               </Pressable>
             );
           })}
+
+          {/* Calendar Picker Trigger Button */}
+          <Pressable
+            onPress={() => setIsDatePickerOpen(true)}
+            id="btn-open-analytics-date-picker"
+            className="px-3.5 py-2 rounded-xl border border-primary/40 bg-primary/10 flex-row items-center space-x-1.5 active:opacity-80 ml-auto"
+          >
+            <Calendar size={14} color={colors.primary} />
+            <Text className="text-xs font-bold text-primary">
+              {startDate && endDate ? `${startDate} → ${endDate}` : 'Select Dates'}
+            </Text>
+          </Pressable>
         </View>
 
         {/* Custom Range Picker Fields */}
         {preset === 'custom' && (
-          <View className="flex-row flex-wrap items-center gap-4 mt-3 bg-surfaceTint/50 p-4 rounded-xl border border-border/40">
+          <Pressable
+            onPress={() => setIsDatePickerOpen(true)}
+            className="flex-row flex-wrap items-center gap-4 mt-3 bg-surfaceTint/50 p-4 rounded-xl border border-border/40 active:opacity-90 cursor-pointer"
+          >
             <View className="flex-1 min-w-[120px]">
               <Text className="text-[10px] font-black text-textSecondary mb-1.5 uppercase tracking-wider">
-                Start Date (YYYY-MM-DD)
+                Start Date
               </Text>
-              <TextInput
-                value={startDate}
-                onChangeText={setStartDate}
-                placeholder="YYYY-MM-DD"
-                className="px-3.5 py-2 border border-border rounded-xl text-textPrimary text-xs bg-white font-semibold"
-              />
+              <View className="px-3.5 py-2 border border-border rounded-xl bg-white justify-center">
+                <Text className="text-textPrimary text-xs font-semibold">
+                  {startDate || 'YYYY-MM-DD'}
+                </Text>
+              </View>
             </View>
             <View className="flex-1 min-w-[120px]">
               <Text className="text-[10px] font-black text-textSecondary mb-1.5 uppercase tracking-wider">
-                End Date (YYYY-MM-DD)
+                End Date
               </Text>
-              <TextInput
-                value={endDate}
-                onChangeText={setEndDate}
-                placeholder="YYYY-MM-DD"
-                className="px-3.5 py-2 border border-border rounded-xl text-textPrimary text-xs bg-white font-semibold"
-              />
+              <View className="px-3.5 py-2 border border-border rounded-xl bg-white justify-center">
+                <Text className="text-textPrimary text-xs font-semibold">
+                  {endDate || 'YYYY-MM-DD'}
+                </Text>
+              </View>
             </View>
-          </View>
+          </Pressable>
         )}
 
         {/* Optional Time Filters */}
@@ -1348,6 +1366,24 @@ export default function AnalyticsScreen() {
         contentContainerStyle={{ padding: 24 }}
         className="flex-1"
         showsVerticalScrollIndicator={false}
+      />
+
+      {/* Interactive Date Picker Modal */}
+      <DatePickerModal
+        visible={isDatePickerOpen}
+        onClose={() => setIsDatePickerOpen(false)}
+        startDate={startDate}
+        endDate={endDate}
+        startTime={startTime}
+        endTime={endTime}
+        showTimePicker={advancedTime}
+        onApply={(start, end, startT, endT) => {
+          setStartDate(start);
+          setEndDate(end);
+          if (startT) setStartTime(startT);
+          if (endT) setEndTime(endT);
+          setPreset('custom');
+        }}
       />
     </View>
   );

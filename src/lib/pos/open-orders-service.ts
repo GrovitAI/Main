@@ -1198,17 +1198,16 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
-    // Compute today's start in ISO format (local midnight → UTC)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayStartISO = todayStart.toISOString();
+    // Compute business day bounds for 'today' (11:30 AM -> 02:30 AM next calendar day)
+    const { startTimestamp, endTimestamp } = getBusinessDayBounds('today');
 
     const { data: orders, error: ordersError } = await supabase
       .from('open_orders')
       .select('*')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
-      .gte('created_at', todayStartISO)
+      .gte('created_at', startTimestamp)
+      .lte('created_at', endTimestamp)
       .order('created_at', { ascending: false });
 
     if (ordersError) {
