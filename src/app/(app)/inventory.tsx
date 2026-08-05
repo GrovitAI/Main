@@ -169,7 +169,7 @@ type TabName =
 interface SidebarItem {
   id: TabName;
   label: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: any;
 }
 
 const SIDEBAR_ITEMS: SidebarItem[] = [

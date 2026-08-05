@@ -642,14 +642,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
             window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
           }
         }
-        const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId);
+        const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId!);
         return {
           activeOrderItems: nextItems,
           discountPercent: percent,
           discountAmount: amount,
           itemCountByOrderId: {
             ...state.itemCountByOrderId,
-            [activeOrderId]: getItemCount(nextItems),
+            [activeOrderId!]: getItemCount(nextItems),
           },
           isMutating: true,
           error: null,
@@ -706,14 +706,14 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           window.localStorage.setItem('grovit_printed_orders', JSON.stringify(nextPrinted));
         }
       }
-      const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId);
+      const { percent, amount } = updateDiscountStateAndDb(state, nextItems, activeOrderId!);
       return {
         activeOrderItems: nextItems,
         discountPercent: percent,
         discountAmount: amount,
         itemCountByOrderId: {
           ...state.itemCountByOrderId,
-          [activeOrderId]: nextCount,
+          [activeOrderId!]: nextCount,
         },
         isMutating: true,
         error: null,
@@ -1255,8 +1255,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     console.time('saveKot_db');
     (async () => {
       try {
-        let finalRegTicket = null;
-        let finalCancelTicket = null;
+        let finalRegTicket: any = null;
+        let finalCancelTicket: any = null;
 
         if (unsentItems.length > 0) {
           const createResult = await createKot(activeOrderId, itemsToSend);
@@ -1659,8 +1659,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
     // Awaited Database Persistence (Phase 0: No fire-and-forget background tasks)
     try {
-      let finalRegTicket = null;
-      let finalCancelTicket = null;
+      let finalRegTicket: any = null;
+      let finalCancelTicket: any = null;
 
       if (unsentItems.length > 0) {
         const createResult = await createKot(activeOrderId, itemsToSend);

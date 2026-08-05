@@ -1413,8 +1413,8 @@ export default function PosBillingScreen() {
                     width: 70,
                     textAlign: 'center',
                     backgroundColor: '#e8f2fa',
-                    outlineStyle: 'none' as any,
-                  }}
+                    outlineStyle: 'none',
+                  } as any}
                 />
                 <Text style={{ fontSize: 9, fontWeight: '600', color: '#5b6b7c' }}>
                   [Enter] Add  •  [Esc] Cancel
@@ -1432,7 +1432,7 @@ export default function PosBillingScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onKeyPress={handleSearchKeyPress}
-                style={{ fontSize: 13, fontWeight: '500', marginLeft: 8, flex: 1, color: '#111', outlineStyle: 'none' as any }}
+                style={{ fontSize: 13, fontWeight: '500', marginLeft: 8, flex: 1, color: '#111', outlineStyle: 'none' } as any}
                 editable={!isMutating}
               />
             </>
