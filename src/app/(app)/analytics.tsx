@@ -1146,11 +1146,7 @@ export default function AnalyticsScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.push('/');
-              }
+              router.push('/orders');
             }}
             className="w-10 h-10 rounded-full border border-border items-center justify-center active:bg-surfaceTint flex"
           >
