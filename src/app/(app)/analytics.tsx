@@ -10,6 +10,8 @@ import {
   Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import Svg, {
   Path,
   Rect,
@@ -55,6 +57,8 @@ import { Building2, Download } from 'lucide-react-native';
 export default function AnalyticsScreen() {
   const router = useRouter();
   const { session } = useSessionStore();
+  const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
 
   // Branch filter — only relevant for owner who can see all branches
   const isOwnerOrAdmin = session?.role === 'owner';
@@ -358,7 +362,7 @@ export default function AnalyticsScreen() {
           const w = e.nativeEvent.layout.width;
           if (w > 0) setSalesChartWidth(w);
         }}
-        className="bg-white border border-border/60 rounded-2xl p-6 shadow-sm mb-6"
+        className="bg-white border border-border/60 rounded-2xl p-4 md:p-6 shadow-sm mb-6"
       >
         <View className="flex-row items-center justify-between mb-4">
           <View>
@@ -504,7 +508,7 @@ export default function AnalyticsScreen() {
           const w = e.nativeEvent.layout.width;
           if (w > 0) setOrdersChartWidth(w);
         }}
-        className="flex-1 bg-white border border-border/60 rounded-2xl p-6 shadow-sm mb-6"
+        className="flex-1 bg-white border border-border/60 rounded-2xl p-4 md:p-6 shadow-sm mb-6"
       >
         <View className="mb-4">
           <Text className="text-base font-bold text-textPrimary">Daily Orders Count</Text>
@@ -591,7 +595,7 @@ export default function AnalyticsScreen() {
           const w = e.nativeEvent.layout.width;
           if (w > 0) setRushChartWidth(w);
         }}
-        className="flex-1 bg-white border border-border/60 rounded-2xl p-6 shadow-sm mb-6"
+        className="flex-1 bg-white border border-border/60 rounded-2xl p-4 md:p-6 shadow-sm mb-6"
       >
         <View className="mb-4 flex-row items-center justify-between">
           <View>
@@ -659,7 +663,7 @@ export default function AnalyticsScreen() {
   const paymentSplitRing = useMemo(() => {
     if (!dashboardData || dashboardData.paymentSplit.length === 0) {
       return (
-        <View className="bg-white border border-border/60 rounded-2xl p-6 shadow-sm flex-1 min-w-[280px] mb-6 items-center justify-center">
+        <View className="bg-white border border-border/60 rounded-2xl p-4 md:p-6 shadow-sm flex-1 min-w-[280px] mb-6 items-center justify-center">
           <Text className="text-sm text-textSecondary py-10">No payments found in range</Text>
         </View>
       );
@@ -681,8 +685,8 @@ export default function AnalyticsScreen() {
     };
 
     return (
-      <View className="bg-white border border-border/60 rounded-2xl p-6 shadow-sm flex-1 min-w-[280px] mb-6 flex-row items-center justify-between">
-        <View className="mr-4 flex-1">
+      <View className={`bg-white border border-border/60 rounded-2xl p-4 md:p-6 shadow-sm flex-1 min-w-[280px] mb-6 ${isPhone ? 'flex-col' : 'flex-row items-center justify-between'}`}>
+        <View className={`${isPhone ? 'mb-6 w-full' : 'mr-4 flex-1'}`}>
           <Text className="text-base font-bold text-textPrimary">Payment Splits</Text>
           <Text className="text-xs text-textSecondary mb-4">Method allocation share</Text>
 
@@ -703,7 +707,7 @@ export default function AnalyticsScreen() {
           })}
         </View>
 
-        <View className="items-center justify-center w-[150px] h-[150px]">
+        <View className="items-center justify-center w-[150px] h-[150px] self-center">
           <Svg width={150} height={150}>
             {data.map((item, idx) => {
               const fraction = totalAmt > 0 ? item.total / totalAmt : 0;
@@ -839,22 +843,22 @@ export default function AnalyticsScreen() {
 
         <View className="max-h-[300px] overflow-y-auto">
           {/* Table Header */}
-          <View className="flex-row justify-between py-2 border-b border-border/40 bg-surfaceTint px-2 rounded-lg">
+          <View className="flex-row justify-between py-2 border-b border-border/40 bg-surfaceTint px-2 rounded-lg gap-2">
             <Text className="text-xs font-bold text-textSecondary flex-1">Menu Item</Text>
-            <Text className="text-xs font-bold text-textSecondary w-24 text-center">Qty Sold</Text>
-            <Text className="text-xs font-bold text-textSecondary w-28 text-right">Revenue (Rs)</Text>
+            <Text className="text-xs font-bold text-textSecondary flex-1 min-w-[60px] text-center">Qty Sold</Text>
+            <Text className="text-xs font-bold text-textSecondary flex-1 min-w-[60px] text-right">Revenue (Rs)</Text>
           </View>
 
           {/* Table Rows */}
           {dashboardData.itemWiseReport.map((item, idx) => (
-            <View key={idx} className="flex-row justify-between items-center py-2.5 border-b border-border/30 px-2 last:border-b-0">
+            <View key={idx} className="flex-row justify-between items-center py-2.5 border-b border-border/30 px-2 gap-2 last:border-b-0">
               <Text className="text-xs font-medium text-textPrimary flex-1" numberOfLines={1}>
                 {item.item_name}
               </Text>
-              <Text className="text-xs font-bold text-textSecondary w-24 text-center">
+              <Text className="text-xs font-bold text-textSecondary flex-1 min-w-[60px] text-center">
                 {item.qty}
               </Text>
-              <Text className="text-xs font-bold text-textPrimary w-28 text-right">
+              <Text className="text-xs font-bold text-textPrimary flex-1 min-w-[60px] text-right">
                 ₹{item.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             </View>
@@ -908,7 +912,7 @@ export default function AnalyticsScreen() {
         {kpis && (
           <View className="flex-row flex-wrap justify-between gap-4">
             {/* 1. Total Sales */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Total Sales</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.totalSales).toLocaleString('en-IN')}
@@ -916,13 +920,13 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 2. Total Orders */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Total Orders</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.totalOrders}</Text>
             </View>
 
             {/* 3. AOV */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Avg Order</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.avgOrderValue).toLocaleString('en-IN')}
@@ -930,13 +934,13 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 4. Items Sold */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Items Sold</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.itemsSold}</Text>
             </View>
 
             {/* 5. Tax Collected */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Tax</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.taxCollected).toLocaleString('en-IN')}
@@ -944,13 +948,13 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 6. Cancelled Orders */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Cancelled</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.cancelledOrders}</Text>
             </View>
 
             {/* 7. Collected Revenue */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Revenue</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.collectedRevenue || 0).toLocaleString('en-IN')}
@@ -958,7 +962,7 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 8. Pending Collections */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Pending</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.pendingCollections || 0).toLocaleString('en-IN')}
@@ -966,7 +970,7 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 9. Total Discounts */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Discounts</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.totalDiscounts || 0).toLocaleString('en-IN')}
@@ -974,7 +978,7 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 10. Cancelled Sales */}
-            <View className="flex-1 min-w-[120px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Cancelled Sales</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.cancelledSales || 0).toLocaleString('en-IN')}
@@ -984,7 +988,7 @@ export default function AnalyticsScreen() {
         )}
 
         {/* Franchise Royalty Calculator Card */}
-        <View className="bg-white border border-border/60 rounded-2xl p-6 shadow-sm">
+        <View className="bg-white border border-border/60 rounded-2xl p-4 md:p-6 shadow-sm">
           {/* Header with Switch */}
           <View className="flex-row items-center justify-between border-b border-border/40 pb-4 mb-4">
             <View className="flex-row items-center space-x-3">
@@ -1037,7 +1041,7 @@ export default function AnalyticsScreen() {
               {/* Metrics Split */}
               <View className="flex-row flex-wrap justify-between gap-4 mb-6">
                 {/* Gross Sales */}
-                <View className="flex-1 min-w-[140px] bg-surfaceTint/40 border border-border/30 rounded-xl p-4">
+                <View className="flex-1 min-w-[120px] bg-surfaceTint/40 border border-border/30 rounded-xl p-4">
                   <Text className="text-[10px] font-bold text-textSecondary uppercase tracking-wider">Gross Revenue</Text>
                   <Text className="text-lg font-black text-textPrimary mt-1">
                     ₹{Math.round(totalSales).toLocaleString('en-IN')}
@@ -1045,7 +1049,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 {/* Royalty Amount */}
-                <View className="flex-1 min-w-[140px] bg-orange-50/40 border border-orange-200/40 rounded-xl p-4">
+                <View className="flex-1 min-w-[120px] bg-orange-50/40 border border-orange-200/40 rounded-xl p-4">
                   <Text className="text-[10px] font-bold text-[#f97316] uppercase tracking-wider">Royalty Fee ({royaltyRate.toFixed(1)}%)</Text>
                   <Text className="text-lg font-black text-[#f97316] mt-1">
                     - ₹{Math.round(royaltyAmount).toLocaleString('en-IN')}
@@ -1053,7 +1057,7 @@ export default function AnalyticsScreen() {
                 </View>
 
                 {/* Net Revenue */}
-                <View className="flex-1 min-w-[140px] bg-green-50/40 border border-green-200/40 rounded-xl p-4">
+                <View className="flex-1 min-w-[120px] bg-green-50/40 border border-green-200/40 rounded-xl p-4">
                   <Text className="text-[10px] font-bold text-[#10b981] uppercase tracking-wider">Net Store Share ({(100 - royaltyRate).toFixed(1)}%)</Text>
                   <Text className="text-lg font-black text-[#10b981] mt-1">
                     ₹{Math.round(netSales).toLocaleString('en-IN')}
@@ -1139,9 +1143,9 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-surfaceTint">
+    <View className="flex-1 bg-surfaceTint" style={{ paddingTop: insets.top }}>
       {/* HEADER SECTION */}
-      <View className="bg-white border-b border-border/60 py-4 px-6 flex-row items-center justify-between shadow-sm">
+      <View className={`bg-white border-b border-border/60 py-4 px-4 md:px-6 shadow-sm ${isPhone ? 'flex-col items-start gap-4' : 'flex-row items-center justify-between'}`}>
         <View className="flex-row items-center space-x-3">
           <Pressable
             accessibilityRole="button"
@@ -1184,7 +1188,7 @@ export default function AnalyticsScreen() {
       </View>
 
       {/* FILTER CONTROL TOOLBAR */}
-      <View className="bg-white border-b border-border/40 py-3.5 px-6 shadow-sm">
+      <View className="bg-white border-b border-border/40 py-3.5 px-4 md:px-6 shadow-sm">
 
         {/* ── Branch Filter (owner/admin only) ── */}
         {isOwnerOrAdmin && accessibleBranches.length > 0 && (
@@ -1359,7 +1363,7 @@ export default function AnalyticsScreen() {
         data={[]}
         renderItem={() => null}
         ListHeaderComponent={renderDashboardContent()}
-        contentContainerStyle={{ padding: 24 }}
+        contentContainerStyle={{ padding: isPhone ? 16 : 24, paddingBottom: 100 }}
         className="flex-1"
         showsVerticalScrollIndicator={false}
       />

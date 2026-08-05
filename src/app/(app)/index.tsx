@@ -18,6 +18,7 @@ import {
 import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
@@ -227,6 +228,7 @@ export default function PosBillingScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isTablet = windowWidth >= TABLET_BREAKPOINT;
   const productColumns = isTablet ? 4 : 2;
+  const insets = useSafeAreaInsets();
 
   // ─── Zustand selectors only (high performance) ───
   const orders = useOrdersStore((s) => s.orders);
@@ -1416,9 +1418,11 @@ export default function PosBillingScreen() {
                     outlineStyle: 'none',
                   } as any}
                 />
-                <Text style={{ fontSize: 9, fontWeight: '600', color: '#5b6b7c' }}>
-                  [Enter] Add  •  [Esc] Cancel
-                </Text>
+                {isTablet && (
+                  <Text style={{ fontSize: 9, fontWeight: '600', color: '#5b6b7c' }}>
+                    [Enter] Add  •  [Esc] Cancel
+                  </Text>
+                )}
               </View>
             </View>
           ) : (
@@ -1500,7 +1504,7 @@ export default function PosBillingScreen() {
           numColumns={productColumns}
           keyExtractor={(item) => item.id}
           columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={{ paddingBottom: 10, gap: 12 }}
+          contentContainerStyle={{ paddingBottom: 100, gap: 12 }}
           initialNumToRender={12}
           windowSize={8}
           maxToRenderPerBatch={10}
@@ -1580,7 +1584,7 @@ export default function PosBillingScreen() {
       )}
 
       {/* MAIN CONTAINER */}
-      <View className="flex-1 flex-col" style={{ paddingVertical: 12, paddingRight: 12, paddingLeft: 12, gap: 12 }}>
+      <View className="flex-1 flex-col" style={{ paddingTop: isTablet ? 12 : Math.max(12, insets.top), paddingBottom: 12, paddingRight: 12, paddingLeft: 12, gap: 12 }}>
         {isTablet && (
           <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', zIndex: 9999, elevation: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 9999 }}>
@@ -1657,7 +1661,7 @@ export default function PosBillingScreen() {
                   </Pressable>
                   
                   {popoverVisible && (
-                    <View style={{ position: 'absolute', top: 40, right: 0, width: 260, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 20, zIndex: 9999 }}>
+                    <View style={{ position: 'absolute', top: 40, right: 0, width: isTablet ? 260 : '85%', maxWidth: 300, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 14, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 20, zIndex: 9999 }}>
                       <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, color: '#4B5563', marginBottom: 10 }}>
                         Held Orders
                       </Text>
@@ -1759,7 +1763,7 @@ export default function PosBillingScreen() {
             </View>
           </View>
         ) : (
-          <View className="min-h-0 flex-1 px-2 pb-2">
+          <View className="min-h-0 flex-1 px-2" style={{ paddingBottom: 100 }}>
             <CategoryTabs
               categories={categories}
               selectedCategoryId={selectedCategoryId}
@@ -1805,7 +1809,7 @@ export default function PosBillingScreen() {
 
       {/* Root Toast Indicator */}
       {toastMessage && (
-        <View style={{ position: 'absolute', bottom: 30, left: '50%', transform: [{ translateX: -150 }], width: 300, zIndex: 99999, alignItems: 'center' }}>
+        <View style={{ position: 'absolute', bottom: 30, alignSelf: 'center', width: isTablet ? 300 : '90%', maxWidth: 300, zIndex: 99999, alignItems: 'center' }}>
           <View style={{ backgroundColor: '#0F2744', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 99, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 }}>
             <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>{toastMessage}</Text>
           </View>

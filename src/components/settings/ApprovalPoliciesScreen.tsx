@@ -118,7 +118,7 @@ export function ApprovalPoliciesScreen() {
   if (!isOwnerOrAdmin) {
     return (
       <View className="flex-1 bg-slate-50 items-center justify-center p-6">
-        <View className="bg-white border border-slate-200 rounded-2xl p-8 max-w-md items-center shadow-sm">
+        <View className="w-full bg-white border border-slate-200 rounded-2xl p-8 max-w-md items-center shadow-sm">
           <View className="w-12 h-12 rounded-full bg-amber-100 items-center justify-center mb-4">
             <Lock size={24} color="#d97706" />
           </View>
@@ -144,21 +144,24 @@ export function ApprovalPoliciesScreen() {
 
   return (
     <ScrollView className="flex-1 bg-slate-50 p-4 md:p-6">
-      <View className="max-w-4xl mx-auto space-y-6">
+      <View className="w-full max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <View className="flex-row items-center justify-between border-b border-slate-200 pb-4">
-          <View className="flex-row items-center space-x-3">
+        <View
+          className="flex-row flex-wrap items-center justify-between border-b border-slate-200 pb-4"
+          style={{ flexWrap: 'wrap', rowGap: 12 }}
+        >
+          <View className="flex-row items-center space-x-3 flex-1 min-w-[200px]">
             <View className="w-10 h-10 rounded-xl bg-blue-100 items-center justify-center">
               <ShieldCheck size={22} color="#0284c7" />
             </View>
-            <View>
+            <View className="flex-1">
               <Text className="text-lg font-bold text-slate-900">Branch Approval Policies</Text>
               <Text className="text-xs text-slate-500">Configure which sensitive POS actions require owner OTP verification</Text>
             </View>
           </View>
 
           {/* Action Buttons */}
-          <View className="flex-row items-center space-x-2">
+          <View className="flex-row items-center space-x-2 flex-wrap" style={{ flexWrap: 'wrap', gap: 8 }}>
             <Pressable
               onPress={handleResetToDefaults}
               className="flex-row items-center space-x-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-white active:bg-slate-100"
@@ -188,12 +191,15 @@ export function ApprovalPoliciesScreen() {
 
         {/* Multi-Branch Selector for Owner Role */}
         {accessibleBranches.length > 1 && (
-          <View className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex-row items-center justify-between">
-            <View>
+          <View
+            className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex-row flex-wrap items-center justify-between"
+            style={{ flexWrap: 'wrap', rowGap: 8 }}
+          >
+            <View className="flex-1 min-w-[180px]">
               <Text className="text-xs font-bold text-slate-800">Target Branch</Text>
               <Text className="text-[11px] text-slate-500">Select which branch to configure approval policies for</Text>
             </View>
-            <View className="flex-row items-center space-x-2">
+            <View className="flex-row items-center space-x-2 flex-wrap" style={{ flexWrap: 'wrap', gap: 6 }}>
               {accessibleBranches.map((b) => {
                 const isSelected = b.id === selectedBranchId;
                 return (

@@ -32,6 +32,7 @@ import {
   type Branch,
   type CreateBranchPayload,
 } from '@/lib/pos/branch-service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Form State ──────────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ const EMPTY_FORM: FormState = {
 
 export default function BranchesScreen() {
   const { session } = useSessionStore();
+  const insets = useSafeAreaInsets();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -271,7 +273,7 @@ export default function BranchesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -431,11 +433,11 @@ export default function BranchesScreen() {
                   {b.gstin ? <Text style={styles.branchGstin}>GST: {b.gstin}</Text> : null}
 
                   {b.approval_email ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                      <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#475569' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                      <Text style={{ fontSize: 11.5, fontWeight: '500', color: '#475569', flex: 1 }}>
                         Approval Email: {b.approval_email}
                       </Text>
-                      <View style={{ backgroundColor: b.approval_email_verified ? '#DCFCE7' : '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                      <View style={{ backgroundColor: b.approval_email_verified ? '#DCFCE7' : '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexShrink: 0 }}>
                         <Text style={{ fontSize: 10, fontWeight: '700', color: b.approval_email_verified ? '#166534' : '#92400E' }}>
                           {b.approval_email_verified ? 'Verified ✓' : 'Unverified ⚠️'}
                         </Text>
@@ -563,7 +565,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, gap: 16, paddingBottom: 40 },
+  scrollContent: { padding: 20, gap: 16, paddingBottom: 100 },
 
   header: {
     flexDirection: 'row',
@@ -574,8 +576,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+    flexWrap: 'wrap',
+    rowGap: 8,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
 
   addBtn: {

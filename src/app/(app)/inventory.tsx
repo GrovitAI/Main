@@ -62,6 +62,7 @@ import {
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BRANCH_ID, getTenantContext } from '@/lib/pos/tenant-context';
 import { colors } from '@/lib/pos/brand';
@@ -451,6 +452,7 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
 export default function InventoryScreen() {
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const numColumns = width >= 768 ? 2 : 1;
   const columns = width >= 1200 ? 3 : width >= 768 ? 2 : 1;
 
@@ -3336,39 +3338,43 @@ export default function InventoryScreen() {
                     ) : (
                       <>
                         {/* Line items header */}
-                        <View style={{ flexDirection: 'row', backgroundColor: '#f8fafc', borderRadius: 8, padding: 8, marginBottom: 4 }}>
-                          <Text style={{ flex: 1, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase' }}>Material</Text>
-                          <Text style={{ width: 60, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'center' }}>Qty</Text>
-                          <Text style={{ width: 80, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'right' }}>Unit Price</Text>
-                          <Text style={{ width: 90, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'right' }}>Line Total</Text>
-                        </View>
-                        <ScrollView style={{ maxHeight: 200 }}>
-                          {purDetailLines.map((line, i) => (
-                            <View
-                              key={line.id}
-                              style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingVertical: 8,
-                                paddingHorizontal: 8,
-                                borderBottomWidth: i < purDetailLines.length - 1 ? 1 : 0,
-                                borderBottomColor: '#f1f5f9',
-                              }}
-                            >
-                              <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#334155' }} numberOfLines={1}>
-                                {line.material_name || materials.find((m) => m.id === line.material_id)?.material_name || '—'}
-                              </Text>
-                              <Text style={{ width: 60, fontSize: 12, fontWeight: '700', color: '#475569', textAlign: 'center' }}>
-                                {line.quantity}
-                              </Text>
-                              <Text style={{ width: 80, fontSize: 12, fontWeight: '600', color: '#475569', textAlign: 'right' }}>
-                                ₹{line.unit_price.toFixed(2)}
-                              </Text>
-                              <Text style={{ width: 90, fontSize: 13, fontWeight: '800', color: '#0f2744', textAlign: 'right' }}>
-                                ₹{line.line_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                              </Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+                          <View style={{ minWidth: 400, flex: 1 }}>
+                            <View style={{ flexDirection: 'row', backgroundColor: '#f8fafc', borderRadius: 8, padding: 8, marginBottom: 4 }}>
+                              <Text style={{ flex: 1, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase' }}>Material</Text>
+                              <Text style={{ width: 60, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'center' }}>Qty</Text>
+                              <Text style={{ width: 80, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'right' }}>Unit Price</Text>
+                              <Text style={{ width: 90, fontSize: 9, fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', textAlign: 'right' }}>Line Total</Text>
                             </View>
-                          ))}
+                            <ScrollView style={{ maxHeight: 200 }}>
+                              {purDetailLines.map((line, i) => (
+                                <View
+                                  key={line.id}
+                                  style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    paddingVertical: 8,
+                                    paddingHorizontal: 8,
+                                    borderBottomWidth: i < purDetailLines.length - 1 ? 1 : 0,
+                                    borderBottomColor: '#f1f5f9',
+                                  }}
+                                >
+                                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '600', color: '#334155' }} numberOfLines={1}>
+                                    {line.material_name || materials.find((m) => m.id === line.material_id)?.material_name || '—'}
+                                  </Text>
+                                  <Text style={{ width: 60, fontSize: 12, fontWeight: '700', color: '#475569', textAlign: 'center' }}>
+                                    {line.quantity}
+                                  </Text>
+                                  <Text style={{ width: 80, fontSize: 12, fontWeight: '600', color: '#475569', textAlign: 'right' }}>
+                                    ₹{line.unit_price.toFixed(2)}
+                                  </Text>
+                                  <Text style={{ width: 90, fontSize: 13, fontWeight: '800', color: '#0f2744', textAlign: 'right' }}>
+                                    ₹{line.line_total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </Text>
+                                </View>
+                              ))}
+                            </ScrollView>
+                          </View>
                         </ScrollView>
                       </>
                     )}
@@ -3547,7 +3553,7 @@ export default function InventoryScreen() {
             <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 2000 : 5, position: 'relative' }}>
               
               {/* Date Input with Mini Calendar Popup */}
-              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5 relative" style={{ zIndex: 10000 }}>
+              <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: 10000 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
                 <Pressable
                   onPress={() => {
@@ -3631,7 +3637,7 @@ export default function InventoryScreen() {
               </View>
 
               {/* Payment Mode */}
-              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5 relative" style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
+              <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
                 <Pressable
                   onPress={() => {
@@ -3671,7 +3677,7 @@ export default function InventoryScreen() {
               </View>
 
               {/* Freight Charge */}
-              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5">
+              <View className={`gap-1.5 ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
                 <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Truck size={14} color="#64748b" className="mr-2" />
@@ -3686,7 +3692,7 @@ export default function InventoryScreen() {
               </View>
 
               {/* Storage Destination */}
-              <View className="flex-1 min-w-[140px] max-w-[23.5%] gap-1.5 relative" style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
+              <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
                 <Pressable
                   onPress={() => {
@@ -5855,7 +5861,7 @@ export default function InventoryScreen() {
           <SidebarDecoration />
 
           {/* Logo area — shrinks to just the icon when collapsed */}
-          <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 20, paddingBottom: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center', overflow: 'hidden' }}>
+          <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: Math.max(20, insets.top + 8), paddingBottom: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center', overflow: 'hidden' }}>
             <Image
               source={leLabanLogo}
               style={{
@@ -6140,7 +6146,10 @@ export default function InventoryScreen() {
       <View className="flex-1 flex-col">
         {/* Header Bar */}
         {activeTab !== 'record_purchase' && !(activeTab === 'transfers' && isCreatingRequest) && (
-          <View className="bg-white border-b border-slate-200 px-6 py-4 flex-row items-center justify-between shadow-sm">
+          <View 
+            className="bg-white border-b border-slate-200 px-6 py-4 flex-row items-center justify-between shadow-sm"
+            style={{ paddingTop: Math.max(16, insets.top + 8), flexWrap: 'wrap', rowGap: 8 }}
+          >
             <View className="flex-row items-center gap-3">
               {width < 768 && (
                 <Pressable
@@ -6202,7 +6211,7 @@ export default function InventoryScreen() {
             {renderActiveTabPanel()}
           </View>
         ) : (
-          <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
             {errorMsg && (
               <View className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center">
                 <AlertTriangle size={20} color="#e11d48" className="mr-3" />
@@ -6472,7 +6481,7 @@ export default function InventoryScreen() {
               position: 'absolute',
               top: 64,
               right: 24,
-              width: 340,
+              width: Math.min(340, width - 32),
               backgroundColor: '#FFFFFF',
               borderRadius: 20,
               shadowColor: '#000',

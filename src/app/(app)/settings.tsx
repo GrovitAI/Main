@@ -10,8 +10,10 @@ import { getTenantContext } from '@/lib/pos/tenant-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Trash2 } from 'lucide-react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
   const { session, signOut } = useSessionStore();
   const { isOwnerOrAdmin } = getTenantContext();
   const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'menu' | 'approvals'>('printers');
@@ -185,13 +187,13 @@ export default function SettingsScreen() {
     <View style={{
       flex: 1,
       backgroundColor: '#F8FAFC',
-      paddingTop: activeTab === 'menu' ? (Platform.OS === 'ios' ? 36 : (Platform.OS === 'android' ? 16 : 0)) : 0
+      paddingTop: activeTab === 'menu' ? insets.top : 0
     }}>
       {/* Modern Premium Page Header */}
       {activeTab !== 'menu' && (
         <View style={{
           paddingHorizontal: 28,
-          paddingTop: Platform.OS === 'ios' ? 44 : 24,
+          paddingTop: insets.top,
           paddingBottom: 20,
           backgroundColor: '#F8FAFC',
           flexDirection: 'row',
@@ -200,8 +202,10 @@ export default function SettingsScreen() {
           borderBottomWidth: 1,
           borderBottomColor: '#F1F5F9',
           marginBottom: 24,
+          flexWrap: 'wrap',
+          gap: 12,
         }}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
+          <View style={{ flex: 1, paddingRight: 12, minWidth: 200 }}>
             <Text style={{
               fontSize: 32,
               fontWeight: '600',
@@ -233,11 +237,13 @@ export default function SettingsScreen() {
       )}
 
       {/* Main Container with generous SaaS padding */}
-      <View className={`flex-1 ${activeTab === 'menu' ? 'px-0 mb-0' : 'px-8'}`}>
+      <View className={`flex-1 ${activeTab === 'menu' ? 'px-0 mb-0' : 'px-4 md:px-8'}`}>
         
         {/* Segmented SaaS Navigation Tab Bar */}
         {activeTab !== 'menu' && (
-          <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start mb-8">
+          <View className="mb-8">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
             {[
               { key: 'system', label: 'System Settings', icon: Settings },
               { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
@@ -262,11 +268,13 @@ export default function SettingsScreen() {
                 </Pressable>
               );
             })}
+              </View>
+            </ScrollView>
           </View>
         )}
 
         {activeTab === 'printers' ? (
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
+          <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
             
             {/* Receipt Footer Message Card */}
             <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs gap-3">
@@ -358,7 +366,7 @@ export default function SettingsScreen() {
                       }`}
                     >
                       <View className="flex-row justify-between items-start flex-wrap gap-2.5">
-                        <View className="flex-row items-center gap-3.5 flex-1 min-w-[200px]">
+                        <View className="flex-row items-center gap-3.5 flex-1 min-w-[200px] flex-wrap">
                           <View className={`p-2.5 rounded-xl items-center justify-center border ${
                             isOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'
                           }`}>
@@ -476,7 +484,7 @@ export default function SettingsScreen() {
                         </View>
 
                         {/* Test print & Delete */}
-                        <View className="flex-row gap-2 items-center">
+                        <View className="flex-row gap-2 items-center flex-wrap">
                           <Pressable
                             disabled={testingPrinterId !== null || !isOnline}
                             onPress={() => handleTestPrint(printer)}
@@ -508,7 +516,7 @@ export default function SettingsScreen() {
             )}
           </ScrollView>
         ) : activeTab === 'system' ? (
-          <ScrollView className="flex-1 animate-fade-in" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
+          <ScrollView className="flex-1 animate-fade-in" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
             <View className="mb-6">
               <Text style={{ fontSize: 20, fontWeight: '600', color: '#0F172A' }}>
                 System Profile

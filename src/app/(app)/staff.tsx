@@ -35,6 +35,7 @@ import {
 } from '@/lib/pos/staff-service';
 import { fetchBranches, type Branch } from '@/lib/pos/branch-service';
 import type { UserRole } from '@/lib/pos/session-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
 
 export default function StaffScreen() {
   const { session } = useSessionStore();
+  const insets = useSafeAreaInsets();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,7 +251,7 @@ export default function StaffScreen() {
   const inactiveStaff = displayedStaff.filter((s) => s.status !== 'active');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -549,7 +551,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, gap: 14, paddingBottom: 40 },
+  scrollContent: { padding: 20, gap: 14, paddingBottom: 100 },
 
   header: {
     flexDirection: 'row',
@@ -560,8 +562,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+    flexWrap: 'wrap',
+    rowGap: 8,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
   countBadge: {
     backgroundColor: '#EFF6FF',
@@ -717,7 +721,7 @@ const styles = StyleSheet.create({
   staffInfo: { flex: 1, gap: 3 },
   staffName: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
   staffEmail: { fontSize: 12, color: '#64748b' },
-  staffMeta: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  staffMeta: { flexDirection: 'row', gap: 6, marginTop: 2, flexWrap: 'wrap' },
   roleBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   roleBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
   branchBadge: {

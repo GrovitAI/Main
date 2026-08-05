@@ -626,7 +626,7 @@ export function OrderPanel({
                 </View>
 
                 {/* Custom Inputs with Apply Button */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, alignItems: 'center', gap: 6 }}>
                   {/* Percentage Input */}
                   <View
                     style={{
@@ -762,7 +762,7 @@ export function OrderPanel({
 
         {/* Primary CTA Buttons Row (Compact, Space-Efficient side-by-side layout) */}
         {!isReadOnlyView && (showSaveKotButton || showSaveAndPrintButton || showSettleButton || showReprintButton) && (
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, width: '100%' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, width: '100%' }}>
             {showSaveKotButton && (
               <WebPressable
                 accessibilityRole="button"
@@ -1044,7 +1044,7 @@ export function OrderPanel({
         )}
              {/* Bottom actions row — hidden when read-only */}
         {!isReadOnlyView && (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 14 }}>
           {/* Hold Order */}
           <Pressable
             accessibilityRole="button"

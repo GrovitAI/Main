@@ -14,6 +14,8 @@ import { router, useNavigation } from 'expo-router';
 import { RefreshCw, Search, X, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '@/lib/pos/useResponsive';
 
 import {
   OrderCard,
@@ -122,6 +124,8 @@ function OrdersSkeleton({ count }: { count: number }) {
 
 export default function OrdersScreen() {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const listColumns = useMemo(() => {
     if (width >= 1200) return 4;
     if (width >= 992) return 3;
@@ -659,10 +663,10 @@ export default function OrdersScreen() {
       <LinearGradient
         colors={['#024db1', '#01389e']}
         style={{
-          paddingHorizontal: 20,
-          paddingTop: 16,
+          paddingHorizontal: isPhone ? 12 : 20,
+          paddingTop: Math.max(insets.top, 16),
           paddingBottom: 14,
-          height: 84,
+          minHeight: 84 + insets.top,
           justifyContent: 'center',
         }}
       >
@@ -702,9 +706,9 @@ export default function OrdersScreen() {
       </LinearGradient>
 
       {/* ── Control Bar (Search + Sub-Nav + Filters + Export) ── */}
-      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: 20, paddingVertical: 10 }}>
+      <View style={{ backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF2F7', paddingHorizontal: isPhone ? 12 : 20, paddingVertical: 10 }}>
         {/* Top Row: Sub-Nav View Toggle + Export CSV Button */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
+        <View style={{ flexDirection: isPhone ? 'column' : 'row', alignItems: isPhone ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
           {/* Sub-Nav Banner Pills */}
           <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 8, padding: 3 }}>
             <Pressable
@@ -772,22 +776,22 @@ export default function OrdersScreen() {
 
         {/* Revenue Analytics Cards (Shown on Sales & Order History tab) */}
         {activeTab === 'history' && (
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#F8FAFC', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            <View style={{ flex: 1, minWidth: isPhone ? '45%' : undefined, backgroundColor: '#F8FAFC', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Gross</Text>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.grossSales.toLocaleString('en-IN')}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>₹{analyticsMetrics.grossSales.toLocaleString('en-IN')}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#FCA5A5', justifyContent: 'center' }}>
+            <View style={{ flex: 1, minWidth: isPhone ? '45%' : undefined, backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#FCA5A5', justifyContent: 'center' }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: '#991B1B', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Discounts</Text>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#DC2626', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.discountsGiven.toLocaleString('en-IN')}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#DC2626', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>₹{analyticsMetrics.discountsGiven.toLocaleString('en-IN')}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#86EFAC', justifyContent: 'center' }}>
+            <View style={{ flex: 1, minWidth: isPhone ? '45%' : undefined, backgroundColor: '#F0FDF4', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#86EFAC', justifyContent: 'center' }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Comp</Text>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#16A34A', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.complimentarySales.toLocaleString('en-IN')}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#16A34A', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>₹{analyticsMetrics.complimentarySales.toLocaleString('en-IN')}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0, backgroundColor: '#E0F2FE', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#7DD3FC', justifyContent: 'center' }}>
+            <View style={{ flex: 1, minWidth: isPhone ? '45%' : undefined, backgroundColor: '#E0F2FE', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: '#7DD3FC', justifyContent: 'center' }}>
               <Text style={{ fontSize: 10, fontWeight: '700', color: '#075985', textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={1}>Net Sales</Text>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0284C7', marginTop: 2 }} numberOfLines={1}>₹{analyticsMetrics.netCollected.toLocaleString('en-IN')}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0284C7', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>₹{analyticsMetrics.netCollected.toLocaleString('en-IN')}</Text>
             </View>
           </View>
         )}
@@ -1050,18 +1054,20 @@ export default function OrdersScreen() {
         </View>
       ) : activeTab === 'history' ? (
         /* ── Row-Wise Report Data Table View ── */
-        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }}>
-          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', flex: 1 }}>
+        <View style={{ flex: 1, paddingHorizontal: isPhone ? 12 : 20, paddingTop: 12, paddingBottom: 100 }}>
+          <View style={{ backgroundColor: isPhone ? 'transparent' : '#FFFFFF', borderRadius: 12, borderWidth: isPhone ? 0 : 1, borderColor: '#E2E8F0', overflow: 'hidden', flex: 1 }}>
             {/* Table Header Row */}
-            <View style={{ flexDirection: 'row', backgroundColor: '#F8FAFC', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', alignItems: 'center' }}>
-              <Text style={{ flex: 1.4, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Invoice / Order</Text>
-              <Text style={{ flex: 1.4, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Date & Time</Text>
-              <Text style={{ flex: 1.1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Status</Text>
-              <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Payment Mode</Text>
-              <Text style={{ flex: 2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Items Breakdown</Text>
-              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Total (₹)</Text>
-              <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>Actions</Text>
-            </View>
+            {!isPhone && (
+              <View style={{ flexDirection: 'row', backgroundColor: '#F8FAFC', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', alignItems: 'center' }}>
+                <Text style={{ flex: 1.4, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Invoice / Order</Text>
+                <Text style={{ flex: 1.4, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Date & Time</Text>
+                <Text style={{ flex: 1.1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Status</Text>
+                <Text style={{ flex: 1.2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Payment Mode</Text>
+                <Text style={{ flex: 2, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase' }}>Items Breakdown</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'right' }}>Total (₹)</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>Actions</Text>
+              </View>
+            )}
 
             {/* Table Body FlatList */}
             <FlatList
@@ -1075,6 +1081,50 @@ export default function OrdersScreen() {
                 const statusCfg = getStatusConfig(st);
                 const payMode = (item.order.payment_method || '').toUpperCase();
                 const isEven = index % 2 === 0;
+
+                if (isPhone) {
+                  return (
+                    <View style={{ backgroundColor: '#FFFFFF', marginBottom: 12, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <View>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }}>{inv}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '500', color: '#64748B' }}>{dateStr}</Text>
+                        </View>
+                        <View style={{ borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: statusCfg.bg }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: statusCfg.text, letterSpacing: 0.5 }}>{statusCfg.label}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, backgroundColor: '#F8FAFC', padding: 8, borderRadius: 8 }}>
+                        <View>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748B', marginBottom: 2 }}>PAYMENT</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: payMode ? '#0251B8' : '#0F172A' }}>
+                            {formatPaymentMode(item.order.payment_method) || (st === 'paid' ? 'Paid' : 'Unpaid')}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748B', marginBottom: 2 }}>TOTAL</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>
+                            ₹{item.totalAmount.toLocaleString('en-IN')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ flex: 1, fontSize: 12, color: '#475569', marginRight: 12 }} numberOfLines={1}>
+                          {item.previewItems.map(i => `${i.name} ×${i.quantity}`).join(', ')}
+                        </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => void handleViewOrder(item)}
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, backgroundColor: '#E8F2FA' }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#0066b2' }}>View</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }
 
                 return (
                   <View
@@ -1126,7 +1176,7 @@ export default function OrdersScreen() {
             />
 
             {/* Table Pagination Footer */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F8FAFC', borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+            <View style={{ flexDirection: isPhone ? 'column' : 'row', gap: isPhone ? 12 : 0, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F8FAFC', borderTopWidth: isPhone ? 0 : 1, borderTopColor: '#E2E8F0', borderRadius: isPhone ? 12 : 0 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569' }}>
                 {totalCount === 0
                   ? 'Showing 0 of 0 transactions'
@@ -1186,7 +1236,7 @@ export default function OrdersScreen() {
           key={listColumns}
           numColumns={listColumns}
           keyExtractor={(item) => item.order.id}
-          contentContainerStyle={{ padding: 10, paddingBottom: 28 }}
+          contentContainerStyle={{ padding: 10, paddingBottom: 100 }}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
@@ -1227,7 +1277,7 @@ export default function OrdersScreen() {
         >
           <Pressable
             style={{
-              width: '100%',
+              width: isPhone ? '95%' : '100%',
               maxWidth: 440,
               backgroundColor: '#FFFFFF',
               borderRadius: 20,
@@ -1298,6 +1348,8 @@ export default function OrdersScreen() {
               <View
                 style={{
                   flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 8,
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   backgroundColor: '#F8FAFC',
@@ -1309,28 +1361,28 @@ export default function OrdersScreen() {
                   borderColor: '#F1F5F9',
                 }}
               >
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: isPhone ? '40%' : undefined }}>
                   <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>Created</Text>
                   <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#334155', marginTop: 1.5 }}>{createdTime}</Text>
                 </View>
-                <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />
-                <View style={{ flex: 1.3, alignItems: 'center', paddingHorizontal: 4 }}>
+                {!isPhone && <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />}
+                <View style={{ flex: 1.3, minWidth: isPhone ? '40%' : undefined, alignItems: isPhone ? 'flex-start' : 'center', paddingHorizontal: 4 }}>
                   <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>Payment Mode</Text>
                   <Text
-                    style={{ fontSize: 11, fontWeight: '800', color: '#0251B8', marginTop: 1.5, textAlign: 'center' }}
+                    style={{ fontSize: 11, fontWeight: '800', color: '#0251B8', marginTop: 1.5, textAlign: isPhone ? 'left' : 'center' }}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
                     {formatPaymentMode(viewingSummary.order.payment_method || (viewingSummary.order.status === 'paid' ? 'Paid' : 'Unpaid'))}
                   </Text>
                 </View>
-                <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />
-                <View style={{ flex: 1, alignItems: 'center' }}>
+                {!isPhone && <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />}
+                <View style={{ flex: 1, minWidth: isPhone ? '40%' : undefined, alignItems: isPhone ? 'flex-start' : 'center' }}>
                   <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>Items</Text>
                   <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#334155', marginTop: 1.5 }}>{viewingSummary.itemCount}</Text>
                 </View>
-                <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                {!isPhone && <View style={{ width: 1, height: 24, backgroundColor: '#E2E8F0', marginHorizontal: 8 }} />}
+                <View style={{ flex: 1, minWidth: isPhone ? '40%' : undefined, alignItems: isPhone ? 'flex-start' : 'flex-end' }}>
                   <Text style={{ fontSize: 9, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total</Text>
                   <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#0F172A', marginTop: 1 }}>
                     ₹{viewingSummary.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
@@ -1394,7 +1446,7 @@ export default function OrdersScreen() {
               // Draft / Kitchen — open in POS to continue working
               if (isDraftOrKitchen) {
                 return (
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Open in POS"
@@ -1465,14 +1517,14 @@ export default function OrdersScreen() {
               // Unpaid Bill — Reprint + Edit + Settle
               if (isUnpaidBill) {
                 return (
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Reprint Bill"
                       onPress={handleReprintPreviousBill}
                       onHoverIn={() => setModalFooterIndex(0)}
                       style={({ pressed }: any) => [
-                        { flex: 1, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        { flex: 1, minWidth: 120, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 0 && Platform.OS === 'web' && {
                           borderWidth: 2, borderColor: '#0284c7',
@@ -1487,7 +1539,7 @@ export default function OrdersScreen() {
                         style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>
-                          Reprint Bill
+                          Reprint
                         </Text>
                       </LinearGradient>
                     </Pressable>
@@ -1505,7 +1557,7 @@ export default function OrdersScreen() {
                       }}
                       onHoverIn={() => setModalFooterIndex(1)}
                       style={({ pressed }: any) => [
-                        { flex: 1, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        { flex: 1, minWidth: 120, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 1 && Platform.OS === 'web' && {
                           borderWidth: 2, borderColor: '#d97706',
@@ -1531,7 +1583,7 @@ export default function OrdersScreen() {
                       onPress={() => { setSettlingOrder(viewingSummary); }}
                       onHoverIn={() => setModalFooterIndex(2)}
                       style={({ pressed }: any) => [
-                        { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        { flex: 1.5, minWidth: 120, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 2 && Platform.OS === 'web' && {
                           borderWidth: 2, borderColor: '#4ADE80',
@@ -1556,7 +1608,7 @@ export default function OrdersScreen() {
 
               if (isHeld) {
                 return (
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Close"
@@ -1565,6 +1617,7 @@ export default function OrdersScreen() {
                       style={({ pressed, hovered }: any) => [
                         {
                           flex: 1,
+                          minWidth: 140,
                           height: 40,
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1601,7 +1654,7 @@ export default function OrdersScreen() {
                       }}
                       onHoverIn={() => setModalFooterIndex(1)}
                       style={({ pressed }: any) => [
-                        { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
+                        { flex: 1.5, minWidth: 140, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 1 && Platform.OS === 'web' && {
                           borderWidth: 2,
@@ -1631,7 +1684,7 @@ export default function OrdersScreen() {
               // Paid / Completed / Cancelled (Read-only)
               const showReprint = status === 'paid' || status === 'completed';
               return (
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Close"
