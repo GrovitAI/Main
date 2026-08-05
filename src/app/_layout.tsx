@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { ApprovalProvider } from '@/lib/approval/ApprovalContext';
 
@@ -42,12 +43,14 @@ export default function RootLayout() {
   }
 
   return (
-    <ApprovalProvider>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(app)" />
-      </Stack>
-    </ApprovalProvider>
+    <SafeAreaProvider>
+      <ApprovalProvider>
+        <StatusBar style="dark" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(app)" />
+        </Stack>
+      </ApprovalProvider>
+    </SafeAreaProvider>
   );
 }

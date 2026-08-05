@@ -1187,6 +1187,10 @@ export default function OrdersScreen() {
           numColumns={listColumns}
           keyExtractor={(item) => item.order.id}
           contentContainerStyle={{ padding: 10, paddingBottom: 28 }}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
           renderItem={({ item, index }) => {
             const isEditable = EDITABLE_STATUSES.includes(item.order.status);
             return (

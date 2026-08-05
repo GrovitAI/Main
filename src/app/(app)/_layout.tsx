@@ -1,6 +1,7 @@
 import { Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing } from 'react-native';
+import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UIContext } from '@/lib/pos/ui-context';
 
 import { colors } from '@/lib/pos/brand';
@@ -141,10 +142,22 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
     }
   }, [activeTabName, tabLayouts]);
 
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const isTablet = width >= 768;
+  const isCompactMobile = width < 600;
+  const bottomInset = Platform.OS === 'web' ? 24 : Math.max(12, insets.bottom + 6);
+
   return (
     <Animated.View
       pointerEvents={tabBarHidden ? 'none' : 'auto'}
       style={{
+        position: 'absolute',
+        bottom: bottomInset,
+        alignSelf: 'center',
+        width: Platform.OS === 'web' ? (isTablet ? 840 : '94%') : (isTablet ? 720 : '95%'),
+        maxWidth: '96%',
+        zIndex: 100,
         transform: [{ translateY: tabBarTranslateY }],
         opacity: tabBarOpacity,
       }}
@@ -156,20 +169,14 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       borderWidth: 1,
       borderColor: '#E2E8F0',
       height: 64,
-      paddingHorizontal: 16,
+      paddingHorizontal: isCompactMobile ? 6 : 14,
       alignItems: 'center',
       justifyContent: 'space-around',
       shadowColor: '#0F172A',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.06,
+      shadowOpacity: 0.08,
       shadowRadius: 16,
       elevation: 10,
-      position: 'absolute',
-      bottom: 24,
-      alignSelf: 'center',
-      width: Platform.OS === 'web' ? 840 : '92%',
-      maxWidth: '92%',
-      zIndex: 100,
       transform: [
         {
           translateX: (Platform.OS === 'web' && activeTabName === 'index') ? -105 : 0
@@ -235,8 +242,9 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
+              minHeight: 44,
               paddingVertical: 10,
-              paddingHorizontal: 16,
+              paddingHorizontal: isCompactMobile ? 8 : 14,
               borderRadius: 16,
               backgroundColor: hovered ? 'rgba(15, 23, 42, 0.02)' : 'transparent',
               transform: [{ scale: pressed ? 0.96 : (hovered ? 1.02 : 1) }],
@@ -246,14 +254,14 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
           >
             <TabIcon
               color={isFocused ? '#FFFFFF' : '#64748B'}
-              size={isFocused ? 18 : 17}
+              size={isFocused ? (isCompactMobile ? 16 : 18) : (isCompactMobile ? 15 : 17)}
               style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
             />
             <Text style={{
               color: isFocused ? '#FFFFFF' : '#64748B',
               fontWeight: isFocused ? '700' : '500',
-              fontSize: isFocused ? 12 : 11.5,
-              marginLeft: isFocused ? 8 : 6,
+              fontSize: isFocused ? (isCompactMobile ? 11 : 12) : (isCompactMobile ? 10.5 : 11.5),
+              marginLeft: isFocused ? (isCompactMobile ? 4 : 8) : (isCompactMobile ? 3 : 6),
               letterSpacing: isFocused ? 0.1 : 0,
             }}>
               {label}
@@ -437,11 +445,15 @@ const headerLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 function GlobalHeader({ session }: { session: any }) {
   if (!session) return null;
+  const insets = useSafeAreaInsets();
 
   const isOwner = session.role === 'owner';
+  const isWeb = Platform.OS === 'web';
+  const headerHeight = isWeb ? 50 : 50 + insets.top;
+  const paddingTop = isWeb ? 0 : insets.top;
 
   return (
-    <View style={styles.headerContainer}>
+    <View style={[styles.headerContainer, { height: headerHeight, paddingTop }]}>
       {/* Left side: Logo and Role Badge */}
       <View style={styles.leftSection}>
         <Image
