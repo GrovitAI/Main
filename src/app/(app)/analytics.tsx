@@ -6,10 +6,9 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
-  Dimensions,
   Switch,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import Svg, {
@@ -55,7 +54,7 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { Building2, Download } from 'lucide-react-native';
 
 export default function AnalyticsScreen() {
-  const router = useRouter();
+
   const { session } = useSessionStore();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
@@ -759,7 +758,7 @@ export default function AnalyticsScreen() {
         </View>
       </View>
     );
-  }, [dashboardData]);
+  }, [dashboardData, isPhone]);
 
   // Product leaderboards side-by-side or stacked
   const productIntelligence = useMemo(() => {
