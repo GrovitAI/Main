@@ -6186,10 +6186,12 @@ export default function InventoryScreen() {
                 <View className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center">
                   <Text className="text-xs font-black text-white">RA</Text>
                 </View>
-                <View className="hidden md:flex">
-                  <Text className="text-xs font-black text-slate-800 leading-none">Rami Abou Jaoude</Text>
-                  <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5">Manager</Text>
-                </View>
+                {width >= 768 && (
+                  <View>
+                    <Text className="text-xs font-black text-slate-800 leading-none">Rami Abou Jaoude</Text>
+                    <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5">Manager</Text>
+                  </View>
+                )}
               </View>
 
               <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row items-center gap-2">
