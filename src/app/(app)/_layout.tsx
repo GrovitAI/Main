@@ -61,12 +61,11 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   staff: '/staff',
   branches: '/branches',
   billing: '/billing',
+  menu: '/menu',
 };
 
 function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }: any) {
-  const activeTabNames = APP_TAB_ROUTE_NAMES.filter(name =>
-    roleTabs.some((tab: any) => tab.name === name)
-  );
+  const activeTabNames = roleTabs.map((tab: any) => tab.name);
 
   const activeTabName = state.routes[state.index]?.name;
 
@@ -179,7 +178,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       elevation: 10,
       transform: [
         {
-          translateX: (Platform.OS === 'web' && activeTabName === 'index') ? -105 : 0
+          translateX: (Platform.OS === 'web' && isTablet && activeTabName === 'index') ? -105 : 0
         }
       ] as any,
     }}>
@@ -254,18 +253,20 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
           >
             <TabIcon
               color={isFocused ? '#FFFFFF' : '#64748B'}
-              size={isFocused ? (isCompactMobile ? 16 : 18) : (isCompactMobile ? 15 : 17)}
+              size={isFocused ? (isCompactMobile ? 18 : 18) : (isCompactMobile ? 17 : 17)}
               style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
             />
-            <Text style={{
-              color: isFocused ? '#FFFFFF' : '#64748B',
-              fontWeight: isFocused ? '700' : '500',
-              fontSize: isFocused ? (isCompactMobile ? 11 : 12) : (isCompactMobile ? 10.5 : 11.5),
-              marginLeft: isFocused ? (isCompactMobile ? 4 : 8) : (isCompactMobile ? 3 : 6),
-              letterSpacing: isFocused ? 0.1 : 0,
-            }}>
-              {label}
-            </Text>
+            {(!isCompactMobile || isFocused || activeTabNames.length <= 4) && (
+              <Text style={{
+                color: isFocused ? '#FFFFFF' : '#64748B',
+                fontWeight: isFocused ? '700' : '500',
+                fontSize: isFocused ? (isCompactMobile ? 11 : 12) : (isCompactMobile ? 10.5 : 11.5),
+                marginLeft: isFocused ? (isCompactMobile ? 5 : 8) : (isCompactMobile ? 3 : 6),
+                letterSpacing: isFocused ? 0.1 : 0,
+              }}>
+                {label}
+              </Text>
+            )}
           </Pressable>
         );
       })}
@@ -278,22 +279,15 @@ export default function AppTabLayout() {
   const { session } = useSessionStore();
   const segments = useSegments();
   const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const isPhone = !isTablet;
 
   // Compute role-based tabs (safe: getTabsForRole handles null/undefined gracefully)
-  const roleTabs = session ? getTabsForRole(session.role) : [];
+  const roleTabs = session ? getTabsForRole(session.role, isPhone) : [];
 
-  // tabBarHidden is controlled exclusively by individual screens via useTabBarHidden().
-  // index.tsx sets it to true during the splash video and restores it to false when done.
-  // We use window.location.pathname (available synchronously before Expo Router hydration)
-  // to correctly detect if we booted at the root '/' route — the only case where the
-  // splash video runs and the tab bar should start hidden.
-  const isRootBoot = Platform.OS === 'web' && typeof window !== 'undefined'
-    ? (() => {
-        const p = window.location.pathname.replace(/\/+$/, '') || '/';
-        return p === '/' || p === '/index';
-      })()
-    : true; // on native, always start hidden (splash runs on every boot)
-  const [tabBarHidden, setTabBarHidden] = useState(isRootBoot);
+  // Tab bar visibility state (screens can still toggle via useTabBarHidden)
+  const [tabBarHidden, setTabBarHidden] = useState(false);
 
   const segmentsRef = useRef(segments);
   useEffect(() => {
@@ -381,9 +375,9 @@ export default function AppTabLayout() {
     );
   }
 
-  const initialRouteName = getInitialRouteNameForRole(session.role);
-  // Show the header for owners and admins who need tenant-level context
-  const showHeader = session.role === 'owner' || session.role === 'admin';
+  const initialRouteName = getInitialRouteNameForRole(session.role, isPhone);
+  // Show the global header for owners and admins on tablet/desktop
+  const showHeader = isTablet && (session.role === 'owner' || session.role === 'admin');
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>

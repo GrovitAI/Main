@@ -11,6 +11,7 @@ import {
   TrendingUp,
   DollarSign,
   GitBranch,
+  BookOpen,
 } from 'lucide-react-native';
 
 import type { UserRole } from './session-context';
@@ -66,6 +67,16 @@ const KITCHEN_TABS: TabConfig[] = [
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
+// Mobile Devices: Management & Analytics focused (POS/Orders excluded per user requirement)
+export const MOBILE_TABS: TabConfig[] = [
+  { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp, label: 'Analytics' },
+  { name: 'inventory', href: '/(app)/inventory', icon: Boxes,      label: 'Inventory' },
+  { name: 'menu',      href: '/(app)/menu',      icon: BookOpen,   label: 'Menu' },
+  { name: 'staff',     href: '/(app)/staff',     icon: Users,      label: 'Staff' },
+  { name: 'branches',  href: '/(app)/branches',  icon: GitBranch,  label: 'Branches' },
+  { name: 'settings',  href: '/(app)/settings',  icon: Settings2,  label: 'Settings' },
+];
+
 export const APP_TAB_ROUTE_NAMES = [
   'index',
   'orders',
@@ -78,11 +89,16 @@ export const APP_TAB_ROUTE_NAMES = [
   'staff',
   'branches',
   'billing',
+  'menu',
 ] as const;
 
 export type AppTabRouteName = (typeof APP_TAB_ROUTE_NAMES)[number];
 
-export function getTabsForRole(role: UserRole): TabConfig[] {
+export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
+  if (isPhone) {
+    if (role === 'kitchen') return KITCHEN_TABS;
+    return MOBILE_TABS;
+  }
   switch (role) {
     case 'cashier':
       return CASHIER_TABS;
@@ -99,16 +115,20 @@ export function getTabsForRole(role: UserRole): TabConfig[] {
   }
 }
 
-export function getDefaultScreenForRole(role: UserRole): string {
+export function getDefaultScreenForRole(role: UserRole, isPhone = false): string {
+  if (isPhone) {
+    if (role === 'kitchen') return '/(app)/kitchen';
+    return '/(app)/analytics'; // Analytics is flagship home for phone
+  }
   switch (role) {
     case 'cashier':
       return '/(app)/index';
     case 'manager':
       return '/(app)/index';
     case 'owner':
-      return '/(app)/orders';   // Owner lands on Orders — no Dashboard tab
+      return '/(app)/orders';
     case 'admin':
-      return '/(app)/index';    // Admin lands on POS
+      return '/(app)/index';
     case 'kitchen':
       return '/(app)/kitchen';
     default:
@@ -116,10 +136,11 @@ export function getDefaultScreenForRole(role: UserRole): string {
   }
 }
 
-export function getInitialRouteNameForRole(role: UserRole): string {
-  const defaultHref = getDefaultScreenForRole(role);
-  const tab = getTabsForRole(role).find((entry) => entry.href === defaultHref);
-  return tab?.name ?? 'index';
+export function getInitialRouteNameForRole(role: UserRole, isPhone = false): string {
+  const defaultHref = getDefaultScreenForRole(role, isPhone);
+  const tabs = getTabsForRole(role, isPhone);
+  const tab = tabs.find((entry) => entry.href === defaultHref);
+  return tab?.name ?? (isPhone ? 'analytics' : 'index');
 }
 
 export function getTabConfigForRoute(

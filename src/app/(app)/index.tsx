@@ -19,8 +19,7 @@ import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-re
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useNavigation, router } from 'expo-router';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
@@ -28,6 +27,7 @@ import { Sidebar } from '@/components/pos/Sidebar';
 import { OrderPanel } from '@/components/pos/OrderPanel';
 import { ProductCard } from '@/components/pos/ProductCard';
 import { SettlementModal } from '@/components/pos/SettlementModal';
+import { PhonePOSScreen } from '@/components/phone/PhonePOSScreen';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 import { colors } from '@/lib/pos/brand';
@@ -314,112 +314,20 @@ export default function PosBillingScreen() {
   const isInitialLoading =
     (isLoadingOrders && orders.length === 0) || (catalogLoading && allProducts.length === 0);
 
-  // Loading animations & splash states
-  const [loadingFinished, setLoadingFinished] = useState(false);
+  // Loading states
+  const [loadingFinished, setLoadingFinished] = useState(true);
   const [isModalMounted, setIsModalMounted] = useState(false);
 
   useEffect(() => {
     setIsModalMounted(true);
   }, []);
 
-  // Hide the tab bar when initial loading screen is active
-  useTabBarHidden(!loadingFinished);
-
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
-  const loadingFadeAnim = useRef(new Animated.Value(1)).current;
-  const loadingScaleAnim = useRef(new Animated.Value(1)).current;
-  const itemSplashScaleAnim = useRef(new Animated.Value(1)).current;
-
-  // Video player configuration for full-screen loading screen
-  const videoSource = require('../../../assets/Loading_Screen3.mp4');
-  const videoPlayer = useVideoPlayer(videoSource, (player) => {
-    player.muted = true;
-    player.loop = true;
-    player.play();
-  });
-
-  // Fail-safe to ensure autoplay works on web after mount / page reload
+  // On mobile devices, redirect to analytics since mobile is for monitoring/management
   useEffect(() => {
-    if (!videoPlayer) return;
-
-    // Configure properties
-    videoPlayer.muted = true;
-    videoPlayer.loop = true;
-
-    // Track state to prevent multiple/competing play() calls which cause browser stutter
-    let hasPlayed = false;
-    const triggerPlay = () => {
-      if (videoPlayer.playing || hasPlayed) return;
-      videoPlayer.play();
-      hasPlayed = true;
-    };
-
-    // 1. Listen for the readyToPlay event to trigger playback instantly and smoothly
-    const subscription = videoPlayer.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay' && !videoPlayer.playing) {
-        triggerPlay();
-      }
-    });
-
-    // 2. Play immediately if the video player status is already ready
-    if (videoPlayer.status === 'readyToPlay') {
-      triggerPlay();
-    } else {
-      videoPlayer.play(); // Initial trigger for native/immediate loading
+    if (!isTablet) {
+      router.replace('/analytics');
     }
-
-    // 3. Gentle fallback interval with a longer interval (800ms) to prevent double play calls
-    const interval = setInterval(() => {
-      if (videoPlayer.playing || hasPlayed) {
-        clearInterval(interval);
-        return;
-      }
-      videoPlayer.play();
-    }, 800);
-
-    return () => {
-      subscription.remove();
-      clearInterval(interval);
-    };
-  }, [videoPlayer]);
-
-  // Enforce minimum 3 seconds loader display
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinTimeElapsed(true);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!isInitialLoading && minTimeElapsed && !loadingFinished) {
-      // 1. Splash item scale (explodes outwards)
-      Animated.timing(itemSplashScaleAnim, {
-        toValue: 5,
-        duration: 550,
-        easing: Easing.bezier(0.16, 1, 0.3, 1),
-        useNativeDriver: true,
-      }).start();
-
-      // 2. Main overlay fade out and scale up
-      Animated.parallel([
-        Animated.timing(loadingFadeAnim, {
-          toValue: 0,
-          duration: 550,
-          easing: Easing.bezier(0.16, 1, 0.3, 1),
-          useNativeDriver: true,
-        }),
-        Animated.timing(loadingScaleAnim, {
-          toValue: 1.15,
-          duration: 550,
-          easing: Easing.bezier(0.16, 1, 0.3, 1),
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setLoadingFinished(true);
-      });
-    }
-  }, [isInitialLoading, minTimeElapsed]);
+  }, [isTablet]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -1584,7 +1492,7 @@ export default function PosBillingScreen() {
       )}
 
       {/* MAIN CONTAINER */}
-      <View className="flex-1 flex-col" style={{ paddingTop: isTablet ? 12 : Math.max(12, insets.top), paddingBottom: 12, paddingRight: 12, paddingLeft: 12, gap: 12 }}>
+      <View className="flex-1 flex-col" style={isTablet ? { paddingTop: 12, paddingBottom: 12, paddingRight: 12, paddingLeft: 12, gap: 12 } : { flex: 1 }}>
         {isTablet && (
           <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', zIndex: 9999, elevation: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, zIndex: 9999 }}>
@@ -1763,19 +1671,59 @@ export default function PosBillingScreen() {
             </View>
           </View>
         ) : (
-          <View className="min-h-0 flex-1 px-2" style={{ paddingBottom: 100 }}>
-            <CategoryTabs
-              categories={categories}
-              selectedCategoryId={selectedCategoryId}
-              onSelectCategory={setSelectedCategoryId}
-            />
-            <View className="min-h-0 flex-[0.56] overflow-hidden rounded-xl border border-border-soft bg-surface-tint shadow-card">
-              {productGrid}
-            </View>
-            <View className="mt-2 min-h-[280px] max-h-[44%] overflow-hidden rounded-xl border border-border-soft bg-surface-elevated shadow-panel">
-              {orderPanel}
-            </View>
-          </View>
+          <PhonePOSScreen
+            categories={categories}
+            products={visibleProducts}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onAddProduct={handleAddProduct}
+            catalogLoading={catalogLoading}
+            catalogError={catalogError}
+            onRetryCatalog={() => void loadCatalog()}
+            cartItems={activeOrderItems.map((item) => ({
+              id: item.id,
+              product_id: item.product_id,
+              product_name: item.product_name || item.item_name || 'Item',
+              price: item.price,
+              qty: item.qty,
+              kot_sent: !!item.kot_sent,
+            }))}
+            orderName={activeOrder?.order_name || 'New Order'}
+            orderStatus={activeOrder?.status || 'draft'}
+            orderIndex={activeOrderIndex >= 0 ? activeOrderIndex : 0}
+            subtotal={calculateOrderSubtotal(activeOrderItems)}
+            taxAmount={calculateOrderSubtotal(activeOrderItems) * TAX_RATE}
+            totalAmount={orderTotal}
+            isLoading={isLoadingActiveOrder}
+            isMutating={isMutating}
+            isEditingUnpaid={isEditingUnpaid}
+            hasUnsavedChanges={hasUnsavedChanges}
+            isReadOnlyView={isReadOnlyView}
+            onIncrementItem={handleIncrementItem}
+            onDecrementItem={handleDecrementItem}
+            onRemoveItem={handleRemoveItem}
+            onSaveKot={handleSaveKotClick}
+            onSaveAndPrint={handleSaveAndPrintClick}
+            onSettle={handleSettleClick}
+            onHoldOrder={confirmHoldOrder}
+            onReset={handleDiscardChangesClick}
+            onNewOrder={handleCreateOrderClick}
+            onEditBill={handleEditBillClick}
+            onDiscardChanges={handleDiscardChangesClick}
+            onStartNewOrder={() => void handleStartNewOrder()}
+            onCancel={handleCancelClick}
+            onReprint={handleReprintActiveBill}
+            heldOrders={heldOrdersFiltered.map((o) => ({
+              id: o.id,
+              order_name: o.order_name,
+              status: o.status,
+              created_at: o.created_at,
+            }))}
+            onResumeOrder={handleSelectOrderClick}
+            itemCountByOrderId={itemCountByOrderId}
+          />
         )}
       </View>
 
@@ -1817,48 +1765,6 @@ export default function PosBillingScreen() {
       )}
 
       </View>
-
-      {/* 🚀 Splash Screen Loading Overlay */}
-      {!loadingFinished && (
-        <Modal
-          visible={!loadingFinished}
-          transparent={true}
-          animationType="none"
-          statusBarTranslucent={true}
-        >
-          <Animated.View
-            style={{
-              position: Platform.OS === 'web' ? 'fixed' : 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              zIndex: 999999,
-              opacity: loadingFadeAnim,
-              transform: [{ scale: loadingScaleAnim }],
-              backgroundColor: '#002d5a',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {/* Full-page HD video — fills the entire #002d5a splash background */}
-            <VideoView
-              style={{
-                position: Platform.OS === 'web' ? 'absolute' : 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: '100%',
-                height: '100%',
-              }}
-              player={videoPlayer}
-              contentFit="cover"
-              nativeControls={false}
-            />
-          </Animated.View>
-        </Modal>
-      )}
     </View>
   );
 }

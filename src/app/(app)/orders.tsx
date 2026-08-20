@@ -31,6 +31,7 @@ import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 import { useOrdersStore } from '@/lib/pos/use-orders-store';
 import { SettlementModal } from '@/components/pos/SettlementModal';
+import { PhoneOrdersScreen } from '@/components/phone/PhoneOrdersScreen';
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { logSupabaseError } from '@/lib/pos/supabase-debug';
@@ -137,6 +138,13 @@ export default function OrdersScreen() {
 
   // ── Zustand State cache-first connection ─────────────────────────────────────
   const summaries = useOrdersStore((state) => state.summaries);
+
+  // Redirect phone users to analytics
+  useEffect(() => {
+    if (isPhone) {
+      router.replace('/analytics');
+    }
+  }, [isPhone]);
   const isLoading = useOrdersStore((state) => state.isLoadingOrders);
   const storeError = useOrdersStore((state) => state.error);
   const loadSummaries = useOrdersStore((state) => state.loadSummaries);
@@ -657,6 +665,114 @@ export default function OrdersScreen() {
   }
 
   // ─── Main render ──────────────────────────────────────────────────────────────
+  if (isPhone) {
+    const selectedSummary = summaries.find((s) => s.order.id === viewingOrderId);
+    return (
+      <PhoneOrdersScreen
+        onMenuPress={() => {}}
+        activeTab={activeTab === 'active' ? 'Active' : 'History'}
+        onTabChange={(tab) => setActiveTab(tab === 'Active' ? 'active' : 'history')}
+        activeOrdersFilter={
+          activeFilter === 'unpaid' ? 'Unpaid' :
+          activeFilter === 'draft' ? 'Draft' :
+          activeFilter === 'held' ? 'Held' :
+          activeFilter === 'paid' ? 'Paid' :
+          activeFilter === 'cancelled' ? 'Cancelled' : 'All'
+        }
+        onActiveOrdersFilterChange={(status) => setActiveFilter(status.toLowerCase() as any)}
+        activeOrdersCounts={{
+          Unpaid: kpi.unpaid,
+          Draft: kpi.draft,
+          Held: kpi.held,
+          Paid: kpi.paid,
+          Cancelled: kpi.cancelled,
+          All: kpi.all,
+        }}
+        activeOrdersSearchQuery={searchQuery}
+        onActiveOrdersSearchChange={setSearchQuery}
+        activeOrders={filteredSummaries.map((s, idx) => ({
+          id: s.order.id,
+          billIdentifier: getBillIdentifier(s, idx),
+          status: (s.order.status.charAt(0).toUpperCase() + s.order.status.slice(1)) as any,
+          timestamp: s.order.created_at,
+          total: s.totalAmount || 0,
+          items: s.previewItems.map((pi) => ({
+            id: pi.name,
+            name: pi.name,
+            quantity: pi.quantity,
+            price: 0,
+            total: 0,
+          })),
+        }))}
+        historyDatePreset={
+          datePreset === 'today' ? 'Today' :
+          datePreset === 'yesterday' ? 'Yesterday' :
+          datePreset === '7days' ? '7 Days' :
+          datePreset === '30days' ? '30 Days' : 'Custom'
+        }
+        onHistoryDatePresetChange={(p) => setDatePreset(p === 'Today' ? 'today' : p === 'Yesterday' ? 'yesterday' : p === '7 Days' ? '7days' : p === '30 Days' ? '30days' : 'custom')}
+        historySearchQuery={searchQuery}
+        onHistorySearchChange={setSearchQuery}
+        historyKPIs={{
+          grossSales: historyMetrics.grossSales,
+          discounts: historyMetrics.discountsGiven,
+          netSales: historyMetrics.netCollected,
+          totalOrders: totalCount,
+        }}
+        historyOrders={historySummaries.map((s, idx) => ({
+          id: s.order.id,
+          billIdentifier: getBillIdentifier(s, idx),
+          status: (s.order.status.charAt(0).toUpperCase() + s.order.status.slice(1)) as any,
+          timestamp: s.order.created_at,
+          total: s.totalAmount || 0,
+          paymentMethod: formatPaymentMode(s.order.payment_method),
+          items: s.previewItems.map((pi) => ({
+            id: pi.name,
+            name: pi.name,
+            quantity: pi.quantity,
+            price: 0,
+            total: 0,
+          })),
+        }))}
+        historyCurrentPage={currentPage}
+        historyTotalPages={totalPages}
+        onHistoryPageChange={setCurrentPage}
+        selectedOrder={selectedSummary ? {
+          id: selectedSummary.order.id,
+          billIdentifier: getBillIdentifier(selectedSummary, 0),
+          status: (selectedSummary.order.status.charAt(0).toUpperCase() + selectedSummary.order.status.slice(1)) as any,
+          timestamp: selectedSummary.order.created_at,
+          total: selectedSummary.totalAmount || 0,
+          items: viewingItems.map((vi) => ({
+            id: vi.name,
+            name: vi.name,
+            quantity: vi.qty,
+            price: 0,
+            total: 0,
+          })),
+        } : null}
+        onSelectOrder={(order) => {
+          const sum = summaries.find((s) => s.order.id === order.id) || historySummaries.find((s) => s.order.id === order.id);
+          if (sum) void handleViewOrder(sum);
+        }}
+        onCloseOrderDetail={() => setViewingOrderId(null)}
+        onOpenInPOS={(order) => {
+          void handleOpenBill(order.id);
+        }}
+        onSettle={(order) => {
+          const sum = summaries.find((s) => s.order.id === order.id);
+          if (sum) setSettlingOrder(sum);
+        }}
+        onEditBill={(order) => {
+          void handleOpenBill(order.id);
+        }}
+        onReprint={() => {
+          void handleReprintPreviousBill();
+        }}
+      />
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: '#F5F8FC' }}>
       {/* ── Branded Top Header Surface ── */}

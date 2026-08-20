@@ -11,6 +11,7 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { PhoneAnalyticsScreen } from '@/components/phone/PhoneAnalyticsScreen';
 import Svg, {
   Path,
   Rect,
@@ -1140,6 +1141,72 @@ export default function AnalyticsScreen() {
       </View>
     );
   };
+
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
+  if (isPhone) {
+    const kpis = dashboardData?.kpis;
+    return (
+      <PhoneAnalyticsScreen
+        kpiData={{
+          totalSales: kpis?.totalSales || 0,
+          totalOrders: kpis?.totalOrders || 0,
+          avgOrderValue: kpis?.avgOrderValue || 0,
+          itemsSold: kpis?.itemsSold || 0,
+          totalTax: kpis?.taxCollected || 0,
+          totalDiscounts: kpis?.totalDiscounts || 0,
+          collectedRevenue: kpis?.collectedRevenue || kpis?.totalSales || 0,
+          pendingCollections: kpis?.pendingCollections || 0,
+          cancelledOrders: kpis?.cancelledOrders || 0,
+          cancelledSales: kpis?.cancelledSales || 0,
+          salesTrend: 0,
+        }}
+        royaltyData={{
+          enabled: isFranchiseMode,
+          storeShare: 100 - royaltyRate,
+          royaltyShare: royaltyRate,
+        }}
+        chartsData={{
+          salesTrend: (dashboardData?.salesByDay || []).map((t) => ({
+            label: t.label,
+            value: t.sales || 0,
+            orders: t.orders || 0,
+          })),
+          rushHours: (dashboardData?.salesByHour || []).map((r) => ({
+            hour: r.hour,
+            sales: r.sales || 0,
+          })),
+          paymentSplits: (dashboardData?.paymentSplit || []).map((p) => ({
+            label: p.payment_type || 'Other',
+            value: p.total || 0,
+          })),
+        }}
+        topProducts={(dashboardData?.topSellingItems || []).map((item, idx) => ({
+          id: String(idx),
+          name: item.item_name,
+          sold: item.qty || 0,
+          revenue: item.revenue || 0,
+        }))}
+        itemSales={(dashboardData?.itemWiseReport || []).map((item, idx) => ({
+          id: String(idx),
+          name: item.item_name,
+          quantity: item.qty || 0,
+          revenue: item.revenue || 0,
+        }))}
+        filterState={{
+          datePreset: preset,
+          selectedBranchId: selectedBranchId || undefined,
+        }}
+        branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
+        isFilterSheetOpen={isFilterSheetOpen}
+        onOpenFilter={() => setIsFilterSheetOpen(true)}
+        onCloseFilter={() => setIsFilterSheetOpen(false)}
+        onSelectDatePreset={(p) => applyPreset(p.toLowerCase() as any)}
+        onSelectBranch={(bId) => setSelectedBranchId(bId)}
+        onExportCSV={handleExportCSV}
+      />
+    );
+  }
 
   return (
     <View className="flex-1 bg-surfaceTint" style={{ paddingTop: insets.top }}>

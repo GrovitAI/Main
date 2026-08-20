@@ -63,6 +63,7 @@ import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Tex
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
 import { BRANCH_ID, getTenantContext } from '@/lib/pos/tenant-context';
 import { colors } from '@/lib/pos/brand';
@@ -457,6 +458,7 @@ export default function InventoryScreen() {
   const columns = width >= 1200 ? 3 : width >= 768 ? 2 : 1;
 
   const [activeTab, setActiveTab] = useState<TabName>('dashboard');
+  const [phoneTab, setPhoneTab] = useState<InventoryTab>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -5818,6 +5820,37 @@ export default function InventoryScreen() {
         <ActivityIndicator size="large" color={colors.primary} />
         <Text className="text-sm text-slate-400 mt-2">Compiling inventory cockpit ledger...</Text>
       </View>
+    );
+  }
+
+  if (width < 768) {
+    return (
+      <PhoneInventoryScreen
+        activeTab={phoneTab}
+        onTabChange={setPhoneTab}
+        kpis={{
+          totalValue: kpis?.inventoryValuation || 0,
+          lowStockCount: lowStockMaterials.length,
+          pendingDispatches: (dispatchesList || []).filter((d) => (d.status as string) === 'Dispatched').length,
+          activeSuppliers: suppliers.length,
+        }}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        materials={materials.map((m) => ({
+          id: m.id,
+          name: m.material_name,
+          stockLevel: m.current_stock,
+          unit: m.inventory_unit_id || 'units',
+          status: m.current_stock <= 0 ? 'out_of_stock' : m.current_stock <= (m.reorder_level || 5) ? 'low_stock' : 'in_stock',
+        }))}
+        alerts={lowStockMaterials.map((m) => ({
+          id: m.id,
+          type: m.current_stock <= 0 ? 'expired' : 'low_stock',
+          itemName: m.material_name,
+          details: `Stock: ${m.current_stock} (Min: ${m.reorder_level || 5})`,
+        }))}
+        onMenuPress={() => setIsMobileMenuOpen(true)}
+      />
     );
   }
 
