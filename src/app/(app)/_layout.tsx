@@ -150,25 +150,34 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
   return (
     <Animated.View
       pointerEvents={tabBarHidden ? 'none' : 'auto'}
-      style={{
+      style={isTablet ? {
         position: 'absolute',
         bottom: bottomInset,
         alignSelf: 'center',
-        width: Platform.OS === 'web' ? (isTablet ? 840 : '94%') : (isTablet ? 720 : '95%'),
+        width: Platform.OS === 'web' ? 840 : 720,
         maxWidth: '96%',
+        zIndex: 100,
+        transform: [{ translateY: tabBarTranslateY }],
+        opacity: tabBarOpacity,
+      } : {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
         zIndex: 100,
         transform: [{ translateY: tabBarTranslateY }],
         opacity: tabBarOpacity,
       }}
     >
-    <View style={{
+    <View style={isTablet ? {
       flexDirection: 'row',
       backgroundColor: '#FFFFFF',
       borderRadius: 24,
       borderWidth: 1,
       borderColor: '#E2E8F0',
       height: 64,
-      paddingHorizontal: isCompactMobile ? 6 : 14,
+      paddingHorizontal: 14,
       alignItems: 'center',
       justifyContent: 'space-around',
       shadowColor: '#0F172A',
@@ -178,12 +187,27 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       elevation: 10,
       transform: [
         {
-          translateX: (Platform.OS === 'web' && isTablet && activeTabName === 'index') ? -105 : 0
+          translateX: (Platform.OS === 'web' && activeTabName === 'index') ? -105 : 0
         }
       ] as any,
+    } : {
+      flexDirection: 'row',
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#E2E8F0',
+      height: 60 + Math.max(0, insets.bottom),
+      paddingBottom: Math.max(4, insets.bottom),
+      paddingHorizontal: 2,
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 8,
     }}>
-      {/* Sliding Highlight Backdrop Pill */}
-      {tabLayouts[activeTabName] && (
+      {/* Sliding Highlight Backdrop Pill (Tablet Only) */}
+      {isTablet && tabLayouts[activeTabName] && (
         <Animated.View
           style={{
             position: 'absolute',
@@ -191,17 +215,16 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
             width: widthAnim,
             height: 44,
             borderRadius: 16,
-            backgroundColor: colors.primary, // Brand blue highlighted covering
+            backgroundColor: colors.primary,
             zIndex: 1,
           }}
         />
       )}
 
-      {activeTabNames.map((tabName) => {
+      {activeTabNames.map((tabName: string) => {
         const route = state.routes.find((r: any) => r.name === tabName);
         if (!route) return null;
 
-        const { options } = descriptors[route.key];
         const isFocused = state.routes[state.index].name === tabName;
         const tabConfig = roleTabs.find((t: any) => t.name === tabName);
         if (!tabConfig) return null;
@@ -221,6 +244,55 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
           }
         };
 
+        if (!isTablet) {
+          // ── Mobile Fixed Tab Button ──
+          return (
+            <Pressable
+              key={tabName}
+              onPress={onPress}
+              style={({ pressed }) => ({
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingVertical: 6,
+                minHeight: 48,
+                opacity: pressed ? 0.7 : 1,
+                zIndex: 3,
+                ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+              } as any)}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: 12,
+                  paddingVertical: 3,
+                  borderRadius: 12,
+                  backgroundColor: isFocused ? 'rgba(0, 102, 178, 0.08)' : 'transparent',
+                }}
+              >
+                <TabIcon
+                  color={isFocused ? '#0066B2' : '#64748B'}
+                  size={20}
+                />
+              </View>
+              <Text
+                style={{
+                  color: isFocused ? '#0066B2' : '#64748B',
+                  fontWeight: isFocused ? '700' : '500',
+                  fontSize: 10,
+                  marginTop: 2,
+                  letterSpacing: isFocused ? 0.2 : 0,
+                }}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        }
+
+        // ── Tablet / Desktop Floating Tab Button ──
         return (
           <Pressable
             key={tabName}
@@ -253,20 +325,18 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
           >
             <TabIcon
               color={isFocused ? '#FFFFFF' : '#64748B'}
-              size={isFocused ? (isCompactMobile ? 18 : 18) : (isCompactMobile ? 17 : 17)}
+              size={18}
               style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
             />
-            {(!isCompactMobile || isFocused || activeTabNames.length <= 4) && (
-              <Text style={{
-                color: isFocused ? '#FFFFFF' : '#64748B',
-                fontWeight: isFocused ? '700' : '500',
-                fontSize: isFocused ? (isCompactMobile ? 11 : 12) : (isCompactMobile ? 10.5 : 11.5),
-                marginLeft: isFocused ? (isCompactMobile ? 5 : 8) : (isCompactMobile ? 3 : 6),
-                letterSpacing: isFocused ? 0.1 : 0,
-              }}>
-                {label}
-              </Text>
-            )}
+            <Text style={{
+              color: isFocused ? '#FFFFFF' : '#64748B',
+              fontWeight: isFocused ? '700' : '500',
+              fontSize: 12,
+              marginLeft: 8,
+              letterSpacing: isFocused ? 0.1 : 0,
+            }}>
+              {label}
+            </Text>
           </Pressable>
         );
       })}

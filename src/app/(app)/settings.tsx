@@ -4,7 +4,6 @@ import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshC
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
-import { MenuManagement } from '@/components/settings/MenuManagement';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,7 +15,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { session, signOut } = useSessionStore();
   const { isOwnerOrAdmin } = getTenantContext();
-  const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'menu' | 'approvals'>('printers');
+  const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'approvals'>('system');
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -187,68 +186,46 @@ export default function SettingsScreen() {
     <View style={{
       flex: 1,
       backgroundColor: '#F8FAFC',
-      paddingTop: activeTab === 'menu' ? insets.top : 0
     }}>
       {/* Modern Premium Page Header */}
-      {activeTab !== 'menu' && (
-        <View style={{
-          paddingHorizontal: 28,
-          paddingTop: insets.top,
-          paddingBottom: 20,
-          backgroundColor: '#F8FAFC',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottomWidth: 1,
-          borderBottomColor: '#F1F5F9',
-          marginBottom: 24,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}>
-          <View style={{ flex: 1, paddingRight: 12, minWidth: 200 }}>
-            <Text style={{
-              fontSize: 32,
-              fontWeight: '600',
-              color: '#0F172A',
-              fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif',
-              letterSpacing: -0.8
-            }}>
-              Settings
-            </Text>
-            <Text style={{
-              fontSize: 14,
-              fontWeight: '500',
-              color: '#64748B',
-              marginTop: 4,
-              opacity: 0.95
-            }}>
-              Manage operational and system preferences
-            </Text>
-          </View>
+      <View style={{
+        paddingHorizontal: 28,
+        paddingTop: insets.top,
+        paddingBottom: 20,
+        backgroundColor: '#F8FAFC',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+        marginBottom: 24,
+        flexWrap: 'wrap',
+        gap: 12,
+      }}>
+        <View>
+          <Text className="text-2xl font-bold text-slate-900 tracking-tight">Settings</Text>
+          <Text className="text-sm font-medium text-slate-500 mt-1">Manage operational and system preferences</Text>
+        </View>
 
-          {/* Right side branch context badge */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
-              <View className="w-2 h-2 rounded-full bg-emerald-500" />
-              <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
-            </View>
+        <View className="flex-row items-center gap-3">
+          <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
+            <View className="w-2 h-2 rounded-full bg-emerald-500" />
+            <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
           </View>
         </View>
-      )}
+      </View>
 
       {/* Main Container with generous SaaS padding */}
-      <View className={`flex-1 ${activeTab === 'menu' ? 'px-0 mb-0' : 'px-4 md:px-8'}`}>
+      <View className="flex-1 px-4 md:px-8">
         
         {/* Segmented SaaS Navigation Tab Bar */}
-        {activeTab !== 'menu' && (
-          <View className="mb-8">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
+        <View className="mb-8">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
             {[
               { key: 'system', label: 'System Settings', icon: Settings },
               { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
               ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approval Policies', icon: ShieldCheck }] : []),
-              { key: 'menu', label: 'Menu Catalog Manager', icon: BookOpen },
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
@@ -271,7 +248,6 @@ export default function SettingsScreen() {
               </View>
             </ScrollView>
           </View>
-        )}
 
         {activeTab === 'printers' ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -597,10 +573,8 @@ export default function SettingsScreen() {
               </View>
             </View>
           </ScrollView>
-        ) : activeTab === 'approvals' ? (
-          <ApprovalPoliciesScreen />
         ) : (
-          <MenuManagement onBack={() => setActiveTab('system')} />
+          <ApprovalPoliciesScreen />
         )}
       </View>
     </View>

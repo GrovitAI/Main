@@ -123,7 +123,7 @@ export function PhoneAnalyticsScreen({
     <View className="flex-1 bg-[#F8FAFC]">
       {/* Top Header */}
       <PhoneScreenHeader
-        title="Command Center"
+        title="Analytics"
         subtitle={`${selectedBranchName} · ${filterState.datePreset.toUpperCase()}`}
         rightContent={
           <View className="flex-row items-center gap-2">

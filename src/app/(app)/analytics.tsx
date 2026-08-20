@@ -60,8 +60,8 @@ export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
 
-  // Branch filter — only relevant for owner who can see all branches
-  const isOwnerOrAdmin = session?.role === 'owner';
+  // Branch filter — relevant for owner and admin
+  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
   const accessibleBranches = session?.accessibleBranches ?? [];
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null); // null = all branches
 
