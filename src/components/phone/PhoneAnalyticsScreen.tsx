@@ -7,6 +7,7 @@ import {
   Modal,
   TextInput,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Filter,
@@ -63,6 +64,9 @@ export interface PhoneAnalyticsScreenProps {
     selectedBranchId?: string;
   };
   branches: { id: string; name: string }[];
+  loading?: boolean;
+  errorMsg?: string | null;
+  onRetry?: () => void;
   isFilterSheetOpen: boolean;
   onOpenFilter: () => void;
   onCloseFilter: () => void;
@@ -87,6 +91,9 @@ export function PhoneAnalyticsScreen({
   itemSales,
   filterState,
   branches,
+  loading = false,
+  errorMsg = null,
+  onRetry,
   isFilterSheetOpen,
   onOpenFilter,
   onCloseFilter,
@@ -176,6 +183,32 @@ export function PhoneAnalyticsScreen({
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* ERROR BANNER */}
+        {errorMsg && (
+          <View className="bg-rose-50 border border-rose-200 p-4 rounded-2xl mb-4 flex-row items-center justify-between">
+            <View className="flex-1 pr-3">
+              <Text className="text-xs font-bold text-rose-800">Unable to load report</Text>
+              <Text className="text-[11px] text-rose-600 mt-0.5">{errorMsg}</Text>
+            </View>
+            {onRetry && (
+              <Pressable
+                onPress={onRetry}
+                className="bg-rose-600 px-3.5 py-1.5 rounded-xl active:bg-rose-700"
+              >
+                <Text className="text-xs font-bold text-white">Retry</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* LOADING INDICATOR */}
+        {loading && (
+          <View className="py-4 items-center justify-center flex-row gap-2 mb-2">
+            <ActivityIndicator size="small" color="#0066B2" />
+            <Text className="text-xs font-semibold text-[#0066B2]">Updating analytics report...</Text>
+          </View>
+        )}
+
         {/* HERO REVENUE CARD */}
         <View
           className="rounded-3xl p-5 mb-5 shadow-lg overflow-hidden"

@@ -1198,6 +1198,9 @@ export default function AnalyticsScreen() {
           selectedBranchId: selectedBranchId || undefined,
         }}
         branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
+        loading={loading}
+        errorMsg={errorMsg}
+        onRetry={loadDashboard}
         isFilterSheetOpen={isFilterSheetOpen}
         onOpenFilter={() => setIsFilterSheetOpen(true)}
         onCloseFilter={() => setIsFilterSheetOpen(false)}

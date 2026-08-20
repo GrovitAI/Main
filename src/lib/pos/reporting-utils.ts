@@ -118,12 +118,21 @@ export function getBusinessDayBounds(
     startDateObj = new Date(currentBizDate.getFullYear(), currentBizDate.getMonth(), 1);
     endDateObj = new Date(currentBizDate);
   } else if (preset === 'custom' || fromDate || toDate) {
+    const parseSafe = (input: string | Date): Date => {
+      if (input instanceof Date) return input;
+      if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+        const [y, m, d] = input.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      }
+      return new Date(input);
+    };
+
     if (fromDate) {
-      const dFrom = typeof fromDate === 'string' ? new Date(fromDate) : new Date(fromDate);
+      const dFrom = parseSafe(fromDate);
       startDateObj = isNaN(dFrom.getTime()) ? new Date(currentBizDate) : dFrom;
     }
     if (toDate) {
-      const dTo = typeof toDate === 'string' ? new Date(toDate) : new Date(toDate);
+      const dTo = parseSafe(toDate);
       endDateObj = isNaN(dTo.getTime()) ? new Date(currentBizDate) : dTo;
     }
   }

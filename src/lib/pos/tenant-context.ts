@@ -35,8 +35,8 @@ export function getTenantContext(): TenantContext {
     throw new Error('Grovit Security Exception: Active session required to retrieve tenant context.');
   }
 
-  // Only the owner role has cross-branch access
-  const isOwnerOrAdmin = session.role === 'owner';
+  // Owner and admin roles have cross-branch reporting access
+  const isOwnerOrAdmin = session.role === 'owner' || session.role === 'admin';
 
   return {
     tenant_id: session.tenantId,

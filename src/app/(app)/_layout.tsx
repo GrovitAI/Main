@@ -254,7 +254,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
                 flex: 1,
                 alignItems: 'center',
                 justifyContent: 'center',
-                paddingVertical: 6,
+                paddingVertical: 4,
                 minHeight: 48,
                 opacity: pressed ? 0.7 : 1,
                 zIndex: 3,
@@ -265,10 +265,10 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
                 style={{
                   alignItems: 'center',
                   justifyContent: 'center',
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 10,
                   paddingVertical: 3,
                   borderRadius: 12,
-                  backgroundColor: isFocused ? 'rgba(0, 102, 178, 0.08)' : 'transparent',
+                  backgroundColor: isFocused ? 'rgba(0, 102, 178, 0.1)' : 'transparent',
                 }}
               >
                 <TabIcon
@@ -282,7 +282,8 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
                   fontWeight: isFocused ? '700' : '500',
                   fontSize: 10,
                   marginTop: 2,
-                  letterSpacing: isFocused ? 0.2 : 0,
+                  textAlign: 'center',
+                  width: '100%',
                 }}
                 numberOfLines={1}
               >
