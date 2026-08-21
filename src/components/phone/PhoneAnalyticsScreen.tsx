@@ -141,8 +141,9 @@ export function PhoneAnalyticsScreen({
               <Download size={18} color="#0066B2" />
             </Pressable>
             <Pressable
+              testID="analytics-filter-btn"
               onPress={onOpenFilter}
-              className="w-10 h-10 items-center justify-center rounded-xl bg-[#0066B2] shadow-sm active:bg-[#004B87] flex-row"
+              className="w-10 h-10 items-center justify-center rounded-xl bg-[#0066B2] shadow-sm active:bg-[#004B87]"
             >
               <Filter size={18} color="#FFFFFF" />
             </Pressable>
@@ -556,17 +557,19 @@ export function PhoneAnalyticsScreen({
       </ScrollView>
 
       {/* FILTER BOTTOM SHEET MODAL */}
-      <Modal
-        visible={isFilterSheetOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={onCloseFilter}
-      >
+      {isFilterSheetOpen && (
+        <Modal
+          visible={isFilterSheetOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={onCloseFilter}
+        >
         <View className="flex-1 justify-end bg-black/50">
           <View className="bg-white rounded-t-3xl p-5 border-t border-[#E2E8F0] max-h-[80%]">
             <View className="flex-row items-center justify-between pb-3 border-b border-[#E2E8F0] mb-4">
               <Text className="text-lg font-bold text-[#0F2744]">Filter Reports</Text>
               <Pressable
+                testID="filter-modal-close-btn"
                 onPress={onCloseFilter}
                 className="w-9 h-9 items-center justify-center rounded-full bg-slate-100"
               >
@@ -663,6 +666,7 @@ export function PhoneAnalyticsScreen({
           </View>
         </View>
       </Modal>
+      )}
     </View>
   );
 }

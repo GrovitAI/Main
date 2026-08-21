@@ -158,6 +158,8 @@ export function DatePickerModal({
     return days;
   };
 
+  if (!visible) return null;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-black/50 items-center justify-center p-4">

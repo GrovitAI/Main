@@ -361,12 +361,13 @@ export function PhoneMenuScreen({
       )}
 
       {/* ADD / EDIT PRODUCT MODAL */}
-      <Modal
-        visible={isModalOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setIsModalOpen(false)}
-      >
+      {isModalOpen && (
+        <Modal
+          visible={isModalOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setIsModalOpen(false)}
+        >
         <View className="flex-1 justify-end bg-black/50">
           <View className="bg-white rounded-t-3xl p-5 border-t border-[#E2E8F0] max-h-[88%]">
             {/* Modal Header */}
@@ -531,6 +532,7 @@ export function PhoneMenuScreen({
           </View>
         </View>
       </Modal>
+      )}
     </View>
   );
 }
