@@ -61,7 +61,7 @@ import {
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
@@ -451,7 +451,6 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 
 export default function InventoryScreen() {
-  const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const numColumns = width >= 768 ? 2 : 1;
@@ -776,15 +775,13 @@ export default function InventoryScreen() {
     loadAllData(false, simulatedBranchId);
   }, [simulatedBranchId, loadAllData]);
 
-  useEffect(() => {
-    // Silently refresh when screen receives focus
-    const unsubscribe = navigation.addListener('focus', () => {
+  useFocusEffect(
+    useCallback(() => {
       const deps = TAB_DEPENDENCIES[activeTab] || [];
       deps.forEach((d) => loadedEntities.current.delete(d));
       loadAllData(true, simulatedBranchId);
-    });
-    return unsubscribe;
-  }, [navigation, simulatedBranchId, activeTab, loadAllData, TAB_DEPENDENCIES]);
+    }, [simulatedBranchId, activeTab, loadAllData, TAB_DEPENDENCIES])
+  );
 
   useEffect(() => {
     // Refresh silently when changing tabs/panels in inventory to ensure fresh state

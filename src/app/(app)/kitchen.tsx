@@ -1,22 +1,20 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useCallback } from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
-import { useNavigation } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { ChefHat } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 
 export default function KitchenScreen() {
-  const navigation = useNavigation();
   const refreshButtonRef = useRef<View>(null);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+  useFocusEffect(
+    useCallback(() => {
       if (Platform.OS === 'web') {
         const node = refreshButtonRef.current as unknown as HTMLElement | null;
         node?.focus();
       }
-    });
-    return unsubscribe;
-  }, [navigation]);
+    }, [])
+  );
 
   return (
     <View className="flex-1 items-center justify-center bg-surface-tint px-6">

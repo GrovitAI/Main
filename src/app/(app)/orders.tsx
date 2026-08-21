@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { router, useNavigation } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { RefreshCw, Search, X, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
@@ -192,17 +192,16 @@ export default function OrdersScreen() {
   const [isSettlingMutating, setIsSettlingMutating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const navigation = useNavigation();
   const searchInputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      setTimeout(() => {
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
-    });
-    return unsubscribe;
-  }, [navigation]);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);

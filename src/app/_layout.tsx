@@ -1,5 +1,5 @@
 import '../../global.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
@@ -13,7 +13,10 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const [isRestoring, setIsRestoring] = useState(true);
-  const { restoreSession, session } = useSessionStore();
+  const session = useSessionStore((state) => state.session);
+  const restoreSession = useSessionStore((state) => state.restoreSession);
+  const isAuthenticated = !!session;
+  const prevAuthRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     async function checkSession() {
@@ -23,16 +26,19 @@ export default function RootLayout() {
     checkSession();
   }, []);
 
-  // Listen to session changes globally to handle navigation redirects reactively
+  // Listen to session changes globally to handle navigation redirects reactively ONLY on auth status changes
   useEffect(() => {
     if (isRestoring) return;
 
-    if (!session) {
+    if (prevAuthRef.current === isAuthenticated) return;
+    prevAuthRef.current = isAuthenticated;
+
+    if (!isAuthenticated) {
       router.replace('/(auth)/login');
     } else {
       router.replace('/(app)');
     }
-  }, [session, isRestoring]);
+  }, [isAuthenticated, isRestoring]);
 
   if (isRestoring) {
     return (

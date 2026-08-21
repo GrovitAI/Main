@@ -19,7 +19,7 @@ import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-re
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, router } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
@@ -387,16 +387,15 @@ export default function PosBillingScreen() {
 
   const searchRef = useRef<TextInput>(null);
   const qtyRef = useRef<TextInput>(null);
-  const navigation = useNavigation();
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      setTimeout(() => {
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
         searchRef.current?.focus();
       }, 50);
-    });
-    return unsubscribe;
-  }, [navigation]);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   useEffect(() => {
     setHighlightedIndex(0);
