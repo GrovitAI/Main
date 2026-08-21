@@ -183,21 +183,27 @@ export default function AnalyticsScreen() {
     setLoading(true);
     setErrorMsg(null);
 
-    const filters: AnalyticsFilters = {
-      startDate,
-      endDate,
-      ...(advancedTime ? { startTime, endTime } : {}),
-      // Pass selected branch for owner; undefined means all branches
-      ...(isOwnerOrAdmin && selectedBranchId ? { branchId: selectedBranchId } : {}),
-    };
+    try {
+      const filters: AnalyticsFilters = {
+        startDate,
+        endDate,
+        ...(advancedTime ? { startTime, endTime } : {}),
+        // Pass selected branch for owner; undefined means all branches
+        ...(isOwnerOrAdmin && selectedBranchId ? { branchId: selectedBranchId } : {}),
+      };
 
-    const res = await fetchAnalyticsDashboard(filters);
-    if (res.error) {
-      setErrorMsg(res.error);
-    } else {
-      setDashboardData(res.data);
+      const res = await fetchAnalyticsDashboard(filters);
+      if (res.error) {
+        setErrorMsg(res.error);
+      } else {
+        setDashboardData(res.data);
+      }
+    } catch (err: any) {
+      console.error('[AnalyticsScreen] Error fetching dashboard:', err);
+      setErrorMsg('Failed to update analytics dashboard.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleExportCSV = () => {

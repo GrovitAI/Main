@@ -104,26 +104,32 @@ export function PhoneAnalyticsScreen({
   const [searchItemQuery, setSearchItemQuery] = useState('');
   const [activeSection, setActiveSection] = useState<'overview' | 'items' | 'trends'>('overview');
 
-  const formatCurrency = (val: number) => {
-    return `₹${Math.round(val).toLocaleString('en-IN')}`;
+  const formatCurrency = (val?: number | null) => {
+    const num = typeof val === 'number' && !isNaN(val) ? val : 0;
+    return `₹${Math.round(num).toLocaleString('en-IN')}`;
   };
 
-  const formatCurrencyDetailed = (val: number) => {
-    return `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatCurrencyDetailed = (val?: number | null) => {
+    const num = typeof val === 'number' && !isNaN(val) ? val : 0;
+    return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // Calculate chart metrics
-  const maxSaleValue = Math.max(...chartsData.salesTrend.map((s) => s.value), 100);
-  const maxRushValue = Math.max(...chartsData.rushHours.map((r) => r.sales), 100);
-  const totalPaymentSum = chartsData.paymentSplits.reduce((acc, p) => acc + p.value, 0) || 1;
+  // Calculate chart metrics safely
+  const salesTrendList = chartsData?.salesTrend || [];
+  const rushHoursList = chartsData?.rushHours || [];
+  const paymentSplitsList = chartsData?.paymentSplits || [];
 
-  // Filter items
-  const filteredItems = itemSales.filter((item) =>
-    item.name.toLowerCase().includes(searchItemQuery.toLowerCase())
+  const maxSaleValue = Math.max(...salesTrendList.map((s) => s?.value || 0), 100);
+  const maxRushValue = Math.max(...rushHoursList.map((r) => r?.sales || 0), 100);
+  const totalPaymentSum = paymentSplitsList.reduce((acc, p) => acc + (p?.value || 0), 0) || 1;
+
+  // Filter items safely
+  const filteredItems = (itemSales || []).filter((item) =>
+    (item?.name || '').toLowerCase().includes((searchItemQuery || '').toLowerCase())
   );
 
-  const selectedBranchName = filterState.selectedBranchId
-    ? branches.find((b) => b.id === filterState.selectedBranchId)?.name || 'Branch'
+  const selectedBranchName = filterState?.selectedBranchId
+    ? (branches || []).find((b) => b?.id === filterState.selectedBranchId)?.name || 'Branch'
     : 'All Branches';
 
   return (
@@ -374,16 +380,17 @@ export function PhoneAnalyticsScreen({
             </View>
           </View>
 
-          {chartsData.salesTrend.length > 0 ? (
+          {salesTrendList.length > 0 ? (
             <View className="pt-2">
               <View className="flex-row items-end justify-between h-36 pt-2 pb-1 border-b border-[#E2E8F0]">
-                {chartsData.salesTrend.map((item, idx) => {
-                  const heightPercent = Math.min(100, Math.max(12, (item.value / maxSaleValue) * 100));
-                  const isTopDay = item.value === maxSaleValue && item.value > 0;
+                {salesTrendList.map((item, idx) => {
+                  const val = item?.value || 0;
+                  const heightPercent = Math.min(100, Math.max(12, (val / maxSaleValue) * 100));
+                  const isTopDay = val === maxSaleValue && val > 0;
                   return (
                     <View key={idx} className="items-center flex-1 mx-0.5">
                       <Text className="text-[9px] text-[#64748B] font-medium mb-1">
-                        {item.value > 0 ? `₹${Math.round(item.value / 1000)}k` : ''}
+                        {val > 0 ? `₹${Math.round(val / 1000)}k` : ''}
                       </Text>
                       <View
                         style={{
@@ -397,9 +404,9 @@ export function PhoneAnalyticsScreen({
                 })}
               </View>
               <View className="flex-row justify-between pt-2">
-                {chartsData.salesTrend.map((item, idx) => (
+                {salesTrendList.map((item, idx) => (
                   <Text key={idx} className="text-[10px] text-[#64748B] font-medium flex-1 text-center">
-                    {item.label.slice(0, 3)}
+                    {String(item?.label || '').slice(0, 3)}
                   </Text>
                 ))}
               </View>
@@ -419,11 +426,14 @@ export function PhoneAnalyticsScreen({
           <Text className="text-xs text-[#64748B] mb-4">Volume & transaction breakdown</Text>
 
           <View className="gap-3">
-            {chartsData.paymentSplits.map((item, idx) => {
-              const pct = Math.round((item.value / totalPaymentSum) * 100) || 0;
-              const isUpi = item.label.toLowerCase().includes('upi') || item.label.toLowerCase().includes('qr');
-              const isCash = item.label.toLowerCase().includes('cash');
-              const isCard = item.label.toLowerCase().includes('card');
+            {paymentSplitsList.map((item, idx) => {
+              const val = item?.value || 0;
+              const pct = Math.round((val / totalPaymentSum) * 100) || 0;
+              const label = String(item?.label || 'Other');
+              const lowerLabel = label.toLowerCase();
+              const isUpi = lowerLabel.includes('upi') || lowerLabel.includes('qr');
+              const isCash = lowerLabel.includes('cash');
+              const isCard = lowerLabel.includes('card');
 
               const barColor = isUpi ? '#7C3AED' : isCash ? '#059669' : isCard ? '#0066B2' : '#F59E0B';
 
@@ -431,11 +441,11 @@ export function PhoneAnalyticsScreen({
                 <View key={idx}>
                   <View className="flex-row justify-between items-center mb-1.5">
                     <Text className="text-xs font-bold text-[#0F2744] capitalize">
-                      {item.label}
+                      {label}
                     </Text>
                     <View className="flex-row items-center gap-2">
                       <Text className="text-xs font-bold text-[#0F2744]">
-                        {formatCurrency(item.value)}
+                        {formatCurrency(val)}
                       </Text>
                       <Text className="text-xs text-[#64748B] w-9 text-right font-semibold">
                         {pct}%
@@ -466,13 +476,13 @@ export function PhoneAnalyticsScreen({
             <Award size={20} color="#F59E0B" />
           </View>
 
-          {topProducts.length > 0 ? (
+          {(topProducts || []).length > 0 ? (
             <View className="gap-2.5">
-              {topProducts.slice(0, 5).map((prod, idx) => {
+              {(topProducts || []).slice(0, 5).map((prod, idx) => {
                 const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
                 return (
                   <View
-                    key={prod.id || idx}
+                    key={prod?.id || idx}
                     className="flex-row items-center justify-between p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]"
                   >
                     <View className="flex-row items-center flex-1 pr-3">
@@ -481,15 +491,15 @@ export function PhoneAnalyticsScreen({
                       </Text>
                       <View className="flex-1">
                         <Text className="text-sm font-bold text-[#0F2744]" numberOfLines={1}>
-                          {prod.name}
+                          {prod?.name || 'Dish'}
                         </Text>
                         <Text className="text-[11px] text-[#64748B]">
-                          {prod.sold} orders sold
+                          {prod?.sold || 0} orders sold
                         </Text>
                       </View>
                     </View>
                     <Text className="text-sm font-bold text-[#0066B2]">
-                      {formatCurrency(prod.revenue)}
+                      {formatCurrency(prod?.revenue || 0)}
                     </Text>
                   </View>
                 );
@@ -536,14 +546,14 @@ export function PhoneAnalyticsScreen({
               >
                 <View className="flex-1 pr-2">
                   <Text className="text-xs font-semibold text-[#0F2744]" numberOfLines={1}>
-                    {item.name}
+                    {item?.name || 'Dish'}
                   </Text>
                   <Text className="text-[10px] text-[#64748B]">
-                    {item.quantity} units sold
+                    {item?.quantity || 0} units sold
                   </Text>
                 </View>
                 <Text className="text-xs font-bold text-[#0F2744]">
-                  {formatCurrency(item.revenue)}
+                  {formatCurrency(item?.revenue || 0)}
                 </Text>
               </View>
             ))}

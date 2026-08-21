@@ -368,170 +368,197 @@ export function PhoneMenuScreen({
           transparent
           onRequestClose={() => setIsModalOpen(false)}
         >
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-5 border-t border-[#E2E8F0] max-h-[88%]">
-            {/* Modal Header */}
-            <View className="flex-row items-center justify-between pb-3 border-b border-[#E2E8F0] mb-4">
-              <Text className="text-lg font-bold text-[#0F2744]">
-                {editingProduct ? 'Edit Menu Item' : 'Add New Menu Item'}
-              </Text>
-              <Pressable
-                onPress={() => setIsModalOpen(false)}
-                className="w-9 h-9 items-center justify-center rounded-full bg-slate-100"
-              >
-                <X size={20} color="#0F2744" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} className="space-y-4 gap-4">
-              {formError && (
-                <View className="bg-rose-50 border border-rose-200 p-3 rounded-xl">
-                  <Text className="text-xs font-bold text-rose-700">{formError}</Text>
-                </View>
-              )}
-
-              {/* Dish Name */}
-              <View>
-                <Text className="text-xs font-bold text-[#475569] mb-1.5">Dish Name *</Text>
-                <TextInput
-                  className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3.5 h-12 text-sm text-[#0F2744] font-medium"
-                  placeholder="e.g. 3 In 1 Qashtuta"
-                  placeholderTextColor="#94A3B8"
-                  value={formName}
-                  onChangeText={setFormName}
-                />
-              </View>
-
-              {/* Selling Price */}
-              <View>
-                <Text className="text-xs font-bold text-[#475569] mb-1.5">Selling Price (₹) *</Text>
-                <TextInput
-                  className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3.5 h-12 text-sm text-[#0F2744] font-medium"
-                  placeholder="349.00"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="decimal-pad"
-                  value={formPrice}
-                  onChangeText={setFormPrice}
-                />
-              </View>
-
-              {/* Category Picker */}
-              <View>
-                <Text className="text-xs font-bold text-[#475569] mb-1.5">Category *</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                  {categories.map((c) => {
-                    const isSel = formCategoryId === c.id;
-                    return (
-                      <Pressable
-                        key={c.id}
-                        onPress={() => setFormCategoryId(c.id)}
-                        className={`px-4 py-2 rounded-xl mr-2 border ${
-                          isSel
-                            ? 'bg-[#0066B2] border-[#0066B2]'
-                            : 'bg-[#F8FAFC] border-[#E2E8F0]'
-                        }`}
-                      >
-                        <Text
-                          className={`text-xs font-bold ${
-                            isSel ? 'text-white' : 'text-[#475569]'
-                          }`}
-                        >
-                          {c.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
-              {/* Inventory Recipe Tracking */}
-              <View className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <View className="flex-row items-center justify-between mb-2">
-                  <View className="flex-row items-center gap-2">
-                    <Layers size={16} color="#0066B2" />
-                    <Text className="text-xs font-bold text-[#0F2744]">
-                      Track Inventory Recipe
-                    </Text>
+          <View className="flex-1 justify-end bg-black/60">
+            <View className="bg-white rounded-t-3xl border-t border-[#E2E8F0] max-h-[92%] flex-col">
+              {/* Modal Header */}
+              <View className="flex-row items-center justify-between px-5 pt-4 pb-3.5 border-b border-[#F1F5F9]">
+                <View className="flex-row items-center gap-2">
+                  <View className="w-8 h-8 rounded-xl bg-blue-50 items-center justify-center">
+                    <Sparkles size={16} color="#0066B2" />
                   </View>
-                  <Switch
-                    value={formTrackInventory}
-                    onValueChange={setFormTrackInventory}
-                    trackColor={{ false: '#CBD5E1', true: '#93C5FD' }}
-                    thumbColor={formTrackInventory ? '#0066B2' : '#F1F5F9'}
+                  <Text className="text-base font-bold text-[#0F2744]">
+                    {editingProduct ? 'Edit Menu Item' : 'Add New Menu Item'}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setIsModalOpen(false)}
+                  className="w-8 h-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+                >
+                  <X size={18} color="#0F2744" />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 16 }}
+              >
+                {formError && (
+                  <View className="bg-rose-50 border border-rose-200 p-3 rounded-xl">
+                    <Text className="text-xs font-bold text-rose-700">{formError}</Text>
+                  </View>
+                )}
+
+                {/* Dish Name */}
+                <View>
+                  <Text className="text-xs font-bold text-[#475569] mb-1.5">Dish Name *</Text>
+                  <TextInput
+                    className="bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl px-3.5 h-12 text-sm text-[#0F2744] font-medium"
+                    placeholder="e.g. 3 In 1 Qashtuta"
+                    placeholderTextColor="#94A3B8"
+                    value={formName}
+                    onChangeText={setFormName}
                   />
                 </View>
 
-                {formTrackInventory && (
-                  <View className="mt-2 pt-2 border-t border-slate-200">
-                    <Text className="text-[11px] font-bold text-slate-500 mb-1.5">
-                      Link Production Recipe
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                      {recipes.map((r) => {
-                        const isSel = formRecipeId === r.id;
-                        return (
-                          <Pressable
-                            key={r.id}
-                            onPress={() => setFormRecipeId(r.id)}
-                            className={`px-3 py-1.5 rounded-lg mr-2 border ${
-                              isSel
-                                ? 'bg-emerald-600 border-emerald-600'
-                                : 'bg-white border-slate-200'
+                {/* Selling Price */}
+                <View>
+                  <Text className="text-xs font-bold text-[#475569] mb-1.5">Selling Price *</Text>
+                  <View className="flex-row items-center bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl px-3.5 h-12">
+                    <Text className="text-base font-bold text-[#0066B2] mr-2">₹</Text>
+                    <TextInput
+                      className="flex-1 h-full text-sm text-[#0F2744] font-bold"
+                      placeholder="349.00"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="decimal-pad"
+                      value={formPrice}
+                      onChangeText={setFormPrice}
+                    />
+                  </View>
+                </View>
+
+                {/* Category Picker (Flex-Wrap Grid) */}
+                <View>
+                  <Text className="text-xs font-bold text-[#475569] mb-1.5">Category *</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {categories.map((c) => {
+                      const isSel = formCategoryId === c.id;
+                      return (
+                        <Pressable
+                          key={c.id}
+                          onPress={() => setFormCategoryId(c.id)}
+                          className={`px-3.5 py-2 rounded-xl border flex-row items-center min-h-[38px] ${
+                            isSel
+                              ? 'bg-[#0066B2] border-[#0066B2]'
+                              : 'bg-[#F8FAFC] border-[#E2E8F0] active:bg-slate-100'
+                          }`}
+                        >
+                          {isSel && <Check size={13} color="#FFFFFF" className="mr-1.5" />}
+                          <Text
+                            className={`text-xs font-bold ${
+                              isSel ? 'text-white' : 'text-[#475569]'
                             }`}
                           >
-                            <Text
-                              className={`text-[11px] font-bold ${
-                                isSel ? 'text-white' : 'text-slate-600'
-                              }`}
-                            >
-                              {r.name}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
+                            {c.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
-                )}
-              </View>
+                </View>
 
-              {/* Available for Billing Switch */}
-              <View className="flex-row items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                <Text className="text-xs font-bold text-[#0F2744]">
-                  Active for POS Billing
-                </Text>
-                <Switch
-                  value={formIsAvailable}
-                  onValueChange={setFormIsAvailable}
-                  trackColor={{ false: '#CBD5E1', true: '#93C5FD' }}
-                  thumbColor={formIsAvailable ? '#0066B2' : '#F1F5F9'}
-                />
-              </View>
+                {/* Inventory Recipe Tracking */}
+                <View className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <View className="flex-row items-center justify-between mb-1">
+                    <View className="flex-row items-center gap-2">
+                      <Layers size={16} color="#0066B2" />
+                      <Text className="text-xs font-bold text-[#0F2744]">
+                        Track Inventory Recipe
+                      </Text>
+                    </View>
+                    <Switch
+                      value={formTrackInventory}
+                      onValueChange={setFormTrackInventory}
+                      trackColor={{ false: '#CBD5E1', true: '#93C5FD' }}
+                      thumbColor={formTrackInventory ? '#0066B2' : '#F1F5F9'}
+                    />
+                  </View>
+                  <Text className="text-[11px] text-slate-500 mb-2">
+                    Automatically deduct raw ingredient stock when this dish is ordered.
+                  </Text>
 
-              {/* Save / Cancel Buttons */}
-              <View className="flex-row gap-3 pt-3">
-                <Pressable
-                  onPress={() => setIsModalOpen(false)}
-                  className="flex-1 py-3.5 rounded-xl bg-slate-100 items-center justify-center active:bg-slate-200"
-                >
-                  <Text className="text-sm font-bold text-[#475569]">Cancel</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={handleSave}
-                  disabled={saving}
-                  className="flex-1 py-3.5 rounded-xl bg-[#0066B2] items-center justify-center shadow-sm active:bg-[#004B87]"
-                >
-                  {saving ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text className="text-sm font-bold text-white">Save Item</Text>
+                  {formTrackInventory && (
+                    <View className="mt-2 pt-2.5 border-t border-slate-200">
+                      <Text className="text-[11px] font-bold text-slate-700 mb-2">
+                        Link Production Recipe
+                      </Text>
+                      {recipes.length > 0 ? (
+                        <View className="flex-row flex-wrap gap-2">
+                          {recipes.map((r) => {
+                            const isSel = formRecipeId === r.id;
+                            return (
+                              <Pressable
+                                key={r.id}
+                                onPress={() => setFormRecipeId(r.id)}
+                                className={`px-3 py-1.5 rounded-lg border flex-row items-center ${
+                                  isSel
+                                    ? 'bg-emerald-600 border-emerald-600'
+                                    : 'bg-white border-slate-200 active:bg-slate-50'
+                                }`}
+                              >
+                                {isSel && <Check size={11} color="#FFFFFF" className="mr-1" />}
+                                <Text
+                                  className={`text-[11px] font-bold ${
+                                    isSel ? 'text-white' : 'text-slate-600'
+                                  }`}
+                                >
+                                  {r.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <Text className="text-xs text-slate-400 italic">
+                          No recipes created yet. You can create recipes in Inventory.
+                        </Text>
+                      )}
+                    </View>
                   )}
-                </Pressable>
-              </View>
-            </ScrollView>
+                </View>
+
+                {/* Available for Billing Switch */}
+                <View className="flex-row items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <View className="flex-1 pr-3">
+                    <Text className="text-xs font-bold text-[#0F2744]">
+                      Active for POS Billing
+                    </Text>
+                    <Text className="text-[11px] text-slate-500 mt-0.5">
+                      When enabled, cashiers can select and bill this dish.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={formIsAvailable}
+                    onValueChange={setFormIsAvailable}
+                    trackColor={{ false: '#CBD5E1', true: '#93C5FD' }}
+                    thumbColor={formIsAvailable ? '#0066B2' : '#F1F5F9'}
+                  />
+                </View>
+
+                {/* Save / Cancel Buttons */}
+                <View className="flex-row gap-3 pt-2">
+                  <Pressable
+                    onPress={() => setIsModalOpen(false)}
+                    className="flex-1 py-3.5 rounded-xl bg-slate-100 items-center justify-center min-h-[48px] active:bg-slate-200"
+                  >
+                    <Text className="text-sm font-bold text-[#475569]">Cancel</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleSave}
+                    disabled={saving}
+                    className="flex-1 py-3.5 rounded-xl bg-[#0066B2] items-center justify-center min-h-[48px] shadow-sm active:bg-[#004B87]"
+                  >
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text className="text-sm font-bold text-white">Save Item</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       )}
     </View>
   );

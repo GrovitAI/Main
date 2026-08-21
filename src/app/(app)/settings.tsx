@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck } from 'lucide-react-native';
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
+import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Trash2 } from 'lucide-react-native';
@@ -13,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isPhone = width < 768;
   const { session, signOut } = useSessionStore();
   const { isOwnerOrAdmin } = getTenantContext();
   const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'approvals'>('system');
@@ -187,67 +190,103 @@ export default function SettingsScreen() {
       flex: 1,
       backgroundColor: '#F8FAFC',
     }}>
-      {/* Modern Premium Page Header */}
-      <View style={{
-        paddingHorizontal: 28,
-        paddingTop: insets.top,
-        paddingBottom: 20,
-        backgroundColor: '#F8FAFC',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
-        marginBottom: 24,
-        flexWrap: 'wrap',
-        gap: 12,
-      }}>
-        <View>
-          <Text className="text-2xl font-bold text-slate-900 tracking-tight">Settings</Text>
-          <Text className="text-sm font-medium text-slate-500 mt-1">Manage operational and system preferences</Text>
-        </View>
+      {isPhone ? (
+        <PhoneScreenHeader
+          title="Settings"
+          subtitle="System & Security Preferences"
+        />
+      ) : (
+        /* Modern Premium Desktop Page Header */
+        <View style={{
+          paddingHorizontal: 28,
+          paddingTop: insets.top,
+          paddingBottom: 20,
+          backgroundColor: '#F8FAFC',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottomWidth: 1,
+          borderBottomColor: '#F1F5F9',
+          marginBottom: 24,
+          flexWrap: 'wrap',
+          gap: 12,
+        }}>
+          <View>
+            <Text className="text-2xl font-bold text-slate-900 tracking-tight">Settings</Text>
+            <Text className="text-sm font-medium text-slate-500 mt-1">Manage operational and system preferences</Text>
+          </View>
 
-        <View className="flex-row items-center gap-3">
-          <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
-            <View className="w-2 h-2 rounded-full bg-emerald-500" />
-            <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
+          <View className="flex-row items-center gap-3">
+            <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
+              <View className="w-2 h-2 rounded-full bg-emerald-500" />
+              <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
+            </View>
           </View>
         </View>
-      </View>
+      )}
 
-      {/* Main Container with generous SaaS padding */}
-      <View className="flex-1 px-4 md:px-8">
+      {/* Main Container */}
+      <View className={`flex-1 px-4 ${isPhone ? 'pt-3' : 'md:px-8'}`}>
         
-        {/* Segmented SaaS Navigation Tab Bar */}
-        <View className="mb-8">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
+        {/* Navigation Tab Bar */}
+        {isPhone ? (
+          <View className="flex-row bg-slate-100/90 p-1 rounded-2xl mb-4 border border-slate-200/60">
             {[
-              { key: 'system', label: 'System Settings', icon: Settings },
-              { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
-              ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approval Policies', icon: ShieldCheck }] : []),
+              { key: 'system', label: 'System', icon: Settings },
+              { key: 'printers', label: 'Printers', icon: PrinterIcon },
+              ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approvals', icon: ShieldCheck }] : []),
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
               return (
                 <Pressable
                   key={tab.key}
+                  testID={`settings-tab-${tab.key}`}
                   onPress={() => setActiveTab(tab.key as any)}
-                  className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
-                    isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
+                  className={`flex-1 py-2 rounded-xl items-center justify-center min-h-[40px] flex-row gap-1.5 ${
+                    isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent'
                   }`}
                   style={isSel ? { elevation: 1 } : {}}
                 >
-                  <Icon size={14} color={isSel ? '#0F172A' : '#64748B'} />
+                  <Icon size={13} color={isSel ? '#0F172A' : '#64748B'} />
                   <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
                     {tab.label}
                   </Text>
                 </Pressable>
               );
             })}
+          </View>
+        ) : (
+          <View className="mb-8">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
+                {[
+                  { key: 'system', label: 'System Settings', icon: Settings },
+                  { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
+                  ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approval Policies', icon: ShieldCheck }] : []),
+                ].map((tab) => {
+                  const isSel = activeTab === tab.key;
+                  const Icon = tab.icon;
+                  return (
+                    <Pressable
+                      key={tab.key}
+                      onPress={() => setActiveTab(tab.key as any)}
+                      className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
+                        isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
+                      }`}
+                      style={isSel ? { elevation: 1 } : {}}
+                    >
+                      <Icon size={14} color={isSel ? '#0F172A' : '#64748B'} />
+                      <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </ScrollView>
           </View>
+        )}
 
         {activeTab === 'printers' ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>

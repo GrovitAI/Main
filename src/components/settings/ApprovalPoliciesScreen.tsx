@@ -134,7 +134,7 @@ export function ApprovalPoliciesScreen() {
   if (loading) {
     return (
       <View className="flex-1 bg-slate-50 items-center justify-center p-6">
-        <ActivityIndicator size="large" color="#0284c7" />
+        <ActivityIndicator size="large" color="#0066b2" />
         <Text className="text-xs font-semibold text-slate-500 mt-3">Loading Branch Approval Policies...</Text>
       </View>
     );
@@ -143,176 +143,180 @@ export function ApprovalPoliciesScreen() {
   const actionList = Object.values(ApprovalAction);
 
   return (
-    <ScrollView className="flex-1 bg-slate-50 p-4 md:p-6">
-      <View className="w-full max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <View
-          className="flex-row flex-wrap items-center justify-between border-b border-slate-200 pb-4"
-          style={{ flexWrap: 'wrap', rowGap: 12 }}
-        >
-          <View className="flex-row items-center space-x-3 flex-1 min-w-[200px]">
-            <View className="w-10 h-10 rounded-xl bg-blue-100 items-center justify-center">
-              <ShieldCheck size={22} color="#0284c7" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-lg font-bold text-slate-900">Branch Approval Policies</Text>
-              <Text className="text-xs text-slate-500">Configure which sensitive POS actions require owner OTP verification</Text>
-            </View>
+    <ScrollView
+      className="flex-1"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 140, gap: 16 }}
+    >
+      {/* Header Info & Action Buttons Card */}
+      <View className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <View className="flex-row items-center gap-3 mb-3">
+          <View className="w-10 h-10 rounded-xl bg-blue-50 items-center justify-center">
+            <ShieldCheck size={22} color="#0066b2" />
           </View>
-
-          {/* Action Buttons */}
-          <View className="flex-row items-center space-x-2 flex-wrap" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <Pressable
-              onPress={handleResetToDefaults}
-              className="flex-row items-center space-x-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-white active:bg-slate-100"
-            >
-              <RotateCcw size={14} color="#475569" />
-              <Text className="text-xs font-semibold text-slate-700">Reset Defaults</Text>
-            </Pressable>
-
-            <Pressable
-              disabled={!hasUnsavedChanges || saving}
-              onPress={handleSave}
-              className={`flex-row items-center space-x-1.5 px-4 py-2 rounded-xl bg-blue-600 active:bg-blue-700 ${
-                !hasUnsavedChanges || saving ? 'opacity-50' : 'opacity-100'
-              }`}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <>
-                  <Save size={14} color="#ffffff" />
-                  <Text className="text-xs font-bold text-white">Save Changes</Text>
-                </>
-              )}
-            </Pressable>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-slate-900">Branch Approval Policies</Text>
+            <Text className="text-xs text-slate-500 mt-0.5">
+              Require owner OTP verification for sensitive cashier actions
+            </Text>
           </View>
         </View>
 
-        {/* Multi-Branch Selector for Owner Role */}
-        {accessibleBranches.length > 1 && (
-          <View
-            className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex-row flex-wrap items-center justify-between"
-            style={{ flexWrap: 'wrap', rowGap: 8 }}
+        {/* Action Buttons */}
+        <View className="flex-row items-center gap-2 pt-2 border-t border-slate-100">
+          <Pressable
+            onPress={handleResetToDefaults}
+            className="flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 active:bg-slate-100 min-h-[42px]"
           >
-            <View className="flex-1 min-w-[180px]">
-              <Text className="text-xs font-bold text-slate-800">Target Branch</Text>
-              <Text className="text-[11px] text-slate-500">Select which branch to configure approval policies for</Text>
-            </View>
-            <View className="flex-row items-center space-x-2 flex-wrap" style={{ flexWrap: 'wrap', gap: 6 }}>
-              {accessibleBranches.map((b) => {
-                const isSelected = b.id === selectedBranchId;
-                return (
-                  <Pressable
-                    key={b.id}
-                    onPress={() => setSelectedBranchId(b.id)}
-                    className={`px-3 py-1.5 rounded-xl border ${
-                      isSelected
-                        ? 'bg-blue-50 border-blue-600'
-                        : 'bg-slate-50 border-slate-200 active:bg-slate-100'
-                    }`}
-                  >
-                    <Text className={`text-xs font-bold ${isSelected ? 'text-blue-700' : 'text-slate-600'}`}>
-                      {b.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        )}
+            <RotateCcw size={14} color="#475569" />
+            <Text className="text-xs font-bold text-slate-700">Reset Defaults</Text>
+          </Pressable>
 
-        {/* Success / Error Messages */}
-        {successMsg && (
-          <View className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex-row items-center space-x-2">
-            <CheckCircle2 size={16} color="#059669" />
-            <Text className="text-xs font-semibold text-emerald-800 flex-1">{successMsg}</Text>
-          </View>
-        )}
+          <Pressable
+            disabled={!hasUnsavedChanges || saving}
+            onPress={handleSave}
+            className={`flex-1 flex-row items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0066b2] active:bg-[#004b87] min-h-[42px] shadow-sm ${
+              !hasUnsavedChanges || saving ? 'opacity-50' : 'opacity-100'
+            }`}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Save size={14} color="#ffffff" />
+                <Text className="text-xs font-bold text-white">Save Changes</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      </View>
 
-        {errorMsg && (
-          <View className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex-row items-center space-x-2">
-            <AlertTriangle size={16} color="#e11d48" />
-            <Text className="text-xs font-semibold text-rose-800 flex-1">{errorMsg}</Text>
+      {/* Multi-Branch Selector for Owner Role */}
+      {accessibleBranches.length > 1 && (
+        <View className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+          <Text className="text-xs font-bold text-slate-800 mb-1">Target Branch</Text>
+          <Text className="text-[11px] text-slate-500 mb-3">Select branch to configure approval policies</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {accessibleBranches.map((b) => {
+              const isSelected = b.id === selectedBranchId;
+              return (
+                <Pressable
+                  key={b.id}
+                  onPress={() => setSelectedBranchId(b.id)}
+                  className={`px-3.5 py-2 rounded-xl border min-h-[38px] items-center justify-center ${
+                    isSelected
+                      ? 'bg-blue-50 border-[#0066b2]'
+                      : 'bg-slate-50 border-slate-200 active:bg-slate-100'
+                  }`}
+                >
+                  <Text className={`text-xs font-bold ${isSelected ? 'text-[#0066b2]' : 'text-slate-600'}`}>
+                    {b.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-        )}
+        </View>
+      )}
 
-        {/* Unsaved Changes Banner */}
-        {hasUnsavedChanges && (
-          <View className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex-row items-center justify-between">
-            <View className="flex-row items-center space-x-2 flex-1">
-              <AlertTriangle size={16} color="#d97706" />
-              <Text className="text-xs font-bold text-amber-900">You have unsaved policy changes.</Text>
-            </View>
-            <Pressable onPress={handleSave} className="bg-amber-600 px-3 py-1.5 rounded-lg active:bg-amber-700">
-              <Text className="text-[11px] font-bold text-white">Save Now</Text>
-            </Pressable>
+      {/* Success / Error Messages */}
+      {successMsg && (
+        <View className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex-row items-center gap-2">
+          <CheckCircle2 size={16} color="#059669" />
+          <Text className="text-xs font-semibold text-emerald-800 flex-1">{successMsg}</Text>
+        </View>
+      )}
+
+      {errorMsg && (
+        <View className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex-row items-center gap-2">
+          <AlertTriangle size={16} color="#e11d48" />
+          <Text className="text-xs font-semibold text-rose-800 flex-1">{errorMsg}</Text>
+        </View>
+      )}
+
+      {/* Unsaved Changes Banner */}
+      {hasUnsavedChanges && (
+        <View className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2 flex-1 pr-2">
+            <AlertTriangle size={16} color="#d97706" />
+            <Text className="text-xs font-bold text-amber-900">You have unsaved policy changes.</Text>
           </View>
-        )}
+          <Pressable onPress={handleSave} className="bg-amber-600 px-3.5 py-1.5 rounded-lg active:bg-amber-700">
+            <Text className="text-xs font-bold text-white">Save Now</Text>
+          </Pressable>
+        </View>
+      )}
 
-        {/* Master Switch Card */}
-        <View className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 pr-4">
-              <Text className="text-sm font-bold text-slate-900">Enable Approval System</Text>
-              <Text className="text-xs text-slate-500 mt-0.5">
-                Master switch for branch approvals. Turning this off bypasses OTP verification for ALL actions.
-              </Text>
-            </View>
-            <Switch
-              value={masterEnabled}
-              onValueChange={setMasterEnabled}
-              trackColor={{ false: '#cbd5e1', true: '#2563eb' }}
-              thumbColor={masterEnabled ? '#ffffff' : '#f8fafc'}
-            />
+      {/* Master Switch Card */}
+      <View className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 pr-3">
+            <Text className="text-sm font-bold text-slate-900">Enable Approval System</Text>
+            <Text className="text-xs text-slate-500 mt-0.5">
+              Master switch for branch approvals. Turning this off bypasses OTP verification for ALL actions.
+            </Text>
           </View>
-
-          {!masterEnabled && (
-            <View className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <Text className="text-xs text-amber-800 font-medium">
-                ⚠️ Approval System is currently disabled. Sensitive POS actions will execute immediately without requiring owner OTP verification.
-              </Text>
-            </View>
-          )}
+          <Switch
+            value={masterEnabled}
+            onValueChange={setMasterEnabled}
+            trackColor={{ false: '#cbd5e1', true: '#0066b2' }}
+            thumbColor={masterEnabled ? '#ffffff' : '#f8fafc'}
+          />
         </View>
 
-        {/* Individual Action Toggles Section */}
-        <View className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Protected POS Actions</Text>
+        {!masterEnabled && (
+          <View className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <Text className="text-xs text-amber-800 font-medium leading-relaxed">
+              ⚠️ Approval System is currently disabled. Sensitive POS actions will execute immediately without requiring owner OTP verification.
+            </Text>
+          </View>
+        )}
+      </View>
 
-          <View className="divide-y divide-slate-100">
-            {actionList.map((action) => {
-              const meta = APPROVAL_ACTION_META[action];
-              const isChecked = policies[action] ?? true;
+      {/* Individual Action Toggles Section */}
+      <View className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+          Protected POS Actions
+        </Text>
 
-              return (
-                <View key={action} className="py-3.5 flex-row items-center justify-between space-x-4">
-                  <View className="flex-1 pr-4">
-                    <View className="flex-row items-center space-x-2">
-                      <Text className="text-xs font-bold text-slate-800">{meta.title}</Text>
-                      {meta.isEnforced ? (
-                        <View className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          <Text className="text-[10px] font-bold text-emerald-700">ACTIVE</Text>
-                        </View>
-                      ) : (
-                        <View className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          <Text className="text-[10px] font-bold text-slate-500">UPCOMING</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text className="text-[11px] text-slate-500 mt-0.5">{meta.description}</Text>
+        <View>
+          {actionList.map((action, idx) => {
+            const meta = APPROVAL_ACTION_META[action];
+            const isChecked = policies[action] ?? true;
+            const isLast = idx === actionList.length - 1;
+
+            return (
+              <View
+                key={action}
+                className={`py-3.5 ${!isLast ? 'border-b border-slate-100' : ''}`}
+              >
+                <View className="flex-row items-center justify-between mb-1">
+                  <View className="flex-row items-center gap-2 flex-1 pr-3">
+                    <Text className="text-xs font-bold text-slate-800">{meta.title}</Text>
+                    {meta.isEnforced ? (
+                      <View className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        <Text className="text-[9px] font-bold text-emerald-700">ACTIVE</Text>
+                      </View>
+                    ) : (
+                      <View className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        <Text className="text-[9px] font-bold text-slate-500">UPCOMING</Text>
+                      </View>
+                    )}
                   </View>
                   <Switch
                     disabled={!masterEnabled}
                     value={masterEnabled && isChecked}
                     onValueChange={(val) => handleTogglePolicy(action, val)}
-                    trackColor={{ false: '#cbd5e1', true: '#2563eb' }}
+                    trackColor={{ false: '#cbd5e1', true: '#0066b2' }}
                     thumbColor={masterEnabled && isChecked ? '#ffffff' : '#f8fafc'}
                   />
                 </View>
-              );
-            })}
-          </View>
+                <Text className="text-[11px] text-slate-500 leading-relaxed pr-8">
+                  {meta.description}
+                </Text>
+              </View>
+            );
+          })}
         </View>
       </View>
     </ScrollView>
