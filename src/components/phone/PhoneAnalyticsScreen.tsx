@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 export interface PhoneAnalyticsScreenProps {
   kpiData: {
@@ -64,6 +65,10 @@ export interface PhoneAnalyticsScreenProps {
     selectedBranchId?: string;
   };
   branches: { id: string; name: string }[];
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
   loading?: boolean;
   errorMsg?: string | null;
   onRetry?: () => void;
@@ -71,6 +76,7 @@ export interface PhoneAnalyticsScreenProps {
   onOpenFilter: () => void;
   onCloseFilter: () => void;
   onSelectDatePreset: (preset: string) => void;
+  onApplyCustomRange?: (start: string, end: string, startTime?: string, endTime?: string) => void;
   onSelectBranch: (branchId: string | null) => void;
   onExportCSV: () => void;
 }
@@ -81,6 +87,7 @@ const PRESET_OPTIONS = [
   { key: '7days', label: 'Last 7 Days' },
   { key: '30days', label: 'Last 30 Days' },
   { key: 'month', label: 'This Month' },
+  { key: 'custom', label: 'Custom Range' },
 ];
 
 export function PhoneAnalyticsScreen({
@@ -91,6 +98,10 @@ export function PhoneAnalyticsScreen({
   itemSales,
   filterState,
   branches,
+  startDate = '',
+  endDate = '',
+  startTime = '11:30',
+  endTime = '02:30',
   loading = false,
   errorMsg = null,
   onRetry,
@@ -98,19 +109,20 @@ export function PhoneAnalyticsScreen({
   onOpenFilter,
   onCloseFilter,
   onSelectDatePreset,
+  onApplyCustomRange,
   onSelectBranch,
   onExportCSV,
 }: PhoneAnalyticsScreenProps) {
   const [searchItemQuery, setSearchItemQuery] = useState('');
-  const [activeSection, setActiveSection] = useState<'overview' | 'items' | 'trends'>('overview');
+  const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
 
   const formatCurrency = (val?: number | null) => {
-    const num = typeof val === 'number' && !isNaN(val) ? val : 0;
+    const num = typeof val === 'number' && !isNaN(val) && isFinite(val) ? val : 0;
     return `₹${Math.round(num).toLocaleString('en-IN')}`;
   };
 
   const formatCurrencyDetailed = (val?: number | null) => {
-    const num = typeof val === 'number' && !isNaN(val) ? val : 0;
+    const num = typeof val === 'number' && !isNaN(val) && isFinite(val) ? val : 0;
     return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
@@ -119,9 +131,19 @@ export function PhoneAnalyticsScreen({
   const rushHoursList = chartsData?.rushHours || [];
   const paymentSplitsList = chartsData?.paymentSplits || [];
 
-  const maxSaleValue = Math.max(...salesTrendList.map((s) => s?.value || 0), 100);
-  const maxRushValue = Math.max(...rushHoursList.map((r) => r?.sales || 0), 100);
-  const totalPaymentSum = paymentSplitsList.reduce((acc, p) => acc + (p?.value || 0), 0) || 1;
+  const maxSaleValue = Math.max(
+    ...salesTrendList.map((s) => (typeof s?.value === 'number' && !isNaN(s.value) ? s.value : 0)),
+    100
+  );
+  const maxRushValue = Math.max(
+    ...rushHoursList.map((r) => (typeof r?.sales === 'number' && !isNaN(r.sales) ? r.sales : 0)),
+    100
+  );
+  const totalPaymentSum =
+    paymentSplitsList.reduce(
+      (acc, p) => acc + (typeof p?.value === 'number' && !isNaN(p.value) ? p.value : 0),
+      0
+    ) || 1;
 
   // Filter items safely
   const filteredItems = (itemSales || []).filter((item) =>
@@ -132,12 +154,22 @@ export function PhoneAnalyticsScreen({
     ? (branches || []).find((b) => b?.id === filterState.selectedBranchId)?.name || 'Branch'
     : 'All Branches';
 
+  const currentPresetKey = (filterState?.datePreset || '7days').toLowerCase();
+
+  const handlePresetClick = (presetKey: string) => {
+    if (presetKey === 'custom') {
+      setIsDatePickerModalOpen(true);
+    } else {
+      onSelectDatePreset(presetKey);
+    }
+  };
+
   return (
     <View className="flex-1 bg-[#F8FAFC]">
       {/* Top Header */}
       <PhoneScreenHeader
         title="Analytics"
-        subtitle={`${selectedBranchName} · ${filterState.datePreset.toUpperCase()}`}
+        subtitle={`${selectedBranchName} · ${(filterState?.datePreset || '7days').toUpperCase()}`}
         rightContent={
           <View className="flex-row items-center gap-2">
             <Pressable
@@ -161,11 +193,11 @@ export function PhoneAnalyticsScreen({
       <View className="bg-white border-b border-[#E2E8F0] py-2.5 px-3">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
           {PRESET_OPTIONS.map((opt) => {
-            const isActive = filterState.datePreset.toLowerCase() === opt.key;
+            const isActive = currentPresetKey === opt.key;
             return (
               <Pressable
                 key={opt.key}
-                onPress={() => onSelectDatePreset(opt.key)}
+                onPress={() => handlePresetClick(opt.key)}
                 className={`px-4 py-2 rounded-full mr-2 min-h-[38px] items-center justify-center ${
                   isActive
                     ? 'bg-[#002D5A] shadow-sm'
@@ -332,35 +364,48 @@ export function PhoneAnalyticsScreen({
                 </Text>
               </View>
               <Text className="text-xs font-bold text-[#0066B2]">
-                {royaltyData.royaltyShare}% Rate
+                {typeof royaltyData?.royaltyShare === 'number' && !isNaN(royaltyData.royaltyShare)
+                  ? royaltyData.royaltyShare
+                  : 5}
+                % Rate
               </Text>
             </View>
 
-            <View className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex-row mb-3">
-              <View
-                style={{ width: `${royaltyData.storeShare}%` }}
-                className="bg-[#0066B2] h-full"
-              />
-              <View
-                style={{ width: `${royaltyData.royaltyShare}%` }}
-                className="bg-amber-500 h-full"
-              />
-            </View>
+            {(() => {
+              const rawStore = royaltyData?.storeShare;
+              const rawRoyalty = royaltyData?.royaltyShare;
+              const safeStore = typeof rawStore === 'number' && !isNaN(rawStore) ? Math.max(0, Math.min(100, rawStore)) : 95;
+              const safeRoyalty = typeof rawRoyalty === 'number' && !isNaN(rawRoyalty) ? Math.max(0, Math.min(100, rawRoyalty)) : 5;
+              return (
+                <>
+                  <View className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex-row mb-3">
+                    <View
+                      style={{ width: `${safeStore}%` }}
+                      className="bg-[#0066B2] h-full"
+                    />
+                    <View
+                      style={{ width: `${safeRoyalty}%` }}
+                      className="bg-amber-500 h-full"
+                    />
+                  </View>
 
-            <View className="flex-row justify-between">
-              <View>
-                <Text className="text-[11px] text-[#64748B]">Branch Share</Text>
-                <Text className="text-base font-bold text-[#0F2744]">
-                  {formatCurrency((kpiData.totalSales * royaltyData.storeShare) / 100)}
-                </Text>
-              </View>
-              <View className="items-end">
-                <Text className="text-[11px] text-[#64748B]">HQ Royalty</Text>
-                <Text className="text-base font-bold text-amber-600">
-                  {formatCurrency((kpiData.totalSales * royaltyData.royaltyShare) / 100)}
-                </Text>
-              </View>
-            </View>
+                  <View className="flex-row justify-between">
+                    <View>
+                      <Text className="text-[11px] text-[#64748B]">Branch Share</Text>
+                      <Text className="text-base font-bold text-[#0F2744]">
+                        {formatCurrency((kpiData.totalSales * safeStore) / 100)}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-[11px] text-[#64748B]">HQ Royalty</Text>
+                      <Text className="text-base font-bold text-amber-600">
+                        {formatCurrency((kpiData.totalSales * safeRoyalty) / 100)}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              );
+            })()}
           </View>
         )}
 
@@ -375,7 +420,7 @@ export function PhoneAnalyticsScreen({
             </View>
             <View className="bg-blue-50 px-2.5 py-1 rounded-lg">
               <Text className="text-xs font-bold text-[#0066B2]">
-                {chartsData.salesTrend.length} Days
+                {salesTrendList.length} Days
               </Text>
             </View>
           </View>
@@ -384,8 +429,12 @@ export function PhoneAnalyticsScreen({
             <View className="pt-2">
               <View className="flex-row items-end justify-between h-36 pt-2 pb-1 border-b border-[#E2E8F0]">
                 {salesTrendList.map((item, idx) => {
-                  const val = item?.value || 0;
-                  const heightPercent = Math.min(100, Math.max(12, (val / maxSaleValue) * 100));
+                  const val = typeof item?.value === 'number' && !isNaN(item.value) ? item.value : 0;
+                  const calcHeight = maxSaleValue > 0 ? (val / maxSaleValue) * 100 : 0;
+                  const heightPercent =
+                    isNaN(calcHeight) || !isFinite(calcHeight)
+                      ? 12
+                      : Math.min(100, Math.max(12, calcHeight));
                   const isTopDay = val === maxSaleValue && val > 0;
                   return (
                     <View key={idx} className="items-center flex-1 mx-0.5">
@@ -427,8 +476,9 @@ export function PhoneAnalyticsScreen({
 
           <View className="gap-3">
             {paymentSplitsList.map((item, idx) => {
-              const val = item?.value || 0;
-              const pct = Math.round((val / totalPaymentSum) * 100) || 0;
+              const val = typeof item?.value === 'number' && !isNaN(item.value) ? item.value : 0;
+              const calcPct = totalPaymentSum > 0 ? (val / totalPaymentSum) * 100 : 0;
+              const pct = isNaN(calcPct) || !isFinite(calcPct) ? 0 : Math.max(0, Math.min(100, Math.round(calcPct)));
               const label = String(item?.label || 'Other');
               const lowerLabel = label.toLowerCase();
               const isUpi = lowerLabel.includes('upi') || lowerLabel.includes('qr');
@@ -594,13 +644,13 @@ export function PhoneAnalyticsScreen({
               </Text>
               <View className="flex-row flex-wrap gap-2 mb-5">
                 {PRESET_OPTIONS.map((opt) => {
-                  const isSelected = filterState.datePreset.toLowerCase() === opt.key;
+                  const isSelected = currentPresetKey === opt.key;
                   return (
                     <Pressable
                       key={opt.key}
                       onPress={() => {
-                        onSelectDatePreset(opt.key);
                         onCloseFilter();
+                        handlePresetClick(opt.key);
                       }}
                       className={`px-4 py-2.5 rounded-xl border flex-row items-center ${
                         isSelected
@@ -677,6 +727,24 @@ export function PhoneAnalyticsScreen({
         </View>
       </Modal>
       )}
+
+      {/* Interactive Custom Date Picker Modal for Phones */}
+      <DatePickerModal
+        visible={isDatePickerModalOpen}
+        onClose={() => setIsDatePickerModalOpen(false)}
+        startDate={startDate}
+        endDate={endDate}
+        startTime={startTime}
+        endTime={endTime}
+        onApply={(start, end, startT, endT) => {
+          setIsDatePickerModalOpen(false);
+          if (onApplyCustomRange) {
+            onApplyCustomRange(start, end, startT, endT);
+          } else {
+            onSelectDatePreset('custom');
+          }
+        }}
+      />
     </View>
   );
 }

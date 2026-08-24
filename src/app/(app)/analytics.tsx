@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -73,6 +73,17 @@ export default function AnalyticsScreen() {
   const [endTime, setEndTime] = useState('23:00');
   const [advancedTime, setAdvancedTime] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+
+  // Request sequencing and mount tracking to prevent race conditions on rapid filter clicking
+  const latestRequestIdRef = useRef<number>(0);
+  const isMountedRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Layout responsiveness
   const [salesChartWidth, setSalesChartWidth] = useState(600);
@@ -175,11 +186,12 @@ export default function AnalyticsScreen() {
   // Validation regex
   const isValidDate = (str: string) => /^\d{4}-\d{2}-\d{2}$/.test(str);
 
-  // Fetch logic
+  // Fetch logic with race condition guards
   const loadDashboard = async () => {
     if (!isValidDate(startDate) || !isValidDate(endDate)) {
       return;
     }
+    const currentRequestId = ++latestRequestIdRef.current;
     setLoading(true);
     setErrorMsg(null);
 
@@ -193,16 +205,27 @@ export default function AnalyticsScreen() {
       };
 
       const res = await fetchAnalyticsDashboard(filters);
+
+      // Discard stale out-of-order responses or if component unmounted
+      if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) {
+        return;
+      }
+
       if (res.error) {
         setErrorMsg(res.error);
       } else {
         setDashboardData(res.data);
       }
     } catch (err: any) {
+      if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) {
+        return;
+      }
       console.error('[AnalyticsScreen] Error fetching dashboard:', err);
       setErrorMsg('Failed to update analytics dashboard.');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current && currentRequestId === latestRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -341,25 +364,33 @@ export default function AnalyticsScreen() {
   const salesChart = useMemo(() => {
     if (!dashboardData || dashboardData.salesByDay.length === 0) return null;
     const data = dashboardData.salesByDay;
-    const maxSales = Math.max(...data.map((p) => p.sales), 500);
+    const maxSales = Math.max(...data.map((p) => (typeof p?.sales === 'number' && !isNaN(p.sales) ? p.sales : 0)), 500);
 
     const height = 220;
     const paddingX = 45;
     const paddingY = 30;
 
     const points = data.map((p, idx) => {
+      const salesVal = typeof p?.sales === 'number' && !isNaN(p.sales) ? p.sales : 0;
       const x =
         data.length > 1
-          ? paddingX + (idx / (data.length - 1)) * (salesChartWidth - paddingX * 2)
+          ? paddingX + (idx / (data.length - 1)) * Math.max(10, salesChartWidth - paddingX * 2)
           : salesChartWidth / 2;
-      const y = height - paddingY - (p.sales / maxSales) * (height - paddingY * 2);
-      return { x, y, label: p.label, sales: p.sales };
+      const y = height - paddingY - (maxSales > 0 ? (salesVal / maxSales) * (height - paddingY * 2) : 0);
+      return { x: isNaN(x) ? paddingX : x, y: isNaN(y) ? height - paddingY : y, label: p.label || '', sales: salesVal };
     });
 
-    const linePath = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const linePath =
+      points.length > 1
+        ? points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+        : points.length === 1
+        ? `M ${points[0].x - 15} ${points[0].y} L ${points[0].x + 15} ${points[0].y}`
+        : '';
     const areaPath =
-      points.length > 0
+      points.length > 1
         ? `${linePath} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`
+        : points.length === 1
+        ? `M ${points[0].x - 15} ${points[0].y} L ${points[0].x + 15} ${points[0].y} L ${points[0].x + 15} ${height - paddingY} L ${points[0].x - 15} ${height - paddingY} Z`
         : '';
 
     return (
@@ -381,7 +412,7 @@ export default function AnalyticsScreen() {
           </View>
         </View>
 
-        <Svg width={salesChartWidth} height={height}>
+        <Svg width={Math.max(100, salesChartWidth)} height={height}>
           <Defs>
             <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0%" stopColor={colors.primary} stopOpacity={0.25} />
@@ -393,7 +424,7 @@ export default function AnalyticsScreen() {
           <Line
             x1={paddingX}
             y1={paddingY}
-            x2={salesChartWidth - paddingX}
+            x2={Math.max(paddingX + 10, salesChartWidth - paddingX)}
             y2={paddingY}
             stroke="#e8f2fa"
             strokeWidth={1}
@@ -402,7 +433,7 @@ export default function AnalyticsScreen() {
           <Line
             x1={paddingX}
             y1={height / 2}
-            x2={salesChartWidth - paddingX}
+            x2={Math.max(paddingX + 10, salesChartWidth - paddingX)}
             y2={height / 2}
             stroke="#e8f2fa"
             strokeWidth={1}
@@ -411,7 +442,7 @@ export default function AnalyticsScreen() {
           <Line
             x1={paddingX}
             y1={height - paddingY}
-            x2={salesChartWidth - paddingX}
+            x2={Math.max(paddingX + 10, salesChartWidth - paddingX)}
             y2={height - paddingY}
             stroke={colors.border}
             strokeWidth={1.5}
@@ -449,9 +480,9 @@ export default function AnalyticsScreen() {
           {points.length > 0 && (
             <>
               {/* Fill area */}
-              <Path d={areaPath} fill="url(#areaGrad)" />
+              {areaPath ? <Path d={areaPath} fill="url(#areaGrad)" /> : null}
               {/* Stroke line */}
-              <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth={2.5} />
+              {linePath ? <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth={2.5} /> : null}
 
               {/* Data points */}
               {points.map((p, idx) => (
@@ -502,7 +533,7 @@ export default function AnalyticsScreen() {
   const ordersChart = useMemo(() => {
     if (!dashboardData || dashboardData.ordersByDay.length === 0) return null;
     const data = dashboardData.ordersByDay;
-    const maxOrders = Math.max(...data.map((p) => p.orders), 5);
+    const maxOrders = Math.max(...data.map((p) => (typeof p?.orders === 'number' && !isNaN(p.orders) ? p.orders : 0)), 5);
 
     const height = 180;
     const paddingX = 35;
@@ -521,25 +552,26 @@ export default function AnalyticsScreen() {
           <Text className="text-xs text-textSecondary">Order frequency distribution</Text>
         </View>
 
-        <Svg width={ordersChartWidth} height={height}>
+        <Svg width={Math.max(100, ordersChartWidth)} height={height}>
           {/* Bottom baseline */}
           <Line
             x1={paddingX}
             y1={height - paddingY}
-            x2={ordersChartWidth - paddingX}
+            x2={Math.max(paddingX + 10, ordersChartWidth - paddingX)}
             y2={height - paddingY}
             stroke={colors.border}
             strokeWidth={1}
           />
 
           {data.map((p, idx) => {
-            const barWidth = Math.max(10, Math.min(28, (ordersChartWidth - paddingX * 2) / data.length - 8));
-            const x =
-              paddingX +
-              idx * ((ordersChartWidth - paddingX * 2) / data.length) +
-              (((ordersChartWidth - paddingX * 2) / data.length - barWidth) / 2);
-            const barHeight = (p.orders / maxOrders) * (height - paddingY * 2);
-            const y = height - paddingY - barHeight;
+            const availableWidth = Math.max(20, ordersChartWidth - paddingX * 2);
+            const slotWidth = availableWidth / Math.max(1, data.length);
+            const barWidth = Math.max(6, Math.min(28, slotWidth - 8));
+            const x = paddingX + idx * slotWidth + (slotWidth - barWidth) / 2;
+            const ordersVal = typeof p?.orders === 'number' && !isNaN(p.orders) ? p.orders : 0;
+            const barHeight = maxOrders > 0 ? (ordersVal / maxOrders) * (height - paddingY * 2) : 0;
+            const safeBarHeight = isNaN(barHeight) ? 0 : Math.max(0, barHeight);
+            const y = height - paddingY - safeBarHeight;
 
             return (
               <G key={idx}>
@@ -548,12 +580,12 @@ export default function AnalyticsScreen() {
                   x={x}
                   y={y}
                   width={barWidth}
-                  height={Math.max(1.5, barHeight)}
+                  height={Math.max(1.5, safeBarHeight)}
                   fill={colors.primaryLight}
                   rx={4}
                 />
                 {/* Count value label */}
-                {p.orders > 0 && (
+                {ordersVal > 0 && (
                   <SvgText
                     x={x + barWidth / 2}
                     y={y - 4}
@@ -562,7 +594,7 @@ export default function AnalyticsScreen() {
                     fill={colors.textPrimary}
                     textAnchor="middle"
                   >
-                    {p.orders}
+                    {ordersVal}
                   </SvgText>
                 )}
                 {/* Date Label */}
@@ -589,7 +621,7 @@ export default function AnalyticsScreen() {
   const rushChart = useMemo(() => {
     if (!dashboardData || dashboardData.salesByHour.length === 0) return null;
     const data = dashboardData.salesByHour;
-    const maxHourSales = Math.max(...data.map((p) => p.sales), 100);
+    const maxHourSales = Math.max(...data.map((p) => (typeof p?.sales === 'number' && !isNaN(p.sales) ? p.sales : 0)), 100);
 
     const height = 180;
     const paddingX = 35;
@@ -611,25 +643,26 @@ export default function AnalyticsScreen() {
           <Clock size={16} color={colors.textSecondary} />
         </View>
 
-        <Svg width={rushChartWidth} height={height}>
+        <Svg width={Math.max(100, rushChartWidth)} height={height}>
           {/* Bottom baseline */}
           <Line
             x1={paddingX}
             y1={height - paddingY}
-            x2={rushChartWidth - paddingX}
+            x2={Math.max(paddingX + 10, rushChartWidth - paddingX)}
             y2={height - paddingY}
             stroke={colors.border}
             strokeWidth={1}
           />
 
           {data.map((p, idx) => {
-            const barWidth = Math.max(2, (rushChartWidth - paddingX * 2) / 24 - 2);
-            const x =
-              paddingX +
-              idx * ((rushChartWidth - paddingX * 2) / 24) +
-              (((rushChartWidth - paddingX * 2) / 24 - barWidth) / 2);
-            const barHeight = (p.sales / maxHourSales) * (height - paddingY * 2);
-            const y = height - paddingY - barHeight;
+            const availableWidth = Math.max(20, rushChartWidth - paddingX * 2);
+            const slotWidth = availableWidth / 24;
+            const barWidth = Math.max(2, slotWidth - 2);
+            const x = paddingX + idx * slotWidth + (slotWidth - barWidth) / 2;
+            const salesVal = typeof p?.sales === 'number' && !isNaN(p.sales) ? p.sales : 0;
+            const barHeight = maxHourSales > 0 ? (salesVal / maxHourSales) * (height - paddingY * 2) : 0;
+            const safeBarHeight = isNaN(barHeight) ? 0 : Math.max(0, barHeight);
+            const y = height - paddingY - safeBarHeight;
 
             // Only print labels every 4 hours to avoid overlaps
             const showLabel = idx % 4 === 0 || idx === 23;
@@ -641,8 +674,8 @@ export default function AnalyticsScreen() {
                   x={x}
                   y={y}
                   width={barWidth}
-                  height={Math.max(1, barHeight)}
-                  fill={p.sales === maxHourSales ? colors.primaryDeep : colors.accent}
+                  height={Math.max(1, safeBarHeight)}
+                  fill={salesVal === maxHourSales ? colors.primaryDeep : colors.accent}
                   rx={1.5}
                 />
                 {/* Hour indicator label */}
@@ -654,7 +687,7 @@ export default function AnalyticsScreen() {
                     fill={colors.textSecondary}
                     textAnchor="middle"
                   >
-                    {p.hour.slice(0, 2)}
+                    {String(p?.hour || '').slice(0, 2)}
                   </SvgText>
                 )}
               </G>
@@ -675,7 +708,7 @@ export default function AnalyticsScreen() {
       );
     }
     const data = dashboardData.paymentSplit;
-    const totalAmt = data.reduce((acc, p) => acc + p.total, 0);
+    const totalAmt = data.reduce((acc, p) => acc + (typeof p?.total === 'number' && !isNaN(p.total) ? p.total : 0), 0);
 
     const radius = 50;
     const strokeWidth = 14;
@@ -697,7 +730,8 @@ export default function AnalyticsScreen() {
           <Text className="text-xs text-textSecondary mb-4">Method allocation share</Text>
 
           {data.map((item, idx) => {
-            const pct = totalAmt > 0 ? (item.total / totalAmt) * 100 : 0;
+            const itemTotal = typeof item?.total === 'number' && !isNaN(item.total) ? item.total : 0;
+            const pct = totalAmt > 0 ? (itemTotal / totalAmt) * 100 : 0;
             const itemColor = paymentColors[item.payment_type] || '#5b6b7c';
             return (
               <View key={idx} className="flex-row items-center justify-between mb-2">
@@ -706,7 +740,7 @@ export default function AnalyticsScreen() {
                   <Text className="text-xs font-bold text-textPrimary">{item.payment_type}</Text>
                 </View>
                 <Text className="text-xs text-textSecondary font-semibold">
-                  {pct.toFixed(0)}% (₹{Math.round(item.total).toLocaleString('en-IN')})
+                  {pct.toFixed(0)}% (₹{Math.round(itemTotal).toLocaleString('en-IN')})
                 </Text>
               </View>
             );
@@ -716,10 +750,11 @@ export default function AnalyticsScreen() {
         <View className="items-center justify-center w-[150px] h-[150px] self-center">
           <Svg width={150} height={150}>
             {data.map((item, idx) => {
-              const fraction = totalAmt > 0 ? item.total / totalAmt : 0;
-              const sliceLength = fraction * circumference;
+              const itemTotal = typeof item?.total === 'number' && !isNaN(item.total) ? item.total : 0;
+              const fraction = totalAmt > 0 ? Math.max(0, itemTotal / totalAmt) : 0;
+              const sliceLength = isNaN(fraction) ? 0 : fraction * circumference;
               const itemColor = paymentColors[item.payment_type] || '#5b6b7c';
-              const offset = accumulatedOffset;
+              const offset = isNaN(accumulatedOffset) ? 0 : accumulatedOffset;
               accumulatedOffset += sliceLength;
 
               return (
@@ -731,7 +766,7 @@ export default function AnalyticsScreen() {
                   stroke={itemColor}
                   strokeWidth={strokeWidth}
                   fill="none"
-                  strokeDasharray={`${sliceLength} ${circumference}`}
+                  strokeDasharray={`${sliceLength.toFixed(1)} ${circumference.toFixed(1)}`}
                   strokeDashoffset={-offset}
                   strokeLinecap="round"
                   transform={`rotate(-90 ${center} ${center})`}
@@ -1204,6 +1239,10 @@ export default function AnalyticsScreen() {
           selectedBranchId: selectedBranchId || undefined,
         }}
         branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
+        startDate={startDate}
+        endDate={endDate}
+        startTime={startTime}
+        endTime={endTime}
         loading={loading}
         errorMsg={errorMsg}
         onRetry={loadDashboard}
@@ -1211,6 +1250,13 @@ export default function AnalyticsScreen() {
         onOpenFilter={() => setIsFilterSheetOpen(true)}
         onCloseFilter={() => setIsFilterSheetOpen(false)}
         onSelectDatePreset={(p) => applyPreset(p.toLowerCase() as any)}
+        onApplyCustomRange={(start, end, startT, endT) => {
+          setStartDate(start);
+          setEndDate(end);
+          if (startT) setStartTime(startT);
+          if (endT) setEndTime(endT);
+          setPreset('custom');
+        }}
         onSelectBranch={(bId) => setSelectedBranchId(bId)}
         onExportCSV={handleExportCSV}
       />

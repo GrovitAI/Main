@@ -70,6 +70,33 @@ export function getBusinessDate(
 }
 
 /**
+ * Helper to format a Date into local calendar string "YYYY-MM-DD"
+ */
+function formatCalendarDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Computes deterministic ISO UTC timestamps for a given business day operating window.
+ * Default timezone is Asia/Kolkata (IST = UTC+05:30).
+ */
+function createUtcIsoString(
+  dateStr: string,
+  hours: number,
+  minutes: number,
+  dayOffset = 0,
+  tzOffsetHours = 5.5
+): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const totalMinutes = hours * 60 + minutes - Math.round(tzOffsetHours * 60);
+  const utcDate = new Date(Date.UTC(y, m - 1, d + dayOffset, 0, totalMinutes, 0, 0));
+  return utcDate.toISOString();
+}
+
+/**
  * Computes ISO startTimestamp and endTimestamp bounds for date presets based on
  * the branch business day operating window (11:30 AM -> 02:30 AM next day).
  */
@@ -96,71 +123,55 @@ export function getBusinessDayBounds(
     currentBizDate.setDate(currentBizDate.getDate() - 1);
   }
 
-  let startDateObj = new Date(currentBizDate);
-  let endDateObj = new Date(currentBizDate);
+  let startDateStr = formatCalendarDate(currentBizDate);
+  let endDateStr = formatCalendarDate(currentBizDate);
 
   if (preset === 'today') {
-    startDateObj = new Date(currentBizDate);
-    endDateObj = new Date(currentBizDate);
+    startDateStr = formatCalendarDate(currentBizDate);
+    endDateStr = formatCalendarDate(currentBizDate);
   } else if (preset === 'yesterday') {
-    startDateObj = new Date(currentBizDate);
-    startDateObj.setDate(currentBizDate.getDate() - 1);
-    endDateObj = new Date(startDateObj);
+    const yest = new Date(currentBizDate);
+    yest.setDate(currentBizDate.getDate() - 1);
+    startDateStr = formatCalendarDate(yest);
+    endDateStr = formatCalendarDate(yest);
   } else if (preset === '7days') {
-    startDateObj = new Date(currentBizDate);
-    startDateObj.setDate(currentBizDate.getDate() - 6);
-    endDateObj = new Date(currentBizDate);
+    const sevenDaysAgo = new Date(currentBizDate);
+    sevenDaysAgo.setDate(currentBizDate.getDate() - 6);
+    startDateStr = formatCalendarDate(sevenDaysAgo);
+    endDateStr = formatCalendarDate(currentBizDate);
   } else if (preset === '30days') {
-    startDateObj = new Date(currentBizDate);
-    startDateObj.setDate(currentBizDate.getDate() - 29);
-    endDateObj = new Date(currentBizDate);
+    const thirtyDaysAgo = new Date(currentBizDate);
+    thirtyDaysAgo.setDate(currentBizDate.getDate() - 29);
+    startDateStr = formatCalendarDate(thirtyDaysAgo);
+    endDateStr = formatCalendarDate(currentBizDate);
   } else if (preset === 'month') {
-    startDateObj = new Date(currentBizDate.getFullYear(), currentBizDate.getMonth(), 1);
-    endDateObj = new Date(currentBizDate);
+    const monthStart = new Date(currentBizDate.getFullYear(), currentBizDate.getMonth(), 1);
+    startDateStr = formatCalendarDate(monthStart);
+    endDateStr = formatCalendarDate(currentBizDate);
   } else if (preset === 'custom' || fromDate || toDate) {
-    const parseSafe = (input: string | Date): Date => {
-      if (input instanceof Date) return input;
+    const parseToStr = (input?: string | Date): string => {
+      if (!input) return formatCalendarDate(currentBizDate);
+      if (input instanceof Date) return formatCalendarDate(input);
       if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
-        const [y, m, d] = input.split('-').map(Number);
-        return new Date(y, m - 1, d);
+        return input;
       }
-      return new Date(input);
+      const parsed = new Date(input);
+      return isNaN(parsed.getTime()) ? formatCalendarDate(currentBizDate) : formatCalendarDate(parsed);
     };
 
-    if (fromDate) {
-      const dFrom = parseSafe(fromDate);
-      startDateObj = isNaN(dFrom.getTime()) ? new Date(currentBizDate) : dFrom;
-    }
-    if (toDate) {
-      const dTo = parseSafe(toDate);
-      endDateObj = isNaN(dTo.getTime()) ? new Date(currentBizDate) : dTo;
-    }
+    startDateStr = parseToStr(fromDate);
+    endDateStr = parseToStr(toDate);
   }
 
-  // Set Start ISO timestamp: 11:30:00.000 on startDateObj
-  const startIsoObj = new Date(
-    startDateObj.getFullYear(),
-    startDateObj.getMonth(),
-    startDateObj.getDate(),
-    startH,
-    startM,
-    0,
-    0
-  );
-
-  // Set End ISO timestamp: 02:30:00.000 on day AFTER endDateObj (closing cutoff)
-  const endIsoObj = new Date(
-    endDateObj.getFullYear(),
-    endDateObj.getMonth(),
-    endDateObj.getDate() + 1,
-    endH,
-    endM,
-    0,
-    0
-  );
+  // Ensure startDateStr <= endDateStr
+  if (startDateStr > endDateStr) {
+    const temp = startDateStr;
+    startDateStr = endDateStr;
+    endDateStr = temp;
+  }
 
   return {
-    startTimestamp: startIsoObj.toISOString(),
-    endTimestamp: endIsoObj.toISOString(),
+    startTimestamp: createUtcIsoString(startDateStr, startH, startM, 0),
+    endTimestamp: createUtcIsoString(endDateStr, endH, endM, 1),
   };
 }
