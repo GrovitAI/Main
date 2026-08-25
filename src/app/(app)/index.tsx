@@ -322,13 +322,6 @@ export default function PosBillingScreen() {
     setIsModalMounted(true);
   }, []);
 
-  // On mobile devices, redirect to analytics since mobile is for monitoring/management
-  useEffect(() => {
-    if (!isTablet) {
-      router.replace('/analytics');
-    }
-  }, [isTablet]);
-
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {

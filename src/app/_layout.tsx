@@ -40,22 +40,33 @@ export default function RootLayout() {
     }
   }, [isAuthenticated, isRestoring]);
 
-  if (isRestoring) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#004a8d', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#ffffff" />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaProvider>
       <ApprovalProvider>
         <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(app)" />
-        </Stack>
+        <View style={{ flex: 1 }}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(app)" />
+          </Stack>
+          {isRestoring && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: '#004a8d',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 999999,
+              }}
+            >
+              <ActivityIndicator size="large" color="#ffffff" />
+            </View>
+          )}
+        </View>
       </ApprovalProvider>
     </SafeAreaProvider>
   );

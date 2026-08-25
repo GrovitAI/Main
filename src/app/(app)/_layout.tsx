@@ -437,18 +437,10 @@ export default function AppTabLayout() {
     };
   }, [roleTabs]);
 
-  // ── All hooks are above this line. Early return is safe here. ──
-  if (!session) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0066b2" />
-      </View>
-    );
-  }
-
-  const initialRouteName = getInitialRouteNameForRole(session.role, isPhone);
+  const userRole = session?.role || 'cashier';
+  const initialRouteName = getInitialRouteNameForRole(userRole, isPhone);
   // Show the global header for owners and admins on tablet/desktop
-  const showHeader = isTablet && (session.role === 'owner' || session.role === 'admin');
+  const showHeader = session && isTablet && (session.role === 'owner' || session.role === 'admin');
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>
@@ -497,6 +489,23 @@ export default function AppTabLayout() {
             })}
           </Tabs>
         </View>
+        {!session && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#ffffff',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 999999,
+            }}
+          >
+            <ActivityIndicator size="large" color="#0066b2" />
+          </View>
+        )}
       </View>
     </UIContext.Provider>
   );

@@ -139,12 +139,6 @@ export default function OrdersScreen() {
   // ── Zustand State cache-first connection ─────────────────────────────────────
   const summaries = useOrdersStore((state) => state.summaries);
 
-  // Redirect phone users to analytics
-  useEffect(() => {
-    if (isPhone) {
-      router.replace('/analytics');
-    }
-  }, [isPhone]);
   const isLoading = useOrdersStore((state) => state.isLoadingOrders);
   const storeError = useOrdersStore((state) => state.error);
   const loadSummaries = useOrdersStore((state) => state.loadSummaries);
