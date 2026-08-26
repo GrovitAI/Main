@@ -33,7 +33,8 @@ export function PhoneScreenHeader({
         {onBack ? (
           <Pressable
             onPress={onBack}
-            className="w-[44px] h-[44px] items-center justify-center rounded-full active:bg-slate-100"
+            className="w-[44px] h-[44px] items-center justify-center rounded-full"
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
@@ -42,7 +43,8 @@ export function PhoneScreenHeader({
         ) : onMenuPress ? (
           <Pressable
             onPress={onMenuPress}
-            className="w-[44px] h-[44px] items-center justify-center rounded-full active:bg-slate-100"
+            className="w-[44px] h-[44px] items-center justify-center rounded-full"
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             accessibilityRole="button"
             accessibilityLabel="Menu"
           >

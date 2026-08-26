@@ -174,14 +174,16 @@ export function PhoneAnalyticsScreen({
           <View className="flex-row items-center gap-2">
             <Pressable
               onPress={onExportCSV}
-              className="w-10 h-10 items-center justify-center rounded-xl bg-white border border-[#E2E8F0] shadow-sm active:bg-slate-100"
+              className="w-10 h-10 items-center justify-center rounded-xl bg-white border border-[#E2E8F0] shadow-sm"
+              style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
             >
               <Download size={18} color="#0066B2" />
             </Pressable>
             <Pressable
               testID="analytics-filter-btn"
               onPress={onOpenFilter}
-              className="w-10 h-10 items-center justify-center rounded-xl bg-[#0066B2] shadow-sm active:bg-[#004B87]"
+              className="w-10 h-10 items-center justify-center rounded-xl bg-[#0066B2] shadow-sm"
+              style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
             >
               <Filter size={18} color="#FFFFFF" />
             </Pressable>
@@ -191,23 +193,29 @@ export function PhoneAnalyticsScreen({
 
       {/* Date Preset Filter Bar */}
       <View className="bg-white border-b border-[#E2E8F0] py-2.5 px-3">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ flexDirection: 'row', alignItems: 'center' }}
+        >
           {PRESET_OPTIONS.map((opt) => {
             const isActive = currentPresetKey === opt.key;
             return (
               <Pressable
                 key={opt.key}
                 onPress={() => handlePresetClick(opt.key)}
-                className={`px-4 py-2 rounded-full mr-2 min-h-[38px] items-center justify-center ${
-                  isActive
-                    ? 'bg-[#002D5A] shadow-sm'
-                    : 'bg-[#F1F5F9] border border-[#E2E8F0]'
-                }`}
+                className="px-4 py-2 rounded-full mr-2 min-h-[38px] items-center justify-center border"
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: isActive ? '#002D5A' : '#F1F5F9',
+                    borderColor: isActive ? '#002D5A' : '#E2E8F0',
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
               >
                 <Text
-                  className={`text-xs font-bold ${
-                    isActive ? 'text-white' : 'text-[#475569]'
-                  }`}
+                  className="text-xs font-bold"
+                  style={{ color: isActive ? '#FFFFFF' : '#475569' }}
                 >
                   {opt.label}
                 </Text>
@@ -232,7 +240,8 @@ export function PhoneAnalyticsScreen({
             {onRetry && (
               <Pressable
                 onPress={onRetry}
-                className="bg-rose-600 px-3.5 py-1.5 rounded-xl active:bg-rose-700"
+                className="bg-rose-600 px-3.5 py-1.5 rounded-xl"
+                style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
               >
                 <Text className="text-xs font-bold text-white">Retry</Text>
               </Pressable>
@@ -652,17 +661,23 @@ export function PhoneAnalyticsScreen({
                         onCloseFilter();
                         handlePresetClick(opt.key);
                       }}
-                      className={`px-4 py-2.5 rounded-xl border flex-row items-center ${
-                        isSelected
-                          ? 'bg-[#0066B2] border-[#0066B2]'
-                          : 'bg-white border-[#CBD5E1]'
-                      }`}
+                      className="px-4 py-2.5 rounded-xl border flex-row items-center"
+                      style={({ pressed }) => [
+                        {
+                          backgroundColor: isSelected ? '#0066B2' : '#FFFFFF',
+                          borderColor: isSelected ? '#0066B2' : '#CBD5E1',
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
                     >
-                      {isSelected && <Check size={14} color="#FFFFFF" className="mr-1.5" />}
+                      {isSelected && (
+                        <View style={{ marginRight: 6 }}>
+                          <Check size={14} color="#FFFFFF" />
+                        </View>
+                      )}
                       <Text
-                        className={`text-xs font-bold ${
-                          isSelected ? 'text-white' : 'text-[#0F2744]'
-                        }`}
+                        className="text-xs font-bold"
+                        style={{ color: isSelected ? '#FFFFFF' : '#0F2744' }}
                       >
                         {opt.label}
                       </Text>
@@ -683,11 +698,14 @@ export function PhoneAnalyticsScreen({
                         onSelectBranch(null);
                         onCloseFilter();
                       }}
-                      className={`p-3 rounded-xl border flex-row items-center justify-between ${
-                        !filterState.selectedBranchId
-                          ? 'bg-blue-50 border-[#0066B2]'
-                          : 'bg-white border-[#CBD5E1]'
-                      }`}
+                      className="p-3 rounded-xl border flex-row items-center justify-between"
+                      style={({ pressed }) => [
+                        {
+                          backgroundColor: !filterState.selectedBranchId ? '#EFF6FF' : '#FFFFFF',
+                          borderColor: !filterState.selectedBranchId ? '#0066B2' : '#CBD5E1',
+                          opacity: pressed ? 0.8 : 1,
+                        },
+                      ]}
                     >
                       <View className="flex-row items-center gap-2">
                         <Building2 size={16} color="#0066B2" />
@@ -705,11 +723,14 @@ export function PhoneAnalyticsScreen({
                             onSelectBranch(b.id);
                             onCloseFilter();
                           }}
-                          className={`p-3 rounded-xl border flex-row items-center justify-between ${
-                            isSelected
-                              ? 'bg-blue-50 border-[#0066B2]'
-                              : 'bg-white border-[#CBD5E1]'
-                          }`}
+                          className="p-3 rounded-xl border flex-row items-center justify-between"
+                          style={({ pressed }) => [
+                            {
+                              backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                              borderColor: isSelected ? '#0066B2' : '#CBD5E1',
+                              opacity: pressed ? 0.8 : 1,
+                            },
+                          ]}
                         >
                           <View className="flex-row items-center gap-2">
                             <Building2 size={16} color="#64748B" />
