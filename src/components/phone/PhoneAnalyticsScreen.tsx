@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import {
   Filter,
-  Download,
   TrendingUp,
   TrendingDown,
   ShoppingBag,
@@ -78,7 +77,7 @@ export interface PhoneAnalyticsScreenProps {
   onSelectDatePreset: (preset: string) => void;
   onApplyCustomRange?: (start: string, end: string, startTime?: string, endTime?: string) => void;
   onSelectBranch: (branchId: string | null) => void;
-  onExportCSV: () => void;
+  onExportCSV?: () => void;
 }
 
 const PRESET_OPTIONS = [
@@ -89,6 +88,37 @@ const PRESET_OPTIONS = [
   { key: 'month', label: 'This Month' },
   { key: 'custom', label: 'Custom Range' },
 ];
+
+function formatDateLabel(dateStr?: string) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  return `${day} ${months[monthIdx] || parts[1]}`;
+}
+
+function getFilterLabel(presetKey: string, start?: string, end?: string): string {
+  const s = formatDateLabel(start);
+  const e = formatDateLabel(end);
+  switch (presetKey) {
+    case 'today':
+      return s ? `Today · ${s}` : 'Today';
+    case 'yesterday':
+      return s ? `Yesterday · ${s}` : 'Yesterday';
+    case '7days':
+      return s && e ? `Last 7 Days (${s} – ${e})` : 'Last 7 Days';
+    case '30days':
+      return s && e ? `Last 30 Days (${s} – ${e})` : 'Last 30 Days';
+    case 'month':
+      return s && e ? `This Month (${s} – ${e})` : 'This Month';
+    case 'custom':
+      return s && e ? `Custom (${s} – ${e})` : 'Custom Range';
+    default:
+      return 'Active Filter';
+  }
+}
 
 export function PhoneAnalyticsScreen({
   kpiData,
@@ -169,25 +199,18 @@ export function PhoneAnalyticsScreen({
       {/* Top Header */}
       <PhoneScreenHeader
         title="Analytics"
-        subtitle={`${selectedBranchName} · ${(filterState?.datePreset || '7days').toUpperCase()}`}
+        subtitle={`${selectedBranchName} · ${getFilterLabel(currentPresetKey, startDate, endDate)}`}
         rightContent={
-          <View className="flex-row items-center gap-2">
-            <Pressable
-              onPress={onExportCSV}
-              className="w-10 h-10 items-center justify-center rounded-xl bg-white border border-[#E2E8F0] shadow-sm"
-              style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
-            >
-              <Download size={18} color="#0066B2" />
-            </Pressable>
-            <Pressable
-              testID="analytics-filter-btn"
-              onPress={onOpenFilter}
-              className="w-10 h-10 items-center justify-center rounded-xl bg-[#0066B2] shadow-sm"
-              style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
-            >
-              <Filter size={18} color="#FFFFFF" />
-            </Pressable>
-          </View>
+          <Pressable
+            testID="analytics-filter-btn"
+            onPress={onOpenFilter}
+            className="w-10 h-10 items-center justify-center rounded-xl bg-[#0066B2] shadow-sm"
+            style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Filter reports"
+          >
+            <Filter size={18} color="#FFFFFF" />
+          </Pressable>
         }
       />
 
@@ -196,7 +219,7 @@ export function PhoneAnalyticsScreen({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexDirection: 'row', alignItems: 'center' }}
+          contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 }}
         >
           {PRESET_OPTIONS.map((opt) => {
             const isActive = currentPresetKey === opt.key;
@@ -204,18 +227,31 @@ export function PhoneAnalyticsScreen({
               <Pressable
                 key={opt.key}
                 onPress={() => handlePresetClick(opt.key)}
-                className="px-4 py-2 rounded-full mr-2 min-h-[38px] items-center justify-center border"
+                className="px-4 py-2 rounded-full mr-2 min-h-[38px] items-center justify-center border flex-row"
                 style={({ pressed }) => [
                   {
-                    backgroundColor: isActive ? '#002D5A' : '#F1F5F9',
-                    borderColor: isActive ? '#002D5A' : '#E2E8F0',
+                    backgroundColor: isActive ? '#0066B2' : '#FFFFFF',
+                    borderColor: isActive ? '#0066B2' : '#CBD5E1',
+                    shadowColor: isActive ? '#0066B2' : 'transparent',
+                    shadowOffset: { width: 0, height: isActive ? 2 : 0 },
+                    shadowOpacity: isActive ? 0.25 : 0,
+                    shadowRadius: isActive ? 3 : 0,
+                    elevation: isActive ? 2 : 0,
                     opacity: pressed ? 0.8 : 1,
                   },
                 ]}
               >
+                {isActive && (
+                  <View style={{ marginRight: 5 }}>
+                    <Check size={12} color="#FFFFFF" />
+                  </View>
+                )}
                 <Text
                   className="text-xs font-bold"
-                  style={{ color: isActive ? '#FFFFFF' : '#475569' }}
+                  style={{
+                    color: isActive ? '#FFFFFF' : '#475569',
+                    letterSpacing: 0.2,
+                  }}
                 >
                   {opt.label}
                 </Text>
@@ -230,6 +266,23 @@ export function PhoneAnalyticsScreen({
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* ACTIVE FILTER SUMMARY BANNER */}
+        <View className="flex-row items-center justify-between bg-blue-50/90 border border-blue-200/70 rounded-2xl px-3.5 py-2.5 mb-4 shadow-2xs">
+          <View className="flex-row items-center gap-2 flex-1 pr-2">
+            <Calendar size={15} color="#0066B2" />
+            <Text className="text-xs font-bold text-[#0066B2]" numberOfLines={1}>
+              {getFilterLabel(currentPresetKey, startDate, endDate)}
+            </Text>
+          </View>
+          <Pressable
+            onPress={onOpenFilter}
+            className="flex-row items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-blue-200"
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Filter size={11} color="#0066B2" />
+            <Text className="text-[11px] font-bold text-[#0066B2]">Filters</Text>
+          </Pressable>
+        </View>
         {/* ERROR BANNER */}
         {errorMsg && (
           <View className="bg-rose-50 border border-rose-200 p-4 rounded-2xl mb-4 flex-row items-center justify-between">
@@ -333,7 +386,7 @@ export function PhoneAnalyticsScreen({
             <View className="w-9 h-9 rounded-xl bg-emerald-50 items-center justify-center mb-3">
               <ShoppingBag size={18} color="#059669" />
             </View>
-            <Text className="text-[#64748B] text-xs font-semibold">Items Dispatched</Text>
+            <Text className="text-[#64748B] text-xs font-semibold">Items Sold</Text>
             <Text className="text-[#0F2744] text-2xl font-bold mt-1">
               {kpiData.itemsSold}
             </Text>
