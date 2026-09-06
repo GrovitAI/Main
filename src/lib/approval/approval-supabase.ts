@@ -1,18 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  process.env.SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  'https://placeholder.supabase.co';
-
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  'placeholder-key';
-
-const validUrl = supabaseUrl.startsWith('http') ? supabaseUrl : 'https://placeholder.supabase.co';
-const validKey = supabaseAnonKey || 'placeholder-key';
-
-export const approvalSupabase = createClient(validUrl, validKey);
+/**
+ * Server-side Supabase client factory for the approval API.
+ *
+ * The approval database layer no longer uses a shared anonymous client.
+ * Every handler authenticates the caller first (see src/lib/server/api-auth.ts)
+ * and passes the caller-scoped client into the approval-service functions,
+ * so Row Level Security applies to every read and write.
+ */
+export { createUserScopedClient as createApprovalDbClient } from '../server/api-auth';
+export type { SupabaseClient as ApprovalDbClient } from '@supabase/supabase-js';

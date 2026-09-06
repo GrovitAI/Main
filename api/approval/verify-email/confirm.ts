@@ -1,93 +1,105 @@
-import { supabase } from '../../../src/lib/pos/supabase';
+import {
+  applyCors,
+  authenticate,
+  forbidden,
+  getClientIp,
+  isUuid,
+  methodNotAllowed,
+  rateLimit,
+  readJsonBody,
+  readString,
+  resolveBranchId,
+  sendJson,
+  unauthorized,
+  type ApiRequest,
+  type ApiResponse,
+} from '../../../src/lib/server/api-auth';
 import { hashApprovalCode } from '../../../src/lib/approval/approval.hash';
 
-export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+const MAX_ATTEMPTS = 5;
 
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
+export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (applyCors(req, res, 'POST')) return;
+  if (req.method !== 'POST') {
+    methodNotAllowed(res);
     return;
   }
 
-  if (req.method !== 'POST') {
-    res.statusCode = 405;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Method not allowed' }));
+  const caller = await authenticate(req);
+  if (!caller) {
+    unauthorized(res);
+    return;
+  }
+  if (!caller.isManager) {
+    forbidden(res, 'Only owners, admins and managers can verify approval emails.');
     return;
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
-    const { tenantId, branchId, approvalEmail, verificationCode } = body;
+    const body = readJsonBody(req);
+    const approvalEmail = readString(body.approvalEmail)?.toLowerCase() ?? null;
+    const verificationCode = readString(body.verificationCode);
 
-    if (!tenantId || !branchId || !approvalEmail || !verificationCode) {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Missing required fields (tenantId, branchId, approvalEmail, verificationCode).' }));
+    if (!approvalEmail || !verificationCode) {
+      sendJson(res, 400, { error: 'Missing required fields (approvalEmail, verificationCode).' });
+      return;
+    }
+    if (!isUuid(body.branchId)) {
+      sendJson(res, 400, { error: 'Save the branch first, then verify its approval email.' });
+      return;
+    }
+    const branchId = await resolveBranchId(caller, body.branchId);
+    if (!branchId) {
+      forbidden(res, 'You cannot verify emails for that branch.');
       return;
     }
 
-    const cleanEmail = approvalEmail.trim().toLowerCase();
-    const codeHash = hashApprovalCode(verificationCode.trim());
+    const allowed = await rateLimit(caller.db, `approval:verify-email-confirm:${branchId}:${getClientIp(req)}`, 10, 300);
+    if (!allowed) {
+      sendJson(res, 429, { success: false, error: 'Too many attempts. Please wait a few minutes.' });
+      return;
+    }
 
-    // Fetch latest verification record
-    const { data, error } = await supabase
+    const { data, error } = await caller.db
       .from('approval_email_verifications')
       .select('*')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', caller.tenantId)
       .eq('branch_id', branchId)
-      .eq('approval_email', cleanEmail)
+      .eq('approval_email', approvalEmail)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error || !data) {
-      res.statusCode = 404;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, error: 'Verification request not found. Please request a new code.' }));
+      sendJson(res, 404, { success: false, error: 'Verification request not found. Please request a new code.' });
       return;
     }
 
-    const now = new Date();
-    const expiry = new Date(data.expires_at);
-    if (now > expiry) {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, error: 'Verification code expired. Please request a new code.' }));
+    if (Date.now() > new Date(data.expires_at).getTime()) {
+      sendJson(res, 200, { success: false, error: 'Verification code expired. Please request a new code.' });
+      return;
+    }
+    const attempts = Number(data.attempts) || 0;
+    if (attempts >= MAX_ATTEMPTS) {
+      sendJson(res, 200, { success: false, error: 'Maximum attempts exceeded. Please request a new code.' });
       return;
     }
 
-    if (data.attempts >= 5) {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, error: 'Maximum attempts exceeded. Please request a new code.' }));
-      return;
-    }
-
-    if (data.verification_code_hash === codeHash) {
+    if (data.verification_code_hash === hashApprovalCode(verificationCode)) {
       const nowIso = new Date().toISOString();
 
-      // Mark verification record verified
-      await supabase
+      await caller.db
         .from('approval_email_verifications')
         .update({ verified_at: nowIso })
         .eq('id', data.id);
 
-      // Update branch_approval_settings
-      await supabase
+      const { error: upsertError } = await caller.db
         .from('branch_approval_settings')
         .upsert(
           {
-            tenant_id: tenantId,
+            tenant_id: caller.tenantId,
             branch_id: branchId,
-            approval_email: cleanEmail,
+            approval_email: approvalEmail,
             approval_email_verified: true,
             approval_email_verified_at: nowIso,
             enabled: true,
@@ -95,30 +107,28 @@ export default async function handler(req: any, res: any) {
           },
           { onConflict: 'tenant_id,branch_id' }
         );
+      if (upsertError) {
+        console.error('[API /verify-email/confirm] settings upsert failed:', upsertError.code, upsertError.message);
+        sendJson(res, 500, { success: false, error: 'Email verified but settings could not be saved.' });
+        return;
+      }
 
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true, verifiedAt: nowIso }));
-    } else {
-      await supabase
-        .from('approval_email_verifications')
-        .update({ attempts: (data.attempts || 0) + 1 })
-        .eq('id', data.id);
-
-      const remaining = Math.max(0, 5 - ((data.attempts || 0) + 1));
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({
-          success: false,
-          error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
-        })
-      );
+      sendJson(res, 200, { success: true, verifiedAt: nowIso });
+      return;
     }
-  } catch (err: any) {
-    console.error('[API /verify-email/confirm] Exception:', err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: err.message || 'Internal Server Error' }));
+
+    await caller.db
+      .from('approval_email_verifications')
+      .update({ attempts: attempts + 1 })
+      .eq('id', data.id);
+
+    const remaining = Math.max(0, MAX_ATTEMPTS - (attempts + 1));
+    sendJson(res, 200, {
+      success: false,
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+    });
+  } catch (err) {
+    console.error('[API /verify-email/confirm] Exception:', err instanceof Error ? err.message : err);
+    sendJson(res, 500, { error: 'Internal Server Error' });
   }
 }

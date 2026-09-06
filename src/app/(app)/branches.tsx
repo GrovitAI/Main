@@ -25,6 +25,7 @@ import {
   FileText,
 } from 'lucide-react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { apiFetch } from '@/lib/pos/api-client';
 import {
   fetchBranches,
   createBranch,
@@ -33,6 +34,8 @@ import {
   type CreateBranchPayload,
 } from '@/lib/pos/branch-service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 
 // ─── Form State ──────────────────────────────────────────────────────────────
 
@@ -63,6 +66,7 @@ const EMPTY_FORM: FormState = {
 export default function BranchesScreen() {
   const { session } = useSessionStore();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -88,19 +92,17 @@ export default function BranchesScreen() {
     setFormError(null);
     try {
       const targetBranchId = editingId === 'new' ? 'new' : (editingId || session?.branchId || '');
-      const res = await fetch('/api/approval/verify-email/request', {
+      const res = await apiFetch<{ success?: boolean; error?: string }>('/api/approval/verify-email/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId: session?.tenantId,
+        body: {
           branchId: targetBranchId,
           approvalEmail: form.approval_email,
           restaurantName: session?.tenantName,
           branchName: form.name,
-        }),
+        },
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = res.data ?? { success: false, error: res.error ?? undefined };
+      if (!res.error && data.success) {
         setVerifyModalVisible(true);
       } else {
         setFormError(data.error || 'Failed to send verification code.');
@@ -117,18 +119,16 @@ export default function BranchesScreen() {
     setVerifyingEmail(true);
     try {
       const targetBranchId = editingId === 'new' ? 'new' : (editingId || session?.branchId || '');
-      const res = await fetch('/api/approval/verify-email/confirm', {
+      const res = await apiFetch<{ success?: boolean; error?: string }>('/api/approval/verify-email/confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId: session?.tenantId,
+        body: {
           branchId: targetBranchId,
           approvalEmail: form.approval_email,
           verificationCode: verifyCode.trim(),
-        }),
+        },
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = res.data ?? { success: false, error: res.error ?? undefined };
+      if (!res.error && data.success) {
         setVerifyModalVisible(false);
         setVerifyCode('');
         setFormError(null);
@@ -273,22 +273,47 @@ export default function BranchesScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, !isPhone && { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Building2 size={20} color="#0066b2" />
-          <Text style={styles.headerTitle}>Branch Management</Text>
+      {isPhone ? (
+        <PhoneScreenHeader
+          title="Branches"
+          subtitle={`${branches.length} location${branches.length === 1 ? '' : 's'}`}
+          rightActions={
+            canManage && editingId === null ? (
+              <Pressable
+                style={styles.addBtnPhone}
+                onPress={openNew}
+                id="btn-add-branch"
+                accessibilityRole="button"
+                accessibilityLabel="Add branch"
+              >
+                <Plus size={18} color="#fff" />
+                <Text style={styles.addBtnText}>Add</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
+      ) : (
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Building2 size={20} color="#0066b2" />
+            <Text style={styles.headerTitle}>Branch Management</Text>
+          </View>
+          {canManage && editingId === null && (
+            <Pressable style={styles.addBtn} onPress={openNew} id="btn-add-branch">
+              <Plus size={16} color="#fff" />
+              <Text style={styles.addBtnText}>Add Branch</Text>
+            </Pressable>
+          )}
         </View>
-        {canManage && editingId === null && (
-          <Pressable style={styles.addBtn} onPress={openNew} id="btn-add-branch">
-            <Plus size={16} color="#fff" />
-            <Text style={styles.addBtnText}>Add Branch</Text>
-          </Pressable>
-        )}
-      </View>
+      )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, isPhone && styles.scrollContentPhone]}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* ── Form (create / edit) ── */}
         {editingId !== null && (
@@ -566,6 +591,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, gap: 16, paddingBottom: 100 },
+  scrollContentPhone: { padding: 16, gap: 12, paddingBottom: 110 },
 
   header: {
     flexDirection: 'row',
@@ -592,6 +618,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   addBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  addBtnPhone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0066b2',
+    paddingHorizontal: 14,
+    minHeight: 44,
+    borderRadius: 12,
+    marginRight: 8,
+  },
 
   errorText: { fontSize: 14, color: '#ef4444', textAlign: 'center' },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#0066b2', borderRadius: 8 },

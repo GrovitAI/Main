@@ -8,15 +8,17 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { ShieldCheck, Save, RotateCcw, AlertTriangle, CheckCircle2, Lock } from 'lucide-react-native';
-import { getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { getBranchApprovalSettings } from '@/lib/approval/approval-service';
+import { approvalService } from '@/lib/approval/approval.service';
 import { ApprovalAction, BranchApprovalPolicies } from '@/lib/approval/approval.types';
 import { DEFAULT_APPROVAL_POLICIES, APPROVAL_ACTION_META } from '@/lib/approval/approval-policy-defaults';
 
 export function ApprovalPoliciesScreen() {
-  const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
+  // Derived from the session store so a sign-out mid-render never throws.
   const session = useSessionStore((state) => state.session);
+  const tenant_id = session?.tenantId ?? '';
+  const branch_id = session?.branchId ?? '';
+  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
   const accessibleBranches = session?.accessibleBranches || [];
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(branch_id);
@@ -44,7 +46,7 @@ export function ApprovalPoliciesScreen() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await getBranchApprovalSettings(tenant_id, targetBranchId);
+      const res = await approvalService.getSettings(targetBranchId);
       if (res.error) {
         setErrorMsg(res.error);
       } else if (res.data) {
@@ -84,23 +86,14 @@ export function ApprovalPoliciesScreen() {
     setSuccessMsg(null);
 
     try {
-      const baseUrl = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-      const res = await fetch(`${baseUrl}/api/approval/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId: tenant_id,
-          branchId: selectedBranchId,
-          approvalEmail,
-          enabled: masterEnabled,
-          policies,
-          changedBy: useSessionStore.getState().session?.displayName || useSessionStore.getState().session?.userId || 'Owner',
-        }),
+      const saveRes = await approvalService.saveSettings({
+        branchId: selectedBranchId,
+        approvalEmail,
+        enabled: masterEnabled,
+        policies,
       });
-
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to save approval policies.');
+      if (saveRes.error) {
+        throw new Error(saveRes.error);
       }
 
       setInitialMasterEnabled(masterEnabled);

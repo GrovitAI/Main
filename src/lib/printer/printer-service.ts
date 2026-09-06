@@ -2,6 +2,7 @@ import { Platform, Alert } from 'react-native';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 import { supabase } from '../pos/supabase';
+import { apiFetch } from '../pos/api-client';
 
 export type PrintNodePrinter = {
   id: number;
@@ -22,12 +23,11 @@ export const getApiBaseUrl = () => {
 };
 
 export async function fetchPrintNodePrinters(): Promise<PrintNodePrinter[]> {
-  const response = await fetch(`${getApiBaseUrl()}/api/printers`);
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error || `Failed to fetch printers from server: ${response.status}`);
+  const response = await apiFetch<PrintNodePrinter[]>('/api/printers');
+  if (response.error || !response.data) {
+    throw new Error(response.error || 'Failed to fetch printers from server.');
   }
-  return await response.json();
+  return response.data;
 }
 
 /**
@@ -94,9 +94,9 @@ export async function diagnosePrinterConnection(
   if (printer.connection === 'printnode') {
     if (!printer.ip_address) return 'unreachable';
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/printers?id=${printer.ip_address}`);
-      if (!res.ok) return 'unreachable';
-      const data = await res.json();
+      const res = await apiFetch<PrintNodePrinter[]>(`/api/printers?id=${encodeURIComponent(printer.ip_address)}`);
+      if (res.error || !res.data) return 'unreachable';
+      const data = res.data;
       if (Array.isArray(data) && data.length > 0 && data[0].state === 'online') {
         return 'connected';
       }
@@ -364,20 +364,12 @@ async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'br
     const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
 
     console.log('[Printer] Sending cloud print job via PrintNode to printer:', printerId);
-    const response = await fetch(`${getApiBaseUrl()}/api/printjobs`, {
+    const response = await apiFetch<{ success: boolean }>('/api/printjobs', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        printerId: printerId,
-        base64Content: base64Content,
-      }),
+      body: { printerId, base64Content },
     });
-
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || `PrintNode API returned ${response.status}`);
+    if (response.error) {
+      throw new Error(response.error);
     }
 
     console.log('[Printer] PrintNode job submitted successfully.');

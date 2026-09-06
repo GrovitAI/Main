@@ -36,6 +36,8 @@ import {
 import { fetchBranches, type Branch } from '@/lib/pos/branch-service';
 import type { UserRole } from '@/lib/pos/session-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +80,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
 export default function StaffScreen() {
   const { session } = useSessionStore();
   const insets = useSafeAreaInsets();
+  const { isPhone } = useResponsive();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,25 +254,50 @@ export default function StaffScreen() {
   const inactiveStaff = displayedStaff.filter((s) => s.status !== 'active');
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, !isPhone && { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Users size={20} color="#0066b2" />
-          <Text style={styles.headerTitle}>Staff Management</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>{activeStaff.length} active</Text>
+      {isPhone ? (
+        <PhoneScreenHeader
+          title="Staff"
+          subtitle={`${activeStaff.length} active member${activeStaff.length === 1 ? '' : 's'}`}
+          rightActions={
+            canManage && !showForm ? (
+              <Pressable
+                style={styles.addBtnPhone}
+                onPress={openNew}
+                id="btn-add-staff"
+                accessibilityRole="button"
+                accessibilityLabel="Add staff"
+              >
+                <Plus size={18} color="#fff" />
+                <Text style={styles.addBtnText}>Add</Text>
+              </Pressable>
+            ) : undefined
+          }
+        />
+      ) : (
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Users size={20} color="#0066b2" />
+            <Text style={styles.headerTitle}>Staff Management</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{activeStaff.length} active</Text>
+            </View>
           </View>
+          {canManage && !showForm && (
+            <Pressable style={styles.addBtn} onPress={openNew} id="btn-add-staff">
+              <Plus size={16} color="#fff" />
+              <Text style={styles.addBtnText}>Add Staff</Text>
+            </Pressable>
+          )}
         </View>
-        {canManage && !showForm && (
-          <Pressable style={styles.addBtn} onPress={openNew} id="btn-add-staff">
-            <Plus size={16} color="#fff" />
-            <Text style={styles.addBtnText}>Add Staff</Text>
-          </Pressable>
-        )}
-      </View>
+      )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, isPhone && styles.scrollContentPhone]}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* ── Form ── */}
         {showForm && (
@@ -552,6 +580,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, gap: 14, paddingBottom: 100 },
+  scrollContentPhone: { padding: 16, gap: 12, paddingBottom: 110 },
 
   header: {
     flexDirection: 'row',
@@ -585,6 +614,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   addBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  addBtnPhone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0066b2',
+    paddingHorizontal: 14,
+    minHeight: 44,
+    borderRadius: 12,
+    marginRight: 8,
+  },
 
   errorText: { fontSize: 14, color: '#ef4444', textAlign: 'center' },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#0066b2', borderRadius: 8 },

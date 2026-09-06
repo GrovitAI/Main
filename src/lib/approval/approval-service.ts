@@ -1,20 +1,34 @@
-import { approvalSupabase } from './approval-supabase';
-import type { BranchApprovalSettings, ApprovalRequestRecord, ApprovalStatus } from './approval.types';
+/**
+ * Approval governance database layer (server-side).
+ *
+ * Every function receives the caller-scoped Supabase client created by the
+ * API handler after authentication, so RLS decides what the caller may see.
+ * Raw database error messages are logged here and never returned to clients.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { BranchApprovalSettings, ApprovalRequestRecord } from './approval.types';
 
 export interface ServiceResult<T> {
   data: T | null;
   error: string | null;
 }
 
+function logDbError(context: string, error: { message?: string; code?: string } | null): void {
+  if (error) {
+    console.error(`[approval-service] ${context}:`, error.code ?? '', error.message ?? '');
+  }
+}
+
 /**
  * Fetches the branch approval settings for a specific tenant and branch.
  */
 export async function getBranchApprovalSettings(
+  db: SupabaseClient,
   tenantId: string,
   branchId: string
 ): Promise<ServiceResult<BranchApprovalSettings>> {
   try {
-    const { data, error } = await approvalSupabase
+    const { data, error } = await db
       .from('branch_approval_settings')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -22,13 +36,14 @@ export async function getBranchApprovalSettings(
       .maybeSingle();
 
     if (error) {
-      console.error('[approval-service] getBranchApprovalSettings error:', error);
-      return { data: null, error: error.message };
+      logDbError('getBranchApprovalSettings', error);
+      return { data: null, error: 'Unable to load approval settings.' };
     }
 
-    return { data: data as BranchApprovalSettings | null, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to fetch branch approval settings.' };
+    return { data: (data as BranchApprovalSettings | null) ?? null, error: null };
+  } catch (err) {
+    logDbError('getBranchApprovalSettings.exception', err instanceof Error ? { message: err.message } : null);
+    return { data: null, error: 'Unable to load approval settings.' };
   }
 }
 
@@ -36,6 +51,7 @@ export async function getBranchApprovalSettings(
  * Inserts or updates the branch approval settings including action policies.
  */
 export async function upsertBranchApprovalSettings(
+  db: SupabaseClient,
   tenantId: string,
   branchId: string,
   approvalEmail: string,
@@ -44,10 +60,10 @@ export async function upsertBranchApprovalSettings(
   changedBy: string = 'Admin'
 ): Promise<ServiceResult<BranchApprovalSettings>> {
   try {
-    const existing = await getBranchApprovalSettings(tenantId, branchId);
+    const existing = await getBranchApprovalSettings(db, tenantId, branchId);
     const cleanEmail = approvalEmail.trim().toLowerCase();
 
-    const { data, error } = await approvalSupabase
+    const { data, error } = await db
       .from('branch_approval_settings')
       .upsert(
         {
@@ -64,12 +80,11 @@ export async function upsertBranchApprovalSettings(
       .single();
 
     if (error) {
-      console.error('[approval-service] upsertBranchApprovalSettings error:', error);
-      return { data: null, error: error.message };
+      logDbError('upsertBranchApprovalSettings', error);
+      return { data: null, error: 'Unable to save approval settings.' };
     }
 
-    // Record detailed audit history entry including policy diffs
-    void approvalSupabase.from('branch_approval_settings_history').insert({
+    const { error: historyError } = await db.from('branch_approval_settings_history').insert({
       tenant_id: tenantId,
       branch_id: branchId,
       changed_by: changedBy,
@@ -81,21 +96,26 @@ export async function upsertBranchApprovalSettings(
       new_policies: policies,
       created_at: new Date().toISOString(),
     });
+    if (historyError) {
+      logDbError('upsertBranchApprovalSettings.history', historyError);
+    }
 
     return { data: data as BranchApprovalSettings, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to update branch approval settings.' };
+  } catch (err) {
+    logDbError('upsertBranchApprovalSettings.exception', err instanceof Error ? { message: err.message } : null);
+    return { data: null, error: 'Unable to save approval settings.' };
   }
 }
 
 /**
- * Inserts a new approval request audit record into Supabase.
+ * Inserts a new approval request audit record.
  */
 export async function createApprovalRequest(
+  db: SupabaseClient,
   payload: Omit<ApprovalRequestRecord, 'id' | 'created_at'>
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
-    const { data, error } = await approvalSupabase
+    const { data, error } = await db
       .from('approval_requests')
       .insert({
         ...payload,
@@ -106,13 +126,14 @@ export async function createApprovalRequest(
       .single();
 
     if (error) {
-      console.error('[approval-service] createApprovalRequest error:', error);
-      return { data: null, error: error.message };
+      logDbError('createApprovalRequest', error);
+      return { data: null, error: 'Unable to record the approval request.' };
     }
 
     return { data: data as ApprovalRequestRecord, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to create approval request.' };
+  } catch (err) {
+    logDbError('createApprovalRequest.exception', err instanceof Error ? { message: err.message } : null);
+    return { data: null, error: 'Unable to record the approval request.' };
   }
 }
 
@@ -120,6 +141,7 @@ export async function createApprovalRequest(
  * Searches for an existing active PENDING approval request for the exact action & resource.
  */
 export async function findActivePendingRequest(
+  db: SupabaseClient,
   tenantId: string,
   branchId: string,
   action: string,
@@ -128,7 +150,7 @@ export async function findActivePendingRequest(
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
     const nowIso = new Date().toISOString();
-    const { data, error } = await approvalSupabase
+    const { data, error } = await db
       .from('approval_requests')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -143,41 +165,42 @@ export async function findActivePendingRequest(
       .maybeSingle();
 
     if (error) {
-      console.error('[approval-service] findActivePendingRequest error:', error);
-      return { data: null, error: error.message };
+      logDbError('findActivePendingRequest', error);
+      return { data: null, error: 'Unable to look up pending approvals.' };
     }
 
-    return { data: data as ApprovalRequestRecord | null, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to search pending approval requests.' };
+    return { data: (data as ApprovalRequestRecord | null) ?? null, error: null };
+  } catch (err) {
+    logDbError('findActivePendingRequest.exception', err instanceof Error ? { message: err.message } : null);
+    return { data: null, error: 'Unable to look up pending approvals.' };
   }
 }
 
 /**
- * Fetches an approval request by its unique request_uuid.
+ * Fetches an approval request by its unique request_uuid within the caller's tenant.
  */
 export async function getApprovalRequestByUuid(
+  db: SupabaseClient,
   tenantId: string,
-  branchId: string,
   requestUuid: string
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
-    const { data, error } = await approvalSupabase
+    const { data, error } = await db
       .from('approval_requests')
       .select('*')
       .eq('tenant_id', tenantId)
-      .eq('branch_id', branchId)
       .eq('request_uuid', requestUuid)
       .maybeSingle();
 
     if (error) {
-      console.error('[approval-service] getApprovalRequestByUuid error:', error);
-      return { data: null, error: error.message };
+      logDbError('getApprovalRequestByUuid', error);
+      return { data: null, error: 'Unable to load the approval request.' };
     }
 
-    return { data: data as ApprovalRequestRecord | null, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to fetch approval request.' };
+    return { data: (data as ApprovalRequestRecord | null) ?? null, error: null };
+  } catch (err) {
+    logDbError('getApprovalRequestByUuid.exception', err instanceof Error ? { message: err.message } : null);
+    return { data: null, error: 'Unable to load the approval request.' };
   }
 }
 
@@ -185,31 +208,31 @@ export async function getApprovalRequestByUuid(
  * Updates an approval request record (status, attempts, hashes, timestamps).
  */
 export async function updateApprovalRequest(
+  db: SupabaseClient,
   tenantId: string,
-  branchId: string,
   requestUuid: string,
-  updates: Partial<ApprovalRequestRecord>
+  updates: Partial<ApprovalRequestRecord> & { resend_count?: number }
 ): Promise<ServiceResult<ApprovalRequestRecord>> {
   try {
-    const { data, error } = await approvalSupabase
+    const { data, error } = await db
       .from('approval_requests')
       .update({
         ...updates,
         updated_at: new Date().toISOString(),
       })
       .eq('tenant_id', tenantId)
-      .eq('branch_id', branchId)
       .eq('request_uuid', requestUuid)
       .select()
       .single();
 
     if (error) {
-      console.error('[approval-service] updateApprovalRequest error:', error);
-      return { data: null, error: error.message };
+      logDbError('updateApprovalRequest', error);
+      return { data: null, error: 'Unable to update the approval request.' };
     }
 
     return { data: data as ApprovalRequestRecord, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Failed to update approval request.' };
+  } catch (err) {
+    logDbError('updateApprovalRequest.exception', err instanceof Error ? { message: err.message } : null);
+    return { data: null, error: 'Unable to update the approval request.' };
   }
 }

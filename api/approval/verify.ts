@@ -1,138 +1,128 @@
 import {
-  getApprovalRequestByUuid,
-  updateApprovalRequest,
-} from '../../src/lib/approval/approval-service';
+  applyCors,
+  authenticate,
+  getClientIp,
+  methodNotAllowed,
+  rateLimit,
+  readJsonBody,
+  readString,
+  sendJson,
+  unauthorized,
+  type ApiRequest,
+  type ApiResponse,
+  type AuthenticatedCaller,
+} from '../../src/lib/server/api-auth';
+import { getApprovalRequestByUuid, updateApprovalRequest } from '../../src/lib/approval/approval-service';
 import { hashApprovalCode } from '../../src/lib/approval/approval.hash';
+import type { ApprovalRequestRecord } from '../../src/lib/approval/approval.types';
 
-export default async function handler(req: any, res: any) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+const MAX_ATTEMPTS = 5;
 
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
+/** Branch-bound staff may only touch requests raised in their own branch. */
+export function canAccessRequest(caller: AuthenticatedCaller, record: ApprovalRequestRecord): boolean {
+  return caller.isTenantWide || record.branch_id === caller.branchId;
+}
+
+export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (applyCors(req, res, 'POST')) return;
+  if (req.method !== 'POST') {
+    methodNotAllowed(res);
     return;
   }
 
-  if (req.method !== 'POST') {
-    res.statusCode = 405;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Method not allowed' }));
+  const caller = await authenticate(req);
+  if (!caller) {
+    unauthorized(res);
     return;
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
-    const { requestId, approvalCode, tenantId, branchId } = body;
+    const body = readJsonBody(req);
+    const requestId = readString(body.requestId);
+    const approvalCode = readString(body.approvalCode);
 
-    if (!requestId || !approvalCode || !tenantId || !branchId) {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Missing required fields (requestId, approvalCode, tenantId, branchId).' }));
+    if (!requestId || !approvalCode) {
+      sendJson(res, 400, { error: 'Missing required fields (requestId, approvalCode).' });
+      return;
+    }
+    if (!/^\d{6}$/.test(approvalCode)) {
+      sendJson(res, 200, { success: false, error: 'The approval code must be 6 digits.' });
       return;
     }
 
-    // 1. Fetch request from database
-    const requestRes = await getApprovalRequestByUuid(tenantId, branchId, requestId);
+    const allowed = await rateLimit(caller.db, `approval:verify:${requestId}:${getClientIp(req)}`, 10, 60);
+    if (!allowed) {
+      sendJson(res, 429, { success: false, error: 'Too many attempts. Please wait a minute.' });
+      return;
+    }
+
+    // 1. Load request (tenant-scoped, RLS enforced)
+    const requestRes = await getApprovalRequestByUuid(caller.db, caller.tenantId, requestId);
     if (requestRes.error || !requestRes.data) {
-      res.statusCode = 404;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, error: 'Approval request not found.' }));
+      sendJson(res, 404, { success: false, error: 'Approval request not found.' });
       return;
     }
-
     const record = requestRes.data;
+    if (!canAccessRequest(caller, record)) {
+      sendJson(res, 403, { success: false, error: 'This approval belongs to another branch.' });
+      return;
+    }
 
-    // 2. Status check
+    // 2. Terminal states
     if (record.status === 'APPROVED' || record.status === 'COMPLETED') {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true }));
+      sendJson(res, 200, { success: true });
       return;
     }
-
     if (record.status === 'FAILED') {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, attemptsRemaining: 0, error: 'Maximum attempts exceeded for this request.' }));
+      sendJson(res, 200, { success: false, attemptsRemaining: 0, error: 'Maximum attempts exceeded for this request.' });
       return;
     }
 
-    // 3. Expiry check
-    const now = new Date();
-    const expiry = new Date(record.expires_at);
-    if (now > expiry || record.status === 'EXPIRED') {
-      void updateApprovalRequest(tenantId, branchId, requestId, { status: 'EXPIRED' });
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, isExpired: true, error: 'Approval code has expired (valid for 5 minutes).' }));
+    // 3. Expiry
+    if (Date.now() > new Date(record.expires_at).getTime() || record.status === 'EXPIRED') {
+      void updateApprovalRequest(caller.db, caller.tenantId, requestId, { status: 'EXPIRED' });
+      sendJson(res, 200, { success: false, isExpired: true, error: 'Approval code has expired (valid for 5 minutes).' });
       return;
     }
 
-    // 4. Rate-limit / attempts check
-    if (record.attempts >= 5) {
-      void updateApprovalRequest(tenantId, branchId, requestId, { status: 'FAILED' });
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, attemptsRemaining: 0, error: 'Maximum verification attempts exceeded (5/5).' }));
+    // 4. Attempt cap
+    if (record.attempts >= MAX_ATTEMPTS) {
+      void updateApprovalRequest(caller.db, caller.tenantId, requestId, { status: 'FAILED' });
+      sendJson(res, 200, { success: false, attemptsRemaining: 0, error: 'Maximum verification attempts exceeded (5/5).' });
       return;
     }
 
-    // 5. Compare SHA-256 hash
-    const inputHash = hashApprovalCode(approvalCode);
-    const isMatch = inputHash === record.approval_code_hash;
-
+    // 5. Compare hashes
+    const isMatch = hashApprovalCode(approvalCode) === record.approval_code_hash;
     if (isMatch) {
       const nowIso = new Date().toISOString();
-      console.log(`[Approval Request ${requestId}] Code verified successfully!`);
-
-      // Success! Update status to APPROVED
-      await updateApprovalRequest(tenantId, branchId, requestId, {
+      await updateApprovalRequest(caller.db, caller.tenantId, requestId, {
         status: 'APPROVED',
         verified_at: nowIso,
         code_verified_at: nowIso,
         approved_by_email: record.approval_email || null,
       });
-
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: true }));
-    } else {
-      // Failed attempt: increment attempt counter
-      const nextAttempts = record.attempts + 1;
-      const isFailed = nextAttempts >= 5;
-      const nextStatus = isFailed ? 'FAILED' : 'PENDING';
-
-      console.warn(`[Approval Request ${requestId}] Incorrect code attempt ${nextAttempts}/5.`);
-
-      await updateApprovalRequest(tenantId, branchId, requestId, {
-        attempts: nextAttempts,
-        status: nextStatus,
-      });
-
-      const attemptsRemaining = Math.max(0, 5 - nextAttempts);
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({
-          success: false,
-          attemptsRemaining,
-          error: isFailed
-            ? 'Incorrect code. Maximum attempts exceeded (5/5).'
-            : `Incorrect approval code. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining.`,
-        })
-      );
+      sendJson(res, 200, { success: true });
+      return;
     }
-  } catch (err: any) {
-    console.error('[API /verify] Exception:', err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ success: false, error: err.message || 'Internal Server Error' }));
+
+    const nextAttempts = record.attempts + 1;
+    const isFailed = nextAttempts >= MAX_ATTEMPTS;
+    await updateApprovalRequest(caller.db, caller.tenantId, requestId, {
+      attempts: nextAttempts,
+      status: isFailed ? 'FAILED' : 'PENDING',
+    });
+
+    const attemptsRemaining = Math.max(0, MAX_ATTEMPTS - nextAttempts);
+    sendJson(res, 200, {
+      success: false,
+      attemptsRemaining,
+      error: isFailed
+        ? 'Incorrect code. Maximum attempts exceeded (5/5).'
+        : `Incorrect approval code. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? '' : 's'} remaining.`,
+    });
+  } catch (err) {
+    console.error('[API /verify] Exception:', err instanceof Error ? err.message : err);
+    sendJson(res, 500, { success: false, error: 'Internal Server Error' });
   }
 }

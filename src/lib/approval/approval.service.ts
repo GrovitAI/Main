@@ -1,4 +1,14 @@
+/**
+ * HTTP client for the approval API (/api/approval/*).
+ *
+ * All calls are authenticated with the signed-in user's Supabase token via
+ * apiFetch. The server derives tenant / branch from the caller; the
+ * tenantId / branchId fields in the input types are kept for backwards
+ * compatibility and for owners selecting another branch.
+ */
+import { apiFetch } from '@/lib/pos/api-client';
 import type {
+  BranchApprovalSettings,
   RequestApprovalApiInput,
   RequestApprovalApiResponse,
   VerifyApprovalApiInput,
@@ -9,143 +19,90 @@ import type {
   CompleteApprovalApiResponse,
 } from './approval.types';
 
-// Utility helper to get absolute API base URL depending on window / environment
-function getApiBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location) {
-    return window.location.origin;
-  }
-  return '';
+export interface SaveApprovalSettingsInput {
+  branchId: string;
+  approvalEmail: string;
+  enabled: boolean;
+  policies: Record<string, boolean> | null;
 }
 
 export const approvalService = {
   /**
-   * Fast client/service pre-check to determine if an action requires approval
-   * before opening any modal dialogs.
+   * Loads the approval settings for a branch (owners/admins may pass another branch).
    */
-  async checkPolicyRequired(tenantId: string, branchId: string, action: string): Promise<{ required: boolean }> {
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/approval/settings?tenantId=${tenantId}&branchId=${branchId}`);
-      if (!response.ok) return { required: true };
-      const resData = await response.json();
-      const settings = resData.data;
+  async getSettings(branchId: string): Promise<{ data: BranchApprovalSettings | null; error: string | null }> {
+    const res = await apiFetch<{ data: BranchApprovalSettings | null }>(
+      `/api/approval/settings?branchId=${encodeURIComponent(branchId)}`
+    );
+    if (res.error) return { data: null, error: res.error };
+    return { data: res.data?.data ?? null, error: null };
+  },
 
-      if (!settings || !settings.enabled || !settings.approval_email) {
-        return { required: false };
-      }
+  /**
+   * Saves the approval settings + per-action policy matrix for a branch.
+   */
+  async saveSettings(input: SaveApprovalSettingsInput): Promise<{ data: BranchApprovalSettings | null; error: string | null }> {
+    const res = await apiFetch<{ data: BranchApprovalSettings }>('/api/approval/settings', { method: 'POST', body: input });
+    if (res.error) return { data: null, error: res.error };
+    return { data: res.data?.data ?? null, error: null };
+  },
 
-      const policyEnabled = settings.policies ? settings.policies[action] ?? true : true;
-      if (policyEnabled === false) {
-        return { required: false };
-      }
-
-      return { required: true };
-    } catch {
-      return { required: true };
+  /**
+   * Fast pre-check to determine if an action requires approval before opening any dialogs.
+   */
+  async checkPolicyRequired(_tenantId: string, branchId: string, action: string): Promise<{ required: boolean }> {
+    const res = await this.getSettings(branchId);
+    if (res.error) return { required: true };
+    const settings = res.data;
+    if (!settings || !settings.enabled || !settings.approval_email) {
+      return { required: false };
     }
+    const policyEnabled = settings.policies ? settings.policies[action] ?? true : true;
+    return { required: policyEnabled !== false };
   },
 
   /**
    * Submits a new approval request.
-   * If branch approval is disabled, returns { required: false, approved: true }.
+   * If branch approval is disabled, the server returns { required: false, approved: true }.
    */
   async requestApproval(input: RequestApprovalApiInput): Promise<RequestApprovalApiResponse> {
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/approval/request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-          required: true,
-          error: errorData.error || `Server returned error status ${response.status}`,
-        };
-      }
-
-      return await response.json();
-    } catch (err: any) {
-      console.error('[approvalService.requestApproval] Failed:', err);
-      return { required: true, error: err.message || 'Network error requesting approval.' };
+    const res = await apiFetch<RequestApprovalApiResponse>('/api/approval/request', { method: 'POST', body: input });
+    if (res.error || !res.data) {
+      return { required: true, error: res.error ?? 'Unable to request approval.' };
     }
+    return res.data;
   },
 
   /**
    * Verifies the 6-digit approval code entered by the cashier.
    */
   async verifyApproval(input: VerifyApprovalApiInput): Promise<VerifyApprovalApiResponse> {
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/approval/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-          success: false,
-          error: errorData.error || `Verification failed with status ${response.status}`,
-        };
-      }
-
-      return await response.json();
-    } catch (err: any) {
-      console.error('[approvalService.verifyApproval] Failed:', err);
-      return { success: false, error: err.message || 'Network error verifying approval code.' };
+    const res = await apiFetch<VerifyApprovalApiResponse>('/api/approval/verify', { method: 'POST', body: input });
+    if (res.error || !res.data) {
+      return { success: false, error: res.error ?? 'Unable to verify the approval code.' };
     }
+    return res.data;
   },
 
   /**
    * Resends the approval code for an active pending request.
    */
   async resendApproval(input: ResendApprovalApiInput): Promise<ResendApprovalApiResponse> {
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/approval/resend`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-          success: false,
-          error: errorData.error || `Resend failed with status ${response.status}`,
-        };
-      }
-
-      return await response.json();
-    } catch (err: any) {
-      console.error('[approvalService.resendApproval] Failed:', err);
-      return { success: false, error: err.message || 'Network error resending approval code.' };
+    const res = await apiFetch<ResendApprovalApiResponse>('/api/approval/resend', { method: 'POST', body: input });
+    if (res.error || !res.data) {
+      return { success: false, error: res.error ?? 'Unable to resend the approval code.' };
     }
+    return res.data;
   },
 
   /**
    * Marks the approval request as COMPLETED after the protected action executes.
    */
   async completeApproval(input: CompleteApprovalApiInput): Promise<CompleteApprovalApiResponse> {
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/approval/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return {
-          success: false,
-          error: errorData.error || `Completion failed with status ${response.status}`,
-        };
-      }
-
-      return await response.json();
-    } catch (err: any) {
-      console.error('[approvalService.completeApproval] Failed:', err);
-      return { success: false, error: err.message || 'Network error updating approval status.' };
+    const res = await apiFetch<CompleteApprovalApiResponse>('/api/approval/complete', { method: 'POST', body: input });
+    if (res.error || !res.data) {
+      return { success: false, error: res.error ?? 'Unable to update the approval status.' };
     }
+    return res.data;
   },
 };

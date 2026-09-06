@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { apiFetch } from './api-client';
 import { getTenantContext } from './tenant-context';
 import type { UserRole } from './session-context';
 
@@ -64,7 +65,7 @@ export async function fetchStaff(): Promise<{ data: StaffMember[]; error: string
 
     if (error) {
       console.error('[staff-service] fetchStaff error:', error);
-      return { data: [], error: error.message };
+      return { data: [], error: 'Unable to load staff.' };
     }
 
     const mapped: StaffMember[] = (data ?? []).map((row: any) => ({
@@ -90,61 +91,31 @@ export async function fetchStaff(): Promise<{ data: StaffMember[]; error: string
 }
 
 /**
- * Create a new staff member with a Supabase Auth account.
- * The auth user is created first, then the staff record is inserted.
- *
- * Note: This requires the service-role key in a backend function for production.
- * For now it uses the Supabase Admin API via signUp (works when email confirmations are disabled).
+ * Create a new staff member. The auth account and the staff profile are created
+ * server-side (/api/staff/create) with the service-role key, after the caller's
+ * own role has been verified. The administrator's session is never touched.
  */
 export async function createStaff(
   payload: CreateStaffPayload
 ): Promise<{ data: StaffMember | null; error: string | null }> {
   try {
-    const { tenant_id } = getTenantContext();
-
-    // 1. Create the Supabase Auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: payload.email.trim().toLowerCase(),
-      password: payload.password,
-    });
-
-    if (authError || !authData.user) {
-      console.error('[staff-service] createStaff auth error:', authError);
-      // authError=null + user=null means Supabase blocked sign-up silently.
-      // This happens when "Confirm email" is ON in Supabase Auth settings,
-      // or when the email address already exists.
-      const msg = authError?.message
-        ?? 'Account could not be created. If this is a new email, go to Supabase → Authentication → Providers → Email and turn OFF "Confirm email", then try again.';
-      return { data: null, error: msg };
-    }
-
-    const authUserId = authData.user.id;
-
-    // 2. Insert the staff record
-    const { data, error } = await supabase
-      .from('staff')
-      .insert({
-        tenant_id,
-        branch_id: payload.branch_id,
-        auth_user_id: authUserId,
+    const res = await apiFetch<{ data: StaffMember }>('/api/staff/create', {
+      method: 'POST',
+      body: {
         name: payload.name.trim(),
         email: payload.email.trim().toLowerCase(),
+        password: payload.password,
         role: payload.role,
-        status: 'active',
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[staff-service] createStaff insert error:', error);
-      return { data: null, error: error.message };
+        branch_id: payload.branch_id,
+      },
+    });
+    if (res.error || !res.data?.data) {
+      return { data: null, error: res.error ?? 'Failed to create staff member.' };
     }
-
-    return { data: data as StaffMember, error: null };
+    return { data: res.data.data, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to create staff member.';
     console.error('[staff-service] createStaff exception:', err);
-    return { data: null, error: msg };
+    return { data: null, error: 'Failed to create staff member.' };
   }
 }
 
@@ -175,7 +146,7 @@ export async function updateStaff(
 
     if (error) {
       console.error('[staff-service] updateStaff error:', error);
-      return { data: null, error: error.message };
+      return { data: null, error: 'Unable to update staff member.' };
     }
 
     return { data: data as StaffMember, error: null };
@@ -207,7 +178,7 @@ export async function deactivateStaff(
 
     if (error) {
       console.error('[staff-service] deactivateStaff error:', error);
-      return { error: error.message };
+      return { error: 'Unable to deactivate staff member.' };
     }
 
     return { error: null };

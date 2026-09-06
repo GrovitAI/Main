@@ -1,194 +1,196 @@
 import crypto from 'crypto';
 import {
+  applyCors,
+  authenticate,
+  getClientIp,
+  methodNotAllowed,
+  rateLimit,
+  readJsonBody,
+  readString,
+  resolveBranchId,
+  sendJson,
+  unauthorized,
+  type ApiRequest,
+  type ApiResponse,
+} from '../../src/lib/server/api-auth';
+import {
   getBranchApprovalSettings,
   findActivePendingRequest,
   createApprovalRequest,
+  updateApprovalRequest,
 } from '../../src/lib/approval/approval-service';
 import { hashApprovalCode, generateApprovalCode } from '../../src/lib/approval/approval.hash';
 import { sendApprovalEmail } from '../../src/lib/approval/approval.email';
 import { ApprovalAction } from '../../src/lib/approval/approval.types';
 
-function getActionLabel(action: string): string {
-  switch (action) {
-    case ApprovalAction.REPRINT_BILL:
-      return 'Reprint Bill';
-    case ApprovalAction.CANCEL_BILL:
-      return 'Cancel Bill';
-    case ApprovalAction.APPLY_DISCOUNT:
-      return 'Apply Discount';
-    case ApprovalAction.COMPLIMENTARY_BILL:
-      return 'Complimentary Bill';
-    case ApprovalAction.EDIT_UNPAID_BILL:
-      return 'Edit Unpaid Bill';
-    case ApprovalAction.REMOVE_SENT_ITEMS:
-      return 'Remove Sent Kitchen Items';
-    case ApprovalAction.VOID_PAYMENT:
-      return 'Void Payment';
-    case ApprovalAction.EDIT_CUSTOMER:
-      return 'Edit Customer Details';
-    case ApprovalAction.REOPEN_BILL:
-      return 'Reopen Closed Bill';
-    case ApprovalAction.DELETE_DRAFT_ORDER:
-      return 'Delete Draft Order';
-    default:
-      return action;
-  }
+const CODE_TTL_MS = 5 * 60 * 1000;
+const MAX_RESENDS = 3;
+
+const ACTION_LABELS: Record<string, string> = {
+  [ApprovalAction.REPRINT_BILL]: 'Reprint Bill',
+  [ApprovalAction.CANCEL_BILL]: 'Cancel Bill',
+  [ApprovalAction.APPLY_DISCOUNT]: 'Apply Discount',
+  [ApprovalAction.COMPLIMENTARY_BILL]: 'Complimentary Bill',
+  [ApprovalAction.EDIT_UNPAID_BILL]: 'Edit Unpaid Bill',
+  [ApprovalAction.REMOVE_SENT_ITEMS]: 'Remove Sent Kitchen Items',
+  [ApprovalAction.VOID_PAYMENT]: 'Void Payment',
+  [ApprovalAction.EDIT_CUSTOMER]: 'Edit Customer Details',
+  [ApprovalAction.REOPEN_BILL]: 'Reopen Closed Bill',
+  [ApprovalAction.DELETE_DRAFT_ORDER]: 'Delete Draft Order',
+};
+
+export function getActionLabel(action: string): string {
+  return ACTION_LABELS[action] ?? action;
 }
 
-export default async function handler(req: any, res: any) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
+export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+  if (applyCors(req, res, 'POST')) return;
+  if (req.method !== 'POST') {
+    methodNotAllowed(res);
     return;
   }
 
-  if (req.method !== 'POST') {
-    res.statusCode = 405;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Method not allowed' }));
+  const caller = await authenticate(req);
+  if (!caller) {
+    unauthorized(res);
     return;
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
-    const { tenantId, branchId, action, resourceType, resourceId, requestedBy, reason, restaurantName, branchName } = body;
+    const body = readJsonBody(req);
+    const action = readString(body.action);
+    const resourceType = readString(body.resourceType);
+    const resourceId = readString(body.resourceId);
+    const reason = readString(body.reason);
+    const restaurantName = readString(body.restaurantName) ?? 'Grovit POS';
+    const branchName = readString(body.branchName) ?? 'Branch';
 
-    if (!tenantId || !branchId || !action || !resourceType || !resourceId || !reason) {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Missing required parameters (tenantId, branchId, action, resourceType, resourceId, reason).' }));
+    if (!action || !resourceType || !resourceId || !reason) {
+      sendJson(res, 400, { error: 'Missing required parameters (action, resourceType, resourceId, reason).' });
       return;
     }
 
-    // 1. Check branch approval settings
-    const settingsRes = await getBranchApprovalSettings(tenantId, branchId);
-    if (settingsRes.error) {
-      console.warn('[API /request] Failed to fetch settings:', settingsRes.error);
+    const branchId = await resolveBranchId(caller, body.branchId);
+    if (!branchId) {
+      sendJson(res, 403, { error: 'You cannot request approvals for that branch.' });
+      return;
     }
 
+    const allowed = await rateLimit(caller.db, `approval:request:${branchId}:${getClientIp(req)}`, 30, 600);
+    if (!allowed) {
+      sendJson(res, 429, { error: 'Too many approval requests. Please wait a few minutes.' });
+      return;
+    }
+
+    // 1. Branch approval settings
+    const settingsRes = await getBranchApprovalSettings(caller.db, caller.tenantId, branchId);
     const settings = settingsRes.data;
     if (!settings || !settings.enabled || !settings.approval_email) {
-      // Approval system disabled for this branch or email not configured — auto-pass
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ required: false, approved: true }));
+      sendJson(res, 200, { required: false, approved: true });
       return;
     }
 
-    // Check specific action policy toggle (defaults to true if omitted or not configured)
     const actionPolicyEnabled = settings.policies ? settings.policies[action] ?? true : true;
     if (actionPolicyEnabled === false) {
-      // Approval for this specific action disabled by Branch Owner — auto-pass without OTP
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ required: false, approved: true }));
+      sendJson(res, 200, { required: false, approved: true });
       return;
     }
 
-    // 2. Check for active pending request for same action/resource
-    const existingRes = await findActivePendingRequest(tenantId, branchId, action, resourceType, resourceId);
+    const requestedBy = caller.name;
+    const actionLabel = getActionLabel(action);
+
+    // 2. Re-use an active pending request: rotate the code (and persist the new hash).
+    const existingRes = await findActivePendingRequest(caller.db, caller.tenantId, branchId, action, resourceType, resourceId);
     if (existingRes.data) {
       const existing = existingRes.data;
-      // Resend a fresh code for the existing request
-      const freshCode = generateApprovalCode();
-      const freshHash = hashApprovalCode(freshCode);
-      const actionLabel = getActionLabel(action);
-
-      await sendApprovalEmail({
-        toEmail: settings.approval_email,
-        restaurantName: restaurantName || 'Le Laban',
-        branchName: branchName || 'Anna Nagar',
-        actionLabel,
-        cashierName: requestedBy || 'Cashier',
-        reason,
-        approvalCode: freshCode,
-      });
-
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({
+      const resendCount = Number((existing as { resend_count?: number }).resend_count ?? 0);
+      if (resendCount >= MAX_RESENDS) {
+        sendJson(res, 200, {
           required: true,
           requestId: existing.request_uuid,
           expiresAt: existing.expires_at,
-        })
-      );
+          error: 'A code was already sent. Please use it or wait for it to expire.',
+        });
+        return;
+      }
+
+      const freshCode = generateApprovalCode();
+      const freshExpiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
+      const updateRes = await updateApprovalRequest(caller.db, caller.tenantId, existing.request_uuid, {
+        approval_code_hash: hashApprovalCode(freshCode),
+        expires_at: freshExpiresAt,
+        resend_count: resendCount + 1,
+      });
+      if (updateRes.error) {
+        sendJson(res, 500, { error: updateRes.error });
+        return;
+      }
+
+      const emailResult = await sendApprovalEmail({
+        toEmail: settings.approval_email,
+        restaurantName,
+        branchName,
+        actionLabel,
+        cashierName: requestedBy,
+        reason,
+        approvalCode: freshCode,
+        requestId: existing.request_uuid,
+      });
+      if (!emailResult.success) {
+        console.warn('[API /request] Email dispatch issue on re-send.');
+      }
+
+      sendJson(res, 200, { required: true, requestId: existing.request_uuid, expiresAt: freshExpiresAt });
       return;
     }
 
-    // 3. Create a new approval request
+    // 3. New approval request
     const approvalCode = generateApprovalCode();
-    const approvalCodeHash = hashApprovalCode(approvalCode);
     const requestUuid = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
+    const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
 
-    console.log(`[Approval Request ${requestUuid}] Created for Action: ${action}, Resource: ${resourceType}#${resourceId}, Requested by: ${requestedBy}`);
-
-    const createRes = await createApprovalRequest({
-      tenant_id: tenantId,
+    const createRes = await createApprovalRequest(caller.db, {
+      tenant_id: caller.tenantId,
       branch_id: branchId,
       request_uuid: requestUuid,
-      action,
+      action: action as ApprovalAction,
       resource_type: resourceType,
-      resource_id: String(resourceId),
-      requested_by: requestedBy || 'Cashier',
-      cashier_name: requestedBy || 'Cashier',
-      branch_name: branchName || 'Anna Nagar',
+      resource_id: resourceId,
+      requested_by: requestedBy,
+      cashier_id: caller.staffId,
+      cashier_name: requestedBy,
+      branch_name: branchName,
       approval_email: settings.approval_email,
-      reason: reason.trim(),
-      approval_code_hash: approvalCodeHash,
+      reason,
+      approval_code_hash: hashApprovalCode(approvalCode),
       attempts: 0,
       expires_at: expiresAt,
       status: 'PENDING',
     });
 
     if (createRes.error || !createRes.data) {
-      console.error(`[Approval Request ${requestUuid}] DB insert failed:`, createRes.error);
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: createRes.error || 'Failed to record approval request.' }));
+      sendJson(res, 500, { error: createRes.error ?? 'Failed to record approval request.' });
       return;
     }
 
-    // 4. Dispatch Email
-    const actionLabel = getActionLabel(action);
+    // 4. Email the code
     const emailResult = await sendApprovalEmail({
       toEmail: settings.approval_email,
-      restaurantName: restaurantName || 'Le Laban',
-      branchName: branchName || 'Anna Nagar',
+      restaurantName,
+      branchName,
       actionLabel,
-      cashierName: requestedBy || 'Cashier',
-      reason: reason.trim(),
+      cashierName: requestedBy,
+      reason,
       approvalCode,
       requestId: requestUuid,
     });
-
     if (!emailResult.success) {
-      console.warn('[API /request] Email dispatch issue:', emailResult.error);
+      console.warn('[API /request] Email dispatch issue.');
     }
 
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(
-      JSON.stringify({
-        required: true,
-        requestId: requestUuid,
-        expiresAt,
-      })
-    );
-  } catch (err: any) {
-    console.error('[API /request] Exception:', err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: err.message || 'Internal Server Error' }));
+    sendJson(res, 200, { required: true, requestId: requestUuid, expiresAt });
+  } catch (err) {
+    console.error('[API /request] Exception:', err instanceof Error ? err.message : err);
+    sendJson(res, 500, { error: 'Internal Server Error' });
   }
 }

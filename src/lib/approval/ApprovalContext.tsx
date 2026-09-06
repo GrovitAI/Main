@@ -1,7 +1,6 @@
 import React, { createContext, useState, useCallback, ReactNode } from 'react';
 import { ApprovalDialogContainer, ApprovalDialogState } from '@/components/approval/ApprovalDialogContainer';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { TENANT_ID, BRANCH_ID } from '@/lib/pos/tenant-context';
 import { approvalService } from './approval.service';
 import type { ApprovalAction, ResourceType } from './approval.types';
 
@@ -33,8 +32,12 @@ export function ApprovalProvider({ children }: ApprovalProviderProps) {
     (input: TriggerApprovalInput) => {
       const cashierName = session?.displayName || 'Cashier';
       const branchName = session?.branchName || 'Anna Nagar';
-      const tenantId = session?.tenantId || TENANT_ID;
-      const branchId = session?.branchId || BRANCH_ID;
+      if (!session) {
+        console.error('[ApprovalProvider] requestApproval called without an active session.');
+        return;
+      }
+      const tenantId = session.tenantId;
+      const branchId = session.branchId;
 
       setApprovalDialogState({
         visible: true,

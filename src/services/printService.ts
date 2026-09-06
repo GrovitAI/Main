@@ -1,5 +1,6 @@
 import { fetchPrinters } from '@/lib/pos/printer-db-service';
-import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString, getApiBaseUrl } from '@/lib/printer/printer-service';
+import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString } from '@/lib/printer/printer-service';
+import { apiFetch } from '@/lib/pos/api-client';
 import { RECEIPT_CONFIG, SHOW_GST_INFORMATION, PAPER_WIDTH } from './receiptConfig';
 
 /**
@@ -65,15 +66,12 @@ export async function printReceipt(printerName: string, content: string): Promis
       const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
 
       console.log('[PrintService] Sending PrintNode job to default billing printer ID:', printerId);
-      const response = await fetch(`${getApiBaseUrl()}/api/printjobs`, {
+      const response = await apiFetch<{ success: boolean }>('/api/printjobs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerId, base64Content }),
+        body: { printerId, base64Content },
       });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        return { success: false, error: errData.error || `PrintNode API returned ${response.status}` };
+      if (response.error) {
+        return { success: false, error: response.error };
       }
 
       return { success: true };

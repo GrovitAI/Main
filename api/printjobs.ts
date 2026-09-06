@@ -1,60 +1,29 @@
 import { Buffer } from 'buffer';
+import {
+  applyCors,
+  authenticate,
+  forbidden,
+  methodNotAllowed,
+  rateLimit,
+  readJsonBody,
+  sendJson,
+  unauthorized,
+  type ApiRequest,
+  type ApiResponse,
+} from '../src/lib/server/api-auth';
 
-type ApiRequest = {
-  method?: string;
-  body?: unknown;
-};
-
-type ApiResponse = {
-  statusCode: number;
-  setHeader(name: string, value: string): void;
-  end(body?: string): void;
-};
-
-type PrintJobBody = {
-  printerId?: unknown;
-  base64Content?: unknown;
-};
-
-function sendJson(res: ApiResponse, status: number, payload: Record<string, unknown>): void {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(payload));
-}
-
-function readBody(body: unknown): PrintJobBody {
-  if (body && typeof body === 'object') {
-    return body as PrintJobBody;
-  }
-  if (typeof body === 'string' && body.length > 0) {
-    try {
-      const parsed: unknown = JSON.parse(body);
-      return parsed && typeof parsed === 'object' ? (parsed as PrintJobBody) : {};
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
+const MAX_CONTENT_CHARS = 512 * 1024; // 512 KB of Base64 (~384 KB raw) per receipt
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
+  if (applyCors(req, res, 'POST')) return;
+  if (req.method !== 'POST') {
+    methodNotAllowed(res);
     return;
   }
 
-  if (req.method !== 'POST') {
-    sendJson(res, 405, { error: 'Method Not Allowed' });
+  const caller = await authenticate(req);
+  if (!caller) {
+    unauthorized(res);
     return;
   }
 
@@ -67,16 +36,40 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   }
 
   try {
-    const { printerId, base64Content } = readBody(req.body);
+    const { printerId, base64Content } = readJsonBody(req);
     const numericPrinterId = Number(printerId);
 
     if (!Number.isInteger(numericPrinterId) || numericPrinterId <= 0 || typeof base64Content !== 'string' || base64Content.length === 0) {
       sendJson(res, 400, { error: 'Missing or invalid printerId or base64Content' });
       return;
     }
+    if (base64Content.length > MAX_CONTENT_CHARS || !/^[A-Za-z0-9+/=\r\n]+$/.test(base64Content)) {
+      sendJson(res, 400, { error: 'Print payload is too large or not valid Base64.' });
+      return;
+    }
+
+    const allowed = await rateLimit(caller.db, `printjobs:${caller.branchId}`, 120, 60);
+    if (!allowed) {
+      sendJson(res, 429, { error: 'Too many print jobs. Please wait a moment.' });
+      return;
+    }
+
+    // The printer must be registered to the caller's branch (RLS scopes this lookup).
+    // For PrintNode printers the numeric PrintNode id is stored in printers.ip_address.
+    const { data: printer } = await caller.db
+      .from('printers')
+      .select('id')
+      .eq('tenant_id', caller.tenantId)
+      .eq('connection', 'printnode')
+      .eq('ip_address', String(numericPrinterId))
+      .limit(1)
+      .maybeSingle();
+    if (!printer) {
+      forbidden(res, 'That printer is not registered to your branch.');
+      return;
+    }
 
     const authHeader = `Basic ${Buffer.from(`${apiKey}:`, 'utf8').toString('base64')}`;
-
     const response = await fetch('https://api.printnode.com/printjobs', {
       method: 'POST',
       headers: {

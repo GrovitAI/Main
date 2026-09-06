@@ -1,22 +1,14 @@
 import { Buffer } from 'buffer';
-
-type ApiRequest = {
-  method?: string;
-  url?: string;
-  query?: Record<string, string | string[] | undefined>;
-};
-
-type ApiResponse = {
-  statusCode: number;
-  setHeader(name: string, value: string): void;
-  end(body?: string): void;
-};
-
-function sendJson(res: ApiResponse, status: number, payload: unknown): void {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(payload));
-}
+import {
+  applyCors,
+  authenticate,
+  forbidden,
+  methodNotAllowed,
+  sendJson,
+  unauthorized,
+  type ApiRequest,
+  type ApiResponse,
+} from '../src/lib/server/api-auth';
 
 function readPrinterId(req: ApiRequest): string | null {
   const fromQuery = req.query?.id;
@@ -29,23 +21,15 @@ function readPrinterId(req: ApiRequest): string | null {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
+  if (applyCors(req, res, 'GET')) return;
+  if (req.method !== 'GET') {
+    methodNotAllowed(res);
     return;
   }
 
-  if (req.method !== 'GET') {
-    sendJson(res, 405, { error: 'Method Not Allowed' });
+  const caller = await authenticate(req);
+  if (!caller) {
+    unauthorized(res);
     return;
   }
 
@@ -58,6 +42,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   }
 
   const printerId = readPrinterId(req);
+
+  if (printerId) {
+    // Status check for one printer: it must be registered to the caller's tenant/branch.
+    const { data: printer } = await caller.db
+      .from('printers')
+      .select('id')
+      .eq('tenant_id', caller.tenantId)
+      .eq('connection', 'printnode')
+      .eq('ip_address', printerId)
+      .limit(1)
+      .maybeSingle();
+    if (!printer) {
+      forbidden(res, 'That printer is not registered to your branch.');
+      return;
+    }
+  } else if (!caller.isManager) {
+    // Listing every printer on the PrintNode account is a setup task.
+    forbidden(res, 'Only owners, admins and managers can list account printers.');
+    return;
+  }
+
   const authHeader = `Basic ${Buffer.from(`${apiKey}:`, 'utf8').toString('base64')}`;
   const targetUrl = printerId
     ? `https://api.printnode.com/printers/${printerId}`
@@ -66,10 +71,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
   try {
     const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: {
-        Authorization: authHeader,
-        Accept: 'application/json',
-      },
+      headers: { Authorization: authHeader, Accept: 'application/json' },
     });
 
     if (!response.ok) {
