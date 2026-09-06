@@ -1470,18 +1470,51 @@ export async function createOrUpdateBill(
   }
 }
 
+type SettleOrderRpcResult = {
+  already_settled: boolean;
+  order: OpenOrder | null;
+  bill: { id: string } | null;
+  settlement: { id: string } | null;
+};
+
+function isSettleOrderRpcResult(value: unknown): value is SettleOrderRpcResult {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.already_settled === 'boolean' && 'order' in candidate;
+}
+
+function mapSettleOrderError(error: { code?: string; message?: string }): string {
+  const message = error.message ?? '';
+  if (message.includes('SETTLE_ORDER_NOT_FOUND')) return 'Order not found.';
+  if (message.includes('SETTLE_ORDER_CANCELLED')) return 'This order was cancelled and cannot be settled.';
+  if (message.includes('SETTLE_ORDER_EMPTY')) return 'This order has no items to settle.';
+  if (message.includes('SETTLE_INVOICE_NUMBER_REQUIRED')) return 'Unable to assign an invoice number.';
+  if (message.includes('SETTLE_BILL_CONFLICT')) return 'A bill for this order already exists in another branch.';
+  if (error.code === 'PGRST202') return 'Settlement service is not available. Please contact support.';
+  return 'Unable to settle order.';
+}
+
+/**
+ * Settles an open order atomically via the `settle_order` PostgreSQL function
+ * (supabase/migrations/20260906120000_settle_order_rpc.sql).
+ *
+ * The bill upsert, bill_items snapshot, settlement insert and order status
+ * update all commit in ONE database transaction. The function locks the order
+ * row, so concurrent settle attempts from other terminals serialise and the
+ * second caller receives the existing bill instead of creating a duplicate.
+ */
 export async function settleOrderById(
   orderId: string,
   paymentType: string = 'cash',
-  createdBy: string = 'Cashier'
+  _createdBy: string = 'Cashier'
 ): Promise<ServiceResult<OpenOrder>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
-    // 1. Fetch open_order details
+    // 1. Read-only lookup so a local invoice / order number is only consumed when needed.
     const { data: order, error: orderErr } = await supabase
       .from('open_orders')
-      .select('*')
+      .select('invoice_number, order_name, status')
       .eq('id', orderId)
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
@@ -1492,153 +1525,44 @@ export async function settleOrderById(
       return { data: null, error: 'Order not found.' };
     }
 
-    // 2. Fetch open_order_items to copy
-    const { data: orderItems, error: itemsErr } = await supabase
-      .from('open_order_items')
-      .select('*')
-      .eq('open_order_id', orderId);
+    const invoiceNumber: string = order.invoice_number ?? getNextBillNumber();
 
-    if (itemsErr || !orderItems) {
-      logSupabaseError('settleOrderById.fetchItems', itemsErr);
-      return { data: null, error: 'Order items not found.' };
+    const currentName: string = order.order_name ?? '';
+    const needsOrderNumber =
+      currentName.length === 0 || currentName.toLowerCase().includes('draft') || !currentName.startsWith('Order #');
+    const orderName: string | null = needsOrderNumber ? `Order #${getNextOrderNumber()}` : null;
+
+    // 2. Single atomic write.
+    const { data, error: rpcErr } = await supabase.rpc('settle_order', {
+      p_tenant_id: tenant_id,
+      p_branch_id: branch_id,
+      p_order_id: orderId,
+      p_payment_type: paymentType,
+      p_invoice_number: invoiceNumber,
+      p_order_name: orderName,
+    });
+
+    if (rpcErr) {
+      logSupabaseError('settleOrderById.rpc', rpcErr);
+      return { data: null, error: mapSettleOrderError(rpcErr) };
     }
 
-    const subtotal = orderItems.reduce((acc, item) => acc + (item.qty * (item.price || 0)), 0);
-
-    let tax_percentage = 0;
-    const { data: posSettings } = await supabase
-      .from('pos_settings')
-      .select('tax_percentage')
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .maybeSingle();
-
-    if (posSettings) {
-      tax_percentage = posSettings.tax_percentage || 0;
+    if (!isSettleOrderRpcResult(data) || !data.order) {
+      logSupabaseError('settleOrderById.rpc', { message: 'settle_order returned an unexpected payload', code: 'BAD_RPC_RESULT' });
+      return { data: null, error: 'Unable to settle order.' };
     }
 
-    const isComplimentary = paymentType.toLowerCase() === 'complimentary';
-    let discountType = order.discount_type || null;
-    let discountValue = order.discount_value || 0;
-    let discountAmount = order.discount_amount || 0;
-    let discountedSubtotal = Math.max(0, subtotal - discountAmount);
-    let tax_amount = Math.round((discountedSubtotal * tax_percentage / 100.0) * 100) / 100;
-    let total_amount = discountedSubtotal + tax_amount;
+    const settledOrder = data.order;
+    const billId = data.bill?.id ?? null;
 
-    if (isComplimentary) {
-      // Preserve gross sales revenue analytics by applying 100% discount (subtotal + tax)
-      const grossTax = Math.round((subtotal * tax_percentage / 100.0) * 100) / 100;
-      discountType = 'percent';
-      discountValue = 100;
-      discountAmount = subtotal + grossTax;
-      tax_amount = grossTax;
-      total_amount = 0;
-    }
-
-    let invoiceNumber = order.invoice_number;
-    if (!invoiceNumber) {
-      invoiceNumber = getNextBillNumber();
-      await supabase
-        .from('open_orders')
-        .update({ invoice_number: invoiceNumber })
-        .eq('id', orderId)
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id);
-    }
-
-    // 3. Create or update bill record using centralized method (which also handles items sync)
-    const billResult = await createOrUpdateBill(
-      orderId,
-      invoiceNumber,
-      subtotal,
-      tax_amount,
-      discountAmount,
-      total_amount,
-      'paid',
-      discountType,
-      discountValue,
-      orderItems
-    );
-
-    if (billResult.error || !billResult.data) {
-      throw new Error(billResult.error ?? 'Failed to write bill to database.');
-    }
-
-    const bill = billResult.data;
-
-    // 5. Create settlement record
-    const { data: existingSettlement } = await supabase
-      .from('settlements')
-      .select('id')
-      .eq('bill_id', bill.id)
-      .limit(1);
-
-    if (!existingSettlement || existingSettlement.length === 0) {
-      const settlementPayload = {
-        bill_id: bill.id,
-        tenant_id,
-        branch_id,
-        payment_type: isComplimentary ? 'complimentary' : paymentType.toLowerCase(),
-        amount: total_amount,
-      };
-
-      console.log('[settleOrderById] Settlement payload', settlementPayload);
-
-      const { error: settlementErr } = await supabase
-        .from('settlements')
-        .insert(settlementPayload);
-
-      if (settlementErr) {
-        console.error(
-          '[settleOrderById] Settlement creation failed',
-          {
-            error: settlementErr,
-            payload: settlementPayload,
-            billId: bill.id,
-          }
-        );
-        throw new Error(`Unable to create settlement: ${settlementErr.message}`);
-      }
-    }
-
-    // 6. Mark open order as paid
-    const paidAt = new Date().toISOString();
-
-    const needsOrderNumber = !order.order_name || order.order_name.toLowerCase().includes('draft') || !order.order_name.startsWith('Order #');
-    let nextOrderName = order.order_name;
-    if (needsOrderNumber) {
-      const nextOrderNum = getNextOrderNumber();
-      nextOrderName = `Order #${nextOrderNum}`;
-    }
-
-    const { data: updatedOrder, error: updateErr } = await supabase
-      .from('open_orders')
-      .update({
-        status: 'paid',
-        paid_at: paidAt,
-        completed_at: paidAt,
-        invoice_number: invoiceNumber,
-        payment_method: paymentType,
-        order_name: nextOrderName,
-      })
-      .eq('id', orderId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .select('*')
-      .single();
-
-    if (updateErr) {
-      logSupabaseError('settleOrderById.updateOrder', updateErr);
-      throw new Error(`Unable to mark order as paid: ${updateErr.message}`);
-    }
-
-    // Trigger recipe consumption asynchronously without blocking the checkout response
-    if (bill && bill.id) {
+    // 3. Trigger recipe consumption asynchronously without blocking the checkout response.
+    //    Only on the first successful settlement; replays must not deduct stock twice.
+    if (!data.already_settled && billId) {
       void (async () => {
         try {
           const { createConsumptionBatch, processConsumptionBatch } = await import('./inventory-service');
-          console.log(`[Grovit] Triggering recipe consumption batch for bill ${bill.id}`);
-          const batchResult = await createConsumptionBatch(bill.id);
+          console.log(`[Grovit] Triggering recipe consumption batch for bill ${billId}`);
+          const batchResult = await createConsumptionBatch(billId);
           if (batchResult.error) {
             console.error('[Grovit] createConsumptionBatch error:', batchResult.error);
           }
@@ -1654,12 +1578,12 @@ export async function settleOrderById(
       })();
     }
 
-    return { data: updatedOrder as OpenOrder, error: null };
-  } catch (err: any) {
+    return { data: settledOrder, error: null };
+  } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.error('[Grovit] settleOrderById exception:', err);
     }
-    return { data: null, error: err instanceof Error ? err.message : 'Unable to settle order.' };
+    return { data: null, error: 'Unable to settle order.' };
   }
 }
 
