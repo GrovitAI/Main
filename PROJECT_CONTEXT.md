@@ -20,10 +20,10 @@ Each restaurant is a tenant. Each tenant has multiple branches.
 All three from this single Expo codebase.
 
 ## Tech Stack
-- Expo SDK 56 + React Native
+- Expo SDK 54 + React Native 0.81
 - TypeScript (strict mode, no any)
 - NativeWind v4 (Tailwind syntax)
-- Expo Router v3 (file based routing)
+- Expo Router v6 (file based routing)
 - Supabase PostgreSQL (Mumbai region)
 - Zustand (state management)
 - EAS (builds + OTA updates)

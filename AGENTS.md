@@ -1,7 +1,7 @@
 # AGENTS.md — Rules for AI Assistants
 
 <!-- Expo versioned docs — read before writing any code -->
-Read https://docs.expo.dev/versions/v56.0.0/ before writing any code.
+Read https://docs.expo.dev/versions/v54.0.0/ before writing any code.
 Read PROJECT_CONTEXT.md before every session.
 
 ## Non-negotiable rules
@@ -72,13 +72,13 @@ Never hardcode UUIDs outside tenant-context.ts.
 - Never guess — analyze first
 
 ## Expo specific rules
-- Expo SDK 56 — use versioned docs above
+- Expo SDK 54 (expo ~54.0.x) — use versioned docs above
 - Use Expo Router for all navigation
 - Use npx expo install for all packages
 - Use EXPO_PUBLIC_ prefix for all env variables
 - Use lucide-react-native for all icons
 - Use @/ alias for all imports
-- NativeWind v4 with Tailwind v3.4.17 (pinned for compatibility)
+- NativeWind v4 with Tailwind v3.4.x (pinned to the 3.x line for compatibility)
 
 ## What to do if uncertain
 - Read PROJECT_CONTEXT.md again

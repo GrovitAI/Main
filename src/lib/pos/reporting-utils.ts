@@ -3,14 +3,23 @@
  *
  * Centralized, branch-configurable helper module for calculating:
  * 1. Effective reporting timestamps (settled_at for paid bills, created_at for unpaid/draft bills)
- * 2. Business day dates based on branch operating hours (default: 11:30 AM -> 2:30 AM IST cutoff)
- * 3. ISO timestamp bounds for date presets (today, yesterday, 7days, 30days, custom)
+ * 2. Business day dates based on the branch operating window
+ * 3. ISO timestamp bounds for date presets (today, yesterday, 7days, 30days, month, custom)
+ *
+ * Design (audit item H6)
+ *   * A business day starts at `business_day_end_time` (02:30 by default) and
+ *     runs for exactly 24 hours, so EVERY transaction belongs to exactly one
+ *     business day. The 11:30 opening time is informational only; sales made
+ *     before opening (deliveries, early prep) are no longer invisible.
+ *   * "Now" is always evaluated in the branch timezone (Asia/Kolkata), never in
+ *     the device timezone, so a browser abroad reports the same day as the
+ *     terminal in the restaurant.
  */
 
 export interface BranchBusinessDayConfig {
-  business_day_start_time: string; // e.g. "11:30" (11:30 AM)
-  business_day_end_time: string;   // e.g. "02:30" (2:30 AM next calendar day)
-  timezone: string;                // e.g. "Asia/Kolkata"
+  business_day_start_time: string; // e.g. "11:30" (opening time, informational)
+  business_day_end_time: string;   // e.g. "02:30" (cutoff: the business day rolls over here)
+  timezone: string;                // IANA zone, e.g. "Asia/Kolkata"
 }
 
 export const DEFAULT_BUSINESS_DAY_CONFIG: BranchBusinessDayConfig = {
@@ -18,6 +27,8 @@ export const DEFAULT_BUSINESS_DAY_CONFIG: BranchBusinessDayConfig = {
   business_day_end_time: '02:30',
   timezone: 'Asia/Kolkata',
 };
+
+export type DatePreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
 
 /**
  * Returns the effective reporting timestamp for a bill.
@@ -35,143 +46,198 @@ export function getEffectiveReportingTimestamp(bill: {
   return bill.created_at;
 }
 
+// ─── Timezone helpers ────────────────────────────────────────────────────────
+
+type ZonedParts = { year: number; month: number; day: number; hour: number; minute: number };
+
+const partsFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function getPartsFormatter(timeZone: string): Intl.DateTimeFormat {
+  let fmt = partsFormatterCache.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    partsFormatterCache.set(timeZone, fmt);
+  }
+  return fmt;
+}
+
+/** Wall-clock parts of `date` in the given IANA timezone. */
+export function getZonedParts(date: Date, timeZone: string): ZonedParts {
+  try {
+    const parts = getPartsFormatter(timeZone).formatToParts(date);
+    const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? '0');
+    const hour = get('hour');
+    return { year: get('year'), month: get('month'), day: get('day'), hour: hour === 24 ? 0 : hour, minute: get('minute') };
+  } catch {
+    // Unknown timezone on this runtime: fall back to fixed IST (+05:30).
+    const shifted = new Date(date.getTime() + 330 * 60_000);
+    return {
+      year: shifted.getUTCFullYear(),
+      month: shifted.getUTCMonth() + 1,
+      day: shifted.getUTCDate(),
+      hour: shifted.getUTCHours(),
+      minute: shifted.getUTCMinutes(),
+    };
+  }
+}
+
+/** Offset (minutes east of UTC) of `timeZone` at the given instant. */
+function getZoneOffsetMinutes(date: Date, timeZone: string): number {
+  const p = getZonedParts(date, timeZone);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, 0, 0);
+  const truncated = Math.floor(date.getTime() / 60_000) * 60_000;
+  return Math.round((asUtc - truncated) / 60_000);
+}
+
 /**
- * Normalizes an ISO timestamp into a business day date string ("YYYY-MM-DD").
- *
- * Business Day Rules (Default 11:30 AM -> 2:30 AM):
- * - Transactions between 12:00 AM and 02:30 AM belong to the PREVIOUS business day.
- * - Transactions between 11:30 AM and 11:59 PM belong to the CURRENT business day.
+ * Converts a wall-clock time in `timeZone` to an ISO UTC instant.
+ * Handles DST-shifting zones by resolving the offset at the target instant.
+ */
+export function zonedTimeToUtcIso(
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number,
+  timeZone: string
+): string {
+  const naive = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+  const guess = new Date(naive - getZoneOffsetMinutes(new Date(naive), timeZone) * 60_000);
+  const corrected = new Date(naive - getZoneOffsetMinutes(guess, timeZone) * 60_000);
+  return corrected.toISOString();
+}
+
+function parseHm(value: string): { h: number; m: number } {
+  const [h, m] = value.split(':').map(Number);
+  return { h: Number.isFinite(h) ? h : 0, m: Number.isFinite(m) ? m : 0 };
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function formatYmd(year: number, month: number, day: number): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+/** Adds `days` to a calendar date (no timezone involved). */
+export function addCalendarDays(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const shifted = new Date(Date.UTC(y, m - 1, d + days));
+  return formatYmd(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
+}
+
+// ─── Business day resolution ─────────────────────────────────────────────────
+
+/**
+ * Normalizes an instant into its business day ("YYYY-MM-DD") for the branch.
+ * Times before the cutoff (default 02:30) belong to the PREVIOUS calendar day.
  */
 export function getBusinessDate(
-  timestamp: string,
+  timestamp: string | Date,
   config: Partial<BranchBusinessDayConfig> = {}
 ): string {
   const cfg = { ...DEFAULT_BUSINESS_DAY_CONFIG, ...config };
-  const d = new Date(timestamp);
-  if (isNaN(d.getTime())) return '';
+  const d = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
 
-  const [endH, endM] = cfg.business_day_end_time.split(':').map(Number);
-  const endVal = endH * 60 + endM; // e.g., 2 * 60 + 30 = 150 mins
+  const cutoff = parseHm(cfg.business_day_end_time);
+  const p = getZonedParts(d, cfg.timezone);
+  const minutes = p.hour * 60 + p.minute;
+  const calendar = formatYmd(p.year, p.month, p.day);
 
-  const localH = d.getHours();
-  const localM = d.getMinutes();
-  const timeVal = localH * 60 + localM;
-
-  // If time falls in 00:00 -> cutoff window (e.g. 00:00 -> 02:30), shift to previous calendar day
-  if (timeVal <= endVal) {
-    d.setDate(d.getDate() - 1);
-  }
-
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
+  return minutes < cutoff.h * 60 + cutoff.m ? addCalendarDays(calendar, -1) : calendar;
 }
 
-/**
- * Helper to format a Date into local calendar string "YYYY-MM-DD"
- */
-function formatCalendarDate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-/**
- * Computes deterministic ISO UTC timestamps for a given business day operating window.
- * Default timezone is Asia/Kolkata (IST = UTC+05:30).
- */
-function createUtcIsoString(
-  dateStr: string,
-  hours: number,
-  minutes: number,
-  dayOffset = 0,
-  tzOffsetHours = 5.5
+/** The current business date in the branch timezone. */
+export function getCurrentBusinessDate(
+  config: Partial<BranchBusinessDayConfig> = {},
+  now: Date = new Date()
 ): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const totalMinutes = hours * 60 + minutes - Math.round(tzOffsetHours * 60);
-  const utcDate = new Date(Date.UTC(y, m - 1, d + dayOffset, 0, totalMinutes, 0, 0));
-  return utcDate.toISOString();
+  return getBusinessDate(now, config);
 }
 
 /**
- * Computes ISO startTimestamp and endTimestamp bounds for date presets based on
- * the branch business day operating window (11:30 AM -> 02:30 AM next day).
+ * UTC instants delimiting a business day: [cutoff on `ymd`, cutoff on `ymd + 1`).
  */
-export function getBusinessDayBounds(
-  preset: 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom' | string,
-  fromDate?: string | Date,
-  toDate?: string | Date,
+export function getBusinessDayWindow(
+  ymd: string,
   config: Partial<BranchBusinessDayConfig> = {}
 ): { startTimestamp: string; endTimestamp: string } {
   const cfg = { ...DEFAULT_BUSINESS_DAY_CONFIG, ...config };
-  const [startH, startM] = cfg.business_day_start_time.split(':').map(Number); // 11:30
-  const [endH, endM] = cfg.business_day_end_time.split(':').map(Number);       // 02:30
+  const cutoff = parseHm(cfg.business_day_end_time);
+  const [y, m, d] = ymd.split('-').map(Number);
+  const next = addCalendarDays(ymd, 1);
+  const [ny, nm, nd] = next.split('-').map(Number);
+  return {
+    startTimestamp: zonedTimeToUtcIso(y, m, d, cutoff.h, cutoff.m, cfg.timezone),
+    endTimestamp: zonedTimeToUtcIso(ny, nm, nd, cutoff.h, cutoff.m, cfg.timezone),
+  };
+}
 
-  const now = new Date();
-  let currentBizDate = new Date(now);
+function toCalendarDate(input: string | Date | undefined, fallback: string, timeZone: string): string {
+  if (!input) return fallback;
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  const parsed = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  const p = getZonedParts(parsed, timeZone);
+  return formatYmd(p.year, p.month, p.day);
+}
 
-  const localH = now.getHours();
-  const localM = now.getMinutes();
-  const timeVal = localH * 60 + localM;
-  const endVal = endH * 60 + endM;
+/**
+ * Computes ISO startTimestamp / endTimestamp bounds for a preset, covering
+ * whole business days (cutoff → next cutoff) in the branch timezone.
+ */
+export function getBusinessDayBounds(
+  preset: DatePreset | string,
+  fromDate?: string | Date,
+  toDate?: string | Date,
+  config: Partial<BranchBusinessDayConfig> = {},
+  now: Date = new Date()
+): { startTimestamp: string; endTimestamp: string } {
+  const cfg = { ...DEFAULT_BUSINESS_DAY_CONFIG, ...config };
+  const today = getCurrentBusinessDate(cfg, now);
 
-  // If current local time is past midnight before 2:30 AM, current business date is yesterday
-  if (timeVal <= endVal) {
-    currentBizDate.setDate(currentBizDate.getDate() - 1);
-  }
+  let startDate = today;
+  let endDate = today;
 
-  let startDateStr = formatCalendarDate(currentBizDate);
-  let endDateStr = formatCalendarDate(currentBizDate);
-
-  if (preset === 'today') {
-    startDateStr = formatCalendarDate(currentBizDate);
-    endDateStr = formatCalendarDate(currentBizDate);
-  } else if (preset === 'yesterday') {
-    const yest = new Date(currentBizDate);
-    yest.setDate(currentBizDate.getDate() - 1);
-    startDateStr = formatCalendarDate(yest);
-    endDateStr = formatCalendarDate(yest);
-  } else if (preset === '7days') {
-    const sevenDaysAgo = new Date(currentBizDate);
-    sevenDaysAgo.setDate(currentBizDate.getDate() - 6);
-    startDateStr = formatCalendarDate(sevenDaysAgo);
-    endDateStr = formatCalendarDate(currentBizDate);
-  } else if (preset === '30days') {
-    const thirtyDaysAgo = new Date(currentBizDate);
-    thirtyDaysAgo.setDate(currentBizDate.getDate() - 29);
-    startDateStr = formatCalendarDate(thirtyDaysAgo);
-    endDateStr = formatCalendarDate(currentBizDate);
-  } else if (preset === 'month') {
-    const monthStart = new Date(currentBizDate.getFullYear(), currentBizDate.getMonth(), 1);
-    startDateStr = formatCalendarDate(monthStart);
-    endDateStr = formatCalendarDate(currentBizDate);
-  } else if (preset === 'custom' || fromDate || toDate) {
-    const parseToStr = (input?: string | Date): string => {
-      if (!input) return formatCalendarDate(currentBizDate);
-      if (input instanceof Date) return formatCalendarDate(input);
-      if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
-        return input;
+  switch (preset) {
+    case 'today':
+      break;
+    case 'yesterday':
+      startDate = addCalendarDays(today, -1);
+      endDate = startDate;
+      break;
+    case '7days':
+      startDate = addCalendarDays(today, -6);
+      break;
+    case '30days':
+      startDate = addCalendarDays(today, -29);
+      break;
+    case 'month':
+      startDate = `${today.slice(0, 8)}01`;
+      break;
+    default:
+      if (preset === 'custom' || fromDate || toDate) {
+        startDate = toCalendarDate(fromDate, today, cfg.timezone);
+        endDate = toCalendarDate(toDate, today, cfg.timezone);
       }
-      const parsed = new Date(input);
-      return isNaN(parsed.getTime()) ? formatCalendarDate(currentBizDate) : formatCalendarDate(parsed);
-    };
-
-    startDateStr = parseToStr(fromDate);
-    endDateStr = parseToStr(toDate);
   }
 
-  // Ensure startDateStr <= endDateStr
-  if (startDateStr > endDateStr) {
-    const temp = startDateStr;
-    startDateStr = endDateStr;
-    endDateStr = temp;
+  if (startDate > endDate) {
+    [startDate, endDate] = [endDate, startDate];
   }
 
   return {
-    startTimestamp: createUtcIsoString(startDateStr, startH, startM, 0),
-    endTimestamp: createUtcIsoString(endDateStr, endH, endM, 1),
+    startTimestamp: getBusinessDayWindow(startDate, cfg).startTimestamp,
+    endTimestamp: getBusinessDayWindow(endDate, cfg).endTimestamp,
   };
 }

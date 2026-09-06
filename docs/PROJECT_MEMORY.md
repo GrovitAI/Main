@@ -15,16 +15,16 @@
 - **High-Speed POS & Billing**: Optimized for sub-second ordering, tab management, KOT generation, provisional billing, and multi-mode settlements (Cash, UPI, Card, Complimentary).
 - **Security & Approval Governance**: Built-in Approval Engine protecting high-risk cashier operations (Cancel Bill, Reprint Bill, Apply Discount, Complimentary Settlement) using 6-digit manager OTP authorization.
 - **Automated Recipe & Supply Chain Engine**: Asynchronous, queue-based inventory deduction triggered by bill settlement, featuring Bill of Materials (BOM) recipe management, stock requisition requests, dispatch tracking, and discrepancy variance auditing.
-- **Cross-Platform Distribution**: Unified codebase deployed as a Web Application, native Android APK, and iOS TestFlight build via Expo SDK 56.
+- **Cross-Platform Distribution**: Unified codebase deployed as a Web Application, native Android APK, and iOS TestFlight build via Expo SDK 54.
 
 ---
 
 ## 2. Technology Stack
 
-- **Core Framework**: Expo SDK 56 + React Native
+- **Core Framework**: Expo SDK 54 + React Native 0.81
 - **Routing & Navigation**: Expo Router v3 (File-based routing)
 - **Language**: TypeScript (Strict Mode — `noImplicitAny`, no non-null assertions)
-- **Styling**: NativeWind v4 (Tailwind CSS v3.4.17 pinned for compatibility)
+- **Styling**: NativeWind v4 (Tailwind CSS v3.4.x pinned to the 3.x line for compatibility)
 - **Database**: Supabase PostgreSQL 15+ (Mumbai Region — `ap-south-1`)
 - **Backend API**: Vercel Node.js Serverless Functions (`/api/approval/*`)
 - **State Management**: Zustand v4 (`use-orders-store.ts`, `use-session-store.ts`)
