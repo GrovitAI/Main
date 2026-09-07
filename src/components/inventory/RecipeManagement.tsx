@@ -38,6 +38,7 @@ import {
   Minus,
 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
+import { webTextStyle } from '@/lib/pos/web-style';
 import {
   fetchRecipes,
   fetchRecipeItems,
@@ -171,7 +172,7 @@ function Autocomplete<T extends { id: string }>({
     if (disabled) return;
     if (triggerRef.current) {
       // measure() returns absolute page coordinates — works on both native and web
-      (triggerRef.current as any).measure(
+      triggerRef.current.measure(
         (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
           setDropdownPos({ top: pageY + height + 4, left: pageX, width });
           setOpen(true);
@@ -270,7 +271,7 @@ function Autocomplete<T extends { id: string }>({
                 placeholder="Type to search..."
                 placeholderTextColor="#94a3b8"
                 className="outline-none"
-                style={{
+                style={webTextStyle({
                   flex: 1,
                   marginLeft: 8,
                   fontSize: 12,
@@ -278,7 +279,7 @@ function Autocomplete<T extends { id: string }>({
                   color: '#0f2744',
                   height: '100%',
                   ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
-                } as any}
+                })}
                 autoFocus
               />
               {query.length > 0 && (
@@ -1323,7 +1324,7 @@ export default function RecipeManagement() {
                 placeholder="Filter materials..."
                 placeholderTextColor="#94a3b8"
                 className="flex-1 ml-2 text-[11px] font-semibold text-text-primary outline-none"
-                style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
               />
             </View>
 
@@ -1611,7 +1612,7 @@ export default function RecipeManagement() {
           <View className="flex-1 min-w-[90px] bg-slate-50 border border-slate-200 rounded-xl p-2.5 items-center">
             <Text className="text-[8px] font-black text-text-secondary uppercase">Selling Price</Text>
             <Text className="text-sm font-black font-mono text-text-primary mt-0.5">
-              ₹{linkedProduct!.price.toFixed(2)}
+              ₹{(linkedProduct?.price ?? 0).toFixed(2)}
             </Text>
           </View>
 
@@ -1714,7 +1715,7 @@ export default function RecipeManagement() {
             placeholder="Search recipes, products..."
             placeholderTextColor="#94a3b8"
             className="flex-1 ml-2 text-xs font-semibold text-text-primary outline-none"
-            style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+            style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>

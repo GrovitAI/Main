@@ -1,0 +1,239 @@
+/**
+ * Finance module — shared TypeScript contracts.
+ *
+ * Money convention: every rupee amount is a `number` in rupees (matches the
+ * existing bills/settlements columns). Paise are derived with
+ * finance-utils.toPaise() whenever exact arithmetic is required.
+ */
+
+export type ServiceResult<T> = {
+  data: T | null;
+  error: string | null;
+};
+
+export type FinancePreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
+
+export type FinanceTab = 'overview' | 'expenses' | 'cashbook' | 'dayclose';
+
+export const EXPENSE_PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'] as const;
+export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];
+
+export type ExpenseStatus = 'recorded' | 'void';
+
+export type Expense = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  amount: number;
+  amount_paise: number;
+  category: string;
+  description: string | null;
+  /** Calendar date the expense belongs to — YYYY-MM-DD (DB column `date`). */
+  expense_date: string;
+  payment_method: ExpensePaymentMethod;
+  payee: string | null;
+  reference_no: string | null;
+  notes: string | null;
+  receipt_url: string | null;
+  status: ExpenseStatus;
+  void_reason: string | null;
+  voided_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type ExpenseInput = {
+  amount: number;
+  category: string;
+  description: string | null;
+  expense_date: string;
+  payment_method: ExpensePaymentMethod;
+  payee: string | null;
+  reference_no: string | null;
+  notes: string | null;
+};
+
+/** Raw form values before validation (everything is a string from TextInput). */
+export type ExpenseFormValues = {
+  amount: string;
+  category: string;
+  description: string;
+  expense_date: string;
+  payment_method: ExpensePaymentMethod;
+  payee: string;
+  reference_no: string;
+  notes: string;
+};
+
+export type ExpenseFormErrors = Partial<Record<keyof ExpenseFormValues, string>>;
+
+export type ExpenseCategory = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type ExpenseListFilters = {
+  startDate: string;
+  endDate: string;
+  /** null/undefined = all accessible branches (owner/admin only). */
+  branchId: string | null;
+  category: string | null;
+  paymentMethod: ExpensePaymentMethod | null;
+  search: string;
+  includeVoid: boolean;
+  page: number;
+  pageSize: number;
+};
+
+export type ExpensePage = {
+  rows: Expense[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type FinanceFilters = {
+  preset: FinancePreset;
+  /** YYYY-MM-DD business dates (inclusive). */
+  startDate: string;
+  endDate: string;
+  /** null = all accessible branches (owner/admin). */
+  branchId: string | null;
+};
+
+export type PaymentSplitEntry = {
+  payment_type: string;
+  total: number;
+  count: number;
+};
+
+export type CategorySpend = {
+  category: string;
+  total: number;
+  count: number;
+};
+
+export type FinanceSummary = {
+  /** Paid, non-complimentary bill totals settled in range. */
+  grossSales: number;
+  billCount: number;
+  /** Money actually received (settlement rows) for paid, non-complimentary bills. */
+  collectedRevenue: number;
+  pendingCollections: number;
+  taxCollected: number;
+  discountsGiven: number;
+  complimentaryValue: number;
+  refundsTotal: number;
+  refundsCount: number;
+  expensesTotal: number;
+  expensesCount: number;
+  purchasesTotal: number;
+  purchasesCount: number;
+  /** Cash received via settlements. */
+  cashIn: number;
+  /** Cash paid out via expenses and cash refunds. */
+  cashOut: number;
+  paymentSplit: PaymentSplitEntry[];
+  expensesByCategory: CategorySpend[];
+};
+
+/** Derived, never stored — see finance-utils.computeProfitAndLoss(). */
+export type ProfitAndLoss = {
+  collectedRevenue: number;
+  refundsTotal: number;
+  netRevenue: number;
+  expensesTotal: number;
+  purchasesTotal: number;
+  totalOutflow: number;
+  netCashFlow: number;
+  /** netCashFlow / netRevenue, 0..1 range (may be negative). 0 when no revenue. */
+  margin: number;
+};
+
+export type FinanceDailyPoint = {
+  /** YYYY-MM-DD business date. */
+  date: string;
+  revenue: number;
+  orders: number;
+  expenses: number;
+  net: number;
+};
+
+export type LedgerEntryKind = 'sale' | 'expense' | 'refund';
+
+export type LedgerEntry = {
+  id: string;
+  kind: LedgerEntryKind;
+  occurred_at: string;
+  business_date: string;
+  title: string;
+  subtitle: string | null;
+  payment_method: string;
+  amount: number;
+  direction: 'in' | 'out';
+  reference: string | null;
+};
+
+export type LedgerTotals = {
+  totalIn: number;
+  totalOut: number;
+  net: number;
+  cashIn: number;
+  cashOut: number;
+  entryCount: number;
+};
+
+export type DayClosureStatus = 'open' | 'closed';
+
+export type DayClosure = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  business_date: string;
+  opening_cash: number;
+  cash_sales: number;
+  cash_refunds: number;
+  cash_expenses: number;
+  expected_cash: number;
+  counted_cash: number | null;
+  variance: number | null;
+  notes: string | null;
+  status: DayClosureStatus;
+  closed_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Live figures computed from settlements/expenses for a business date. */
+export type DayCloseComputation = {
+  business_date: string;
+  cashSales: number;
+  cashRefunds: number;
+  cashExpenses: number;
+  cashSettlementCount: number;
+  cashExpenseCount: number;
+};
+
+export type DayClosureInput = {
+  business_date: string;
+  opening_cash: number;
+  counted_cash: number | null;
+  notes: string | null;
+};
+
+/**
+ * Which parts of the proposed finance migration are present in the database.
+ * The UI uses this to degrade gracefully instead of failing.
+ */
+export type FinanceSchemaStatus = {
+  expensesExtended: boolean;
+  categoriesTable: boolean;
+  dayClosuresTable: boolean;
+  refundsExtended: boolean;
+  summaryRpc: boolean;
+};

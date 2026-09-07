@@ -1,10 +1,20 @@
 import { supabase } from './supabase';
-import { TENANT_ID, BRANCH_ID } from './tenant-context';
+import { getTenantContext } from './tenant-context';
+
+/** One seeded bill line. */
+type SeedOrderItem = {
+  product_id: string;
+  item_name: string;
+  price: number;
+  qty: number;
+};
 
 export async function seedDevDatabase(): Promise<void> {
   if (typeof __DEV__ === 'undefined' || !__DEV__) {
     return;
   }
+
+  const { tenant_id: TENANT_ID, branch_id: BRANCH_ID } = getTenantContext();
 
   try {
     // 1. Dynamic OpenAPI schema introspection to detect real database columns
@@ -56,11 +66,11 @@ export async function seedDevDatabase(): Promise<void> {
     const openOrderItemsFallback = ['open_order_id', 'product_id', 'item_name', 'price', 'qty', 'kot_sent'];
 
     const filterPayload = (
-      payload: Record<string, any>,
+      payload: Record<string, unknown>,
       allowedCols: Set<string>,
       fallbackCols: string[]
     ) => {
-      const filtered: Record<string, any> = {};
+      const filtered: Record<string, unknown> = {};
       const colsToUse = detectedSchemaSuccessfully ? allowedCols : new Set(fallbackCols);
       for (const [key, val] of Object.entries(payload)) {
         if (colsToUse.has(key)) {
@@ -366,7 +376,7 @@ export async function seedDevDatabase(): Promise<void> {
             
           if (!billErr && newBill) {
             // Insert bill items
-            const itemsPayload = _items.map((item: any) => ({
+            const itemsPayload = _items.map((item: SeedOrderItem) => ({
               bill_id: newBill.id,
               product_id: item.product_id,
               item_name: item.item_name,

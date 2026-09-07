@@ -12,13 +12,16 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getErrorMessage } from '../../lib/pos/error-utils';
 
+/** The tabs the settings screen can show. */
+type SettingsTab = 'system' | 'printers' | 'approvals';
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isPhone = width < 768;
   const { session, signOut } = useSessionStore();
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
-  const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'approvals'>('system');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('system');
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -232,9 +235,9 @@ export default function SettingsScreen() {
         {isPhone ? (
           <View className="flex-row bg-slate-100/90 p-1 rounded-2xl mb-4 border border-slate-200/60">
             {[
-              { key: 'system', label: 'System', icon: Settings },
-              { key: 'printers', label: 'Printers', icon: PrinterIcon },
-              ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approvals', icon: ShieldCheck }] : []),
+              { key: 'system' as SettingsTab, label: 'System', icon: Settings },
+              { key: 'printers' as SettingsTab, label: 'Printers', icon: PrinterIcon },
+              ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approvals', icon: ShieldCheck }] : []),
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
@@ -242,7 +245,7 @@ export default function SettingsScreen() {
                 <Pressable
                   key={tab.key}
                   testID={`settings-tab-${tab.key}`}
-                  onPress={() => setActiveTab(tab.key as any)}
+                  onPress={() => setActiveTab(tab.key)}
                   className={`flex-1 py-2 rounded-xl items-center justify-center min-h-[40px] flex-row gap-1.5 ${
                     isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent'
                   }`}
@@ -261,16 +264,16 @@ export default function SettingsScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
                 {[
-                  { key: 'system', label: 'System Settings', icon: Settings },
-                  { key: 'printers', label: 'Printer Configuration', icon: PrinterIcon },
-                  ...(isOwnerOrAdmin ? [{ key: 'approvals', label: 'Approval Policies', icon: ShieldCheck }] : []),
+                  { key: 'system' as SettingsTab, label: 'System Settings', icon: Settings },
+                  { key: 'printers' as SettingsTab, label: 'Printer Configuration', icon: PrinterIcon },
+                  ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approval Policies', icon: ShieldCheck }] : []),
                 ].map((tab) => {
                   const isSel = activeTab === tab.key;
                   const Icon = tab.icon;
                   return (
                     <Pressable
                       key={tab.key}
-                      onPress={() => setActiveTab(tab.key as any)}
+                      onPress={() => setActiveTab(tab.key)}
                       className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
                         isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
                       }`}
@@ -362,7 +365,7 @@ export default function SettingsScreen() {
                 <View className="flex-1">
                   <Text className="text-xs font-bold text-amber-800">No Configured Printers</Text>
                   <Text className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                    No printers have been synchronized yet. Please click the "Refresh List" button to fetch available printers from your PrintNode account.
+                    No printers have been synchronized yet. Please click the &quot;Refresh List&quot; button to fetch available printers from your PrintNode account.
                   </Text>
                 </View>
               </View>

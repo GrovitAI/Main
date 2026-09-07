@@ -27,6 +27,7 @@ import {
   TAX_RATE,
 } from '@/lib/pos/order-utils';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
+import { webTextStyle } from '@/lib/pos/web-style';
 
 type OrderPanelProps = {
   order: OpenOrder | null;
@@ -85,7 +86,14 @@ export function OrderPanel({
 }: OrderPanelProps) {
   const [saveKotHovered, setSaveKotHovered] = useState(false);
   const [savePrintHovered, setSavePrintHovered] = useState(false);
-  const WebPressable = Pressable as any;
+  // Pressable accepts web-only props (onMouseEnter/onMouseLeave) under
+  // React Native Web; the native types do not declare them.
+  const WebPressable = Pressable as React.ComponentType<
+    React.ComponentProps<typeof Pressable> & {
+      onMouseEnter?: () => void;
+      onMouseLeave?: () => void;
+    }
+  >;
 
   const [buttonFeedback, setButtonFeedback] = useState<{
     button: 'save_kot' | 'save_print' | 'settle' | null;
@@ -653,14 +661,14 @@ export function OrderPanel({
                       }}
                       onSubmitEditing={() => handleApplyLocalPercent()}
                       placeholderTextColor="#9CA3AF"
-                      style={{
+                      style={webTextStyle({
                         flex: 1,
                         fontSize: 12.5,
                         fontWeight: '600',
                         color: '#111827',
                         padding: 0,
                         ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
-                      } as any}
+                      })}
                     />
                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#6B7280', marginLeft: 4 }}>%</Text>
                   </View>
@@ -692,14 +700,14 @@ export function OrderPanel({
                       }}
                       onSubmitEditing={() => handleApplyLocalFixed()}
                       placeholderTextColor="#9CA3AF"
-                      style={{
+                      style={webTextStyle({
                         flex: 1,
                         fontSize: 12.5,
                         fontWeight: '600',
                         color: '#111827',
                         padding: 0,
                         ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
-                      } as any}
+                      })}
                     />
                   </View>
 

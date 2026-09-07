@@ -48,3 +48,18 @@ export const brand = {
   name: 'Le Leban',
   tagline: 'Restaurant POS',
 } as const;
+
+/**
+ * Semantic status colours — money in / money out / attention.
+ * Kept here so finance and reporting screens never hardcode hex values.
+ */
+export const semantic = {
+  success: '#15803d',
+  successSoft: '#dcfce7',
+  danger: '#b91c1c',
+  dangerSoft: '#fee2e2',
+  warning: '#b45309',
+  warningSoft: '#fef3c7',
+  neutral: '#64748b',
+  neutralSoft: '#f1f5f9',
+} as const;
