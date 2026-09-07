@@ -31,6 +31,16 @@ import { PhonePOSScreen } from '@/components/phone/PhonePOSScreen';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
 import { colors } from '@/lib/pos/brand';
+import { webTextStyle, webViewStyle } from '@/lib/pos/web-style';
+import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
+
+/**
+ * TextInput key event. React Native Web adds the browser modifier flags and
+ * preventDefault(), neither of which the native typings declare.
+ */
+type KeyPressEvent = NativeSyntheticEvent<
+  TextInputKeyPressEventData & { altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }
+> & { preventDefault?: () => void };
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
@@ -471,7 +481,7 @@ export default function PosBillingScreen() {
     }, 50);
   }, [qtyInput, selectedProduct, activeOrder, isEditingUnpaid, addProductToActiveOrder, showToast]);
 
-  const handleQtyKeyPress = useCallback((e: any) => {
+  const handleQtyKeyPress = useCallback((e: KeyPressEvent) => {
     const key = e.nativeEvent.key;
     if (key === 'Enter') {
       e.preventDefault?.();
@@ -1022,7 +1032,7 @@ export default function PosBillingScreen() {
     showToast,
   ]);
 
-  const handleSearchKeyPress = useCallback((e: any) => {
+  const handleSearchKeyPress = useCallback((e: KeyPressEvent) => {
     const key = e.nativeEvent.key;
     const altKey = e.nativeEvent.altKey;
 
@@ -1137,7 +1147,7 @@ export default function PosBillingScreen() {
     if (key === '/') {
       e.preventDefault?.();
       if (Platform.OS === 'web') {
-        const input = searchRef.current as any;
+        const input = searchRef.current as unknown as { select?: () => void } | null;
         if (input && typeof input.select === 'function') {
           input.select();
         }
@@ -1303,7 +1313,7 @@ export default function PosBillingScreen() {
                   keyboardType="number-pad"
                   onKeyPress={handleQtyKeyPress}
                   onSubmitEditing={handleQtySubmit}
-                  style={{
+                  style={webTextStyle({
                     fontSize: 13,
                     fontWeight: '700',
                     color: '#0f2744',
@@ -1316,7 +1326,7 @@ export default function PosBillingScreen() {
                     textAlign: 'center',
                     backgroundColor: '#e8f2fa',
                     outlineStyle: 'none',
-                  } as any}
+                  })}
                 />
                 {isTablet && (
                   <Text style={{ fontSize: 9, fontWeight: '600', color: '#5b6b7c' }}>
@@ -1336,7 +1346,7 @@ export default function PosBillingScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onKeyPress={handleSearchKeyPress}
-                style={{ fontSize: 13, fontWeight: '500', marginLeft: 8, flex: 1, color: '#111', outlineStyle: 'none' } as any}
+                style={webTextStyle({ fontSize: 13, fontWeight: '500', marginLeft: 8, flex: 1, color: '#111', outlineStyle: 'none' })}
                 editable={!isMutating}
               />
             </>
@@ -1381,11 +1391,11 @@ export default function PosBillingScreen() {
             {visibleProducts.map((item, index) => (
               <View
                 key={item.id}
-                style={{
+                style={webViewStyle({
                   width: isTablet ? 'calc(25% - 9px)' : 'calc(50% - 6px)',
                   minWidth: isTablet ? 150 : 120,
                   marginBottom: 12,
-                } as any}
+                })}
               >
                 <ProductCard
                   product={item}

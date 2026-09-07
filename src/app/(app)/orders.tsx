@@ -26,6 +26,7 @@ import {
 import { formatPaymentMode } from '@/lib/pos/format-utils';
 import { colors } from '@/lib/pos/brand';
 import type { OrderStatus } from '@/lib/pos/order-types';
+import type { OrderStatus as PhoneOrderStatus } from '@/components/phone/PhoneOrdersScreen';
 import { fetchOpenOrderById, getAllOrders, getOrders, settleOrderById, type OpenOrderSummary } from '@/lib/pos/open-orders-service';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
 import { ApprovalAction } from '@/lib/approval/approval.types';
@@ -37,6 +38,7 @@ import { getTenantContext } from '@/lib/pos/tenant-context';
 import { logSupabaseError } from '@/lib/pos/supabase-debug';
 import { printReceipt, buildReceiptText } from '@/services/printService';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { webTextStyle } from '@/lib/pos/web-style';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -46,7 +48,52 @@ const SEARCH_DEBOUNCE_MS = 200;
 
 // ─── Filter types ─────────────────────────────────────────────────────────────
 
+const PAYMENT_FILTERS = [
+  { id: 'all', label: 'All Payments' },
+  { id: 'cash', label: 'Cash' },
+  { id: 'upi', label: 'UPI' },
+  { id: 'card', label: 'Card' },
+  { id: 'complimentary', label: 'Complimentary' },
+] as const;
+
+const DATE_PRESETS = [
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
+  { id: '7days', label: 'Last 7 Days' },
+  { id: '30days', label: 'Last 30 Days' },
+  { id: 'custom', label: 'Custom Range' },
+] as const;
+
 type OrderFilter = 'held' | 'unpaid' | 'paid' | 'cancelled' | 'draft' | 'all';
+
+/** Narrows a capitalised status label from the phone screen to a filter id. */
+function toOrderFilter(value: string): OrderFilter {
+  switch (value.toLowerCase()) {
+    case 'held':
+    case 'unpaid':
+    case 'paid':
+    case 'cancelled':
+    case 'draft':
+      return value.toLowerCase() as OrderFilter;
+    default:
+      return 'all';
+  }
+}
+
+/** Capitalises an order status for the phone screen's display union. */
+function toDisplayStatus(status: string): PhoneOrderStatus {
+  const label = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  switch (label) {
+    case 'Unpaid':
+    case 'Draft':
+    case 'Held':
+    case 'Paid':
+    case 'Cancelled':
+      return label;
+    default:
+      return 'All';
+  }
+}
 
 const EDITABLE_STATUSES: OrderStatus[] = ['draft', 'open', 'held', 'unpaid', 'in_kitchen', 'payment_pending'];
 
@@ -177,7 +224,7 @@ export default function OrdersScreen() {
 
   // ── Detail modal state ───────────────────────────────────────────────────────
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
-  const [viewingItems, setViewingItems] = useState<{ name: string; qty: number }[]>([]);
+  const [viewingItems, setViewingItems] = useState<{ name: string; qty: number; price?: number }[]>([]);
   const [viewLoading, setViewLoading] = useState(false);
   const [modalFooterIndex, setModalFooterIndex] = useState(0);
 
@@ -493,7 +540,7 @@ export default function OrdersScreen() {
       const printItems = viewingItems.map((item) => ({
         name: item.name,
         qty: item.qty,
-        price: (item as any).price ?? 0,
+        price: item.price ?? 0,
       }));
 
       const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod, currentBranch);
@@ -672,7 +719,7 @@ export default function OrdersScreen() {
           activeFilter === 'paid' ? 'Paid' :
           activeFilter === 'cancelled' ? 'Cancelled' : 'All'
         }
-        onActiveOrdersFilterChange={(status) => setActiveFilter(status.toLowerCase() as any)}
+        onActiveOrdersFilterChange={(status) => setActiveFilter(toOrderFilter(status))}
         activeOrdersCounts={{
           Unpaid: kpi.unpaid,
           Draft: kpi.draft,
@@ -686,7 +733,7 @@ export default function OrdersScreen() {
         activeOrders={filteredSummaries.map((s, idx) => ({
           id: s.order.id,
           billIdentifier: getBillIdentifier(s, idx),
-          status: (s.order.status.charAt(0).toUpperCase() + s.order.status.slice(1)) as any,
+          status: toDisplayStatus(s.order.status),
           timestamp: s.order.created_at,
           total: s.totalAmount || 0,
           items: s.previewItems.map((pi) => ({
@@ -715,7 +762,7 @@ export default function OrdersScreen() {
         historyOrders={historySummaries.map((s, idx) => ({
           id: s.order.id,
           billIdentifier: getBillIdentifier(s, idx),
-          status: (s.order.status.charAt(0).toUpperCase() + s.order.status.slice(1)) as any,
+          status: toDisplayStatus(s.order.status),
           timestamp: s.order.created_at,
           total: s.totalAmount || 0,
           paymentMethod: formatPaymentMode(s.order.payment_method),
@@ -733,7 +780,7 @@ export default function OrdersScreen() {
         selectedOrder={selectedSummary ? {
           id: selectedSummary.order.id,
           billIdentifier: getBillIdentifier(selectedSummary, 0),
-          status: (selectedSummary.order.status.charAt(0).toUpperCase() + selectedSummary.order.status.slice(1)) as any,
+          status: toDisplayStatus(selectedSummary.order.status),
           timestamp: selectedSummary.order.created_at,
           total: selectedSummary.totalAmount || 0,
           items: viewingItems.map((vi) => ({
@@ -917,7 +964,7 @@ export default function OrdersScreen() {
               value={searchInputValue}
               onChangeText={setSearchInputValue}
               onSubmitEditing={handleSearchSubmit}
-              style={{ flex: 1, fontSize: 13.5, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' } as any}
+              style={webTextStyle({ flex: 1, fontSize: 13.5, fontWeight: '500', color: '#0F172A', marginLeft: 8, outlineStyle: 'none' })}
               returnKeyType="search"
             />
             {searchInputValue.length > 0 && (
@@ -951,13 +998,7 @@ export default function OrdersScreen() {
             <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Date Range</Text>
             <FlatList
               horizontal
-              data={[
-                { id: 'today', label: 'Today' },
-                { id: 'yesterday', label: 'Yesterday' },
-                { id: '7days', label: 'Last 7 Days' },
-                { id: '30days', label: 'Last 30 Days' },
-                { id: 'custom', label: 'Custom Range' },
-              ]}
+              data={DATE_PRESETS}
               keyExtractor={(item) => item.id}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 6 }}
@@ -966,7 +1007,7 @@ export default function OrdersScreen() {
                 return (
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => setDatePreset(item.id as any)}
+                    onPress={() => setDatePreset(item.id)}
                     style={{
                       paddingHorizontal: 10,
                       paddingVertical: 4,
@@ -994,7 +1035,7 @@ export default function OrdersScreen() {
                     value={customFromDate}
                     onChangeText={setCustomFromDate}
                     placeholder="YYYY-MM-DD"
-                    style={{
+                    style={webTextStyle({
                       fontSize: 11,
                       fontWeight: '600',
                       color: '#0F172A',
@@ -1005,7 +1046,7 @@ export default function OrdersScreen() {
                       paddingHorizontal: 8,
                       paddingVertical: 4,
                       outlineStyle: 'none',
-                    } as any}
+                    })}
                   />
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -1015,7 +1056,7 @@ export default function OrdersScreen() {
                     value={customToDate}
                     onChangeText={setCustomToDate}
                     placeholder="YYYY-MM-DD"
-                    style={{
+                    style={webTextStyle({
                       fontSize: 11,
                       fontWeight: '600',
                       color: '#0F172A',
@@ -1026,7 +1067,7 @@ export default function OrdersScreen() {
                       paddingHorizontal: 8,
                       paddingVertical: 4,
                       outlineStyle: 'none',
-                    } as any}
+                    })}
                   />
                 </View>
                 <Pressable
@@ -1073,13 +1114,7 @@ export default function OrdersScreen() {
             <Text style={{ fontSize: 10, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>Payment Method</Text>
             <FlatList
               horizontal
-              data={[
-                { id: 'all', label: 'All Payments' },
-                { id: 'cash', label: 'Cash' },
-                { id: 'upi', label: 'UPI' },
-                { id: 'card', label: 'Card' },
-                { id: 'complimentary', label: 'Complimentary' },
-              ]}
+              data={PAYMENT_FILTERS}
               keyExtractor={(item) => item.id}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 6 }}
@@ -1088,7 +1123,7 @@ export default function OrdersScreen() {
                 return (
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => setPaymentFilter(item.id as any)}
+                    onPress={() => setPaymentFilter(item.id)}
                     style={{
                       paddingHorizontal: 10,
                       paddingVertical: 4,
