@@ -6,7 +6,6 @@ import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type 
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
-import { getTenantContext } from '@/lib/pos/tenant-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Trash2 } from 'lucide-react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -17,7 +16,7 @@ export default function SettingsScreen() {
   const { width } = useWindowDimensions();
   const isPhone = width < 768;
   const { session, signOut } = useSessionStore();
-  const { isOwnerOrAdmin } = getTenantContext();
+  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
   const [activeTab, setActiveTab] = useState<'system' | 'printers' | 'approvals'>('system');
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);

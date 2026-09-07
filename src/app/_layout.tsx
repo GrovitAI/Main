@@ -1,11 +1,13 @@
 import '../../global.css';
 import { useEffect, useRef, useState } from 'react';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { ApprovalProvider } from '@/lib/approval/ApprovalContext';
+import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
+import { BREAKPOINTS } from '@/lib/pos/useResponsive';
 
 export const unstable_settings = {
   initialRouteName: '(auth)',
@@ -17,6 +19,9 @@ export default function RootLayout() {
   const restoreSession = useSessionStore((state) => state.restoreSession);
   const isAuthenticated = !!session;
   const prevAuthRef = useRef<boolean | null>(null);
+  const segments = useSegments();
+  const { width } = useWindowDimensions();
+  const isPhone = width < BREAKPOINTS.tablet;
 
   useEffect(() => {
     async function checkSession() {
@@ -33,11 +38,19 @@ export default function RootLayout() {
     if (prevAuthRef.current === isAuthenticated) return;
     prevAuthRef.current = isAuthenticated;
 
+    const currentGroup = segments[0] as string | undefined;
+
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
-    } else {
-      router.replace('/(app)');
+      return;
     }
+
+    // Already inside the app (e.g. a web deep link) — keep the requested screen.
+    if (currentGroup === '(app)' && segments.length > 1) return;
+
+    // Land on the role + device specific default screen (never on a hidden tab).
+    const target = session ? getDefaultHrefForRole(session.role, isPhone) : '/(app)';
+    router.replace(target as never);
   }, [isAuthenticated, isRestoring]);
 
   return (
@@ -45,10 +58,13 @@ export default function RootLayout() {
       <ApprovalProvider>
         <StatusBar style="dark" />
         <View style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(app)" />
-          </Stack>
+          {/* Routes mount only after session restore so screens never fetch without tenant context. */}
+          {!isRestoring && (
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(app)" />
+            </Stack>
+          )}
           {isRestoring && (
             <View
               style={{

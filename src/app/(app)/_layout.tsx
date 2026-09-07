@@ -187,7 +187,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       elevation: 10,
       transform: [
         {
-          translateX: (Platform.OS === 'web' && activeTabName === 'index') ? -105 : 0
+          translateX: (Platform.OS === 'web' && width >= 1200 && activeTabName === 'index') ? -105 : 0
         }
       ] as any,
     } : {

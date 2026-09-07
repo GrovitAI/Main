@@ -136,6 +136,15 @@ export function getDefaultScreenForRole(role: UserRole, isPhone = false): string
   }
 }
 
+/**
+ * Navigable href for the role/device default screen.
+ * Tab hrefs use the "/index" suffix for matching, but Expo Router only
+ * accepts "/(app)" for the index route, so strip it here.
+ */
+export function getDefaultHrefForRole(role: UserRole, isPhone = false): string {
+  return getDefaultScreenForRole(role, isPhone).replace(/[/]index$/, '');
+}
+
 export function getInitialRouteNameForRole(role: UserRole, isPhone = false): string {
   const defaultHref = getDefaultScreenForRole(role, isPhone);
   const tabs = getTabsForRole(role, isPhone);

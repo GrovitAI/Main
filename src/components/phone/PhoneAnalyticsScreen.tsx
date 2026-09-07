@@ -227,9 +227,20 @@ export function PhoneAnalyticsScreen({
               <Pressable
                 key={opt.key}
                 onPress={() => handlePresetClick(opt.key)}
-                className="px-4 py-2 rounded-full mr-2 min-h-[38px] items-center justify-center border flex-row"
+                accessibilityRole="button"
+                accessibilityState={{ selected: isActive }}
+                // Fully inline so the active background is never dropped by css-interop on web.
                 style={({ pressed }) => [
                   {
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    marginRight: 8,
+                    minHeight: 38,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                    borderWidth: 1,
                     backgroundColor: isActive ? '#0066B2' : '#FFFFFF',
                     borderColor: isActive ? '#0066B2' : '#CBD5E1',
                     shadowColor: isActive ? '#0066B2' : 'transparent',

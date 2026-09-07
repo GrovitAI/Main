@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Image, Pressable, Text, TextInput, View, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import { brand } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
+import { useResponsive } from '@/lib/pos/useResponsive';
 
 const logoSource = require('../../../assets/images/le-leban-logo.png');
 
@@ -15,6 +17,8 @@ export default function LoginScreen() {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const { signIn, session, error: authError, isLoading, clearError } = useSessionStore();
+  const { isPhone } = useResponsive();
+  const segments = useSegments();
 
   // Clear errors when user types
   useEffect(() => {
@@ -22,12 +26,14 @@ export default function LoginScreen() {
     if (authError) clearError();
   }, [email, password]);
 
-  // If user is already authenticated (e.g. from session restoration), redirect
+  // After a successful sign-in, land on the role/device default screen.
+  // Only redirect while the auth group is actually focused — under a deep link
+  // this screen stays mounted beneath the app routes and must not hijack them.
   useEffect(() => {
-    if (session) {
-      router.replace('/(app)');
+    if (session && segments[0] === '(auth)') {
+      router.replace(getDefaultHrefForRole(session.role, isPhone) as never);
     }
-  }, [session]);
+  }, [session, isPhone, segments]);
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim();

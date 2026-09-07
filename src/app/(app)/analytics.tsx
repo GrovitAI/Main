@@ -58,7 +58,7 @@ export default function AnalyticsScreen() {
 
   const { session } = useSessionStore();
   const insets = useSafeAreaInsets();
-  const { isPhone } = useResponsive();
+  const { isPhone, width: windowWidth } = useResponsive();
 
   // Branch filter — relevant for owner and admin
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
@@ -910,6 +910,17 @@ export default function AnalyticsScreen() {
   }, [dashboardData]);
 
   // Main Dashboard Content Grid
+  // KPI cards: 2 per row on phone, 3 on tablet, 5 on desktop.
+  // Without an explicit basis all ten cards squeeze into one row and truncate.
+  const kpiColumns = windowWidth >= 1280 ? 5 : windowWidth >= 768 ? 3 : 2;
+  const kpiCardStyle = {
+    flexGrow: 1,
+    // Subtract the row gap share so the intended column count actually fits.
+    flexBasis: `${100 / kpiColumns - 3}%` as const,
+    minWidth: 132,
+    maxWidth: '100%' as const,
+  };
+
   const renderDashboardContent = () => {
     if (loading && !dashboardData) {
       return (
@@ -953,7 +964,7 @@ export default function AnalyticsScreen() {
         {kpis && (
           <View className="flex-row flex-wrap justify-between gap-4">
             {/* 1. Total Sales */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Total Sales</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.totalSales).toLocaleString('en-IN')}
@@ -961,13 +972,13 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 2. Total Orders */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Total Orders</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.totalOrders}</Text>
             </View>
 
             {/* 3. AOV */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Avg Order</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.avgOrderValue).toLocaleString('en-IN')}
@@ -975,13 +986,13 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 4. Items Sold */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Items Sold</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.itemsSold}</Text>
             </View>
 
             {/* 5. Tax Collected */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Tax</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.taxCollected).toLocaleString('en-IN')}
@@ -989,13 +1000,13 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 6. Cancelled Orders */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Cancelled</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>{kpis.cancelledOrders}</Text>
             </View>
 
             {/* 7. Collected Revenue */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Revenue</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.collectedRevenue || 0).toLocaleString('en-IN')}
@@ -1003,7 +1014,7 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 8. Pending Collections */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Pending</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.pendingCollections || 0).toLocaleString('en-IN')}
@@ -1011,7 +1022,7 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 9. Total Discounts */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Discounts</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.totalDiscounts || 0).toLocaleString('en-IN')}
@@ -1019,7 +1030,7 @@ export default function AnalyticsScreen() {
             </View>
 
             {/* 10. Cancelled Sales */}
-            <View className="flex-1 min-w-[100px] bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
+            <View style={kpiCardStyle} className="bg-white border border-border/50 rounded-2xl p-4 shadow-sm justify-center">
               <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-wider" numberOfLines={1}>Cancelled Sales</Text>
               <Text className="text-lg lg:text-xl font-black text-textPrimary mt-1" numberOfLines={1}>
                 ₹{Math.round(kpis.cancelledSales || 0).toLocaleString('en-IN')}
