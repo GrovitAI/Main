@@ -84,15 +84,41 @@ The module reads `bills`, `settlements`, `expenses`,
 description, date, created_by, created_at`, and `refunds` is an empty shell
 with `id, tenant_id, branch_id, bill_id, created_at`.
 
-`supabase/migrations/20260907010000_finance_module.sql` closes that gap. **It
-has not been applied.** Review it before running it in the Supabase SQL editor.
+`supabase/migrations/20260907010000_finance_module.sql` closes that gap.
 
-As of 2026-09-07 **no migration in `supabase/migrations/` has been applied** —
-verified by probing the live database for each function and table. Row level
-security is not active: the anon key can still read all 4,571 bills, so audit
-item C1 is open. Apply `20260907000100_rls_policies.sql` before this file. If
-you apply this file first, the finance tables are created without policies;
-re-run this file after the RLS migration to install them. It is idempotent.
+### Applied 2026-09-07
+
+Applied to project `pyikrlqduampooncpzri` in one transaction, after a dry run
+in a rolled-back transaction confirmed every statement executes. Verified after
+commit:
+
+- `expenses` gained its 11 new columns, `refunds` its 8.
+- `expense_categories` created and seeded with 18 categories.
+- `finance_day_closures` created, empty.
+- `get_finance_summary` and `get_finance_daily_series` created, and the summary
+  cross-checks exactly against a manual aggregation (2,369 bills,
+  ₹10,05,212.30 collected over 30 days).
+
+No existing business data was touched. The only writes in the file target
+`expenses` and `refunds`, both of which were empty, plus inserts into the new
+category table. The file contains no `INSERT`/`UPDATE`/`DELETE` against
+`bills`, `bill_items`, `settlements`, `open_orders`, `products` or `kots`.
+
+### Row level security is still pending
+
+Section 6 was **skipped**, because it installs policies only when the `auth_*`
+helpers from `20260907000100_rls_policies.sql` exist, and that migration has not
+been applied. So `expense_categories`, `finance_day_closures` and `refunds`
+currently have **no row level security**, consistent with every other table in
+this database — the anon key can still read all bills, so audit item C1 remains
+open.
+
+**After applying `20260907000100_rls_policies.sql`, re-run this finance
+migration** to install the finance policies. It is idempotent and changes no
+data on a second run.
+
+As of 2026-09-07 the other six migrations in `supabase/migrations/` are still
+unapplied, including the atomic `settle_order` RPC and the RLS policies.
 
 | Change | Why |
 | :--- | :--- |
