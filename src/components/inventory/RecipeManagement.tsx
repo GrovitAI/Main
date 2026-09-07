@@ -305,7 +305,7 @@ function Autocomplete<T extends { id: string }>({
                   <Pressable
                     key={item.id}
                     onPress={() => handleSelect(item)}
-                    style={({ pressed, hovered }: any) => ({
+                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => ({
                       paddingHorizontal: 12,
                       paddingVertical: 10,
                       borderBottomWidth: idx < filtered.length - 1 ? 1 : 0,

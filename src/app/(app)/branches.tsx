@@ -37,6 +37,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
+import { getErrorMessage } from '../../lib/pos/error-utils';
 
 // ─── Form State ──────────────────────────────────────────────────────────────
 
@@ -108,8 +109,8 @@ export default function BranchesScreen() {
       } else {
         setFormError(data.error || 'Failed to send verification code.');
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Verification request error.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Verification request error.');
     } finally {
       setVerifyingEmail(false);
     }
@@ -137,8 +138,8 @@ export default function BranchesScreen() {
       } else {
         setFormError(data.error || 'Invalid verification code.');
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Verification confirmation error.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Verification confirmation error.');
     } finally {
       setVerifyingEmail(false);
     }

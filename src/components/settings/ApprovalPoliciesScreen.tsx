@@ -12,6 +12,7 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { approvalService } from '@/lib/approval/approval.service';
 import { ApprovalAction, BranchApprovalPolicies } from '@/lib/approval/approval.types';
 import { DEFAULT_APPROVAL_POLICIES, APPROVAL_ACTION_META } from '@/lib/approval/approval-policy-defaults';
+import { getErrorMessage } from '../../lib/pos/error-utils';
 
 export function ApprovalPoliciesScreen() {
   // Derived from the session store so a sign-out mid-render never throws.
@@ -62,8 +63,8 @@ export function ApprovalPoliciesScreen() {
         setPolicies(loadedPolicies);
         setInitialPolicies(loadedPolicies);
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to load approval settings.');
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err) || 'Failed to load approval settings.');
     } finally {
       setLoading(false);
     }
@@ -101,8 +102,8 @@ export function ApprovalPoliciesScreen() {
       setSuccessMsg('Approval policies saved successfully.');
 
       setTimeout(() => setSuccessMsg(null), 4000);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Error saving settings.');
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err) || 'Error saving settings.');
     } finally {
       setSaving(false);
     }

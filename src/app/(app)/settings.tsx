@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Trash2 } from 'lucide-react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../lib/pos/error-utils';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -62,8 +63,8 @@ export default function SettingsScreen() {
           );
         }
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to fetch PrintNode printers.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Failed to fetch PrintNode printers.');
     }
 
     // 3. Load configurations from database
@@ -99,8 +100,8 @@ export default function SettingsScreen() {
         setSuccessMsg(`Printer "${printer.name}" ${!printer.is_active ? 'enabled' : 'disabled'} successfully!`);
         await loadPrinters(false);
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to save printer.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Failed to save printer.');
     } finally {
       setSubmitting(false);
     }
@@ -121,8 +122,8 @@ export default function SettingsScreen() {
         setSuccessMsg(`Printer "${printer.name}" default status updated.`);
         await loadPrinters(false);
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to save printer.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Failed to save printer.');
     } finally {
       setSubmitting(false);
     }
@@ -144,8 +145,8 @@ export default function SettingsScreen() {
         setSuccessMsg(`Printer "${printer.name}" role set to ${newRole === 'bill' ? 'Billing' : 'Kitchen'}.`);
         await loadPrinters(false);
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to save printer.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Failed to save printer.');
     } finally {
       setSubmitting(false);
     }
@@ -163,8 +164,8 @@ export default function SettingsScreen() {
         setSuccessMsg('Printer configuration removed.');
         await loadPrinters(false);
       }
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to delete printer.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Failed to delete printer.');
     } finally {
       setSubmitting(false);
     }
@@ -177,8 +178,8 @@ export default function SettingsScreen() {
     try {
       await printerService.testPrinter(printer);
       setSuccessMsg(`Test print sent to "${printer.name}" successfully!`);
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to send test print.');
+    } catch (err) {
+      setFormError(getErrorMessage(err) || 'Failed to send test print.');
     } finally {
       setTestingPrinterId(null);
     }

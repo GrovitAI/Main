@@ -216,7 +216,7 @@ export default function AnalyticsScreen() {
       } else {
         setDashboardData(res.data);
       }
-    } catch (err: any) {
+    } catch (err) {
       if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) {
         return;
       }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { ShieldCheck, RefreshCw, X } from 'lucide-react-native';
+import { getErrorMessage } from '../../lib/pos/error-utils';
 
 interface ApprovalCodeDialogProps {
   visible: boolean;
@@ -57,8 +58,8 @@ export function ApprovalCodeDialog({
       if (!res.success) {
         setErrorMsg(res.error || 'Verification failed.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Verification error.');
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err) || 'Verification error.');
     } finally {
       setIsVerifying(false);
     }
@@ -76,8 +77,8 @@ export function ApprovalCodeDialog({
       } else {
         setErrorMsg(res.error || 'Failed to resend code.');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Resend error.');
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err) || 'Resend error.');
     } finally {
       setIsResending(false);
     }

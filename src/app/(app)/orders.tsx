@@ -792,7 +792,7 @@ export default function OrdersScreen() {
             accessibilityRole="button"
             accessibilityLabel="Refresh orders"
             onPress={handleRefresh}
-            style={({ pressed }: any) => [
+            style={({ pressed }: { pressed: boolean }) => [
               {
                 width: 36,
                 height: 36,
@@ -865,7 +865,7 @@ export default function OrdersScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={handleExportCsv}
-              style={({ pressed }: any) => [
+              style={({ pressed }: { pressed: boolean }) => [
                 {
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -929,7 +929,7 @@ export default function OrdersScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={handleSearchSubmit}
-            style={({ pressed }: any) => [
+            style={({ pressed }: { pressed: boolean }) => [
               {
                 backgroundColor: '#0066b2',
                 borderRadius: 8,
@@ -1032,7 +1032,7 @@ export default function OrdersScreen() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setIsDatePickerOpen(true)}
-                  style={({ pressed }: any) => [
+                  style={({ pressed }: { pressed: boolean }) => [
                     {
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -1433,7 +1433,7 @@ export default function OrdersScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Close preview"
                 onPress={closeViewModal}
-                style={({ pressed, hovered }: any) => [
+                style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                   {
                     width: 30,
                     height: 30,
@@ -1564,7 +1564,7 @@ export default function OrdersScreen() {
                         void handleOpenBill(viewingOrderId);
                       }}
                       onHoverIn={() => setModalFooterIndex(0)}
-                      style={({ pressed, hovered }: any) => [
+                      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                         {
                           flex: 1,
                           height: 40,
@@ -1599,7 +1599,7 @@ export default function OrdersScreen() {
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
                       onHoverIn={() => setModalFooterIndex(1)}
-                      style={({ pressed }: any) => [
+                      style={({ pressed }: { pressed: boolean }) => [
                         { flex: 1.5, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 1 && Platform.OS === 'web' && {
@@ -1632,7 +1632,7 @@ export default function OrdersScreen() {
                       accessibilityLabel="Reprint Bill"
                       onPress={handleReprintPreviousBill}
                       onHoverIn={() => setModalFooterIndex(0)}
-                      style={({ pressed }: any) => [
+                      style={({ pressed }: { pressed: boolean }) => [
                         { flex: 1, minWidth: 120, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 0 && Platform.OS === 'web' && {
@@ -1665,7 +1665,7 @@ export default function OrdersScreen() {
                         }
                       }}
                       onHoverIn={() => setModalFooterIndex(1)}
-                      style={({ pressed }: any) => [
+                      style={({ pressed }: { pressed: boolean }) => [
                         { flex: 1, minWidth: 120, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 1 && Platform.OS === 'web' && {
@@ -1691,7 +1691,7 @@ export default function OrdersScreen() {
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
                       onHoverIn={() => setModalFooterIndex(2)}
-                      style={({ pressed }: any) => [
+                      style={({ pressed }: { pressed: boolean }) => [
                         { flex: 1.5, minWidth: 120, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 2 && Platform.OS === 'web' && {
@@ -1723,7 +1723,7 @@ export default function OrdersScreen() {
                       accessibilityLabel="Close"
                       onPress={closeViewModal}
                       onHoverIn={() => setModalFooterIndex(0)}
-                      style={({ pressed, hovered }: any) => [
+                      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                         {
                           flex: 1,
                           minWidth: 140,
@@ -1762,7 +1762,7 @@ export default function OrdersScreen() {
                         void handleOpenBill(viewingOrderId);
                       }}
                       onHoverIn={() => setModalFooterIndex(1)}
-                      style={({ pressed }: any) => [
+                      style={({ pressed }: { pressed: boolean }) => [
                         { flex: 1.5, minWidth: 140, height: 40, overflow: 'hidden', borderRadius: 10 },
                         pressed && { transform: [{ scale: 0.98 }] },
                         modalFooterIndex === 1 && Platform.OS === 'web' && {
@@ -1798,7 +1798,7 @@ export default function OrdersScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Close"
                     onPress={closeViewModal}
-                    style={({ pressed, hovered }: any) => [
+                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                       {
                         flex: showReprint ? 1 : 1.5,
                         height: 40,
@@ -1923,7 +1923,7 @@ function HeaderSection({
         <Pressable
           accessibilityRole="button"
           onPress={onRefresh}
-          style={({ pressed }: any) => [
+          style={({ pressed }: { pressed: boolean }) => [
             {
               width: 36,
               height: 36,
@@ -1967,7 +1967,7 @@ function FilterPill({
       <Pressable
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }: any) => [
+        style={({ pressed }: { pressed: boolean }) => [
           { overflow: 'hidden', borderRadius: 99, height: 30 },
           pressed && { transform: [{ scale: 0.97 }] }
         ]}
@@ -1991,7 +1991,7 @@ function FilterPill({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed, hovered }: any) => [
+      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         {
           height: 30,
           paddingHorizontal: 12,

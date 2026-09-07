@@ -1,4 +1,5 @@
 import tls from 'tls';
+import { getErrorMessage } from '../pos/error-utils';
 
 export interface SendApprovalEmailInput {
   toEmail: string;
@@ -122,9 +123,9 @@ export async function sendApprovalEmail(input: SendApprovalEmailInput): Promise<
         console.error('[ApprovalEmail] Socket error:', err);
         resolve({ success: false, error: err.message });
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('[ApprovalEmail] Failed to connect:', err);
-      resolve({ success: false, error: err.message });
+      resolve({ success: false, error: getErrorMessage(err) });
     }
   });
 }

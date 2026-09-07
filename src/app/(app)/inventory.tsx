@@ -134,6 +134,7 @@ import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { getProducts, type Product } from '@/lib/pos/products-service';
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
+import { getErrorMessage } from '../../lib/pos/error-utils';
 import {
   validateImportRows,
   importRawMaterials,
@@ -764,8 +765,8 @@ export default function InventoryScreen() {
           }
         })
       );
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Unable to fetch inventory records.');
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err) || 'Unable to fetch inventory records.');
     } finally {
       setIsLoading(false);
     }
@@ -860,8 +861,8 @@ export default function InventoryScreen() {
       } else {
         Alert.alert('Info', 'Excel template download is supported on the web version.');
       }
-    } catch (err: any) {
-      Alert.alert('Error', 'Failed to generate template: ' + (err.message || err));
+    } catch (err) {
+      Alert.alert('Error', 'Failed to generate template: ' + (getErrorMessage(err) || err));
     }
   };
 
@@ -911,16 +912,16 @@ export default function InventoryScreen() {
             const summary = await validateImportRows(json);
             setImportSummary(summary);
             setIsImportModalOpen(true);
-          } catch (err: any) {
-            Alert.alert('Error', 'Failed to parse Excel file: ' + (err.message || err));
+          } catch (err) {
+            Alert.alert('Error', 'Failed to parse Excel file: ' + (getErrorMessage(err) || err));
           }
         };
         reader.readAsArrayBuffer(file);
       } else {
         Alert.alert('Info', 'Excel import is currently supported on the web version.');
       }
-    } catch (err: any) {
-      Alert.alert('Error', 'File picker error: ' + (err.message || err));
+    } catch (err) {
+      Alert.alert('Error', 'File picker error: ' + (getErrorMessage(err) || err));
     }
   };
 
@@ -944,9 +945,9 @@ export default function InventoryScreen() {
       } else {
         Alert.alert('Import Error', 'Import process finished without data or error.');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[Import] Execution threw error:', err);
-      Alert.alert('Error', 'An unexpected error occurred: ' + (err.message || err));
+      Alert.alert('Error', 'An unexpected error occurred: ' + (getErrorMessage(err) || err));
     } finally {
       setIsImporting(false);
     }
@@ -1048,8 +1049,8 @@ export default function InventoryScreen() {
       setIsMaterialModalOpen(false);
       invalidateEntities(['materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to save material.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to save material.');
     } finally {
       setIsLoading(false);
     }
@@ -1143,8 +1144,8 @@ export default function InventoryScreen() {
       setIsSupplierModalOpen(false);
       invalidateEntities(['suppliers']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to save supplier.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to save supplier.');
     } finally {
       setIsLoading(false);
     }
@@ -1215,8 +1216,8 @@ export default function InventoryScreen() {
       setIsCategoryModalOpen(false);
       invalidateEntities(['categories']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to save category.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to save category.');
     } finally {
       setIsLoading(false);
     }
@@ -1287,8 +1288,8 @@ export default function InventoryScreen() {
       setIsUnitModalOpen(false);
       invalidateEntities(['units']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to save unit.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to save unit.');
     } finally {
       setIsLoading(false);
     }
@@ -1440,8 +1441,8 @@ export default function InventoryScreen() {
       Alert.alert('Success', 'Transfer request created successfully.');
       invalidateEntities(['transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to create request.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to create request.');
     } finally {
       setIsLoading(false);
     }
@@ -1469,8 +1470,8 @@ export default function InventoryScreen() {
       setApprovedQuantities(initialApproved);
       setDispatchQuantities(initialDispatch);
       setIsApprovalModalOpen(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load request items.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to load request items.');
     } finally {
       setIsLoading(false);
     }
@@ -1491,8 +1492,8 @@ export default function InventoryScreen() {
       Alert.alert('Success', 'Transfer request approved.');
       invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to approve request.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to approve request.');
     } finally {
       setIsLoading(false);
     }
@@ -1508,8 +1509,8 @@ export default function InventoryScreen() {
       Alert.alert('Success', 'Transfer request rejected.');
       invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to reject request.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to reject request.');
     } finally {
       setIsLoading(false);
     }
@@ -1532,8 +1533,8 @@ export default function InventoryScreen() {
               Alert.alert('Success', 'Transfer request cancelled successfully.');
               invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
               await loadAllData(true);
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to cancel request.');
+            } catch (err) {
+              Alert.alert('Error', getErrorMessage(err) || 'Failed to cancel request.');
             } finally {
               setIsLoading(false);
             }
@@ -1563,8 +1564,8 @@ export default function InventoryScreen() {
       Alert.alert('Success', 'Stock dispatch shipment created.');
       invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to dispatch shipment.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to dispatch shipment.');
     } finally {
       setIsLoading(false);
     }
@@ -1587,8 +1588,8 @@ export default function InventoryScreen() {
       });
       setReceivedQuantities(initialReceived);
       setIsReceiveModalOpen(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to load dispatch items.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to load dispatch items.');
     } finally {
       setIsLoading(false);
     }
@@ -1611,8 +1612,8 @@ export default function InventoryScreen() {
       Alert.alert('Success', 'Shipment receipt recorded and ledger updated.');
       invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to record shipment receipt.');
+    } catch (err) {
+      Alert.alert('Error', getErrorMessage(err) || 'Failed to record shipment receipt.');
     } finally {
       setIsLoading(false);
     }
@@ -1627,7 +1628,7 @@ export default function InventoryScreen() {
       const res = await fetchTransferEvents(req.id);
       if (res.error) throw new Error(res.error);
       setRequestEvents(res.data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load events', err);
     } finally {
       setEventsLoading(false);
@@ -1717,8 +1718,8 @@ export default function InventoryScreen() {
       setPurchaseInvoiceDate(new Date().toISOString().split('T')[0]);
       invalidateEntities(['purchases', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to record purchase.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to record purchase.');
     } finally {
       setIsLoading(false);
     }
@@ -1755,8 +1756,8 @@ export default function InventoryScreen() {
       setWastageQty('');
       invalidateEntities(['wastages', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to record wastage.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to record wastage.');
     } finally {
       setIsLoading(false);
     }
@@ -1801,8 +1802,8 @@ export default function InventoryScreen() {
       setAdjRemarks('');
       invalidateEntities(['adjustments', 'materials', 'kpis']);
       await loadAllData(true);
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to record adjustment.');
+    } catch (err) {
+      setModalError(getErrorMessage(err) || 'Failed to record adjustment.');
     } finally {
       setIsLoading(false);
     }
@@ -5926,7 +5927,7 @@ export default function InventoryScreen() {
                 setActiveTab('dashboard');
                 setIsMobileMenuOpen(false);
               }}
-              style={({ hovered, pressed }: any) => [
+              style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
                 {
                   borderRadius: 12,
                   marginHorizontal: 6,
@@ -5970,7 +5971,7 @@ export default function InventoryScreen() {
             {/* Master Collapsible Group Header */}
             <Pressable
               onPress={() => setIsMasterExpanded(!isMasterExpanded)}
-              style={({ hovered, pressed }: any) => [
+              style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
                 {
                   borderRadius: 12,
                   marginHorizontal: 6,
@@ -6039,7 +6040,7 @@ export default function InventoryScreen() {
                         setActiveTab(sub.id as TabName);
                         setIsMobileMenuOpen(false);
                       }}
-                      style={({ hovered, pressed }: any) => [
+                      style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
                         {
                           borderRadius: sidebarExpanded ? 10 : 8,
                           marginHorizontal: sidebarExpanded ? 0 : 6,
@@ -6102,7 +6103,7 @@ export default function InventoryScreen() {
                     setActiveTab(item.id as TabName);
                     setIsMobileMenuOpen(false);
                   }}
-                  style={({ hovered, pressed }: any) => [
+                  style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
                     {
                       borderRadius: 12,
                       marginHorizontal: 6,
@@ -6146,7 +6147,7 @@ export default function InventoryScreen() {
 
           <Pressable
             onPress={() => setSidebarPinned((v) => !v)}
-            style={({ hovered }: any) => ({
+            style={({ hovered }: { hovered?: boolean }) => ({
               padding: 12,
               borderTopWidth: 1,
               borderTopColor: 'rgba(255,255,255,0.08)',
@@ -6288,7 +6289,7 @@ export default function InventoryScreen() {
                   setActiveTab('dashboard');
                   setIsMobileMenuOpen(false);
                 }}
-                style={({ pressed }: any) => [
+                style={({ pressed }: { pressed: boolean }) => [
                   {
                     borderRadius: 14,
                     paddingHorizontal: 10,
@@ -6335,7 +6336,7 @@ export default function InventoryScreen() {
               {/* Master Collapsible Group Header */}
               <Pressable
                 onPress={() => setIsMasterExpanded(!isMasterExpanded)}
-                style={({ pressed }: any) => [
+                style={({ pressed }: { pressed: boolean }) => [
                   {
                     borderRadius: 14,
                     paddingHorizontal: 10,
@@ -6386,7 +6387,7 @@ export default function InventoryScreen() {
                           setActiveTab(sub.id as TabName);
                           setIsMobileMenuOpen(false);
                         }}
-                        style={({ pressed }: any) => [
+                        style={({ pressed }: { pressed: boolean }) => [
                           {
                             borderRadius: 10,
                             paddingHorizontal: 8,
@@ -6447,7 +6448,7 @@ export default function InventoryScreen() {
                       setActiveTab(item.id as TabName);
                       setIsMobileMenuOpen(false);
                     }}
-                    style={({ pressed }: any) => [
+                    style={({ pressed }: { pressed: boolean }) => [
                       {
                         borderRadius: 14,
                         paddingHorizontal: 10,

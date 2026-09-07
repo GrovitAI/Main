@@ -111,7 +111,7 @@ export function ApprovalDialogContainer({ state, onClose }: ApprovalDialogContai
         // Execute protected action
         try {
           await state.onApproved();
-        } catch (actionErr: any) {
+        } catch (actionErr) {
           console.error('[ApprovalContainer] Protected action failed:', actionErr);
         } finally {
           // Always complete/consume the approval request
