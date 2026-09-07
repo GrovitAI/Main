@@ -1,9 +1,11 @@
 import { memo } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import type { PressableStateCallbackType, StyleProp, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Product } from '@/lib/pos/products-service';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
+import { colors } from '@/lib/pos/brand';
 
 type ProductCardProps = {
   product: Product;
@@ -21,9 +23,11 @@ export const ProductCard = memo(function ProductCard({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={`Add ${product.name}`}
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={() => onAdd(product)}
-      style={({ pressed, hovered }: any) => {
+      style={({ pressed, hovered }: PressableStateCallbackType): StyleProp<ViewStyle> => {
         const isSelected = highlighted || hovered;
         return [
           {
@@ -32,14 +36,14 @@ export const ProductCard = memo(function ProductCard({
             borderRadius: 18,
             paddingHorizontal: 14,
             paddingVertical: 12,
-            backgroundColor: '#FFFFFF',
-            shadowColor: isSelected ? '#0066b2' : '#101828',
+            backgroundColor: colors.background,
+            shadowColor: isSelected ? colors.primary : '#101828',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: isSelected ? 0.2 : 0.04,
             shadowRadius: isSelected ? 16 : 12,
             elevation: isSelected ? 3 : 1,
             borderWidth: 3,
-            borderColor: isSelected ? '#0066b2' : 'transparent',
+            borderColor: isSelected ? colors.primary : 'transparent',
           },
           pressed && {
             transform: [{ translateY: -1.5 }],

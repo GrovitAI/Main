@@ -1,10 +1,12 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import type { GestureResponderEvent, PressableStateCallbackType, StyleProp, ViewStyle } from 'react-native';
 import { Eye } from 'lucide-react-native';
 
 import type { OpenOrderSummary } from '@/lib/pos/open-orders-service';
 import type { OrderStatus } from '@/lib/pos/order-types';
 import { formatPaymentMode } from '@/lib/pos/format-utils';
+import { colors } from '@/lib/pos/brand';
 
 // ─── Status configuration ────────────────────────────────────────────────────
 
@@ -86,16 +88,12 @@ export const OrderCard = memo(function OrderCard({
   const ticketsCount = kotNumbers?.length ?? 0;
   const ticketsText = ticketsCount === 1 ? '1 kitchen ticket' : `${ticketsCount} kitchen tickets`;
 
-  // Manual hover and active state management to avoid nesting buttons
-  const [viewHovered, setViewHovered] = useState(false);
-  const [viewPressed, setViewPressed] = useState(false);
-
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${billId}`}
       onPress={onOpenBill}
-      style={({ pressed, hovered }: any) => [
+      style={({ pressed, hovered }: PressableStateCallbackType): StyleProp<ViewStyle> => [
         {
           margin: 8,
           flex: 1,
@@ -197,24 +195,20 @@ export const OrderCard = memo(function OrderCard({
               ))}
               
               {remainingItemLines > 0 && (
-                <Text
-                  onTouchStart={(e: any) => {
-                    e.stopPropagation();
-                  }}
-                  onTouchEnd={(e: any) => {
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${remainingItemLines} more items`}
+                  hitSlop={8}
+                  onPress={(e: GestureResponderEvent) => {
                     e.stopPropagation();
                     onViewOrder();
                   }}
-                  {...({
-                    onClick: (e: any) => {
-                       e.stopPropagation();
-                       onViewOrder();
-                    }
-                  } as any)}
-                  style={{ fontSize: 11.5, fontWeight: '700', color: '#0251B8', marginTop: 3, cursor: 'pointer', textDecorationLine: 'underline' }}
+                  style={{ alignSelf: 'flex-start', marginTop: 3 }}
                 >
-                  +{remainingItemLines} more items
-                </Text>
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#0251B8', textDecorationLine: 'underline' }}>
+                    +{remainingItemLines} more items
+                  </Text>
+                </Pressable>
               )}
             </View>
           )}
@@ -233,38 +227,15 @@ export const OrderCard = memo(function OrderCard({
         }}>
           
           {/* Bigger, clean View button in the footer */}
-          <View
-            onTouchStart={(e) => {
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View ${billId}`}
+            hitSlop={10}
+            onPress={(e: GestureResponderEvent) => {
               e.stopPropagation();
-              setViewPressed(true);
-            }}
-            onTouchEnd={(e) => {
-              e.stopPropagation();
-              setViewPressed(false);
               onViewOrder();
             }}
-            {...({
-              onMouseEnter: () => setViewHovered(true),
-              onMouseLeave: () => {
-                setViewHovered(false);
-                setViewPressed(false);
-              },
-              onMouseDown: (e: any) => {
-                e.stopPropagation();
-                setViewPressed(true);
-              },
-              onMouseUp: (e: any) => {
-                e.stopPropagation();
-                if (viewPressed) {
-                  setViewPressed(false);
-                  onViewOrder();
-                }
-              },
-              onClick: (e: any) => {
-                e.stopPropagation();
-              }
-            } as any)}
-            style={[
+            style={({ pressed, hovered }: PressableStateCallbackType): StyleProp<ViewStyle> => [
               {
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -272,24 +243,23 @@ export const OrderCard = memo(function OrderCard({
                 paddingVertical: 3.5,
                 paddingHorizontal: 8.5,
                 borderRadius: 6,
-                backgroundColor: '#E8F2FA',
+                backgroundColor: colors.surfaceTint,
                 borderWidth: 1,
                 borderColor: '#C7D9EC',
-                cursor: 'pointer',
               },
-              viewHovered && {
+              hovered && {
                 backgroundColor: '#D6E4F0',
                 borderColor: '#A5C1DC',
               },
-              viewPressed && {
+              pressed && {
                 transform: [{ scale: 0.96 }],
                 backgroundColor: '#C2D5E6',
-              }
+              },
             ]}
           >
             <Eye size={10} color="#0251B8" />
             <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#0251B8' }}>View</Text>
-          </View>
+          </Pressable>
 
           {/* Total Label and Amount side-by-side on the right */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

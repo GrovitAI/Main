@@ -1,7 +1,6 @@
 import React from 'react';
 import { Image, Text, View } from 'react-native';
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 export function SidebarLogoSection() {

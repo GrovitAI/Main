@@ -32,6 +32,13 @@ export type CreateBranchPayload = {
 
 export type UpdateBranchPayload = Partial<CreateBranchPayload & { is_active: boolean }>;
 
+type BranchApprovalSettingRow = {
+  branch_id: string;
+  approval_email: string | null;
+  enabled: boolean | null;
+  approval_email_verified: boolean | null;
+};
+
 // ─── Service Functions ────────────────────────────────────────────────────────
 
 /**
@@ -49,8 +56,8 @@ export async function fetchBranches(): Promise<{ data: Branch[]; error: string |
       .order('name');
 
     if (error) {
-      console.error('[branch-service] fetchBranches error:', error);
-      return { data: [], error: error.message };
+      console.error('fetchBranches failed', error);
+      return { data: [], error: 'Unable to load branches. Please try again.' };
     }
 
     const { data: approvalSettings } = await supabase
@@ -58,23 +65,26 @@ export async function fetchBranches(): Promise<{ data: Branch[]; error: string |
       .select('*')
       .eq('tenant_id', tenant_id);
 
-    const approvalMap = (approvalSettings ?? []).reduce((acc: Record<string, { approval_email: string; enabled: boolean; verified: boolean }>, item: any) => {
-      acc[item.branch_id] = { approval_email: item.approval_email, enabled: item.enabled, verified: !!item.approval_email_verified };
-      return acc;
-    }, {});
+    const approvalMap: Record<string, { approval_email: string; enabled: boolean; verified: boolean }> = {};
+    for (const item of (approvalSettings ?? []) as BranchApprovalSettingRow[]) {
+      approvalMap[item.branch_id] = {
+        approval_email: item.approval_email ?? '',
+        enabled: item.enabled ?? true,
+        verified: item.approval_email_verified === true,
+      };
+    }
 
-    const enriched = (data ?? []).map((b: any) => ({
+    const enriched: Branch[] = ((data ?? []) as Branch[]).map((b) => ({
       ...b,
       approval_email: approvalMap[b.id]?.approval_email || '',
       approval_email_verified: approvalMap[b.id]?.verified ?? false,
       approval_enabled: approvalMap[b.id]?.enabled ?? true,
     }));
 
-    return { data: enriched as Branch[], error: null };
+    return { data: enriched, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to fetch branches.';
-    console.error('[branch-service] fetchBranches exception:', err);
-    return { data: [], error: msg };
+    console.error('fetchBranches failed', err);
+    return { data: [], error: 'Unable to load branches. Please try again.' };
   }
 }
 
@@ -103,8 +113,8 @@ export async function createBranch(
       .single();
 
     if (error) {
-      console.error('[branch-service] createBranch error:', error);
-      return { data: null, error: error.message };
+      console.error('createBranch failed', error);
+      return { data: null, error: 'Unable to create branch. Please try again.' };
     }
 
     if (payload.approval_email !== undefined) {
@@ -119,9 +129,8 @@ export async function createBranch(
 
     return { data: data as Branch, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to create branch.';
-    console.error('[branch-service] createBranch exception:', err);
-    return { data: null, error: msg };
+    console.error('createBranch failed', err);
+    return { data: null, error: 'Unable to create branch. Please try again.' };
   }
 }
 
@@ -155,8 +164,8 @@ export async function updateBranch(
         .single();
 
       if (error) {
-        console.error('[branch-service] updateBranch error:', error);
-        return { data: null, error: error.message };
+        console.error('updateBranch failed', error);
+        return { data: null, error: 'Unable to update branch. Please try again.' };
       }
     }
 
@@ -186,8 +195,7 @@ export async function updateBranch(
 
     return { data: null, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Failed to update branch.';
-    console.error('[branch-service] updateBranch exception:', err);
-    return { data: null, error: msg };
+    console.error('updateBranch failed', err);
+    return { data: null, error: 'Unable to update branch. Please try again.' };
   }
 }

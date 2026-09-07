@@ -344,7 +344,8 @@ export async function importRawMaterials(
     }
 
     return { data: { success: true, count: importCount }, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Import execution failed.' };
+  } catch (err) {
+    console.error('importRawMaterials failed', err);
+    return { data: null, error: 'Unable to import raw materials. Please try again.' };
   }
 }

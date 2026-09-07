@@ -7,7 +7,16 @@ export interface PrintPayload {
   content: string | string[];
 }
 
-export async function sendPrintJob(payload: PrintPayload): Promise<any> {
+export interface PrintAgentResponse {
+  success?: boolean;
+  message?: string;
+}
+
+function isPrintAgentResponse(value: unknown): value is PrintAgentResponse {
+  return typeof value === 'object' && value !== null;
+}
+
+export async function sendPrintJob(payload: PrintPayload): Promise<PrintAgentResponse> {
   const response = await fetch(`${PRINT_AGENT_URL}/print`, {
     method: 'POST',
     headers: {
@@ -20,7 +29,8 @@ export async function sendPrintJob(payload: PrintPayload): Promise<any> {
     throw new Error('Print agent unavailable');
   }
 
-  return response.json();
+  const body: unknown = await response.json();
+  return isPrintAgentResponse(body) ? body : {};
 }
 
 export async function checkAgentHealth(): Promise<boolean> {

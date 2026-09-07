@@ -16,7 +16,6 @@ type CategoryTabItem = {
   name: string;
 };
 
-/* eslint-disable @typescript-eslint/no-require-imports */
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 function getCategoryIcon(name: string, color: string) {

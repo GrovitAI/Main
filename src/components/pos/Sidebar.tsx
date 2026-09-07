@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Animated,
   Easing,
@@ -6,8 +6,17 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
+} from 'react-native';
+import type {
+  ImageSourcePropType,
+  ImageStyle,
+  PressableStateCallbackType,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
 } from 'react-native';
 import {
   CakeSlice,
@@ -26,6 +35,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { Category } from '@/lib/pos/products-service';
+import { colors } from '@/lib/pos/brand';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -40,39 +50,45 @@ type CategoryTabItem = {
   name: string;
 };
 
+/** Web-only CSS properties layered on top of RN style types (ignored on native). */
+type WebViewStyle = ViewStyle & { transition?: string; willChange?: string };
+type WebTextStyle = TextStyle & { whiteSpace?: 'nowrap' };
+type WebImageStyle = ImageStyle & { transition?: string };
+
 // ─── Constants ───────────────────────────────────────────────────────────────────
 
 const COLLAPSED_W = 52;
 const EXPANDED_W = 180;
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
+const leLabanLogo: ImageSourcePropType = require('@/../assets/images/le-leban-logo.png');
+
+const NOWRAP: WebTextStyle = Platform.OS === 'web' ? { whiteSpace: 'nowrap' } : {};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
 function getCategoryIcon(name: string, isActive: boolean) {
-  const color = '#ffffff';
+  const color = colors.textOnPrimary;
   const size = 18;
-  const opacity = isActive ? 1 : 0.75;
+  const style: ViewStyle = { opacity: isActive ? 1 : 0.75 };
 
   const lower = name.toLowerCase().trim();
-  if (lower === 'all' || lower === 'all items') return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
-  
+  if (lower === 'all' || lower === 'all items') return <LayoutGrid color={color} size={size} style={style} />;
+
   // Custom sweet-shop dessert mapping (.includes matches substring/variations robustly)
-  if (lower.includes('signature')) return <Sparkles color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('salankatia')) return <CakeSlice color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('koushiri') || lower.includes('koshari')) return <Layers color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('qashtuta')) return <IceCream color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('signature')) return <Sparkles color={color} size={size} style={style} />;
+  if (lower.includes('salankatia')) return <CakeSlice color={color} size={size} style={style} />;
+  if (lower.includes('koushiri') || lower.includes('koshari')) return <Layers color={color} size={size} style={style} />;
+  if (lower.includes('qashtuta')) return <IceCream color={color} size={size} style={style} />;
 
   // General fallbacks
-  if (lower.includes('cake')) return <CakeSlice color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('kunafa')) return <Sandwich color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('cup') && !lower.includes('drink')) return <CupSoda color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('drink') || lower.includes('shake')) return <GlassWater color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('hot') || lower.includes('beverage')) return <Coffee color={color} size={size} style={{ opacity } as any} />;
-  if (lower.includes('add')) return <CirclePlus color={color} size={size} style={{ opacity } as any} />;
-  
-  return <LayoutGrid color={color} size={size} style={{ opacity } as any} />;
+  if (lower.includes('cake')) return <CakeSlice color={color} size={size} style={style} />;
+  if (lower.includes('kunafa')) return <Sandwich color={color} size={size} style={style} />;
+  if (lower.includes('cup') && !lower.includes('drink')) return <CupSoda color={color} size={size} style={style} />;
+  if (lower.includes('drink') || lower.includes('shake')) return <GlassWater color={color} size={size} style={style} />;
+  if (lower.includes('hot') || lower.includes('beverage')) return <Coffee color={color} size={size} style={style} />;
+  if (lower.includes('add')) return <CirclePlus color={color} size={size} style={style} />;
+
+  return <LayoutGrid color={color} size={size} style={style} />;
 }
 
 // ─── Decoration ──────────────────────────────────────────────────────────────────
@@ -80,6 +96,7 @@ function getCategoryIcon(name: string, isActive: boolean) {
 function SidebarDecoration() {
   return (
     <View
+      pointerEvents="none"
       style={{
         position: 'absolute',
         left: 0,
@@ -87,13 +104,12 @@ function SidebarDecoration() {
         bottom: 0,
         height: 180,
         opacity: 0.08,
-        pointerEvents: 'none',
         overflow: 'hidden',
-      } as any}
+      }}
     >
-      <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: '#ffffff' }} />
+      <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: colors.textOnPrimary }} />
+      <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: colors.textOnPrimary }} />
+      <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: colors.textOnPrimary }} />
     </View>
   );
 }
@@ -107,40 +123,25 @@ function SidebarLabel({
 }: {
   expanded: boolean;
   children: React.ReactNode;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }) {
   if (Platform.OS !== 'web') {
     return expanded ? <>{children}</> : null;
   }
 
-  const flattened = style ? (Array.isArray(style) ? Object.assign({}, ...style) : style) : {};
-  const currentMarginLeft = 'marginLeft' in flattened ? flattened.marginLeft : 0;
-  const currentMarginRight = 'marginRight' in flattened ? flattened.marginRight : 0;
+  const flattened: ViewStyle = StyleSheet.flatten(style) ?? {};
+  const { marginLeft: currentMarginLeft = 0, marginRight: currentMarginRight = 0, flex: _flex, ...cleanedStyle } = flattened;
 
-  const cleanedStyle = { ...flattened };
-  delete cleanedStyle.marginLeft;
-  delete cleanedStyle.marginRight;
-  delete cleanedStyle.flex;
+  const animatedStyle: WebViewStyle = {
+    overflow: 'hidden',
+    maxWidth: expanded ? 200 : 0,
+    opacity: expanded ? 1 : 0,
+    marginLeft: expanded ? currentMarginLeft : 0,
+    marginRight: expanded ? currentMarginRight : 0,
+    transition: 'max-width 200ms cubic-bezier(0.4,0,0.2,1), opacity 150ms ease, margin-left 200ms cubic-bezier(0.4,0,0.2,1), margin-right 200ms cubic-bezier(0.4,0,0.2,1)',
+  };
 
-  return (
-    <View
-      style={[
-        {
-          overflow: 'hidden',
-        } as any,
-        {
-          maxWidth: expanded ? 200 : 0,
-          opacity: expanded ? 1 : 0,
-          marginLeft: expanded ? currentMarginLeft : 0,
-          marginRight: expanded ? currentMarginRight : 0,
-          transition: 'max-width 200ms cubic-bezier(0.4,0,0.2,1), opacity 150ms ease, margin-left 200ms cubic-bezier(0.4,0,0.2,1), margin-right 200ms cubic-bezier(0.4,0,0.2,1)',
-        } as any,
-        cleanedStyle,
-      ]}
-    >
-      {children}
-    </View>
-  );
+  return <View style={[animatedStyle, cleanedStyle]}>{children}</View>;
 }
 
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────────
@@ -167,29 +168,20 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
     ...categories.map((c) => ({ id: c.id, name: c.name })),
   ];
 
-  const wrapperStyle =
-    Platform.OS === 'web'
-      ? ({
-          width: pinned ? EXPANDED_W : COLLAPSED_W,
-          minWidth: COLLAPSED_W,
-          maxWidth: EXPANDED_W,
-          flexShrink: 0,
-          height: '100%',
-          transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
-          willChange: 'width',
-          zIndex: 100,
-        } as any)
-      : {
-          width: pinned ? EXPANDED_W : COLLAPSED_W,
-          minWidth: COLLAPSED_W,
-          maxWidth: EXPANDED_W,
-          flexShrink: 0,
-          height: '100%',
-        };
+  const wrapperStyle: WebViewStyle = {
+    width: pinned ? EXPANDED_W : COLLAPSED_W,
+    minWidth: COLLAPSED_W,
+    maxWidth: EXPANDED_W,
+    flexShrink: 0,
+    height: '100%',
+    ...(Platform.OS === 'web'
+      ? { transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)', willChange: 'width', zIndex: 100 }
+      : {}),
+  };
 
-  const drawerStyle =
+  const drawerStyle: WebViewStyle | Animated.WithAnimatedObject<ViewStyle> =
     Platform.OS === 'web'
-      ? ({
+      ? {
           position: 'absolute',
           left: 0,
           top: 0,
@@ -206,30 +198,38 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           shadowOpacity: expanded && !pinned ? 0.25 : 0,
           shadowRadius: 20,
           elevation: expanded && !pinned ? 10 : 0,
-        } as any)
+        }
       : {
-          position: 'absolute' as const,
+          position: 'absolute',
           left: 0,
           top: 0,
           bottom: 0,
           width: widthAnim,
           minWidth: COLLAPSED_W,
           maxWidth: EXPANDED_W,
-          flexDirection: 'column' as const,
+          flexDirection: 'column',
           height: '100%',
         };
 
+  const logoStyle: WebImageStyle = {
+    height: expanded ? 52 : 32,
+    width: expanded ? 84 : 32,
+    resizeMode: 'contain',
+    opacity: 0.96,
+    ...(Platform.OS === 'web'
+      ? { transition: 'width 200ms cubic-bezier(0.4,0,0.2,1), height 200ms cubic-bezier(0.4,0,0.2,1)' }
+      : {}),
+  };
+
   return (
-    <View
+    <Pressable
+      accessible={false}
+      focusable={false}
       style={wrapperStyle}
-      {...(Platform.OS === 'web'
-        ? {
-            onMouseEnter: () => setHovered(true),
-            onMouseLeave: () => setHovered(false),
-          }
-        : {})}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
     >
-      <View style={drawerStyle}>
+      <Animated.View style={drawerStyle}>
         {/* Background gradient */}
         <LinearGradient
           colors={['#0251b8', '#013b8c', '#012f70']}
@@ -250,35 +250,25 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
             overflow: 'hidden',
           }}
         >
-          <Image
-            source={leLabanLogo}
-            style={{
-              height: expanded ? 52 : 32,
-              width: expanded ? 84 : 32,
-              resizeMode: 'contain',
-              opacity: 0.96,
-              ...(Platform.OS === 'web'
-                ? { transition: 'width 200ms cubic-bezier(0.4,0,0.2,1), height 200ms cubic-bezier(0.4,0,0.2,1)' }
-                : {}),
-            } as any}
-            accessibilityLabel="Le Leban logo"
-          />
+          <Image source={leLabanLogo} style={logoStyle} accessibilityLabel="Le Leban logo" />
           <SidebarLabel expanded={expanded} style={{ alignItems: 'center' }}>
             <Text
-              style={{
-                fontSize: 11,
-                fontWeight: '700',
-                letterSpacing: -0.3,
-                color: '#FFFFFF',
-                marginTop: 4,
-                whiteSpace: 'nowrap',
-              } as any}
+              style={[
+                {
+                  fontSize: 11,
+                  fontWeight: '700',
+                  letterSpacing: -0.3,
+                  color: colors.textOnPrimary,
+                  marginTop: 4,
+                },
+                NOWRAP,
+              ]}
             >
               Main Branch
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
               <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
-              <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' } as any}>
+              <Text style={[{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)' }, NOWRAP]}>
                 Online
               </Text>
             </View>
@@ -302,8 +292,10 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
               <Pressable
                 key={item.id ?? 'all'}
                 accessibilityRole="button"
+                accessibilityLabel={item.name}
+                accessibilityState={{ selected: isActive }}
                 onPress={() => onSelectCategory(item.id)}
-                style={({ hovered: h, pressed }: any) => [
+                style={({ hovered: h, pressed }: PressableStateCallbackType): StyleProp<ViewStyle> => [
                   {
                     borderRadius: 14,
                     height: 44,
@@ -345,13 +337,15 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
                 {/* Label — fades in via CSS, no layout jump */}
                 <SidebarLabel expanded={expanded} style={{ marginLeft: 10 }}>
                   <Text
-                    style={{
-                      fontSize: 12,
-                      lineHeight: 15,
-                      fontWeight: isActive ? '600' : '500',
-                      color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
-                      whiteSpace: 'nowrap',
-                    } as any}
+                    style={[
+                      {
+                        fontSize: 12,
+                        lineHeight: 15,
+                        fontWeight: isActive ? '600' : '500',
+                        color: isActive ? colors.textOnPrimary : 'rgba(255,255,255,0.8)',
+                      },
+                      NOWRAP,
+                    ]}
                     numberOfLines={1}
                   >
                     {item.name}
@@ -365,11 +359,14 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
         {/* Pin / collapse footer */}
         <Pressable
           onPress={() => setPinned(!pinned)}
+          accessibilityRole="button"
           accessibilityLabel={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}
-          style={({ hovered: h }: any) => ({
+          accessibilityState={{ selected: pinned }}
+          style={({ hovered: h }: PressableStateCallbackType): ViewStyle => ({
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
+            minHeight: 44,
             paddingHorizontal: 12,
             paddingVertical: 12,
             borderTopWidth: 1,
@@ -380,13 +377,15 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
         >
           <SidebarLabel expanded={expanded} style={{ marginRight: 6 }}>
             <Text
-              style={{
-                fontSize: 8,
-                fontWeight: '700',
-                letterSpacing: 0.4,
-                color: 'rgba(255,255,255,0.4)',
-                whiteSpace: 'nowrap',
-              } as any}
+              style={[
+                {
+                  fontSize: 8,
+                  fontWeight: '700',
+                  letterSpacing: 0.4,
+                  color: 'rgba(255,255,255,0.4)',
+                },
+                NOWRAP,
+              ]}
             >
               {pinned ? 'PINNED' : 'AUTO-HIDE'}
             </Text>
@@ -397,7 +396,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
             <PanelLeft size={14} color="rgba(255,255,255,0.5)" />
           )}
         </Pressable>
-      </View>
-    </View>
+      </Animated.View>
+    </Pressable>
   );
 }

@@ -164,6 +164,12 @@ function formatItemLines(
 
 // ─── Receipt builder ──────────────────────────────────────────────────────────
 
+export type ReceiptBranch = {
+  phone?: string | null;
+  gstin?: string | null;
+  address?: string | null;
+};
+
 export type ReceiptItem = {
   name: string;
   qty: number;
@@ -184,7 +190,7 @@ export function buildReceiptText(
   items: ReceiptItem[],
   totalAmount: number,
   paymentMethod?: string | null,
-  branch?: any,
+  branch?: ReceiptBranch | null,
   discountAmount = 0,
   discountType: 'percent' | 'fixed' | null = null,
   discountValue = 0
@@ -199,8 +205,8 @@ export function buildReceiptText(
   const phone = branch?.phone || cfg.phone.replace('PH:', '').trim();
   const gstin = branch?.gstin;
 
-  const addressRaw = branch?.address || `${cfg.addressLine1}, ${cfg.addressLine2}, ${cfg.addressLine3}`;
-  const addressParts = addressRaw.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean);
+  const addressRaw: string = branch?.address || `${cfg.addressLine1}, ${cfg.addressLine2}, ${cfg.addressLine3}`;
+  const addressParts = addressRaw.split(/[,\n]/).map((p) => p.trim()).filter(Boolean);
 
   // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
   const printNvLogo = '\x1Cp\x01\x00'; 

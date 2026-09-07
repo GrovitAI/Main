@@ -209,7 +209,8 @@ export async function syncPrintNodePrinters(
     }
 
     return { data: undefined, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Sync failed.' };
+  } catch (err) {
+    console.error('syncPrintNodePrinters failed', err);
+    return { data: null, error: 'Unable to sync PrintNode printers. Please try again.' };
   }
 }

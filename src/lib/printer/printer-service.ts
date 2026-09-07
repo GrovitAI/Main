@@ -15,6 +15,27 @@ export type PrintNodePrinter = {
   };
 };
 
+export type ReceiptBranchInfo = {
+  phone?: string | null;
+  gstin?: string | null;
+  address?: string | null;
+};
+
+export type PrintableBillItem = {
+  product_name?: string | null;
+  item_name?: string | null;
+  qty: number;
+  price: number;
+};
+
+function getErrorName(err: unknown): string {
+  return err instanceof Error ? err.name : '';
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const getApiBaseUrl = () => {
   if (typeof window !== 'undefined' && window.location) {
     return window.location.origin;
@@ -72,9 +93,9 @@ async function testTcpPort(ip: string, port: number, timeoutMs = 2000): Promise<
     });
     clearTimeout(id);
     return true;
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(id);
-    if (err.name === 'AbortError') {
+    if (getErrorName(err) === 'AbortError') {
       return false; // Connection timed out (port closed/printer offline)
     }
     return true; // CORS block or Connection Refused means port is open and handshake started!
@@ -225,7 +246,7 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
  */
 const SHOW_GST_INFORMATION = false;
 
-function buildHeader(width = 48, branch?: any): string[] {
+function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   // ESC/POS bold only — do NOT use double-width here.
   const boldOn  = '\x1B\x45\x01';
   const boldOff = '\x1B\x45\x00';
@@ -238,15 +259,15 @@ function buildHeader(width = 48, branch?: any): string[] {
   const gstin = branch?.gstin;
 
   // Split address by commas or newlines to center each part cleanly on its own line
-  const addressRaw = branch?.address || 'No. 13, Balaji Nagar Main Road, Kolathur, Chennai - 600099';
-  const addressParts = addressRaw.split(/[,\n]/).map((p: string) => p.trim()).filter(Boolean);
+  const addressRaw: string = branch?.address || 'No. 13, Balaji Nagar Main Road, Kolathur, Chennai - 600099';
+  const addressParts = addressRaw.split(/[,\n]/).map((p) => p.trim()).filter(Boolean);
 
   const lines: string[] = [
     '\x1Ba\x01',   // center alignment
     printNvLogo + '\n', // prints the engrained logo
     boldOn + title + boldOff + '\n',
     '\n',
-    ...addressParts.map((part: string) => center(part, width) + '\n'),
+    ...addressParts.map((part) => center(part, width) + '\n'),
     '\n',
     center(`PH: ${phone}`, width) + '\n',
   ];
@@ -373,9 +394,9 @@ async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'br
     }
 
     console.log('[Printer] PrintNode job submitted successfully.');
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Printer] PrintNode submission failed:', err);
-    Alert.alert('Printing Failed', `PrintNode error: ${err.message}`);
+    Alert.alert('Printing Failed', 'Unable to submit the print job to PrintNode. Please try again.');
   }
 }
 
@@ -407,11 +428,12 @@ async function printRawToPrinter(printer: Printer, lines: string[]): Promise<voi
       content: escPosString
     });
     console.log('[Printer] Print success');
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Printer] Print failed:', err);
-    
+
     // Check if agent is unavailable (network fetch failed)
-    const isAgentOffline = err.message === 'Print agent unavailable' || err.name === 'TypeError' || err.message?.toLowerCase().includes('fetch');
+    const message = getErrorMessage(err);
+    const isAgentOffline = message === 'Print agent unavailable' || getErrorName(err) === 'TypeError' || message.toLowerCase().includes('fetch');
     if (isAgentOffline) {
       const errorMsg = 'Printer service offline. Please start Grovit Print Agent.';
       Alert.alert('Printer Offline', errorMsg);
@@ -506,7 +528,7 @@ export const printerService = {
   printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false): Promise<void> => {
     try {
       const res = await fetchPrinters();
-      let kitchenPrinters: any[] = [];
+      let kitchenPrinters: Printer[] = [];
       if (res.error || !res.data) {
         console.warn('[Printer] Unable to load printers for KOT:', res.error);
       } else {
@@ -551,7 +573,7 @@ export const printerService = {
 
           try {
             await printRawToPrinter(printer, lines);
-          } catch (err: any) {
+          } catch (err: unknown) {
             console.error(`[Printer] KOT print failed for kitchen printer "${printer.name}" (ID: ${printer.ip_address}):`, err);
           }
         }
@@ -631,11 +653,11 @@ export const printerService = {
   printBill: async (
     orderName: string,
     invoiceNumber: string | null | undefined,
-    items: any[],
+    items: PrintableBillItem[],
     totalAmount: number,
     isFinal = false,
     paymentMethod?: string | null,
-    kots?: Array<{ kot_number: number; created_at: string }>,
+    kots?: { kot_number: number; created_at: string }[],
     discountAmount = 0,
     discountType: 'percent' | 'fixed' | null = null,
     discountValue = 0
@@ -680,7 +702,7 @@ export const printerService = {
         .maybeSingle();
 
       // 1. Build Header
-      const headerLines = buildHeader(width, branch);
+      const headerLines = buildHeader(width, branch as ReceiptBranchInfo | null);
 
 
 
@@ -753,7 +775,7 @@ export const printerService = {
   printSettlementBill: async (
     orderName: string,
     invoiceNumber: string | null | undefined,
-    items: any[],
+    items: PrintableBillItem[],
     totalAmount: number,
     discountAmount = 0,
     discountType: 'percent' | 'fixed' | null = null,
