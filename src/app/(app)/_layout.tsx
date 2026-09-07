@@ -1,6 +1,6 @@
 import { Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView } from 'react-native';
+import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView , ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UIContext } from '@/lib/pos/ui-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -9,7 +9,7 @@ import type { PosSession } from '@/lib/pos/session-context';
 
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { ActivityIndicator, StyleSheet, Image } from 'react-native';
+
 import { MapPin, User } from 'lucide-react-native';
 import {
   APP_TAB_ROUTE_NAMES,

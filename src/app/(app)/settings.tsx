@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck } from 'lucide-react-native';
+import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2 } from 'lucide-react-native';
 import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Trash2 } from 'lucide-react-native';
+
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { storage, STORAGE_KEYS, DEFAULT_RECEIPT_FOOTER } from '@/lib/pos/storage';
 import { getErrorMessage } from '../../lib/pos/error-utils';
 
 /** The tabs the settings screen can show. */
@@ -81,10 +82,11 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const storedFooter = window.localStorage.getItem('receiptFooter') || '* Thank you for your visit! *';
-      setReceiptFooter(storedFooter);
-    }
+    // AsyncStorage rather than localStorage: the latter does not exist on
+    // iOS or Android, so the footer silently reset on every device launch.
+    void storage
+      .get<string>(STORAGE_KEYS.receiptFooter)
+      .then((stored) => setReceiptFooter(stored || DEFAULT_RECEIPT_FOOTER));
     loadPrinters(true);
   }, []);
 
@@ -309,9 +311,7 @@ export default function SettingsScreen() {
                 value={receiptFooter}
                 onChangeText={(text) => {
                   setReceiptFooter(text);
-                  if (typeof window !== 'undefined' && window.localStorage) {
-                    window.localStorage.setItem('receiptFooter', text);
-                  }
+                  void storage.set(STORAGE_KEYS.receiptFooter, text);
                 }}
                 placeholder="e.g., * Thank you for your visit! *"
                 className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-semibold"

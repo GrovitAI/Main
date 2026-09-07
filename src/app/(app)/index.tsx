@@ -33,14 +33,6 @@ import { ApprovalAction } from '@/lib/approval/approval.types';
 import { colors } from '@/lib/pos/brand';
 import { webTextStyle, webViewStyle } from '@/lib/pos/web-style';
 import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
-
-/**
- * TextInput key event. React Native Web adds the browser modifier flags and
- * preventDefault(), neither of which the native typings declare.
- */
-type KeyPressEvent = NativeSyntheticEvent<
-  TextInputKeyPressEventData & { altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }
-> & { preventDefault?: () => void };
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
@@ -56,6 +48,14 @@ import { useOrdersStore } from '@/lib/pos/use-orders-store';
 import { seedDevDatabase } from '@/lib/pos/dev-seed';
 import { useTabBarHidden } from '@/lib/pos/ui-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+
+/**
+ * TextInput key event. React Native Web adds the browser modifier flags and
+ * preventDefault(), neither of which the native typings declare.
+ */
+type KeyPressEvent = NativeSyntheticEvent<
+  TextInputKeyPressEventData & { altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }
+> & { preventDefault?: () => void };
 
 const TABLET_BREAKPOINT = 768;
 

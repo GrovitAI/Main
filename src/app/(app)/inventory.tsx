@@ -67,6 +67,10 @@ import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/Phon
 
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { webImageStyle, webTextStyle, webViewStyle } from '@/lib/pos/web-style';
+import { Sparkline, CircularProgress } from '@/components/inventory/InventoryCharts';
+import { SidebarDecoration, SidebarLabel } from '@/components/inventory/InventorySidebar';
+import { InventoryMobileMenu } from '@/components/inventory/InventoryMobileMenu';
+import { InventoryNotificationsModal } from '@/components/inventory/InventoryNotificationsModal';
 import type { LucideIcon } from 'lucide-react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { colors } from '@/lib/pos/brand';
@@ -153,7 +157,7 @@ const CustomPressable = Pressable as React.ComponentType<
 
 // ─── LOGO ASSET LOAD ─────────────────────────────────────────────────────────
 
-/* eslint-disable @typescript-eslint/no-require-imports */
+ 
 const leLabanLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
 // ─── TABS DEFINITION ─────────────────────────────────────────────────────────
@@ -193,130 +197,6 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 ];
 
 // ─── VISUALIZATION HELPER COMPONENTS ─────────────────────────────────────────
-
-function SidebarDecoration() {
-  return (
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 180, opacity: 0.08, pointerEvents: 'none', overflow: 'hidden' }}>
-      <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: '#ffffff' }} />
-      <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: '#ffffff' }} />
-    </View>
-  );
-}
-
-function SidebarLabel({
-  expanded,
-  children,
-  style,
-}: {
-  expanded: boolean;
-  children: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
-}) {
-  if (Platform.OS !== 'web') {
-    return expanded ? <>{children}</> : null;
-  }
-  const flattened = style ? (Array.isArray(style) ? Object.assign({}, ...style) : style) : {};
-  const currentMarginLeft = 'marginLeft' in flattened ? flattened.marginLeft : 0;
-  const currentMarginRight = 'marginRight' in flattened ? flattened.marginRight : 0;
-
-  const cleanedStyle = { ...flattened };
-  delete cleanedStyle.marginLeft;
-  delete cleanedStyle.marginRight;
-  delete cleanedStyle.flex; // avoid flex layout thrashing during transition
-
-  return (
-    <View
-      style={[
-        webViewStyle({
-          overflow: 'hidden',
-        }),
-        webViewStyle({
-          maxWidth: expanded ? 200 : 0,
-          opacity: expanded ? 1 : 0,
-          marginLeft: expanded ? currentMarginLeft : 0,
-          marginRight: expanded ? currentMarginRight : 0,
-          transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease, margin-left 240ms cubic-bezier(0.4,0,0.2,1), margin-right 240ms cubic-bezier(0.4,0,0.2,1)',
-        }),
-        cleanedStyle,
-      ]}
-    >
-      {children}
-    </View>
-  );
-}
-
-function Sparkline({ data, strokeColor = '#0066b2', fillColor = 'rgba(51, 153, 255, 0.1)' }: { data: number[]; strokeColor?: string; fillColor?: string }) {
-  if (!data || data.length < 2) return null;
-  const width = 120;
-  const height = 40;
-  const padding = 2;
-  const max = Math.max(...data) || 1;
-  const min = Math.min(...data) || 0;
-  const range = max - min || 1;
-
-  const coords = data.map((val, idx) => {
-    const x = (idx / (data.length - 1)) * (width - padding * 2) + padding;
-    const y = height - ((val - min) / range) * (height - padding * 2) - padding;
-    return { x, y };
-  });
-
-  let path = `M ${coords[0].x} ${coords[0].y}`;
-  for (let i = 0; i < coords.length - 1; i++) {
-    const curr = coords[i];
-    const next = coords[i + 1];
-    const cpX1 = curr.x + (next.x - curr.x) / 3;
-    const cpY1 = curr.y;
-    const cpX2 = curr.x + (2 * (next.x - curr.x)) / 3;
-    const cpY2 = next.y;
-    path += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${next.x} ${next.y}`;
-  }
-
-  const fillPath = `${path} L ${coords[coords.length - 1].x} ${height} L ${coords[0].x} ${height} Z`;
-
-  return (
-    <Svg width={width} height={height}>
-      <Path d={fillPath} fill={fillColor} />
-      <Path d={path} fill="none" stroke={strokeColor} strokeWidth={2.5} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function CircularProgress({ percentage = 82, size = 52, strokeWidth = 5.5 }: { percentage?: number; size?: number; strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
-
-  return (
-    <View className="items-center justify-center relative" style={{ width: size, height: size }}>
-      <Svg width={size} height={size}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#f1f5f9"
-          strokeWidth={strokeWidth}
-        />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="#16a34a"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
-      <View className="absolute items-center justify-center">
-        <Text className="text-[10px] font-black text-slate-800">{percentage}%</Text>
-      </View>
-    </View>
-  );
-}
 
 function ProcurementLineChart() {
   const width = 360;
@@ -6284,336 +6164,29 @@ export default function InventoryScreen() {
       </View>
 
       {/* MOBILE MENU DRAWER MODAL */}
-      <Modal visible={isMobileMenuOpen && width < 768} animationType="slide" transparent>
-        <View className="flex-1 bg-black/60 flex-row">
-          <View style={{ width: 180, minWidth: 180, maxWidth: 180, overflow: 'hidden' }} className="flex-col h-full">
-            <LinearGradient
-              colors={['#0251b8', '#013b8c', '#012f70']}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            />
-            <SidebarDecoration />
-
-            <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: 28, paddingBottom: 20, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center' }}>
-              <View className="flex-row items-center justify-between w-full">
-                <Image
-                  source={leLabanLogo}
-                  style={{ height: 40, width: 62, resizeMode: 'contain', opacity: 0.96 }}
-                  accessibilityLabel="Le Leban logo"
-                />
-                <Pressable onPress={() => setIsMobileMenuOpen(false)} className="p-1 rounded-lg">
-                  <X size={16} color="white" />
-                </Pressable>
-              </View>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF', marginTop: 4 }}>
-                Inventory Center
-              </Text>
-            </View>
-
-            <ScrollView className="flex-1 px-3 py-4 gap-1.5" showsVerticalScrollIndicator={false}>
-              {/* Dashboard */}
-              <Pressable
-                onPress={() => {
-                  setActiveTab('dashboard');
-                  setIsMobileMenuOpen(false);
-                }}
-                style={({ pressed }: { pressed: boolean }) => [
-                  {
-                    borderRadius: 14,
-                    paddingHorizontal: 10,
-                    height: 40,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    marginBottom: 6,
-                    overflow: 'hidden',
-                  },
-                  activeTab === 'dashboard' && {
-                    borderTopWidth: 1,
-                    borderTopColor: 'rgba(255,255,255,0.10)',
-                    shadowColor: '#000000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.08,
-                    shadowRadius: 12,
-                    elevation: 2,
-                  },
-                  pressed && {
-                    opacity: 0.85,
-                    transform: [{ scale: 0.98 }]
-                  }
-                ]}
-              >
-                {activeTab === 'dashboard' && (
-                  <LinearGradient
-                    colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, zIndex: -1 }}
-                  />
-                )}
-                <BarChart3 size={14} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: activeTab === 'dashboard' ? '600' : '500',
-                    color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
-                  }}
-                >
-                  Dashboard
-                </Text>
-              </Pressable>
-
-              {/* Master Collapsible Group Header */}
-              <Pressable
-                onPress={() => setIsMasterExpanded(!isMasterExpanded)}
-                style={({ pressed }: { pressed: boolean }) => [
-                  {
-                    borderRadius: 14,
-                    paddingHorizontal: 10,
-                    height: 40,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    marginBottom: 6,
-                  },
-                  pressed && {
-                    opacity: 0.85,
-                  }
-                ]}
-              >
-                <Database size={14} color="rgba(255, 255, 255, 0.8)" />
-                <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: '500',
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    flex: 1,
-                  }}
-                >
-                  Master Setup
-                </Text>
-                {isMasterExpanded ? (
-                  <ChevronDown size={12} color="rgba(255, 255, 255, 0.6)" />
-                ) : (
-                  <ChevronRight size={12} color="rgba(255, 255, 255, 0.6)" />
-                )}
-              </Pressable>
-
-              {/* Master Sub-items */}
-              {isMasterExpanded && (
-                <View style={{ paddingLeft: 12, borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.12)', marginLeft: 14, marginBottom: 8, gap: 4 }}>
-                  {[
-                    { id: 'materials', label: 'Raw Materials', icon: Boxes },
-                    { id: 'suppliers', label: 'Suppliers', icon: User },
-                    { id: 'units', label: 'Units', icon: Database },
-                    { id: 'categories', label: 'Categories', icon: Tag }
-                  ].map((sub) => {
-                    const SubIcon = sub.icon;
-                    const isActive = activeTab === sub.id;
-                    return (
-                      <Pressable
-                        key={sub.id}
-                        onPress={() => {
-                          setActiveTab(sub.id as TabName);
-                          setIsMobileMenuOpen(false);
-                        }}
-                        style={({ pressed }: { pressed: boolean }) => [
-                          {
-                            borderRadius: 10,
-                            paddingHorizontal: 8,
-                            height: 32,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 6,
-                            marginBottom: 2,
-                            overflow: 'hidden',
-                          },
-                          isActive && {
-                            shadowColor: '#000000',
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.08,
-                            shadowRadius: 6,
-                            elevation: 2,
-                          },
-                          pressed && { opacity: 0.85 }
-                        ]}
-                      >
-                        {isActive && (
-                          <LinearGradient
-                            colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 10, zIndex: -1 }}
-                          />
-                        )}
-                        <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
-                        <Text
-                          style={{
-                            fontSize: 10.5,
-                            fontWeight: isActive ? '600' : '500',
-                            color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)',
-                          }}
-                        >
-                          {sub.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Other main items */}
-              {[
-                { id: 'purchases', label: 'Purchases', icon: Truck },
-                { id: 'wastage', label: 'Wastage', icon: Trash2 },
-                { id: 'transfers', label: 'Transfers', icon: RefreshCw },
-                { id: 'recipes', label: 'Recipes', icon: BookOpen },
-                { id: 'reports', label: 'Reports', icon: TrendingUp },
-                { id: 'alerts', label: 'Alerts', icon: ShieldAlert }
-              ].map((item) => {
-                const IconComponent = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => {
-                      setActiveTab(item.id as TabName);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    style={({ pressed }: { pressed: boolean }) => [
-                      {
-                        borderRadius: 14,
-                        paddingHorizontal: 10,
-                        height: 40,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginBottom: 6,
-                        overflow: 'hidden',
-                      },
-                      isActive && {
-                        shadowColor: '#000000',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.08,
-                        shadowRadius: 12,
-                        elevation: 2,
-                      },
-                      pressed && {
-                        opacity: 0.85,
-                        transform: [{ scale: 0.98 }]
-                      }
-                    ]}
-                  >
-                    {isActive && (
-                      <LinearGradient
-                        colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
-                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, zIndex: -1 }}
-                      />
-                    )}
-                    <IconComponent size={14} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'} />
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: isActive ? '600' : '500',
-                        color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)',
-                      }}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-          <Pressable className="flex-1" onPress={() => setIsMobileMenuOpen(false)} />
-        </View>
-      </Modal>
+      <InventoryMobileMenu
+        visible={isMobileMenuOpen && width < 768}
+        onClose={() => setIsMobileMenuOpen(false)}
+        activeTab={activeTab}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          setIsMobileMenuOpen(false);
+        }}
+        isMasterExpanded={isMasterExpanded}
+        onToggleMaster={() => setIsMasterExpanded((prev) => !prev)}
+      />
 
       {/* ─── NOTIFICATIONS MODAL ──────────────────────────────────────────── */}
-      <Modal
+      <InventoryNotificationsModal
         visible={showNotifications}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowNotifications(false)}
-      >
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(15,39,68,0.35)' }}
-          onPress={() => setShowNotifications(false)}
-        >
-          <Pressable
-            onPress={(e) => { e.stopPropagation?.(); }}
-            style={{
-              position: 'absolute',
-              top: 64,
-              right: 24,
-              width: Math.min(340, width - 32),
-              backgroundColor: '#FFFFFF',
-              borderRadius: 20,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.15,
-              shadowRadius: 24,
-              elevation: 12,
-              overflow: 'hidden',
-            }}
-          >
-            {/* Header */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Bell size={15} color="#0f2744" />
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#0f2744' }}>Notifications</Text>
-                {lowStockMaterials.length > 0 && (
-                  <View style={{ backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>{lowStockMaterials.length}</Text>
-                  </View>
-                )}
-              </View>
-              <Pressable onPress={() => setShowNotifications(false)} style={{ padding: 4 }}>
-                <X size={16} color="#94a3b8" />
-              </Pressable>
-            </View>
-
-            {/* Body */}
-            {lowStockMaterials.length === 0 ? (
-              <View style={{ padding: 32, alignItems: 'center', gap: 8 }}>
-                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center' }}>
-                  <Bell size={20} color="#22c55e" />
-                </View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155' }}>All clear!</Text>
-                <Text style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>No low stock alerts at this time.</Text>
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-                <View style={{ padding: 10, gap: 6 }}>
-                  {lowStockMaterials.map((m) => (
-                    <Pressable
-                      key={m.id}
-                      onPress={() => { setShowNotifications(false); setActiveTab('alerts'); }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 12, padding: 12 }}
-                    >
-                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Bell size={14} color="#D97706" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }} numberOfLines={1}>{m.material_name}</Text>
-                        <Text style={{ fontSize: 10, color: '#B45309', marginTop: 1 }}>
-                          Stock: {m.current_stock} {m.unit_short_name ?? ''} — Reorder at {m.reorder_level} {m.unit_short_name ?? ''}
-                        </Text>
-                      </View>
-                      <View style={{ backgroundColor: '#F59E0B', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase' }}>Low</Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            )}
-
-            {/* Footer */}
-            <Pressable
-              onPress={() => { setShowNotifications(false); setActiveTab('alerts'); }}
-              style={{ margin: 10, marginTop: 4, backgroundColor: '#0f2744', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}
-            >
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FFFFFF' }}>View All Alerts →</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        onClose={() => setShowNotifications(false)}
+        lowStockMaterials={lowStockMaterials}
+        onViewAlerts={() => {
+          setShowNotifications(false);
+          setActiveTab('alerts');
+        }}
+        screenWidth={width}
+      />
 
       {/* ─── MODAL DIALOGS ─────────────────────────────────────────────────── */}
 
