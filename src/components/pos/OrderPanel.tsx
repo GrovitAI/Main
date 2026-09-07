@@ -121,7 +121,13 @@ export function OrderPanel({
     }
   }, [activeAction]);
 
-  const { discountType, discountPercent, discountAmount, setDiscount, activeOrderId } = useOrdersStore();
+  // Individual selectors: subscribing to the whole store re-rendered this
+  // panel on every one of the store's writes, including unrelated loading flags.
+  const discountType = useOrdersStore((s) => s.discountType);
+  const discountPercent = useOrdersStore((s) => s.discountPercent);
+  const discountAmount = useOrdersStore((s) => s.discountAmount);
+  const setDiscount = useOrdersStore((s) => s.setDiscount);
+  const activeOrderId = useOrdersStore((s) => s.activeOrderId);
   const { requestApproval } = useApprovalFlow();
 
   const handleApplyDiscount = (type: 'percent' | 'fixed', value: number) => {

@@ -139,7 +139,6 @@ import {
 import RecipeManagement from '@/components/inventory/RecipeManagement';
 import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { getProducts, type Product } from '@/lib/pos/products-service';
-import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
 import { getErrorMessage } from '../../lib/pos/error-utils';
 import {
@@ -738,8 +737,11 @@ export default function InventoryScreen() {
     return materials.filter((m) => m.current_stock <= m.reorder_level && m.current_stock > 0);
   }, [materials]);
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     try {
+      // Loaded on demand: xlsx is large and only used for the web-only
+      // spreadsheet import/export, so it must not sit in the native bundle.
+      const XLSX = await import('xlsx');
       const templateData = [
         {
           'Material Name*': 'Premium Tahini Spreads',
@@ -806,6 +808,7 @@ export default function InventoryScreen() {
               return;
             }
 
+            const XLSX = await import('xlsx');
             const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
@@ -2334,7 +2337,7 @@ export default function InventoryScreen() {
               </Pressable>
 
               <Pressable
-                onPress={handleDownloadTemplate}
+                onPress={() => { void handleDownloadTemplate(); }}
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs flex-row items-center gap-1"
               >
                 <Download size={12} color="#475569" />
