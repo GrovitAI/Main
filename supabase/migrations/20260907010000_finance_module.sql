@@ -24,11 +24,33 @@
 --   6. RLS on the new tables, reusing the auth_* helpers from
 --      20260907000100_rls_policies.sql when they exist.
 --
--- How to apply: Supabase SQL Editor, run the whole file AFTER
--- 20260907000100_rls_policies.sql (the RLS block is skipped if the helper
--- functions are not installed yet, so the order is a recommendation, not a
--- hard requirement).
+-- How to apply: paste the whole file into the Supabase SQL Editor and run it.
+--
+-- ORDER MATTERS. Section 6 installs RLS only if the auth_* helpers from
+-- 20260907000100_rls_policies.sql already exist, so:
+--
+--   * Preferred: run 20260907000100_rls_policies.sql FIRST, then this file.
+--   * If you run this file first, the new tables are created WITHOUT row level
+--     security. Re-run this whole file after the RLS migration to install the
+--     policies. The file is idempotent (every statement is IF NOT EXISTS /
+--     OR REPLACE / DROP ... IF EXISTS), so re-running it is safe and changes
+--     no data.
+--
+-- Section 0 below refuses to run twice in a harmful way and prints which mode
+-- it took, so you can see whether RLS was installed or skipped.
 -- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 0. Tell the operator which mode this run will take.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'auth_can_access_branch') THEN
+    RAISE NOTICE 'Finance migration: RLS helpers found - row level security WILL be installed.';
+  ELSE
+    RAISE WARNING 'Finance migration: RLS helpers NOT found - row level security will be SKIPPED. Run 20260907000100_rls_policies.sql, then re-run this file.';
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 1. expenses — extend

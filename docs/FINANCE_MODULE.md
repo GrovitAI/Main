@@ -87,6 +87,13 @@ with `id, tenant_id, branch_id, bill_id, created_at`.
 `supabase/migrations/20260907010000_finance_module.sql` closes that gap. **It
 has not been applied.** Review it before running it in the Supabase SQL editor.
 
+As of 2026-09-07 **no migration in `supabase/migrations/` has been applied** —
+verified by probing the live database for each function and table. Row level
+security is not active: the anon key can still read all 4,571 bills, so audit
+item C1 is open. Apply `20260907000100_rls_policies.sql` before this file. If
+you apply this file first, the finance tables are created without policies;
+re-run this file after the RLS migration to install them. It is idempotent.
+
 | Change | Why |
 | :--- | :--- |
 | `expenses` gains payment method, payee, reference, notes, receipt URL, void status with reason, paired `amount_paise`, `updated_at`, two indexes and a write trigger | Cash-versus-bank reporting, an audit trail instead of deletes, and float-free totals |
