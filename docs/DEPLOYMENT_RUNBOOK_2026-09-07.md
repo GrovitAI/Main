@@ -30,8 +30,8 @@ re-runnable (idempotent). Read the "NOTICE" lines in the result pane.
 | 3 | `supabase/migrations/20260907000200_sequences_and_settle_order_v2.sql` | Final SELECT lists historical duplicate invoice numbers (140+ expected). These are pre-existing; new bills cannot duplicate. Decide whether to renumber them manually. |
 | 4 | `supabase/migrations/20260907000300_ledger_kpis_indexes_hardening.sql` | If you see `settlements has duplicate bill_id rows`, run the duplicate-cleanup query pattern from `scratch/clean-duplicate-bills.sql` adapted to settlements, then re-run. |
 | 5 | `supabase/migrations/20260907000400_consumption_worker.sql` | If you see `pg_cron is not enabled`, enable **pg_cron** in Database → Extensions, then re-run only section 3 of the file. |
-| 6 | `supabase/migrations/20260907010000_finance_module.sql` | (from the finance work in the other session — run it if that module is being deployed; it must also enable RLS on its tables, check the file). |
-| 7 | `supabase/migrations/20260907000500_transfer_rpcs.sql` | No errors. |
+| 6 | `supabase/migrations/20260907000500_transfer_rpcs.sql` | No errors. |
+| 7 | `supabase/migrations/20260907010000_finance_module.sql` | Optional, for the finance module. Adds columns to `expenses`, creates `expense_categories`, `refunds` and `finance_day_closures`, and enables RLS on them. The finance screens work read-only until it is run. |
 
 **Verify:** in the SQL editor run
 
