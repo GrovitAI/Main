@@ -227,6 +227,9 @@ export function PhoneInventoryScreen({
             <Pressable
               key={tab}
               onPress={() => onTabChange(tab)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              aria-selected={isActive}
               className={`flex-1 py-2 rounded-full items-center justify-center min-h-[44px] ${
                 isActive ? 'bg-[#0066b2]' : 'bg-[#e8f2fa]'
               }`}

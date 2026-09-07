@@ -248,6 +248,7 @@ export function PhoneAnalyticsScreen({
                 onPress={() => handlePresetClick(opt.key)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isActive }}
+                aria-selected={isActive}
                 // Fully inline so the active background is never dropped by css-interop on web.
                 style={({ pressed }) => [
                   {
@@ -674,7 +675,11 @@ export function PhoneAnalyticsScreen({
               onChangeText={setSearchItemQuery}
             />
             {searchItemQuery ? (
-              <Pressable onPress={() => setSearchItemQuery('')}>
+              <Pressable
+                onPress={() => setSearchItemQuery('')}
+                accessibilityRole="button"
+                accessibilityLabel="Clear item search"
+              >
                 <X size={16} color="#64748B" />
               </Pressable>
             ) : null}
@@ -723,6 +728,8 @@ export function PhoneAnalyticsScreen({
               <Pressable
                 testID="filter-modal-close-btn"
                 onPress={onCloseFilter}
+                accessibilityRole="button"
+                accessibilityLabel="Close filters"
                 className="w-9 h-9 items-center justify-center rounded-full bg-slate-100"
               >
                 <X size={20} color="#0F2744" />
