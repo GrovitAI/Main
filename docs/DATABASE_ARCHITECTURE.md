@@ -2,7 +2,7 @@
 
 > **System Name**: Grovit AI POS (Le Laban Multi-Tenant POS Platform)  
 > **Database**: Supabase PostgreSQL 15+ (Mumbai Region — `ap-south-1`)  
-> **Last Updated**: 2026-07-23  
+> **Last Updated**: 2026-09-07  
 
 ---
 
@@ -117,3 +117,44 @@ CREATE INDEX IF NOT EXISTS idx_consumption_jobs_status_retry
   ON inventory_consumption_jobs(status, retry_after) 
   WHERE status = 'Pending';
 ```
+
+---
+
+## 5. Security & Integrity Layer (added 2026-09-07, tasks 20–24)
+
+### Row Level Security
+Every table has RLS enabled (`supabase/migrations/20260907000100_rls_policies.sql`).
+
+| Helper (SECURITY DEFINER) | Returns |
+| :--- | :--- |
+| `auth_staff_row()` | tenant_id, branch_id, role of the active staff row for `auth.uid()` |
+| `auth_tenant_id()`, `auth_branch_id()`, `auth_role()` | scalar accessors |
+| `auth_is_tenant_wide()` | true for owner / admin |
+| `auth_is_manager()` | true for owner / admin / manager |
+| `auth_can_access_branch(tenant, branch)` | tenant match AND (tenant-wide OR own branch) |
+
+Policy shapes: tenant+branch tables use `auth_can_access_branch(tenant_id, branch_id)`; tenant-only tables use `tenant_id = auth_tenant_id()`; child tables without tenant columns (`open_order_items`, `kot_items`, `bill_items`, `inventory_transfer_request_items`, `inventory_dispatches`, `inventory_dispatch_items`, `inventory_recipe_items`) inherit access through their parent row. Transfers are visible to both the requesting and the supplying branch. `anon` has no table or RPC privileges.
+
+### Document numbering
+`branch_counters(tenant_id, branch_id, bill_seq, order_seq, kot_seq)` — seeded from the highest existing numbers on first use, incremented under a row lock by `next_branch_sequence()`. `next_invoice_number()` formats `<branches.invoice_prefix or INV>-<4+ digits>`. Partial unique index `uniq_bills_invoice_number_per_branch_v2` guarantees uniqueness for bills created from 2026-09-07.
+
+### Transactional RPCs
+
+| Function | Purpose |
+| :--- | :--- |
+| `settle_order(tenant, branch, order, payment_type)` | Atomic settlement: lock order → bill upsert → bill_items snapshot with per-line discount → single settlement → consumption batch → order paid. Idempotent on replay. |
+| `assign_order_numbers(tenant, branch, order, invoice?, order_name?)` | Assigns missing invoice number / "Order #N" before a provisional print. |
+| `next_kot_number(tenant, branch)` | Per-branch KOT sequence. |
+| `get_bills_ledger_kpis(tenant, branch, start, end, status, search)` | Server-side gross / discounts / complimentary / net totals for the ledger. |
+| `get_analytics_*` | Existing analytics aggregations (now authenticated-only). |
+| `create_dispatch(tenant, request, items, remarks, by)` | Ships stock atomically; raises `INSUFFICIENT_STOCK:<material>`. |
+| `receive_dispatch(tenant, dispatch, items, remarks, by)` | Books stock in atomically; idempotent (`already_received`). |
+| `process_consumption_batches(limit)` | Worker (pg_cron every minute): expands bills → recipe jobs → stock deductions + ledger, 5 retries with back-off. |
+| `run_consumption_worker()` | Manager-triggered run of the worker. |
+| `check_rate_limit(key, limit, window_seconds)` | Fixed-window rate limiting used by the Vercel API. |
+
+### New columns
+`approval_requests.resend_count`, `pos_settings.inventory_tracking_enabled`, `inventory_dispatch_items.received_quantity`.
+
+### Additional indexes (task 22)
+`bills(tenant_id, branch_id, settled_at)`, `bills(tenant_id, branch_id, status, created_at)`, `bills(tenant_id, branch_id, invoice_number)`, `settlements(bill_id)` (unique), `settlements(tenant_id, branch_id, created_at)`, `open_order_items(open_order_id)`, `kots(open_order_id)`, `kot_items(kot_id)`, `staff(auth_user_id)`, `inventory_material_stock_levels(tenant_id, branch_id, material_id)`, `inventory_stock_ledger(tenant_id, branch_id, material_id, transaction_date)`, `inventory_consumption_batches(status, created_at) WHERE Pending`, `inventory_consumption_jobs(batch_id)`, `approval_requests(tenant_id, branch_id, created_at)`.

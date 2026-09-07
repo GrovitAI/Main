@@ -1,7 +1,24 @@
 # CHANGELOG_ARCHITECTURE.md — Grovit AI POS Architecture Evolution
 
 > **System Name**: Grovit AI POS (Le Laban Multi-Tenant POS Platform)  
-> **Last Updated**: 2026-07-23  
+> **Last Updated**: 2026-09-07  
+
+---
+
+## Tasks 18-27 - Security, Integrity & Hygiene Remediation (audit of 2026-09-06)
+- **C1 Row Level Security** (task 20): RLS on every table; SECURITY DEFINER helpers map auth.uid() to the staff row; anon revoked from tables and RPCs.
+- **C2 Secrets** (tasks 26/27): `.env` and `scratch/` untracked and git-ignored; `.env.example` added; CI guard fails if they are ever re-added. Credentials must still be rotated (see docs/DEPLOYMENT_RUNBOOK_2026-09-07.md).
+- **C3 API authentication** (task 25): `src/lib/server/api-auth.ts` verifies the Supabase JWT, builds an RLS-scoped client, derives tenant/branch/role from the staff row, applies a strict CORS allowlist and durable rate limiting (`check_rate_limit` RPC). All /api handlers rewritten; staff creation moved server-side (`/api/staff/create`).
+- **C4 PrintNode key logging** (task 18): removed.
+- **C5/H1 Atomic settlement** (tasks 19, 21): `settle_order()` v2 - one transaction, row lock, idempotent replay, unique settlement per bill.
+- **C6 Numbering** (task 21): `branch_counters` + `next_branch_sequence` / `next_invoice_number` / `assign_order_numbers` / `next_kot_number`; localStorage sequences removed from the client.
+- **H3 Consumption worker** (task 23): `process_consumption_batches()` + pg_cron every minute, retries with back-off, shortfalls recorded instead of clamped.
+- **H4 Transfers** (task 24): `create_dispatch` / `receive_dispatch` RPCs, idempotent receiving.
+- **H5 Ledger KPIs** (task 22): `get_bills_ledger_kpis()` replaces client-side sums over PostgREST-capped result sets.
+- **H6 Business day** (task 27): 24-hour window from 02:30 IST, evaluated in Asia/Kolkata, no blind spot.
+- **M8/H7 Money math** (tasks 21, 27): integer paise everywhere; `money-utils.ts` mirrors the SQL; one tax source for provisional and settled bills.
+- **M9 Indexes** (task 22): settled_at, status+created_at, settlements(bill_id), stock levels/ledger, consumption queue.
+- **M14-M17 Tooling** (task 27): ESLint (no-any, no-non-null, restricted imports), Jest with the first unit tests, GitHub Actions CI, docs corrected to SDK 54, `pg` dependency removed.
 
 ---
 

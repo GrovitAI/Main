@@ -45,14 +45,17 @@ All three from this single Expo codebase.
 
 ## Multi-Tenant Architecture
 Every Supabase query must include tenant_id AND branch_id.
-Both are sourced ONLY from: src/lib/pos/tenant-context.ts
+Both come ONLY from getTenantContext() in src/lib/pos/tenant-context.ts,
+which reads the signed-in staff member's session (Supabase Auth -> staff row).
 
-Current values (hardcoded until auth is built):
-- tenant_id: aaaaaaaa-0000-0000-0000-000000000001 (Le Leban)
-- branch_id: bbbbbbbb-0000-0000-0000-000000000001 (Main Branch)
+Database enforcement (since task 20, 2026-09-07):
+- Row Level Security is enabled on every table; policies key on the
+  caller's staff row (auth_tenant_id / auth_branch_id / auth_role helpers).
+- owner/admin see all branches of their tenant; manager/cashier/kitchen
+  see only their own branch. The anon key has no table access.
+- Client-side filters remain as defence-in-depth, never as the only guard.
 
-This will be replaced by Supabase Auth session later.
-Do not hardcode these values anywhere else.
+Never hardcode tenant or branch UUIDs anywhere.
 
 ## Database Schema (Supabase — do not modify)
 Tables:
@@ -93,7 +96,7 @@ src/
   lib/
     pos/
       supabase.ts            → Supabase client
-      tenant-context.ts      → Hardcoded tenant + branch IDs
+      tenant-context.ts      → getTenantContext() from the auth session
       order-types.ts         → Shared TypeScript types
       order-utils.ts         → Order calculation helpers
       settlement-service.ts  → Settlement Supabase logic
@@ -116,7 +119,7 @@ Reference architecture: src/lib/pos/settlement-service.ts
 
 Every service file must:
 - Import supabase from src/lib/pos/supabase.ts
-- Import TENANT_ID, BRANCH_ID from src/lib/pos/tenant-context.ts
+- Call getTenantContext() from src/lib/pos/tenant-context.ts (never the deprecated constants)
 - Include tenant_id and branch_id on every query
 - Have proper TypeScript return types
 - Have try/catch on every async function
@@ -189,12 +192,17 @@ Customer orders
    → settlement waits for DB confirmation before clearing UI
 
 5. Multi-tenant from day one
-   → every table has tenant_id + branch_id
-   → RLS will be added after auth is built
+   → every operational table has tenant_id + branch_id
+   → RLS enforced in PostgreSQL (supabase/migrations/20260907000100_rls_policies.sql)
 
-6. Hardcoded tenant context now → auth session later
-   → changing tenant-context.ts is the only file that needs
-      updating when auth is added
+6. Money and document numbers are owned by the database
+   → settle_order() runs the whole settlement in one transaction
+   → invoice / order / KOT numbers come from per-branch counters (branch_counters)
+   → all totals are integer paise; the client mirrors the SQL in money-utils.ts
+
+7. The serverless API trusts only the Supabase JWT
+   → every /api handler authenticates the bearer token and derives
+      tenant/branch/role from the staff row (src/lib/server/api-auth.ts)
 
 ## What This Is NOT
 - Not a single restaurant app
