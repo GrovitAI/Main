@@ -11,6 +11,7 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { storage, STORAGE_KEYS } from '@/lib/pos/storage';
 import { PhoneAnalyticsScreen } from '@/components/phone/PhoneAnalyticsScreen';
 import Svg, {
   Path,
@@ -39,7 +40,7 @@ import {
   RotateCcw,
   Activity,
   ChevronRight,
-} from 'lucide-react-native';
+ Building2, Download } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
@@ -52,7 +53,6 @@ import {
   PaymentSplit,
 } from '@/lib/analytics/analytics-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { Building2, Download } from 'lucide-react-native';
 
 export default function AnalyticsScreen() {
 
@@ -100,33 +100,31 @@ export default function AnalyticsScreen() {
   const [royaltyRate, setRoyaltyRate] = useState(5.0);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const storedFranchise = window.localStorage.getItem('franchiseMode');
+    // AsyncStorage rather than localStorage, which does not exist on iOS or
+    // Android and left these settings resetting on every device launch.
+    void (async () => {
+      const storedFranchise = await storage.get<string>(STORAGE_KEYS.franchiseMode);
       if (storedFranchise !== null) {
-        setIsFranchiseMode(storedFranchise === 'true');
+        setIsFranchiseMode(String(storedFranchise) === 'true');
       }
-      const storedRate = window.localStorage.getItem('franchiseRoyaltyRate');
+      const storedRate = await storage.get<string>(STORAGE_KEYS.franchiseRoyaltyRate);
       if (storedRate !== null) {
-        const parsed = parseFloat(storedRate);
+        const parsed = parseFloat(String(storedRate));
         if (!isNaN(parsed)) setRoyaltyRate(parsed);
       }
-    }
+    })();
   }, []);
 
   const toggleFranchiseMode = (val: boolean) => {
     setIsFranchiseMode(val);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem('franchiseMode', String(val));
-    }
+    void storage.set(STORAGE_KEYS.franchiseMode, String(val));
   };
 
   const updateRoyaltyRate = (rate: number) => {
     // Clamp between 1.0% and 10.0%
     const clamped = Math.max(1.0, Math.min(10.0, rate));
     setRoyaltyRate(clamped);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem('franchiseRoyaltyRate', String(clamped));
-    }
+    void storage.set(STORAGE_KEYS.franchiseRoyaltyRate, String(clamped));
   };
 
   const decreaseRoyaltyRate = () => updateRoyaltyRate(royaltyRate - 0.5);

@@ -5,6 +5,8 @@ import { getCategories } from './products-service';
 import { fetchRecipes, recordAuditLog } from './inventory-service';
 import type { ServiceResult } from './settlement-service';
 
+type AuditModule = Parameters<typeof recordAuditLog>[0];
+
 export interface ProductImportRow {
   'Product Name*'?: string;
   'Product Name'?: string;
@@ -228,7 +230,7 @@ export async function importMenuProducts(
       }
 
       // 2. Insert or Update Product
-      const payload: Record<string, any> = {
+      const payload: Record<string, string | number | boolean | null> = {
         tenant_id,
         branch_id,
         name: row.productName,
@@ -266,19 +268,24 @@ export async function importMenuProducts(
       const savedProduct = saveRes.data;
 
       // 3. Write to inventory_audit_logs
+      // 'products' is not part of the audit-log module union yet; the DB column accepts it.
+      const auditModule = 'products' as unknown as AuditModule;
+      const oldValue: Record<string, unknown> | null =
+        row.action === 'update' ? { id: row.productId, name: row.productName } : null;
       await recordAuditLog(
-        'products' as any,
+        auditModule,
         savedProduct.id,
         row.action === 'update' ? 'UPDATE' : 'CREATE',
-        row.action === 'update' ? { id: row.productId, name: row.productName } : null,
-        savedProduct
+        oldValue,
+        savedProduct as Record<string, unknown>
       );
 
       importCount++;
     }
 
     return { data: { success: true, count: importCount }, error: null };
-  } catch (err: any) {
-    return { data: null, error: err.message || 'Import execution failed.' };
+  } catch (err) {
+    console.error('importMenuProducts failed', err);
+    return { data: null, error: 'Unable to import menu products. Please try again.' };
   }
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView, type ListRenderItem, type StyleProp, type TextStyle } from 'react-native';
 import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download, Trash2 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
+import { storage, STORAGE_KEYS } from '@/lib/pos/storage';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
 import { fetchRecipes, type InventoryRecipe } from '@/lib/pos/inventory-service';
@@ -325,19 +326,21 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   // Popover Action modal state
   const [selectedProductForMenu, setSelectedProductForMenu] = useState<MenuProduct | null>(null);
 
-  // Global Inventory Tracking State
-  const [globalTracking, setGlobalTracking] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage.getItem('globalInventoryTracking') !== 'false';
-    }
-    return true;
-  });
+  // Global Inventory Tracking State. Defaults on, then hydrates from storage:
+  // AsyncStorage is async, so this cannot be a synchronous state initialiser.
+  const [globalTracking, setGlobalTracking] = useState(true);
+
+  useEffect(() => {
+    void storage
+      .get<string>(STORAGE_KEYS.globalInventoryTracking)
+      .then((stored) => {
+        if (stored !== null) setGlobalTracking(String(stored) !== 'false');
+      });
+  }, []);
 
   const handleToggleGlobalTracking = (val: boolean) => {
     setGlobalTracking(val);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem('globalInventoryTracking', String(val));
-    }
+    void storage.set(STORAGE_KEYS.globalInventoryTracking, String(val));
   };
 
   // Load Categories & Products

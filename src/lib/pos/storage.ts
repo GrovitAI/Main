@@ -3,6 +3,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const DEVICE_ID_KEY = 'grovit_device_uuid';
 
 /**
+ * Keys for device-local preferences.
+ *
+ * These are deliberately the same bare strings the app previously passed to
+ * window.localStorage. AsyncStorage's web backend writes through to
+ * localStorage without a prefix, so existing browser values are preserved
+ * while iOS and Android gain persistence for the first time.
+ */
+export const STORAGE_KEYS = {
+  receiptFooter: 'receiptFooter',
+  franchiseMode: 'franchiseMode',
+  franchiseRoyaltyRate: 'franchiseRoyaltyRate',
+  globalInventoryTracking: 'globalInventoryTracking',
+} as const;
+
+/** Shown on customer bills when the operator has not set their own footer. */
+export const DEFAULT_RECEIPT_FOOTER = '* Thank you for your visit! *';
+
+/**
  * Storage utility wrapper to isolate AsyncStorage.
  * Extensible for last selected branch, printer selection, offline queues, etc.
  */
