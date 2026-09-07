@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Modal, View, Text, Pressable, TextInput, FlatList, useWindowDimensions, Platform } from 'react-native';
 import { Search, X, Check } from 'lucide-react-native';
+import { webTextStyle } from '@/lib/pos/web-style';
 
 interface SearchableDropdownProps<T> {
   visible: boolean;
@@ -12,7 +13,7 @@ interface SearchableDropdownProps<T> {
   getOptionValue: (option: T) => string;
   placeholder?: string;
   title?: string;
-  triggerRef?: React.RefObject<any>;
+  triggerRef?: React.RefObject<View | null>;
 }
 
 export function SearchableDropdown<T>({
@@ -98,7 +99,7 @@ export function SearchableDropdown<T>({
                   placeholder={placeholder}
                   placeholderTextColor="#5b6b7c"
                   className="flex-1 text-[#0f2744] text-[11px] font-semibold h-6 p-0 outline-none"
-                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                  style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
                   autoFocus={true}
                 />
                 {searchQuery.length > 0 && (

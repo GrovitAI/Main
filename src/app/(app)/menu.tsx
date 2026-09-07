@@ -64,7 +64,7 @@ export default function MenuScreen() {
     inventory_tracking_enabled: boolean;
     recipe_id?: string;
   }): Promise<boolean> => {
-    const res = await addProduct(input as any);
+    const res = await addProduct({ ...input, recipe_id: input.recipe_id ?? null });
     if (res.data) {
       setProducts((prev) => [res.data as MenuProduct, ...prev]);
       return true;
@@ -83,7 +83,7 @@ export default function MenuScreen() {
       recipe_id?: string;
     }
   ): Promise<boolean> => {
-    const res = await updateProduct(productId, input as any);
+    const res = await updateProduct(productId, { ...input, recipe_id: input.recipe_id ?? null });
     if (res.data) {
       setProducts((prev) =>
         prev.map((p) => (p.id === productId ? (res.data as MenuProduct) : p))

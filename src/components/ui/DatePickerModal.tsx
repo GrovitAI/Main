@@ -179,16 +179,16 @@ export function DatePickerModal({
             {/* Quick Presets */}
             <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Quick Ranges</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
-              {[
+              {([
                 { id: 'today', label: 'Today' },
                 { id: 'yesterday', label: 'Yesterday' },
                 { id: '7days', label: 'Last 7 Days' },
                 { id: '30days', label: 'Last 30 Days' },
                 { id: 'month', label: 'This Month' },
-              ].map((p) => (
+              ] as const).map((p) => (
                 <Pressable
                   key={p.id}
-                  onPress={() => applyPreset(p.id as any)}
+                  onPress={() => applyPreset(p.id)}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 active:bg-blue-50"
                 >
                   <Text className="text-xs font-semibold text-slate-700">{p.label}</Text>

@@ -3,6 +3,7 @@ import { View, Text, Pressable, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ChefHat } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
+import { webViewStyle } from '@/lib/pos/web-style';
 
 export default function KitchenScreen() {
   const refreshButtonRef = useRef<View>(null);
@@ -30,22 +31,24 @@ export default function KitchenScreen() {
           ref={refreshButtonRef}
           focusable={true}
           accessibilityRole="button"
-          style={({ hovered, pressed }) => ({
-            minHeight: 44,
-            paddingHorizontal: 24,
-            borderRadius: 12,
-            backgroundColor: pressed ? colors.primaryDeep : (hovered ? colors.primaryMid : colors.primaryMid),
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: colors.primaryMid,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.2,
-            shadowRadius: 8,
-            elevation: 3,
-            outlineStyle: (hovered ? 'solid' : 'none') as any,
-            outlineColor: colors.primaryMid,
-            outlineWidth: 2,
-          } as any)}
+          style={({ hovered, pressed }) =>
+            webViewStyle({
+              minHeight: 44,
+              paddingHorizontal: 24,
+              borderRadius: 12,
+              backgroundColor: pressed ? colors.primaryDeep : colors.primaryMid,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: colors.primaryMid,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 3,
+              outlineStyle: hovered ? 'solid' : 'none',
+              outlineColor: colors.primaryMid,
+              outlineWidth: 2,
+            })
+          }
         >
           <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>
             Refresh Display

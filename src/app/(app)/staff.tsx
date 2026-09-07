@@ -191,7 +191,9 @@ export default function StaffScreen() {
         role: form.role,
         branch_id: form.branch_id,
       };
-      const result = await updateStaff(editingId!, payload);
+      const result = editingId
+        ? await updateStaff(editingId, payload)
+        : { error: 'No staff member selected.' as string | null };
       err = result.error;
     }
 

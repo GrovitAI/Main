@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView, type ListRenderItem, type StyleProp, type TextStyle } from 'react-native';
 import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download, Trash2 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchActiveProducts, toggleProductAvailability, addProduct, updateProduct, archiveProduct, type MenuProduct } from '@/lib/pos/menu-service';
 import { fetchRecipes, type InventoryRecipe } from '@/lib/pos/inventory-service';
 import { SearchableDropdown } from '../ui/SearchableDropdown';
-import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
+import { webTextStyle } from '@/lib/pos/web-style';
 import {
   validateProductImportRows,
   importMenuProducts,
@@ -41,6 +41,241 @@ type AvailabilityFilter = 'all' | 'available' | 'unavailable';
 type MenuManagementProps = {
   onBack?: () => void;
 };
+
+type CategoryColorSchema = { bg: string; text: string };
+
+const DEFAULT_CATEGORY_SCHEMA: CategoryColorSchema = { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700' };
+
+const CATEGORY_SCHEMAS: CategoryColorSchema[] = [
+  { bg: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700' }, // Mint / Green
+  { bg: 'bg-rose-50 border-rose-100', text: 'text-rose-700' }, // Rose / Pink
+  { bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700' }, // Gold / Orange
+  { bg: 'bg-violet-50 border-violet-100', text: 'text-violet-700' }, // Lavender / Purple
+  { bg: 'bg-cyan-50 border-cyan-100', text: 'text-cyan-700' }, // Sky / Cyan
+];
+
+// Dynamic Category color-coding maps
+function getCategoryColorSchema(catId: string): CategoryColorSchema {
+  if (!catId) return DEFAULT_CATEGORY_SCHEMA;
+  const index = catId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % CATEGORY_SCHEMAS.length;
+  return CATEGORY_SCHEMAS[index] ?? DEFAULT_CATEGORY_SCHEMA;
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+const WEB_NO_OUTLINE_STYLE: StyleProp<TextStyle> | undefined =
+  Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : undefined;
+
+type CategoryPillItem = { id: string; name: string };
+
+type CategoryPillProps = {
+  item: CategoryPillItem;
+  isSelected: boolean;
+  count: number;
+  onSelect: (id: string) => void;
+};
+
+const CategoryPill = React.memo(function CategoryPill({ item, isSelected, count, onSelect }: CategoryPillProps) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isSelected }}
+      accessibilityLabel={`${item.name}, ${count} items`}
+      onPress={() => onSelect(item.id)}
+      className={`px-3.5 py-1.5 rounded-full border flex-row items-center gap-1.5 transition-all ${
+        isSelected ? 'bg-primary border-primary shadow-xs' : 'bg-slate-50 border-slate-200 active:bg-slate-100'
+      }`}
+      style={{ minHeight: 30 }}
+    >
+      <Text className={`font-bold text-[11px] ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
+        {item.name}
+      </Text>
+
+      {/* Dynamic counts indicator pill */}
+      <View className={`px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-200/60'}`}>
+        <Text className={`text-[9px] font-black font-mono ${isSelected ? 'text-primary' : 'text-text-secondary'}`}>
+          {count}
+        </Text>
+      </View>
+    </Pressable>
+  );
+});
+
+type ProductRowProps = {
+  item: MenuProduct;
+  category: Category | undefined;
+  linkedRecipe: InventoryRecipe | undefined;
+  isInlineEditingPrice: boolean;
+  inlinePriceValue: string;
+  onInlinePriceChange: (value: string) => void;
+  onStartInlinePrice: (product: MenuProduct) => void;
+  onCancelInlinePrice: () => void;
+  onQuickPriceSave: (product: MenuProduct) => void;
+  onToggleAvailability: (product: MenuProduct) => void;
+  onEdit: (product: MenuProduct) => void;
+  onOpenMenu: (product: MenuProduct) => void;
+};
+
+const ProductRow = React.memo(function ProductRow({
+  item,
+  category,
+  linkedRecipe,
+  isInlineEditingPrice,
+  inlinePriceValue,
+  onInlinePriceChange,
+  onStartInlinePrice,
+  onCancelInlinePrice,
+  onQuickPriceSave,
+  onToggleAvailability,
+  onEdit,
+  onOpenMenu,
+}: ProductRowProps) {
+  const colorSchema = getCategoryColorSchema(item.category_id ?? '');
+  const isAvailable = item.is_available ?? false;
+
+  let marginBadges: React.ReactNode = null;
+  if (linkedRecipe) {
+    const marginAmt = item.price - linkedRecipe.cost_snapshot;
+    const marginPct = item.price > 0 ? (marginAmt / item.price) * 100 : 0;
+    const isMarginHealthy = marginPct >= 50;
+    marginBadges = (
+      <>
+        <View className={`border rounded px-1 py-0.5 ${isMarginHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+          <Text className={`text-[7.5px] font-black ${isMarginHealthy ? 'text-emerald-700' : 'text-amber-700'}`}>
+            Margin: ₹{marginAmt.toFixed(2)}
+          </Text>
+        </View>
+        <View className={`border rounded px-1 py-0.5 ${isMarginHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+          <Text className={`text-[7.5px] font-black ${isMarginHealthy ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {marginPct.toFixed(1)}%
+          </Text>
+        </View>
+      </>
+    );
+  }
+
+  return (
+    <View className="flex-1 flex-row items-center justify-between p-2.5 mb-2 bg-white border border-slate-100 rounded-2xl shadow-xs relative" style={{ minHeight: 60 }}>
+
+      {/* Left Column: Name, Category pill & Available Switch */}
+      <View className="flex-1 mr-2.5 flex-row items-center">
+
+        <View className="flex-1 flex-col justify-center">
+          <View className="flex-row items-center gap-1.5 flex-wrap">
+            <Text className="font-bold text-[12.5px] text-text-primary select-all">{item.name}</Text>
+            {category && (
+              <View className={`px-1.5 py-0.5 rounded-full border text-[7.5px] font-black tracking-wide ${colorSchema.bg}`}>
+                <Text className={`text-[7.5px] font-black tracking-wide ${colorSchema.text}`}>{category.name}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Inline Switch Availability Indicator */}
+          <View className="flex-row items-center gap-1 mt-0.5 flex-wrap">
+            <Switch
+              value={isAvailable}
+              onValueChange={() => onToggleAvailability(item)}
+              trackColor={{ false: '#cbd5e1', true: colors.accent }}
+              thumbColor={isAvailable ? colors.primary : '#f4f3f4'}
+              style={{ transform: [{ scale: 0.6 }], marginVertical: -4 }}
+            />
+            <Text className={`text-[8.5px] font-extrabold uppercase ${isAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
+              {isAvailable ? 'Available' : 'Unavailable'}
+            </Text>
+            {item.inventory_tracking_enabled && (
+              <View className="bg-blue-50 border border-blue-100 rounded px-1 py-0.25">
+                <Text className="text-[7.5px] font-black text-blue-700 uppercase">Tracked</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Margin analysis badges */}
+          {linkedRecipe && (
+            <View className="flex-row items-center gap-1 mt-1 flex-wrap">
+              <View className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5">
+                <Text className="text-[7.5px] font-semibold text-slate-500">Cost: ₹{linkedRecipe.cost_snapshot.toFixed(2)}</Text>
+              </View>
+              {marginBadges}
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Center Column: Price Tag Badge (Clickable for inline pricing edits!) */}
+      <View className="w-20 items-end justify-center mr-2">
+        {isInlineEditingPrice ? (
+          <View className="flex-row items-center gap-0.5 bg-white border border-primary/40 rounded-xl px-1" style={{ height: 26 }}>
+            <Text className="text-text-secondary text-[9px] font-bold">₹</Text>
+            <TextInput
+              value={inlinePriceValue}
+              onChangeText={onInlinePriceChange}
+              className="w-10 h-full text-text-primary text-[9px] font-black font-mono"
+              keyboardType="numeric"
+              autoFocus
+              placeholder="Price"
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save price"
+              onPress={() => onQuickPriceSave(item)}
+              className="bg-emerald-100 p-0.5 rounded animate-bounce"
+            >
+              <Check size={9} color="#059669" />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel price edit"
+              onPress={onCancelInlinePrice}
+              className="bg-slate-100 p-0.5 rounded"
+            >
+              <X size={9} color="#475569" />
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Edit price, currently ${item.price} rupees`}
+            onPress={() => onStartInlinePrice(item)}
+            className="active:bg-slate-50 px-1.5 py-0.5 rounded-xl transition-all"
+            style={{ height: 26, justifyContent: 'center' }}
+          >
+            <Text className="text-primary font-black text-[12px] font-mono">₹{item.price}</Text>
+          </Pressable>
+        )}
+      </View>
+
+      {/* Right Column: High Density Compact Icon Buttons */}
+      <View className="flex-row items-center gap-1">
+
+        {/* Pencil Edit button */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${item.name}`}
+          className="bg-white border border-slate-200 active:bg-slate-50 rounded-xl items-center justify-center shadow-xs"
+          style={{ width: 30, height: 30 }}
+          onPress={() => onEdit(item)}
+        >
+          <Edit2 size={11} color={colors.textSecondary} />
+        </Pressable>
+
+        {/* Ellipsis Vertical options activator */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`More options for ${item.name}`}
+          className="bg-white border border-slate-200 active:bg-slate-50 rounded-xl items-center justify-center shadow-xs"
+          style={{ width: 30, height: 30 }}
+          onPress={() => onOpenMenu(item)}
+        >
+          <MoreVertical size={12} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+
+    </View>
+  );
+});
 
 export function MenuManagement({ onBack }: MenuManagementProps) {
   const { width } = useWindowDimensions();
@@ -143,23 +378,23 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   }, []);
 
   // One-click availability toggle with optimistic update & rollback
-  const handleToggleAvailability = async (product: MenuProduct) => {
+  const handleToggleAvailability = useCallback(async (product: MenuProduct) => {
     const nextStatus = !product.is_available;
     setActiveMenuId(null);
-    
+
     // Optimistic UI Update
     setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_available: nextStatus } : p));
-    
+
     const res = await toggleProductAvailability(product.id, nextStatus);
     if (res.error) {
       // Rollback on database failure
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_available: product.is_available } : p));
       Alert.alert('Operation Failed', 'Unable to toggle product availability in database.');
     }
-  };
+  }, []);
 
   // Inline Quick Price Save
-  const handleQuickPriceSave = async (product: MenuProduct) => {
+  const handleQuickPriceSave = useCallback(async (product: MenuProduct) => {
     const parsedPrice = parseFloat(inlinePriceValue);
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       Alert.alert('Invalid Pricing', 'Please enter a valid positive price.');
@@ -183,10 +418,28 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, price: previousPrice } : p));
       Alert.alert('Pricing Update Failed', res.error);
     }
-  };
+  }, [inlinePriceValue]);
 
-  const handleDownloadTemplate = () => {
+  const handleStartInlinePrice = useCallback((product: MenuProduct) => {
+    setInlinePriceId(product.id);
+    setInlinePriceValue(String(product.price));
+  }, []);
+
+  const handleCancelInlinePrice = useCallback(() => {
+    setInlinePriceId(null);
+  }, []);
+
+  const handleOpenProductMenu = useCallback((product: MenuProduct) => {
+    setSelectedProductForMenu(product);
+  }, []);
+
+  const handleDownloadTemplate = async () => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('Info', 'Excel template download is available on the web version only.');
+      return;
+    }
     try {
+      const XLSX = await import('xlsx');
       const templateData = [
         {
           'Product Name*': 'Pistachio Cheesecake',
@@ -207,19 +460,19 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       const ws = XLSX.utils.json_to_sheet(templateData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Product Menu');
-
-      if (Platform.OS === 'web') {
-        XLSX.writeFile(wb, 'grovit_product_menu_template.xlsx');
-      } else {
-        Alert.alert('Info', 'Excel template download is supported on the web version.');
-      }
-    } catch (err: any) {
-      Alert.alert('Error', 'Failed to generate template: ' + (err.message || err));
+      XLSX.writeFile(wb, 'grovit_product_menu_template.xlsx');
+    } catch (err: unknown) {
+      Alert.alert('Error', 'Failed to generate template: ' + getErrorMessage(err));
     }
   };
 
   const handleImportExcelClick = async () => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('Info', 'Excel import is available on the web version only.');
+      return;
+    }
     try {
+      const XLSX = await import('xlsx');
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -234,46 +487,41 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
       }
 
       const asset = result.assets[0];
-
-      if (Platform.OS === 'web') {
-        const file = asset.file;
-        if (!file) {
-          Alert.alert('Error', 'Unable to access the selected file.');
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          try {
-            const data = e.target?.result;
-            if (!data) {
-              Alert.alert('Error', 'File content is empty.');
-              return;
-            }
-
-            const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const json = XLSX.utils.sheet_to_json<ProductImportRow>(worksheet);
-
-            if (json.length === 0) {
-              Alert.alert('Error', 'The uploaded Excel file contains no data rows.');
-              return;
-            }
-
-            const summary = await validateProductImportRows(json);
-            setImportSummary(summary);
-            setIsImportModalOpen(true);
-          } catch (err: any) {
-            Alert.alert('Error', 'Failed to parse Excel file: ' + (err.message || err));
-          }
-        };
-        reader.readAsArrayBuffer(file);
-      } else {
-        Alert.alert('Info', 'Excel import is currently supported on the web version.');
+      const file = asset.file;
+      if (!file) {
+        Alert.alert('Error', 'Unable to access the selected file.');
+        return;
       }
-    } catch (err: any) {
-      Alert.alert('Error', 'File picker error: ' + (err.message || err));
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = e.target?.result;
+          if (!(data instanceof ArrayBuffer)) {
+            Alert.alert('Error', 'File content is empty.');
+            return;
+          }
+
+          const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const json = XLSX.utils.sheet_to_json<ProductImportRow>(worksheet);
+
+          if (json.length === 0) {
+            Alert.alert('Error', 'The uploaded Excel file contains no data rows.');
+            return;
+          }
+
+          const summary = await validateProductImportRows(json);
+          setImportSummary(summary);
+          setIsImportModalOpen(true);
+        } catch (err: unknown) {
+          Alert.alert('Error', 'Failed to parse Excel file: ' + getErrorMessage(err));
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (err: unknown) {
+      Alert.alert('Error', 'File picker error: ' + getErrorMessage(err));
     }
   };
 
@@ -291,8 +539,8 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
         setImportSummary(null);
         await loadData();
       }
-    } catch (err: any) {
-      Alert.alert('Error', 'An unexpected error occurred: ' + (err.message || err));
+    } catch (err: unknown) {
+      Alert.alert('Error', 'An unexpected error occurred: ' + getErrorMessage(err));
     } finally {
       setIsImporting(false);
     }
@@ -311,7 +559,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
   };
 
   // Open Form for Editing
-  const handleOpenEdit = (product: MenuProduct) => {
+  const handleOpenEdit = useCallback((product: MenuProduct) => {
     setActiveMenuId(null);
     setFormInput({
       id: product.id,
@@ -326,7 +574,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
     setFormError(null);
     setSuccess(null);
     setIsModalOpen(true);
-  };
+  }, [categories]);
 
   const handleSave = async () => {
     if (!formInput.name.trim()) {
@@ -412,64 +660,119 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
     }
   };
 
-  // Dynamic Category color-coding maps
-  const getCategoryColorSchema = (catId: string) => {
-    const defaultSchema = { bg: 'bg-blue-50 border-blue-100', text: 'text-blue-700' };
-    if (!catId) return defaultSchema;
-    
-    const index = catId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 5;
-    const schemas = [
-      { bg: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700' }, // Mint / Green
-      { bg: 'bg-rose-50 border-rose-100', text: 'text-rose-700' }, // Rose / Pink
-      { bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700' }, // Gold / Orange
-      { bg: 'bg-violet-50 border-violet-100', text: 'text-violet-700' }, // Lavender / Purple
-      { bg: 'bg-cyan-50 border-cyan-100', text: 'text-cyan-700' }, // Sky / Cyan
-    ];
-    return schemas[index] ?? defaultSchema;
-  };
-
   // Filter & Sort Logic
-  const filteredAndSortedProducts = products
-    .filter(p => {
-      // 1. Category selector pill filter
-      const matchesCategory = selectedCategoryId === 'all' || p.category_id === selectedCategoryId;
-      
-      // 2. Search keyword filter
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase().trim());
-      
-      // 3. Availability Filter
-      let matchesAvailability = true;
-      if (availabilityFilter === 'available') {
-        matchesAvailability = p.is_available === true;
-      } else if (availabilityFilter === 'unavailable') {
-        matchesAvailability = p.is_available !== true;
-      }
+  const filteredAndSortedProducts = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return products
+      .filter(p => {
+        // 1. Category selector pill filter
+        const matchesCategory = selectedCategoryId === 'all' || p.category_id === selectedCategoryId;
 
-      return matchesCategory && matchesSearch && matchesAvailability;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'name-desc':
-          return b.name.localeCompare(a.name);
-        case 'price-asc':
-          return a.price - b.price;
-        case 'price-desc':
-          return b.price - a.price;
-        case 'status-on':
-          return (b.is_available ? 1 : 0) - (a.is_available ? 1 : 0);
-        case 'status-off':
-          return (a.is_available ? 1 : 0) - (b.is_available ? 1 : 0);
-        case 'name-asc':
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
+        // 2. Search keyword filter
+        const matchesSearch = p.name.toLowerCase().includes(query);
+
+        // 3. Availability Filter
+        let matchesAvailability = true;
+        if (availabilityFilter === 'available') {
+          matchesAvailability = p.is_available === true;
+        } else if (availabilityFilter === 'unavailable') {
+          matchesAvailability = p.is_available !== true;
+        }
+
+        return matchesCategory && matchesSearch && matchesAvailability;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case 'name-desc':
+            return b.name.localeCompare(a.name);
+          case 'price-asc':
+            return a.price - b.price;
+          case 'price-desc':
+            return b.price - a.price;
+          case 'status-on':
+            return (b.is_available ? 1 : 0) - (a.is_available ? 1 : 0);
+          case 'status-off':
+            return (a.is_available ? 1 : 0) - (b.is_available ? 1 : 0);
+          case 'name-asc':
+          default:
+            return a.name.localeCompare(b.name);
+        }
+      });
+  }, [products, selectedCategoryId, searchQuery, availabilityFilter, sortBy]);
+
+  // Per-category product counts (single pass, used by the category pills)
+  const countByCategory = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const p of products) {
+      const key = p.category_id ?? '';
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [products]);
+
+  const categoryById = useMemo(() => {
+    const map = new Map<string, Category>();
+    for (const c of categories) map.set(c.id, c);
+    return map;
+  }, [categories]);
+
+  const recipeById = useMemo(() => {
+    const map = new Map<string, InventoryRecipe>();
+    for (const r of recipes) map.set(r.id, r);
+    return map;
+  }, [recipes]);
+
+  const categoryPillData = useMemo<CategoryPillItem[]>(
+    () => [{ id: 'all', name: 'All Items' }, ...categories.map(c => ({ id: c.id, name: c.name }))],
+    [categories],
+  );
 
   // Analytics helper metrics
   const totalCount = products.length;
-  const activeCount = products.filter(p => p.is_available).length;
+  const activeCount = useMemo(() => products.filter(p => p.is_available).length, [products]);
   const soldOutCount = totalCount - activeCount;
   const categoryCount = categories.length;
+
+  const handleSelectCategory = useCallback((id: string) => {
+    setSelectedCategoryId(id);
+  }, []);
+
+  const renderCategoryPill = useCallback<ListRenderItem<CategoryPillItem>>(({ item }) => (
+    <CategoryPill
+      item={item}
+      isSelected={selectedCategoryId === item.id}
+      count={item.id === 'all' ? totalCount : (countByCategory[item.id] ?? 0)}
+      onSelect={handleSelectCategory}
+    />
+  ), [selectedCategoryId, totalCount, countByCategory, handleSelectCategory]);
+
+  const renderProductRow = useCallback<ListRenderItem<MenuProduct>>(({ item }) => (
+    <ProductRow
+      item={item}
+      category={item.category_id ? categoryById.get(item.category_id) : undefined}
+      linkedRecipe={item.recipe_id ? recipeById.get(item.recipe_id) : undefined}
+      isInlineEditingPrice={inlinePriceId === item.id}
+      inlinePriceValue={inlinePriceId === item.id ? inlinePriceValue : ''}
+      onInlinePriceChange={setInlinePriceValue}
+      onStartInlinePrice={handleStartInlinePrice}
+      onCancelInlinePrice={handleCancelInlinePrice}
+      onQuickPriceSave={handleQuickPriceSave}
+      onToggleAvailability={handleToggleAvailability}
+      onEdit={handleOpenEdit}
+      onOpenMenu={handleOpenProductMenu}
+    />
+  ), [
+    categoryById,
+    recipeById,
+    inlinePriceId,
+    inlinePriceValue,
+    handleStartInlinePrice,
+    handleCancelInlinePrice,
+    handleQuickPriceSave,
+    handleToggleAvailability,
+    handleOpenEdit,
+    handleOpenProductMenu,
+  ]);
 
   return (
     <View className="flex-1 bg-surface-tint p-3 rounded-none">
@@ -590,7 +893,7 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
               placeholder="Search menu items..."
               placeholderTextColor="#94a3b8"
               className="flex-1 text-text-primary text-[11px] font-semibold h-full outline-none"
-              style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+              style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} className="p-0.5">

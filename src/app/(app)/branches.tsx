@@ -218,9 +218,11 @@ export default function BranchesScreen() {
     if (editingId === 'new') {
       const result = await createBranch(payload);
       err = result.error;
-    } else {
-      const result = await updateBranch(editingId!, payload);
+    } else if (editingId) {
+      const result = await updateBranch(editingId, payload);
       err = result.error;
+    } else {
+      err = 'No branch selected.';
     }
 
     setSaving(false);

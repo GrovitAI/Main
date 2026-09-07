@@ -133,6 +133,22 @@ export default function AnalyticsScreen() {
   const increaseRoyaltyRate = () => updateRoyaltyRate(royaltyRate + 0.5);
 
   // Dynamic date preset calculations
+  /** Narrows a label coming from the phone screen to a known preset id. */
+  const toDatePreset = (value: string): typeof preset => {
+    const normalised = value.toLowerCase().replace(/\s+/g, '');
+    switch (normalised) {
+      case 'today':
+      case 'yesterday':
+      case '7days':
+      case '30days':
+      case 'month':
+      case 'custom':
+        return normalised;
+      default:
+        return 'today';
+    }
+  };
+
   const applyPreset = (presetType: typeof preset) => {
     setPreset(presetType);
     if (presetType === 'custom') {
@@ -1260,7 +1276,7 @@ export default function AnalyticsScreen() {
         isFilterSheetOpen={isFilterSheetOpen}
         onOpenFilter={() => setIsFilterSheetOpen(true)}
         onCloseFilter={() => setIsFilterSheetOpen(false)}
-        onSelectDatePreset={(p) => applyPreset(p.toLowerCase() as any)}
+        onSelectDatePreset={(p) => applyPreset(toDatePreset(p))}
         onApplyCustomRange={(start, end, startT, endT) => {
           setStartDate(start);
           setEndDate(end);
@@ -1347,7 +1363,7 @@ export default function AnalyticsScreen() {
                 </Text>
               </Pressable>
               {/* Individual branch chips */}
-              {accessibleBranches.map((b: any) => (
+              {accessibleBranches.map((b) => (
                 <Pressable
                   key={b.id}
                   onPress={() => { setSelectedBranchId(b.id); }}

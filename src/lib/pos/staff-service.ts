@@ -35,6 +35,31 @@ export type UpdateStaffPayload = {
   status?: 'active' | 'inactive';
 };
 
+/** Shape returned by the staff list query (staff joined with its branch). */
+type StaffQueryRow = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  auth_user_id: string | null;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string;
+  last_login_at: string | null;
+  /** PostgREST returns the embedded branch as an array. */
+  branches?: { name?: string | null }[] | { name?: string | null } | null;
+};
+
+/** Reads the joined branch name whether PostgREST embeds one row or an array. */
+function branchNameOf(row: StaffQueryRow): string | null {
+  const branches = row.branches;
+  if (Array.isArray(branches)) {
+    return branches[0]?.name ?? null;
+  }
+  return branches?.name ?? null;
+}
+
 // ─── Service Functions ────────────────────────────────────────────────────────
 
 /**
@@ -68,7 +93,7 @@ export async function fetchStaff(): Promise<{ data: StaffMember[]; error: string
       return { data: [], error: 'Unable to load staff.' };
     }
 
-    const mapped: StaffMember[] = (data ?? []).map((row: any) => ({
+    const mapped: StaffMember[] = (data ?? []).map((row: StaffQueryRow) => ({
       id: row.id,
       tenant_id: row.tenant_id,
       branch_id: row.branch_id,
@@ -76,10 +101,10 @@ export async function fetchStaff(): Promise<{ data: StaffMember[]; error: string
       name: row.name,
       email: row.email,
       role: row.role as UserRole,
-      status: row.status,
+      status: row.status === 'active' ? 'active' : 'inactive',
       created_at: row.created_at,
       last_login_at: row.last_login_at,
-      branch_name: row.branches?.name ?? '—',
+      branch_name: branchNameOf(row) ?? '—',
     }));
 
     return { data: mapped, error: null };
