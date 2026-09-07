@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -146,43 +146,62 @@ export function PhoneAnalyticsScreen({
   const [searchItemQuery, setSearchItemQuery] = useState('');
   const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
 
-  const formatCurrency = (val?: number | null) => {
+  // Every derived value below is memoized. This screen is the phone home
+  // screen and carries the item search box, so without this each keystroke
+  // recomputed all three chart scales and refiltered the whole item list.
+  const formatCurrency = useCallback((val?: number | null) => {
     const num = typeof val === 'number' && !isNaN(val) && isFinite(val) ? val : 0;
     return `₹${Math.round(num).toLocaleString('en-IN')}`;
-  };
+  }, []);
 
-  const formatCurrencyDetailed = (val?: number | null) => {
+  const formatCurrencyDetailed = useCallback((val?: number | null) => {
     const num = typeof val === 'number' && !isNaN(val) && isFinite(val) ? val : 0;
     return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  }, []);
 
   // Calculate chart metrics safely
-  const salesTrendList = chartsData?.salesTrend || [];
-  const rushHoursList = chartsData?.rushHours || [];
-  const paymentSplitsList = chartsData?.paymentSplits || [];
+  const salesTrendList = useMemo(() => chartsData?.salesTrend || [], [chartsData]);
+  const rushHoursList = useMemo(() => chartsData?.rushHours || [], [chartsData]);
+  const paymentSplitsList = useMemo(() => chartsData?.paymentSplits || [], [chartsData]);
 
-  const maxSaleValue = Math.max(
-    ...salesTrendList.map((s) => (typeof s?.value === 'number' && !isNaN(s.value) ? s.value : 0)),
-    100
+  const maxSaleValue = useMemo(
+    () =>
+      Math.max(
+        ...salesTrendList.map((s) => (typeof s?.value === 'number' && !isNaN(s.value) ? s.value : 0)),
+        100
+      ),
+    [salesTrendList]
   );
-  const maxRushValue = Math.max(
-    ...rushHoursList.map((r) => (typeof r?.sales === 'number' && !isNaN(r.sales) ? r.sales : 0)),
-    100
+  const maxRushValue = useMemo(
+    () =>
+      Math.max(
+        ...rushHoursList.map((r) => (typeof r?.sales === 'number' && !isNaN(r.sales) ? r.sales : 0)),
+        100
+      ),
+    [rushHoursList]
   );
-  const totalPaymentSum =
-    paymentSplitsList.reduce(
-      (acc, p) => acc + (typeof p?.value === 'number' && !isNaN(p.value) ? p.value : 0),
-      0
-    ) || 1;
+  const totalPaymentSum = useMemo(
+    () =>
+      paymentSplitsList.reduce(
+        (acc, p) => acc + (typeof p?.value === 'number' && !isNaN(p.value) ? p.value : 0),
+        0
+      ) || 1,
+    [paymentSplitsList]
+  );
 
   // Filter items safely
-  const filteredItems = (itemSales || []).filter((item) =>
-    (item?.name || '').toLowerCase().includes((searchItemQuery || '').toLowerCase())
-  );
+  const filteredItems = useMemo(() => {
+    const needle = (searchItemQuery || '').toLowerCase();
+    return (itemSales || []).filter((item) => (item?.name || '').toLowerCase().includes(needle));
+  }, [itemSales, searchItemQuery]);
 
-  const selectedBranchName = filterState?.selectedBranchId
-    ? (branches || []).find((b) => b?.id === filterState.selectedBranchId)?.name || 'Branch'
-    : 'All Branches';
+  const selectedBranchName = useMemo(
+    () =>
+      filterState?.selectedBranchId
+        ? (branches || []).find((b) => b?.id === filterState.selectedBranchId)?.name || 'Branch'
+        : 'All Branches',
+    [branches, filterState?.selectedBranchId]
+  );
 
   const currentPresetKey = (filterState?.datePreset || '7days').toLowerCase();
 
