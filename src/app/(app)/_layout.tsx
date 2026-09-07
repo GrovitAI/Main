@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UIContext } from '@/lib/pos/ui-context';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { TabConfig } from '@/lib/pos/tab-config';
+import type { PosSession } from '@/lib/pos/session-context';
 
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -64,8 +67,13 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   menu: '/menu',
 };
 
-function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }: any) {
-  const activeTabNames = roleTabs.map((tab: any) => tab.name);
+type CustomTabBarProps = BottomTabBarProps & {
+  roleTabs: TabConfig[];
+  tabBarHidden: boolean;
+};
+
+function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }: CustomTabBarProps) {
+  const activeTabNames = roleTabs.map((tab) => tab.name);
 
   const activeTabName = state.routes[state.index]?.name;
 
@@ -187,9 +195,9 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       elevation: 10,
       transform: [
         {
-          translateX: (Platform.OS === 'web' && width >= 1200 && activeTabName === 'index') ? -105 : 0
-        }
-      ] as any,
+          translateX: (Platform.OS === 'web' && width >= 1200 && activeTabName === 'index') ? -105 : 0,
+        },
+      ],
     } : {
       flexDirection: 'row',
       backgroundColor: '#FFFFFF',
@@ -222,11 +230,11 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       )}
 
       {activeTabNames.map((tabName: string) => {
-        const route = state.routes.find((r: any) => r.name === tabName);
+        const route = state.routes.find((r) => r.name === tabName);
         if (!route) return null;
 
         const isFocused = state.routes[state.index].name === tabName;
-        const tabConfig = roleTabs.find((t: any) => t.name === tabName);
+        const tabConfig = roleTabs.find((t) => t.name === tabName);
         if (!tabConfig) return null;
 
         const TabIcon = tabConfig.icon;
@@ -259,7 +267,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
                 opacity: pressed ? 0.7 : 1,
                 zIndex: 3,
                 ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-              } as any)}
+              })}
             >
               <View
                 style={{
@@ -322,12 +330,12 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
               transform: [{ scale: pressed ? 0.96 : (hovered ? 1.02 : 1) }],
               zIndex: 3,
               ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-            } as any)}
+            })}
           >
             <TabIcon
               color={isFocused ? '#FFFFFF' : '#64748B'}
               size={18}
-              style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] } as any}
+              style={{ transform: [{ scale: isFocused ? 1.05 : 1 }] }}
             />
             <Text style={{
               color: isFocused ? '#FFFFFF' : '#64748B',
@@ -384,7 +392,7 @@ export default function AppTabLayout() {
       const activeEl = document.activeElement;
       if (activeEl) {
         const tagName = activeEl.tagName.toLowerCase();
-        if (tagName === 'input' || tagName === 'textarea' || (activeEl as any).isContentEditable) {
+        if (tagName === 'input' || tagName === 'textarea' || (activeEl as HTMLElement).isContentEditable) {
           // Allow tab navigation ONLY if it's the POS search input or the Orders search input
           if (activeEl.id !== 'search-input' && activeEl.id !== 'orders-search-input') {
             return; // Block tab switching
@@ -428,7 +436,7 @@ export default function AppTabLayout() {
       const targetTabName = activeTabNames[nextIndex];
       const targetTabPath = TAB_ROUTE_MAP[targetTabName];
       console.log('[AppTabLayout] Navigating to tab:', targetTabName, 'via path:', targetTabPath);
-      router.push(targetTabPath as any);
+      router.push(targetTabPath as Parameters<typeof router.push>[0]);
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown, true);
@@ -517,9 +525,10 @@ export default function AppTabLayout() {
 
 const headerLogo = require('@/../assets/images/le-leban-logo.png') as number;
 
-function GlobalHeader({ session }: { session: any }) {
-  if (!session) return null;
+function GlobalHeader({ session }: { session: PosSession | null }) {
+  // Hooks must run on every render: resolve insets before any early return.
   const insets = useSafeAreaInsets();
+  if (!session) return null;
 
   const isOwner = session.role === 'owner';
   const isWeb = Platform.OS === 'web';
