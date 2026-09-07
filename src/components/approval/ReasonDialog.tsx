@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { ShieldCheck, FileText, X } from 'lucide-react-native';
 
 interface ReasonDialogProps {
@@ -41,6 +42,7 @@ export function ReasonDialog({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <KeyboardAvoider>
       <View className="flex-1 items-center justify-center bg-black/50 px-4">
         <View className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
           {/* Header */}
@@ -138,6 +140,7 @@ export function ReasonDialog({
           </View>
         </View>
       </View>
+      </KeyboardAvoider>
     </Modal>
   );
 }

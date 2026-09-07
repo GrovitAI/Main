@@ -37,6 +37,7 @@ import { fetchBranches, type Branch } from '@/lib/pos/branch-service';
 import type { UserRole } from '@/lib/pos/session-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -293,6 +294,7 @@ export default function StaffScreen() {
         </View>
       )}
 
+      <KeyboardAvoider>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, isPhone && styles.scrollContentPhone]}
@@ -481,6 +483,7 @@ export default function StaffScreen() {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoider>
     </View>
   );
 }

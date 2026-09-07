@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import {
   Search,
   Plus,
@@ -368,6 +369,7 @@ export function PhoneMenuScreen({
           transparent
           onRequestClose={() => setIsModalOpen(false)}
         >
+          <KeyboardAvoider>
           <View className="flex-1 justify-end bg-black/60">
             <View className="bg-white rounded-t-3xl border-t border-[#E2E8F0] max-h-[92%] flex-col">
               {/* Modal Header */}
@@ -558,6 +560,7 @@ export function PhoneMenuScreen({
               </ScrollView>
             </View>
           </View>
+          </KeyboardAvoider>
         </Modal>
       )}
     </View>

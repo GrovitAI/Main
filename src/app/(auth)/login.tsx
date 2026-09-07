@@ -4,6 +4,7 @@ import { router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { BrandedGradient } from '@/components/pos/BrandedGradient';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { brand } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
@@ -61,6 +62,7 @@ export default function LoginScreen() {
     <>
       <StatusBar style="light" />
       <BrandedGradient variant="hero" className="flex-1">
+        <KeyboardAvoider>
         <View className="flex-1 items-center justify-center px-6 py-8">
           <Image
             source={logoSource}
@@ -151,6 +153,7 @@ export default function LoginScreen() {
             Powered by Grovit
           </Text>
         </View>
+        </KeyboardAvoider>
       </BrandedGradient>
     </>
   );

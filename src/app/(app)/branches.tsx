@@ -35,6 +35,7 @@ import {
 } from '@/lib/pos/branch-service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 
 // ─── Form State ──────────────────────────────────────────────────────────────
@@ -309,6 +310,7 @@ export default function BranchesScreen() {
         </View>
       )}
 
+      <KeyboardAvoider>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, isPhone && styles.scrollContentPhone]}
@@ -497,6 +499,7 @@ export default function BranchesScreen() {
           ))
         )}
       </ScrollView>
+      </KeyboardAvoider>
 
       {/* Verification Code Modal */}
       <Modal visible={verifyModalVisible} transparent animationType="fade" onRequestClose={() => setVerifyModalVisible(false)}>
