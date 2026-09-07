@@ -1,15 +1,9 @@
-import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket, KotTicketItem, OrderStatus } from './order-types';
+import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket, OrderStatus } from './order-types';
 import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
 import type { ServiceResult } from './settlement-service';
-import {
-  getEffectiveReportingTimestamp,
-  getBusinessDate,
-  getBusinessDayBounds,
-} from './reporting-utils';
-
-const ACTIVE_ORDER_STATUS = 'open';
+import { getBusinessDayBounds } from './reporting-utils';
 
 function isOpenOrderRow(order: OpenOrder): boolean {
   if (!order.status) {
@@ -53,6 +47,12 @@ type OrderItemRow = {
   product_id: string;
 };
 
+/** Order line with the columns needed to price a summary row. */
+type PricedOrderItemRow = OrderItemRow & {
+  price: number | null;
+  item_name: string | null;
+};
+
 async function fetchProductNameMap(
   productIds: string[],
 ): Promise<Record<string, string>> {
@@ -78,85 +78,7 @@ async function fetchProductNameMap(
   return nameMap;
 }
 
-// ─── KOT & Sequence Local Fallback Persistence ──────────────────────────────────
-
-export type LocalSequences = {
-  kot_sequence: number;
-  bill_sequence: number;
-  order_sequence: number;
-};
-
-let localKotTickets: KotTicket[] = [];
-let localSequences: LocalSequences = {
-  kot_sequence: 0,
-  bill_sequence: 0,
-  order_sequence: 0,
-};
-
-if (typeof window !== 'undefined' && window.localStorage) {
-  try {
-    const cachedKots = window.localStorage.getItem('grovit_local_kot_tickets');
-    if (cachedKots) {
-      localKotTickets = JSON.parse(cachedKots);
-    }
-    const cachedSeqs = window.localStorage.getItem('grovit_local_sequences');
-    if (cachedSeqs) {
-      localSequences = JSON.parse(cachedSeqs);
-      // Clean up fallback missing fields if any
-      if (typeof localSequences.order_sequence === 'undefined') {
-        localSequences.order_sequence = 0;
-      }
-    }
-  } catch (err) {
-    console.warn('[Grovit] Error loading cached fallback states:', err);
-  }
-}
-
-function saveLocalKotTickets() {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem('grovit_local_kot_tickets', JSON.stringify(localKotTickets));
-  }
-}
-
-function saveLocalSequences() {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem('grovit_local_sequences', JSON.stringify(localSequences));
-  }
-}
-
-// ─── Monotonic Sequence Generators ──────────────────────────────────────────────
-
-export function bootstrapSequenceRegistry(highestKot: number, highestBill: number, highestOrder: number): void {
-  localSequences.kot_sequence = Math.max(localSequences.kot_sequence, highestKot);
-  localSequences.bill_sequence = Math.max(localSequences.bill_sequence, highestBill);
-  localSequences.order_sequence = Math.max(localSequences.order_sequence, highestOrder);
-  saveLocalSequences();
-  console.log('[Grovit SequenceRegistry] Bootstrapped:', localSequences);
-}
-
-export function getNextKotNumber(): number {
-  localSequences.kot_sequence += 1;
-  saveLocalSequences();
-  return localSequences.kot_sequence;
-}
-
-export function getNextOrderNumber(): number {
-  localSequences.order_sequence += 1;
-  saveLocalSequences();
-  return localSequences.order_sequence;
-}
-
-export function getNextBillNumber(): string {
-  localSequences.bill_sequence += 1;
-  saveLocalSequences();
-  const padded = String(localSequences.bill_sequence).padStart(4, '0');
-  return `INV-${padded}`;
-}
-
-/** Alias for semantic clarity — generates the next invoice number */
-export const getNextInvoiceNumber = getNextBillNumber;
-
-// ─── KOT Service API ───────────────────────────────────────────────────────────
+// ─── KOT reads (writes live in kot-service.ts) ────────────────────────────────
 
 export async function fetchKotsForOrders(
   orderIds: string[],
@@ -168,7 +90,6 @@ export async function fetchKotsForOrders(
 
     const { tenant_id, branch_id } = getTenantContext();
 
-    // Try Supabase first
     const { data, error } = await supabase
       .from('kots')
       .select('*, kot_items(*)')
@@ -178,17 +99,6 @@ export async function fetchKotsForOrders(
       .order('created_at', { ascending: true });
 
     if (error) {
-      if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist')) {
-        const map: Record<string, KotTicket[]> = {};
-        for (const ticket of localKotTickets) {
-          if (orderIds.includes(ticket.open_order_id)) {
-            const list = map[ticket.open_order_id] ?? [];
-            list.push(ticket);
-            map[ticket.open_order_id] = list;
-          }
-        }
-        return { data: map, error: null };
-      }
       logSupabaseError('fetchKotsForOrders', error);
       return { data: null, error: 'Unable to load kitchen tickets.' };
     }
@@ -202,117 +112,8 @@ export async function fetchKotsForOrders(
     }
 
     return { data: map, error: null };
-  } catch (err) {
-    const map: Record<string, KotTicket[]> = {};
-    for (const ticket of localKotTickets) {
-      if (orderIds.includes(ticket.open_order_id)) {
-        const list = map[ticket.open_order_id] ?? [];
-        list.push(ticket);
-        map[ticket.open_order_id] = list;
-      }
-    }
-    return { data: map, error: null };
-  }
-}
-
-export async function createKot(
-  orderId: string,
-  items: { name: string; quantity: number; notes?: string | null }[],
-): Promise<ServiceResult<KotTicket>> {
-  try {
-    const { tenant_id, branch_id } = getTenantContext();
-    const nextNumber = getNextKotNumber();
-
-    // 1. Insert KOT master row
-    const { data: kotData, error: kotError } = await supabase
-      .from('kots')
-      .insert({
-        tenant_id,
-        branch_id,
-        open_order_id: orderId,
-        kot_number: nextNumber,
-        status: 'pending',
-      })
-      .select('*')
-      .single();
-
-    if (kotError) {
-      if (kotError.code === '42P01' || kotError.message?.toLowerCase().includes('does not exist')) {
-        const kotUuid = `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-        const newTicket: KotTicket = {
-          id: kotUuid,
-          tenant_id,
-          branch_id,
-          open_order_id: orderId,
-          kot_number: nextNumber,
-          status: 'pending',
-          printed_at: null,
-          created_at: new Date().toISOString(),
-          kot_items: items.map((item) => ({
-            id: `kot-item-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            kot_id: kotUuid,
-            item_name: item.name,
-            qty: item.quantity,
-            notes: item.notes || null,
-          })),
-        };
-        localKotTickets.push(newTicket);
-        saveLocalKotTickets();
-        return { data: newTicket, error: null };
-      }
-      logSupabaseError('createKot.kots', kotError);
-      return { data: null, error: 'Unable to save kitchen ticket.' };
-    }
-
-    const createdKot = kotData as KotTicket;
-    const kotId = createdKot.id;
-
-    // 2. Insert KOT items rows
-    const itemsToInsert = items.map((item) => ({
-      kot_id: kotId,
-      item_name: item.name,
-      qty: item.quantity,
-      notes: item.notes || null,
-    }));
-
-    const { data: itemsData, error: itemsError } = await supabase
-      .from('kot_items')
-      .insert(itemsToInsert)
-      .select('*');
-
-    if (itemsError) {
-      logSupabaseError('createKot.kot_items', itemsError);
-      // Clean up KOT master row if items insert failed
-      await supabase.from('kots').delete().eq('id', kotId);
-      return { data: null, error: 'Unable to save kitchen ticket items.' };
-    }
-
-    createdKot.kot_items = itemsData as KotTicketItem[];
-    return { data: createdKot, error: null };
-  } catch (err) {
-    const { tenant_id, branch_id } = getTenantContext();
-    const nextNumber = getNextKotNumber();
-    const kotUuid = `kot-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const newTicket: KotTicket = {
-      id: kotUuid,
-      tenant_id,
-      branch_id,
-      open_order_id: orderId,
-      kot_number: nextNumber,
-      status: 'pending',
-      printed_at: null,
-      created_at: new Date().toISOString(),
-      kot_items: items.map((item) => ({
-        id: `kot-item-uuid-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        kot_id: kotUuid,
-        item_name: item.name,
-        qty: item.quantity,
-        notes: item.notes || null,
-      })),
-    };
-    localKotTickets.push(newTicket);
-    saveLocalKotTickets();
-    return { data: newTicket, error: null };
+  } catch {
+    return { data: null, error: 'Unable to load kitchen tickets.' };
   }
 }
 
@@ -457,32 +258,108 @@ export type OrdersQueryResponse = {
   };
 };
 
-// Helper function to build consistent filter criteria for bills queries
-function applyBillFilters(
-  query: any,
-  params: GetOrdersParams,
-  tenant_id: string,
-  branch_id: string
-) {
-  let q = query
-    .eq('tenant_id', tenant_id)
-    .eq('branch_id', branch_id);
+type BillLedgerRow = {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  open_order_id: string | null;
+  invoice_number: string | null;
+  status: string | null;
+  payment_method: string | null;
+  subtotal: number | null;
+  total_amount: number | null;
+  discount_amount: number | null;
+  created_at: string;
+};
 
+type BillItemPreviewRow = {
+  bill_id: string;
+  item_name: string | null;
+  qty: number | null;
+};
+
+type SettlementPreviewRow = {
+  bill_id: string;
+  payment_type: string | null;
+  amount: number | null;
+};
+
+type LedgerKpis = OrdersQueryResponse['metrics'] & { billCount: number };
+
+function toFiniteNumber(value: unknown): number {
+  const num = typeof value === 'string' ? Number(value) : value;
+  return typeof num === 'number' && Number.isFinite(num) ? num : 0;
+}
+
+function parseLedgerKpis(value: unknown): LedgerKpis {
+  const raw: Record<string, unknown> = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return {
+    grossSales: toFiniteNumber(raw.grossSales),
+    discountsGiven: toFiniteNumber(raw.discountsGiven),
+    complimentarySales: toFiniteNumber(raw.complimentarySales),
+    netCollected: toFiniteNumber(raw.netCollected),
+    billCount: toFiniteNumber(raw.billCount),
+  };
+}
+
+/**
+ * Minimal structural view of a PostgREST filter builder. Every method returns
+ * the same view, so `applyBillFilters` can compose filters without dragging
+ * the generated (deeply recursive) Supabase generics through the call.
+ */
+type BillsFilterQuery = {
+  eq(column: string, value: string): BillsFilterQuery;
+  gte(column: string, value: string): BillsFilterQuery;
+  lte(column: string, value: string): BillsFilterQuery;
+  or(filters: string): BillsFilterQuery;
+  ilike(column: string, pattern: string): BillsFilterQuery;
+  order(column: string, options: { ascending: boolean }): BillsFilterQuery;
+  range(from: number, to: number): BillsFilterQuery;
+};
+
+/** Shape of an awaited PostgREST list response. */
+type BillsPageResponse = {
+  data: unknown;
+  error: { message?: string; code?: string } | null;
+  count: number | null;
+};
+
+type BillFilterBounds = {
+  startTimestamp: string;
+  endTimestamp: string;
+  status: GetOrdersParams['status'];
+  search: string | null;
+};
+
+function resolveBillFilterBounds(params: GetOrdersParams): BillFilterBounds {
   const { preset = 'today', fromDate, toDate, status, search } = params;
-
   const { startTimestamp, endTimestamp } = getBusinessDayBounds(preset, fromDate, toDate);
+  const trimmedSearch = search?.trim() ?? '';
+  return {
+    startTimestamp,
+    endTimestamp,
+    status,
+    search: trimmedSearch.length > 0 ? trimmedSearch : null,
+  };
+}
+
+// Mirrors the predicate inside get_bills_ledger_kpis so KPIs and rows agree.
+function applyBillFilters(
+  query: BillsFilterQuery,
+  bounds: BillFilterBounds,
+  tenant_id: string,
+  branch_id: string,
+): BillsFilterQuery {
+  const { startTimestamp, endTimestamp, status, search } = bounds;
+  let q: BillsFilterQuery = query.eq('tenant_id', tenant_id).eq('branch_id', branch_id);
 
   if (status === 'paid' || status === 'completed') {
-    // Explicitly filter paid bills on settled_at
     q = q.gte('settled_at', startTimestamp).lte('settled_at', endTimestamp);
   } else if (status === 'draft' || status === 'unpaid' || status === 'cancelled') {
-    // Explicitly filter unpaid/draft/cancelled bills on created_at
     q = q.gte('created_at', startTimestamp).lte('created_at', endTimestamp);
   } else {
-    // When status is 'all', filter paid bills via settled_at and unpaid bills via created_at
-    // Using explicit OR clause for settled_at range vs created_at range
     q = q.or(
-      `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lte.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lte.${endTimestamp})`
+      `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lte.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lte.${endTimestamp})`,
     );
   }
 
@@ -490,8 +367,8 @@ function applyBillFilters(
     q = q.eq('status', status);
   }
 
-  if (search && search.trim().length > 0) {
-    q = q.ilike('invoice_number', `%${search.trim()}%`);
+  if (search) {
+    q = q.ilike('invoice_number', `%${search}%`);
   }
 
   return q;
@@ -505,12 +382,9 @@ export async function getOrders(
     const {
       targetTable = 'open_orders',
       preset = 'today',
-      fromDate,
-      toDate,
       status = 'all',
       paymentMethod,
       cashierId,
-      search,
       page = 1,
       pageSize = 50,
       sortBy = 'created_at',
@@ -519,91 +393,83 @@ export async function getOrders(
 
     // ── 1. Query bills table if targetTable === 'bills' or historical presets ──
     if (targetTable === 'bills' || preset === 'yesterday' || preset === '7days' || preset === '30days' || preset === 'custom') {
-      // 1A. Unpaginated query for aggregate metrics across the ENTIRE filtered dataset
-      const metricsQuery = applyBillFilters(
-        supabase.from('bills').select('subtotal, total_amount, discount_amount, status, settled_at, created_at'),
-        params,
-        tenant_id,
-        branch_id
-      );
+      const bounds = resolveBillFilterBounds(params);
 
-      const { data: allMetricsBills, error: metricsErr } = await metricsQuery;
-      if (metricsErr) {
-        logSupabaseError('getOrders.metrics', metricsErr);
-      }
+      // 1A. Aggregate KPIs across the ENTIRE filtered dataset, computed in the database.
+      const kpiArgs: Record<string, string | null> = {
+        p_tenant_id: tenant_id,
+        p_branch_id: branch_id,
+        p_start_ts: bounds.startTimestamp,
+        p_end_ts: bounds.endTimestamp,
+        p_status: bounds.status ?? 'all',
+        p_search: bounds.search,
+      };
+      // Typed through `unknown`: the generated RPC types recurse too deeply for
+      // the compiler when this builder is combined with Promise.all below.
+      const kpiPromise = supabase.rpc('get_bills_ledger_kpis', kpiArgs) as unknown as
+        Promise<{ data: unknown; error: { message?: string; code?: string } | null }>;
 
-      let grossSales = 0;
-      let discountsGiven = 0;
-      let complimentarySales = 0;
-      let netCollected = 0;
-
-      const metricsBillsList: Array<{ subtotal?: number; total_amount?: number; discount_amount?: number; status?: string; settled_at?: string; created_at?: string }> = (allMetricsBills || []) as any[];
-
-      for (const b of metricsBillsList) {
-        const subtotal = b.subtotal || b.total_amount || 0;
-        const disc = b.discount_amount || 0;
-        const isComp = b.status === 'complimentary';
-
-        grossSales += subtotal;
-        discountsGiven += disc;
-        if (isComp) {
-          complimentarySales += subtotal;
-        } else if (b.status === 'paid' || b.status === 'completed') {
-          netCollected += Math.max(0, subtotal - disc);
-        }
-      }
-
-      // 1B. Paginated query for the requested page of rows
-      let pageBillQuery = applyBillFilters(
-        supabase.from('bills').select('*', { count: 'exact' }),
-        params,
-        tenant_id,
-        branch_id
-      );
-
-      pageBillQuery = pageBillQuery.order('created_at', { ascending: sortOrder === 'asc' });
-
+      // 1B. Paginated query for the requested page of rows.
       const fromIndex = (page - 1) * pageSize;
       const toIndex = fromIndex + pageSize - 1;
-      pageBillQuery = pageBillQuery.range(fromIndex, toIndex);
+      const pageBillQuery = applyBillFilters(
+        supabase.from('bills').select('*', { count: 'exact' }) as unknown as BillsFilterQuery,
+        bounds,
+        tenant_id,
+        branch_id,
+      )
+        .order('created_at', { ascending: sortOrder === 'asc' })
+        .range(fromIndex, toIndex) as unknown as Promise<BillsPageResponse>;
 
-      const { data: rawBills, error: billErr, count: billCount } = await pageBillQuery;
+      const [{ data: kpiData, error: kpiErr }, { data: rawBills, error: billErr, count: billCount }] =
+        await Promise.all([kpiPromise, pageBillQuery]);
+
       if (billErr) {
         logSupabaseError('getOrders.bills', billErr);
         return { data: null, error: 'Unable to load bills history.' };
       }
+      if (kpiErr) {
+        logSupabaseError('getOrders.metrics', kpiErr);
+      }
+      const kpis = parseLedgerKpis(kpiErr ? null : kpiData);
 
-      const billsList: any[] = (rawBills || []) as any[];
-      const billIds = billsList.map((b: any) => b.id);
-      let billItemsData: any[] = [];
-      let settlementsData: any[] = [];
+      const billsList = (rawBills ?? []) as BillLedgerRow[];
+      const billIds = billsList.map((b) => b.id);
+      let billItemsData: BillItemPreviewRow[] = [];
+      let settlementsData: SettlementPreviewRow[] = [];
       if (billIds.length > 0) {
         const [itemsRes, settlementsRes] = await Promise.all([
-          supabase.from('bill_items').select('*').in('bill_id', billIds),
-          supabase.from('settlements').select('bill_id, payment_type, amount').in('bill_id', billIds),
+          supabase.from('bill_items').select('bill_id, item_name, qty').in('bill_id', billIds),
+          supabase
+            .from('settlements')
+            .select('bill_id, payment_type, amount')
+            .eq('tenant_id', tenant_id)
+            .eq('branch_id', branch_id)
+            .in('bill_id', billIds),
         ]);
-        billItemsData = itemsRes.data || [];
-        settlementsData = settlementsRes.data || [];
+        billItemsData = (itemsRes.data ?? []) as BillItemPreviewRow[];
+        settlementsData = (settlementsRes.data ?? []) as SettlementPreviewRow[];
       }
 
       const itemsByBillId: Record<string, OrderItemPreview[]> = {};
       const itemCountByBillId: Record<string, number> = {};
 
       for (const item of billItemsData) {
+        const qty = item.qty ?? 1;
         const preview: OrderItemPreview = {
           name: item.item_name || 'Item',
-          quantity: item.qty || 1,
+          quantity: qty,
         };
         const existing = itemsByBillId[item.bill_id] ?? [];
         existing.push(preview);
         itemsByBillId[item.bill_id] = existing;
-        itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + (item.qty || 1);
+        itemCountByBillId[item.bill_id] = (itemCountByBillId[item.bill_id] ?? 0) + qty;
       }
 
       const settlementsByBillId: Record<string, string[]> = {};
       for (const s of settlementsData) {
         if (!s.payment_type) continue;
-        const existing = settlementsByBillId[s.bill_id] || [];
+        const existing = settlementsByBillId[s.bill_id] ?? [];
         const typeLabel = s.payment_type.toUpperCase();
         if (!existing.includes(typeLabel)) {
           existing.push(typeLabel);
@@ -611,22 +477,23 @@ export async function getOrders(
         settlementsByBillId[s.bill_id] = existing;
       }
 
-      const billSummaries: OpenOrderSummary[] = billsList.map((b: any) => {
-        const previewItems = (itemsByBillId[b.id] || []).slice(0, 3);
-        const remainingItemLines = Math.max(0, (itemsByBillId[b.id] || []).length - previewItems.length);
-        const subtotal = b.subtotal || b.total_amount || 0;
+      const billSummaries: OpenOrderSummary[] = billsList.map((b) => {
+        const allPreviews = itemsByBillId[b.id] ?? [];
+        const previewItems = allPreviews.slice(0, 3);
+        const remainingItemLines = Math.max(0, allPreviews.length - previewItems.length);
+        const subtotal = b.subtotal ?? b.total_amount ?? 0;
 
-        const rawTypes = settlementsByBillId[b.id] || [];
-        let resolvedPaymentMethod = rawTypes.length > 0
+        const rawTypes = settlementsByBillId[b.id] ?? [];
+        const resolvedPaymentMethod = rawTypes.length > 0
           ? rawTypes.join(' + ')
-          : (b.status === 'complimentary' ? 'COMPLIMENTARY' : (b.payment_method || (b.status === 'paid' ? 'PAID' : null)));
+          : (b.status === 'complimentary' ? 'COMPLIMENTARY' : (b.payment_method ?? (b.status === 'paid' ? 'PAID' : null)));
 
         const mockOrder: OpenOrder = {
-          id: b.open_order_id || b.id,
+          id: b.open_order_id ?? b.id,
           tenant_id: b.tenant_id,
           branch_id: b.branch_id,
           order_name: b.invoice_number ? `Invoice #${b.invoice_number}` : `Bill #${b.id.slice(0, 6)}`,
-          status: b.status || 'paid',
+          status: (b.status ?? 'paid') as OrderStatus,
           created_by: null,
           created_at: b.created_at,
           invoice_number: b.invoice_number,
@@ -653,10 +520,10 @@ export async function getOrders(
           summaries: billSummaries,
           totalCount,
           metrics: {
-            grossSales,
-            discountsGiven,
-            complimentarySales,
-            netCollected,
+            grossSales: kpis.grossSales,
+            discountsGiven: kpis.discountsGiven,
+            complimentarySales: kpis.complimentarySales,
+            netCollected: kpis.netCollected,
           },
           metadata: {
             source: 'bills',
@@ -712,13 +579,13 @@ export async function getOrders(
     const orders = (rawOrders ?? []) as OpenOrderRow[];
     const orderIds = orders.map((o) => o.id);
 
-    let itemRows: OrderItemRow[] = [];
+    let itemRows: PricedOrderItemRow[] = [];
     if (orderIds.length > 0) {
       const { data: fetchedItems } = await supabase
         .from('open_order_items')
         .select('open_order_id, qty, product_id, price, item_name')
         .in('open_order_id', orderIds);
-      itemRows = (fetchedItems ?? []) as any[];
+      itemRows = (fetchedItems ?? []) as PricedOrderItemRow[];
     }
 
     const productIds = [...new Set(itemRows.map((item) => item.product_id))];
@@ -729,7 +596,7 @@ export async function getOrders(
     const totalAmountByOrderId: Record<string, number> = {};
 
     for (const item of itemRows) {
-      const pName = (item as any).item_name || productNames[item.product_id] || 'Item';
+      const pName = item.item_name || productNames[item.product_id] || 'Item';
       const preview: OrderItemPreview = {
         name: pName,
         quantity: item.qty,
@@ -738,7 +605,7 @@ export async function getOrders(
       existing.push(preview);
       itemsByOrderId[item.open_order_id] = existing;
       itemCountByOrderId[item.open_order_id] = (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
-      totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + (item.qty * ((item as any).price || 0));
+      totalAmountByOrderId[item.open_order_id] = (totalAmountByOrderId[item.open_order_id] ?? 0) + (item.qty * (item.price ?? 0));
     }
 
     const kotResult = await fetchKotsForOrders(orderIds);
@@ -929,11 +796,11 @@ async function ensureSchemaDetected() {
 }
 
 function filterPayload(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   allowedCols: Set<string>,
   fallbackCols: string[]
-) {
-  const filtered: Record<string, any> = {};
+): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {};
   const colsToUse = detectedSchema ? allowedCols : new Set(fallbackCols);
   for (const [key, val] of Object.entries(payload)) {
     if (colsToUse.has(key)) {
@@ -1320,153 +1187,137 @@ export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>>
   }
 }
 
-export async function createOrUpdateBill(
+// ─── Order mutations used by the POS store ────────────────────────────────────
+
+export type OrderDiscountInput = {
+  discountType: 'percent' | 'fixed' | null;
+  /** Percent (0–100) for 'percent', rupees for 'fixed'. */
+  discountValue: number;
+  discountAmount: number;
+};
+
+/** Persists the discount currently applied to an open order. */
+export async function updateOrderDiscount(
   orderId: string,
-  invoiceNumber: string,
-  subtotal: number,
-  taxAmount: number,
-  discountAmount: number,
-  totalAmount: number,
-  status: 'paid' | 'unpaid' | 'cancelled',
-  discountType: 'percent' | 'fixed' | null = null,
-  discountValue: number = 0,
-  items?: any[]
-): Promise<ServiceResult<any>> {
+  discount: OrderDiscountInput,
+): Promise<ServiceResult<null>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
-
-    // Check if bill already exists
-    const { data: existingBill, error: fetchErr } = await supabase
-      .from('bills')
-      .select('*')
-      .eq('open_order_id', orderId)
+    const { error } = await supabase
+      .from('open_orders')
+      .update({
+        discount_type: discount.discountType,
+        discount_value: discount.discountValue,
+        discount_amount: discount.discountAmount,
+      })
+      .eq('id', orderId)
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .maybeSingle();
+      .eq('branch_id', branch_id);
 
-    if (fetchErr) {
-      logSupabaseError('createOrUpdateBill.fetch', fetchErr);
-      return { data: null, error: 'Failed to check existing bill.' };
+    if (error) {
+      logSupabaseError('updateOrderDiscount', error);
+      return { data: null, error: 'Unable to save discount.' };
+    }
+    return { data: null, error: null };
+  } catch {
+    return { data: null, error: 'Unable to save discount.' };
+  }
+}
+
+export type OrderStatusUpdate = {
+  status: OrderStatus;
+  orderName?: string;
+  cancelledAt?: string;
+  discount?: OrderDiscountInput;
+};
+
+/** Updates an open order's lifecycle status (and optionally its name / discount). */
+export async function updateOpenOrderStatus(
+  orderId: string,
+  update: OrderStatusUpdate,
+): Promise<ServiceResult<null>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const payload: Record<string, unknown> = { status: update.status };
+    if (update.orderName !== undefined) {
+      payload.order_name = update.orderName;
+    }
+    if (update.cancelledAt !== undefined) {
+      payload.cancelled_at = update.cancelledAt;
+    }
+    if (update.discount) {
+      payload.discount_type = update.discount.discountType;
+      payload.discount_value = update.discount.discountValue;
+      payload.discount_amount = update.discount.discountAmount;
     }
 
-    const subtotal_paise = Math.round(subtotal * 100);
-    const tax_paise = Math.round(taxAmount * 100);
-    const discount_paise = Math.round(discountAmount * 100);
-    const grand_total_paise = Math.round(totalAmount * 100);
+    const { error } = await supabase
+      .from('open_orders')
+      .update(payload)
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
 
-    const billPayload = {
-      tenant_id,
-      branch_id,
-      open_order_id: orderId,
-      invoice_number: invoiceNumber,
-      subtotal,
-      tax_amount: taxAmount,
-      discount_amount: discountAmount,
-      total_amount: totalAmount,
-      status, // 'unpaid', 'paid', or 'cancelled'
-      payment_status: (status === 'paid' ? 'paid' : 'unpaid') as any,
-      document_status: (status === 'cancelled' ? 'cancelled' : 'confirmed') as any,
-      subtotal_paise,
-      tax_paise,
-      discount_paise,
-      grand_total_paise,
-      discount_type: discountType,
-      discount_value: discountValue,
-      settled_at: status === 'paid' ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+    if (error) {
+      logSupabaseError('updateOpenOrderStatus', error);
+      return { data: null, error: 'Unable to update order.' };
+    }
+    return { data: null, error: null };
+  } catch {
+    return { data: null, error: 'Unable to update order.' };
+  }
+}
+
+export type AssignedOrderNumbers = {
+  invoiceNumber: string | null;
+  orderName: string | null;
+};
+
+function isAssignOrderNumbersResult(value: unknown): value is { invoice_number: unknown; order_name: unknown } {
+  return !!value && typeof value === 'object' && 'invoice_number' in value && 'order_name' in value;
+}
+
+/**
+ * Atomically assigns the missing invoice number and/or `Order #N` name to an
+ * open order via the `assign_order_numbers` RPC. Numbers already present are
+ * returned unchanged. Call this BEFORE printing anything that shows a number.
+ */
+export async function assignOrderNumbers(
+  orderId: string,
+  options: { invoice?: boolean; orderName?: boolean },
+): Promise<ServiceResult<AssignedOrderNumbers>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const { data, error } = await supabase.rpc('assign_order_numbers', {
+      p_tenant_id: tenant_id,
+      p_branch_id: branch_id,
+      p_order_id: orderId,
+      p_assign_invoice: options.invoice ?? false,
+      p_assign_order_name: options.orderName ?? false,
+    });
+
+    if (error) {
+      logSupabaseError('assignOrderNumbers', error);
+      if (error.message?.includes('ORDER_NOT_FOUND')) {
+        return { data: null, error: 'Order not found.' };
+      }
+      return { data: null, error: 'Unable to assign order numbers.' };
+    }
+
+    if (!isAssignOrderNumbersResult(data)) {
+      logSupabaseError('assignOrderNumbers', { message: 'assign_order_numbers returned an unexpected payload', code: 'BAD_RPC_RESULT' });
+      return { data: null, error: 'Unable to assign order numbers.' };
+    }
+
+    return {
+      data: {
+        invoiceNumber: typeof data.invoice_number === 'string' ? data.invoice_number : null,
+        orderName: typeof data.order_name === 'string' ? data.order_name : null,
+      },
+      error: null,
     };
-
-    let bill: any;
-    if (existingBill) {
-      const { data: updatedBill, error: updateErr } = await supabase
-        .from('bills')
-        .update(billPayload)
-        .eq('id', existingBill.id)
-        .select()
-        .single();
-
-      if (updateErr) {
-        logSupabaseError('createOrUpdateBill.update', updateErr);
-        return { data: null, error: 'Failed to update bill.' };
-      }
-      bill = updatedBill;
-    } else {
-      const { data: newBill, error: insertErr } = await supabase
-        .from('bills')
-        .insert({
-          ...billPayload,
-          created_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (insertErr) {
-        // Handle PostgreSQL 23505 Unique Constraint Violation idempotently
-        if (insertErr.code === '23505' || insertErr.message?.includes('unique_open_order_id') || insertErr.message?.includes('duplicate key')) {
-          console.log(`[Grovit POS] Duplicate bill creation prevented for open_order_id: ${orderId}, invoice: ${invoiceNumber}, branch: ${branch_id}, timestamp: ${new Date().toISOString()}`);
-
-          const { data: existingPostgresBill, error: fetchFallbackErr } = await supabase
-            .from('bills')
-            .select('*')
-            .eq('open_order_id', orderId)
-            .eq('tenant_id', tenant_id)
-            .eq('branch_id', branch_id)
-            .single();
-
-          if (existingPostgresBill) {
-            bill = existingPostgresBill;
-          } else {
-            logSupabaseError('createOrUpdateBill.insertFallback', fetchFallbackErr || insertErr);
-            return { data: null, error: 'Failed to retrieve existing bill after constraint handling.' };
-          }
-        } else {
-          logSupabaseError('createOrUpdateBill.insert', insertErr);
-          return { data: null, error: 'Failed to create bill.' };
-        }
-      } else {
-        bill = newBill;
-      }
-    }
-
-    // Sync bill items if provided
-    if (items && items.length > 0) {
-      const { error: deleteBillItemsErr } = await supabase
-        .from('bill_items')
-        .delete()
-        .eq('bill_id', bill.id);
-
-      if (deleteBillItemsErr) {
-        console.error('[createOrUpdateBill] Failed to delete existing bill items:', deleteBillItemsErr);
-      }
-
-      const billItemsPayload = items.map((item) => {
-        const price_paise = Math.round((item.price || 0) * 100);
-        return {
-          bill_id: bill.id,
-          product_id: item.product_id,
-          item_name: item.product_name || item.item_name || 'Item',
-          qty: item.qty,
-          price: item.price || 0,
-          price_paise,
-          tax_rate: taxAmount > 0 ? 5 : 0, // simple GST percentage indicator
-          gst_percentage: taxAmount > 0 ? 5 : 0,
-          discount_amount_paise: 0,
-        };
-      });
-
-      const { error: billItemsErr } = await supabase
-        .from('bill_items')
-        .insert(billItemsPayload);
-
-      if (billItemsErr) {
-        console.error('[createOrUpdateBill] Bill items sync failed', billItemsErr);
-        return { data: null, error: `Unable to sync bill items: ${billItemsErr.message}` };
-      }
-    }
-
-    return { data: bill, error: null };
-  } catch (err) {
-    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' };
+  } catch {
+    return { data: null, error: 'Unable to assign order numbers.' };
   }
 }
 
@@ -1475,6 +1326,7 @@ type SettleOrderRpcResult = {
   order: OpenOrder | null;
   bill: { id: string } | null;
   settlement: { id: string } | null;
+  consumption_batch_id?: string | null;
 };
 
 function isSettleOrderRpcResult(value: unknown): value is SettleOrderRpcResult {
@@ -1496,50 +1348,26 @@ function mapSettleOrderError(error: { code?: string; message?: string }): string
 
 /**
  * Settles an open order atomically via the `settle_order` PostgreSQL function
- * (supabase/migrations/20260906120000_settle_order_rpc.sql).
+ * (supabase/migrations/20260907000200_sequences_and_settle_order_v2.sql).
  *
- * The bill upsert, bill_items snapshot, settlement insert and order status
- * update all commit in ONE database transaction. The function locks the order
- * row, so concurrent settle attempts from other terminals serialise and the
- * second caller receives the existing bill instead of creating a duplicate.
+ * The database assigns the invoice number / order name, computes integer-paise
+ * totals from `pos_settings.tax_percentage`, upserts the bill and bill_items,
+ * inserts the settlement and updates the order status in ONE transaction.
+ * Concurrent settle attempts serialise on the order row; the second caller
+ * receives the existing bill (`already_settled`) instead of a duplicate.
  */
 export async function settleOrderById(
   orderId: string,
   paymentType: string = 'cash',
-  _createdBy: string = 'Cashier'
 ): Promise<ServiceResult<OpenOrder>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
-    // 1. Read-only lookup so a local invoice / order number is only consumed when needed.
-    const { data: order, error: orderErr } = await supabase
-      .from('open_orders')
-      .select('invoice_number, order_name, status')
-      .eq('id', orderId)
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .single();
-
-    if (orderErr || !order) {
-      logSupabaseError('settleOrderById.fetchOrder', orderErr);
-      return { data: null, error: 'Order not found.' };
-    }
-
-    const invoiceNumber: string = order.invoice_number ?? getNextBillNumber();
-
-    const currentName: string = order.order_name ?? '';
-    const needsOrderNumber =
-      currentName.length === 0 || currentName.toLowerCase().includes('draft') || !currentName.startsWith('Order #');
-    const orderName: string | null = needsOrderNumber ? `Order #${getNextOrderNumber()}` : null;
-
-    // 2. Single atomic write.
     const { data, error: rpcErr } = await supabase.rpc('settle_order', {
       p_tenant_id: tenant_id,
       p_branch_id: branch_id,
       p_order_id: orderId,
       p_payment_type: paymentType,
-      p_invoice_number: invoiceNumber,
-      p_order_name: orderName,
     });
 
     if (rpcErr) {
@@ -1552,127 +1380,17 @@ export async function settleOrderById(
       return { data: null, error: 'Unable to settle order.' };
     }
 
-    const settledOrder = data.order;
-    const billId = data.bill?.id ?? null;
-
-    // 3. Trigger recipe consumption asynchronously without blocking the checkout response.
-    //    Only on the first successful settlement; replays must not deduct stock twice.
-    if (!data.already_settled && billId) {
-      void (async () => {
-        try {
-          const { createConsumptionBatch, processConsumptionBatch } = await import('./inventory-service');
-          console.log(`[Grovit] Triggering recipe consumption batch for bill ${billId}`);
-          const batchResult = await createConsumptionBatch(billId);
-          if (batchResult.error) {
-            console.error('[Grovit] createConsumptionBatch error:', batchResult.error);
-          }
-          if (batchResult.data) {
-            const procResult = await processConsumptionBatch(batchResult.data.id);
-            if (procResult.error) {
-              console.error('[Grovit] processConsumptionBatch error:', procResult.error);
-            }
-          }
-        } catch (err) {
-          console.error('[Grovit] Async consumption batch trigger failed:', err);
-        }
-      })();
-    }
-
-    return { data: settledOrder, error: null };
+    // Recipe consumption is queued inside the settle_order transaction
+    // (inventory_consumption_batches) and processed by the database worker
+    // `process_consumption_batches`, scheduled every minute by pg_cron.
+    // The client must NOT create or process a batch here: doing so would
+    // deduct every ingredient twice.
+    return { data: data.order, error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.error('[Grovit] settleOrderById exception:', err);
     }
     return { data: null, error: 'Unable to settle order.' };
-  }
-}
-
-/**
- * Historical helper to backfill missing bills, bill_items, and settlements
- * from paid open orders that don't have matching transaction history rows.
- */
-export async function repairMissingBills(): Promise<void> {
-  try {
-    const { tenant_id, branch_id } = getTenantContext();
-
-    // 1. Fetch all paid open orders
-    const { data: paidOrders, error: ordersErr } = await supabase
-      .from('open_orders')
-      .select('id, order_name, payment_method, created_at, created_by')
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .eq('status', 'paid');
-
-    if (ordersErr || !paidOrders) return;
-
-    for (const order of paidOrders) {
-      // Check if bill already exists
-      const { data: bill } = await supabase
-        .from('bills')
-        .select('id')
-        .eq('open_order_id', order.id)
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id)
-        .maybeSingle();
-
-      if (!bill) {
-        console.log(`[Grovit] Repairing missing bill for order: ${order.order_name} (${order.id})`);
-        
-        // Fetch order items
-        const { data: orderItems } = await supabase
-          .from('open_order_items')
-          .select('*')
-          .eq('open_order_id', order.id);
-
-        if (orderItems && orderItems.length > 0) {
-          const subtotal = orderItems.reduce((sum, item) => sum + (item.qty * (item.price || 0)), 0);
-          
-          // Create bill
-          const { data: newBill, error: billErr } = await supabase
-            .from('bills')
-            .insert({
-              tenant_id,
-              branch_id,
-              open_order_id: order.id,
-              subtotal,
-              tax_amount: 0,
-              discount_amount: 0,
-              total_amount: subtotal,
-              status: 'paid',
-              settled_at: order.created_at, // Preserves historical timeline
-              created_by: null,
-            })
-            .select()
-            .single();
-
-          if (!billErr && newBill) {
-            // Copy items to bill_items
-            const billItemsPayload = orderItems.map((item) => ({
-              bill_id: newBill.id,
-              product_id: item.product_id,
-              item_name: item.item_name || 'Item',
-              qty: item.qty,
-              price: item.price,
-            }));
-            await supabase.from('bill_items').insert(billItemsPayload);
-
-            // Create settlement
-            const pType = order.payment_method ? order.payment_method.toLowerCase() : 'cash';
-            await supabase.from('settlements').insert({
-              bill_id: newBill.id,
-              tenant_id,
-              branch_id,
-              payment_type: pType,
-              amount: subtotal,
-            });
-            
-            console.log(`[Grovit] Successfully repaired bill for order: ${order.order_name}`);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[Grovit] repairMissingBills exception caught:', err);
   }
 }
 
