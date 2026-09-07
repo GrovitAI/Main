@@ -65,7 +65,10 @@ import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
-import { BRANCH_ID, getTenantContext } from '@/lib/pos/tenant-context';
+import { getTenantContext } from '@/lib/pos/tenant-context';
+import { webImageStyle, webTextStyle, webViewStyle } from '@/lib/pos/web-style';
+import type { LucideIcon } from 'lucide-react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { colors } from '@/lib/pos/brand';
 import { useTabBarHidden } from '@/lib/pos/ui-context';
 import {
@@ -172,7 +175,7 @@ type TabName =
 interface SidebarItem {
   id: TabName;
   label: string;
-  icon: any;
+  icon: LucideIcon;
 }
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
@@ -208,7 +211,7 @@ function SidebarLabel({
 }: {
   expanded: boolean;
   children: React.ReactNode;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }) {
   if (Platform.OS !== 'web') {
     return expanded ? <>{children}</> : null;
@@ -225,16 +228,16 @@ function SidebarLabel({
   return (
     <View
       style={[
-        {
+        webViewStyle({
           overflow: 'hidden',
-        } as any,
-        {
+        }),
+        webViewStyle({
           maxWidth: expanded ? 200 : 0,
           opacity: expanded ? 1 : 0,
           marginLeft: expanded ? currentMarginLeft : 0,
           marginRight: expanded ? currentMarginRight : 0,
           transition: 'max-width 240ms cubic-bezier(0.4,0,0.2,1), opacity 180ms ease, margin-left 240ms cubic-bezier(0.4,0,0.2,1), margin-right 240ms cubic-bezier(0.4,0,0.2,1)',
-        } as any,
+        }),
         cleanedStyle,
       ]}
     >
@@ -451,6 +454,28 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
 
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 
+/** One row of the recipe margin report. */
+type RecipeMarginRow = {
+  name: string;
+  price: number;
+  recipeCost: number;
+  marginAmt: number;
+  marginPct: number;
+};
+
+/** One row of the stock variance report (a material plus its computed variance). */
+type StockVarianceRow = {
+  id: string;
+  material_name: string;
+  material_code: string;
+  unit_short_name?: string;
+  theoreticalQty: number;
+  actualQty: number;
+  varianceQty: number;
+  costImpact: number;
+  alert_type?: string;
+};
+
 export default function InventoryScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -541,7 +566,7 @@ export default function InventoryScreen() {
   const [isImporting, setIsImporting] = useState(false);
 
   // ─── CENTRAL KITCHEN & TRANSFERS STATES ─────────────────────────────────────
-  const [simulatedBranchId, setSimulatedBranchId] = useState<string>(BRANCH_ID);
+  const [simulatedBranchId, setSimulatedBranchId] = useState<string>(() => getTenantContext().branch_id);
   const [dbBranches, setDbBranches] = useState<Branch[]>([]);
   const [transferRequests, setTransferRequests] = useState<InventoryTransferRequest[]>([]);
   const [dispatchesList, setDispatchesList] = useState<InventoryDispatch[]>([]);
@@ -558,7 +583,7 @@ export default function InventoryScreen() {
   const [newReqSelectedCategoryId, setNewReqSelectedCategoryId] = useState('all');
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const branchTriggerRef = useRef<View>(null);
-  const qtyInputRefs = useRef<Record<string, any>>({});
+  const qtyInputRefs = useRef<Record<string, TextInput | null>>({});
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
@@ -716,7 +741,7 @@ export default function InventoryScreen() {
     try {
       initializeLocalSeeder();
 
-      const fetchers: Record<string, () => Promise<any>> = {
+      const fetchers: Record<string, () => Promise<{ data: unknown; error: string | null }>> = {
         kpis: () => fetchInventoryDashboardKPIs(),
         materials: () => fetchMaterials(targetBranchId),
         categories: () => fetchCategories(),
@@ -735,7 +760,7 @@ export default function InventoryScreen() {
         products: () => getProducts(),
       };
 
-      const setters: Record<string, (data: any) => void> = {
+      const setters: Record<string, (data: never) => void> = {
         kpis: setKpis,
         materials: setMaterials,
         categories: setCategories,
@@ -760,7 +785,9 @@ export default function InventoryScreen() {
           if (!fetcher) return;
           const res = await fetcher();
           if (res.data) {
-            setters[entity](res.data);
+            // Each entity's setter matches its own fetcher; the map is keyed by
+            // entity name so the payload type cannot be expressed generically.
+            (setters[entity] as (data: unknown) => void)(res.data);
             loadedEntities.current.add(entity);
           }
         })
@@ -2236,19 +2263,19 @@ export default function InventoryScreen() {
           {/* Row 1: Status pills */}
           <View className="flex-row items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
             <View className="flex-row gap-1.5 flex-wrap">
-              {[
+              {([
                 { key: 'all', label: 'All' },
                 { key: 'healthy', label: 'Healthy' },
                 { key: 'low', label: 'Low Stock' },
                 { key: 'out', label: 'Out of Stock' },
                 { key: 'expiring', label: 'Expiring Soon' },
-              ].map((pill) => {
+              ] as const).map((pill) => {
                 const isActive = statusFilter === pill.key;
                 return (
                   <Pressable
                     key={pill.key}
                     onPress={() => {
-                      setStatusFilter(pill.key as any);
+                      setStatusFilter(pill.key);
                       setCurrentPage(1);
                     }}
                     className={`px-3 py-1.5 rounded-full border active:scale-95 transition-all ${
@@ -2287,7 +2314,7 @@ export default function InventoryScreen() {
                     setCurrentPage(1);
                   }}
                   className="flex-1 text-[11px] text-slate-800 outline-none"
-                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                  style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
                 />
                 {searchQuery.length > 0 && (
                   <Pressable onPress={() => setSearchQuery('')}>
@@ -2890,7 +2917,7 @@ export default function InventoryScreen() {
               onChangeText={(t) => { setPurSearchQuery(t); setPurPage(1); }}
               className="flex-1 text-[11px] text-slate-800 outline-none"
               placeholderTextColor="#94a3b8"
-              style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+              style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
             />
             {purSearchQuery.length > 0 && (
               <Pressable onPress={() => setPurSearchQuery('')}>
@@ -2964,7 +2991,7 @@ export default function InventoryScreen() {
                   <FileText size={20} color="#94a3b8" />
                 </View>
                 <Text className="text-sm font-black text-slate-400">No purchase invoices recorded yet</Text>
-                <Text className="text-xs text-slate-400">Tap "+ Record Purchase" to add your first invoice</Text>
+                <Text className="text-xs text-slate-400">Tap &quot;+ Record Purchase&quot; to add your first invoice</Text>
               </View>
             ) : (
               paginated.map((item, rowIdx) => {
@@ -3310,7 +3337,7 @@ export default function InventoryScreen() {
                       <View>
                         <Text style={{ color: '#93c5fd', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 }}>Supplier</Text>
                         <Text style={{ color: 'white', fontSize: 13, fontWeight: '800', marginTop: 2 }}>
-                          {purDetailItem.supplier_name || suppliers.find((s) => s.id === purDetailItem!.supplier_id)?.supplier_name || '—'}
+                          {purDetailItem.supplier_name || suppliers.find((s) => s.id === purDetailItem.supplier_id)?.supplier_name || '—'}
                         </Text>
                       </View>
                       <View>
@@ -4218,7 +4245,7 @@ export default function InventoryScreen() {
                 placeholder="Search raw materials by name or code..."
                 placeholderTextColor="#94a3b8"
                 className="flex-1 text-xs font-semibold text-[#0f2744] h-8 p-0 outline-none"
-                style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
               />
               {newReqSearchQuery.length > 0 && (
                 <Pressable onPress={() => setNewReqSearchQuery('')}>
@@ -4399,7 +4426,7 @@ export default function InventoryScreen() {
                 placeholder="e.g. Urgent stock request for weekend"
                 placeholderTextColor="#94a3b8"
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f2744] outline-none"
-                style={{ minHeight: 44, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
+                style={webTextStyle({ minHeight: 44, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) })}
               />
             </View>
 
@@ -5293,7 +5320,7 @@ export default function InventoryScreen() {
                   placeholderTextColor="#94a3b8"
                   selectTextOnFocus={true}
                   className="w-10 text-center text-[10px] font-black text-slate-800 p-0 m-0 outline-none h-full"
-                  style={Platform.OS === 'web' ? { outlineStyle: 'none' } as any : undefined}
+                  style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
                 />
 
                 <CustomPressable
@@ -5350,7 +5377,7 @@ export default function InventoryScreen() {
               onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
               keyboardType="numeric"
               className="w-10 text-center text-[10px] font-black text-[#0f2744] p-0 m-0 outline-none"
-              style={{ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) } as any}
+              style={webTextStyle({ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) })}
             />
 
             <CustomPressable
@@ -5411,7 +5438,7 @@ export default function InventoryScreen() {
             Request Date: <Text className="font-bold text-slate-700">{new Date(item.request_date).toLocaleDateString()}</Text>
           </Text>
           {item.remarks && (
-            <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
+            <Text className="text-xs text-slate-400 italic mt-2">&quot;{item.remarks}&quot;</Text>
           )}
         </View>
 
@@ -5506,7 +5533,7 @@ export default function InventoryScreen() {
             Date shipped: <Text className="font-bold text-slate-700">{new Date(item.dispatch_date).toLocaleDateString()}</Text>
           </Text>
           {item.remarks && (
-            <Text className="text-xs text-slate-400 italic mt-2">"{item.remarks}"</Text>
+            <Text className="text-xs text-slate-400 italic mt-2">&quot;{item.remarks}&quot;</Text>
           )}
         </View>
 
@@ -5583,7 +5610,7 @@ export default function InventoryScreen() {
     );
   }, []);
 
-  const renderRecipeMarginItem = useCallback(({ item }: { item: any }) => {
+  const renderRecipeMarginItem = useCallback(({ item }: { item: RecipeMarginRow }) => {
     const isHealthy = item.marginPct >= 50;
     return (
       <View className="flex-row p-3 border-b border-slate-100 items-center">
@@ -5604,7 +5631,7 @@ export default function InventoryScreen() {
     );
   }, []);
 
-  const renderStockVarianceItem = useCallback(({ item }: { item: any }) => {
+  const renderStockVarianceItem = useCallback(({ item }: { item: StockVarianceRow }) => {
     return (
       <View className="flex-row p-3 border-b border-slate-100 items-center">
         <View className="flex-[2]">
@@ -5859,7 +5886,7 @@ export default function InventoryScreen() {
         <View
           style={[
             Platform.OS === 'web'
-              ? ({
+              ? webViewStyle({
                   width: sidebarExpanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W,
                   minWidth: SIDEBAR_COLLAPSED_W,
                   maxWidth: SIDEBAR_EXPANDED_W,
@@ -5869,9 +5896,9 @@ export default function InventoryScreen() {
                   height: '100%',
                   transition: 'width 240ms cubic-bezier(0.4,0,0.2,1)',
                   willChange: 'width',
-                } as any)
+                })
               : {
-                  width: sidebarAnim as any,
+                  width: sidebarAnim,
                   minWidth: SIDEBAR_COLLAPSED_W,
                   maxWidth: SIDEBAR_EXPANDED_W,
                   overflow: 'hidden',
@@ -5895,7 +5922,7 @@ export default function InventoryScreen() {
           <View style={{ width: '100%', alignSelf: 'stretch', paddingTop: Math.max(20, insets.top + 8), paddingBottom: 16, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)', alignItems: 'center', overflow: 'hidden' }}>
             <Image
               source={leLabanLogo}
-              style={{
+              style={webImageStyle({
                 height: sidebarExpanded ? 40 : 32,
                 width: sidebarExpanded ? 64 : 32,
                 resizeMode: 'contain',
@@ -5903,16 +5930,16 @@ export default function InventoryScreen() {
                 ...(Platform.OS === 'web'
                   ? { transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1)' }
                   : {}),
-              } as any}
+              })}
               accessibilityLabel="Le Leban logo"
             />
             <SidebarLabel expanded={sidebarExpanded} style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4, whiteSpace: 'nowrap' } as any}>
+              <Text style={webTextStyle({ fontSize: 10, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4, whiteSpace: 'nowrap' })}>
                 Inventory Center
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                 <View style={{ height: 4, width: 4, borderRadius: 2, backgroundColor: '#10b981' }} />
-                <Text style={{ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' } as any}>
+                <Text style={webTextStyle({ marginLeft: 4, fontSize: 9, fontWeight: '500', color: 'rgba(255,255,255,0.8)', whiteSpace: 'nowrap' })}>
                   Online
                 </Text>
               </View>
@@ -5962,7 +5989,7 @@ export default function InventoryScreen() {
               )}
               <BarChart3 size={16} color={activeTab === 'dashboard' ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
               <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 8 }}>
-                <Text style={{ fontSize: 11, fontWeight: activeTab === 'dashboard' ? '600' : '500', color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' } as any}>
+                <Text style={webTextStyle({ fontSize: 11, fontWeight: activeTab === 'dashboard' ? '600' : '500', color: activeTab === 'dashboard' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' })}>
                   Dashboard
                 </Text>
               </SidebarLabel>
@@ -5990,7 +6017,7 @@ export default function InventoryScreen() {
             >
               <Database size={16} color="rgba(255, 255, 255, 0.75)" />
               <SidebarLabel expanded={sidebarExpanded} style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginLeft: 8 }}>
-                <Text style={{ fontSize: 11, fontWeight: '500', color: 'rgba(255, 255, 255, 0.8)', flex: 1, whiteSpace: 'nowrap' } as any}>
+                <Text style={webTextStyle({ fontSize: 11, fontWeight: '500', color: 'rgba(255, 255, 255, 0.8)', flex: 1, whiteSpace: 'nowrap' })}>
                   Master Setup
                 </Text>
                 {isMasterExpanded ? (
@@ -6006,7 +6033,7 @@ export default function InventoryScreen() {
               <View
                 style={[
                   Platform.OS === 'web'
-                    ? ({
+                    ? webViewStyle({
                         paddingLeft: sidebarExpanded ? 12 : 0,
                         borderLeftWidth: sidebarExpanded ? 1 : 0,
                         borderLeftColor: sidebarExpanded ? 'rgba(255,255,255,0.12)' : 'transparent',
@@ -6014,7 +6041,7 @@ export default function InventoryScreen() {
                         marginBottom: 6,
                         gap: 2,
                         transition: 'padding-left 240ms, margin-left 240ms, border-color 240ms',
-                      } as any)
+                      })
                     : {
                         paddingLeft: sidebarExpanded ? 12 : 0,
                         borderLeftWidth: sidebarExpanded ? 1 : 0,
@@ -6075,7 +6102,7 @@ export default function InventoryScreen() {
                       )}
                       <SubIcon size={12} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)'} />
                       <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 6 }}>
-                        <Text style={{ fontSize: 10.5, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)', whiteSpace: 'nowrap' } as any}>
+                        <Text style={webTextStyle({ fontSize: 10.5, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)', whiteSpace: 'nowrap' })}>
                           {sub.label}
                         </Text>
                       </SidebarLabel>
@@ -6136,7 +6163,7 @@ export default function InventoryScreen() {
                   )}
                   <IconComponent size={16} color={isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.75)'} />
                   <SidebarLabel expanded={sidebarExpanded} style={{ marginLeft: 8 }}>
-                    <Text style={{ fontSize: 11, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' } as any}>
+                    <Text style={webTextStyle({ fontSize: 11, fontWeight: isActive ? '600' : '500', color: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.8)', whiteSpace: 'nowrap' })}>
                       {item.label}
                     </Text>
                   </SidebarLabel>
@@ -6160,7 +6187,7 @@ export default function InventoryScreen() {
             accessibilityLabel={sidebarPinned ? 'Collapse sidebar' : 'Pin sidebar open'}
           >
             <SidebarLabel expanded={sidebarExpanded} style={{ marginRight: 6 }}>
-              <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.3, whiteSpace: 'nowrap' } as any}>
+              <Text style={webTextStyle({ fontSize: 8, color: 'rgba(255,255,255,0.45)', fontWeight: '600', letterSpacing: 0.3, whiteSpace: 'nowrap' })}>
                 {sidebarPinned ? 'PINNED OPEN' : 'AUTO-HIDE'}
               </Text>
             </SidebarLabel>
@@ -6607,7 +6634,7 @@ export default function InventoryScreen() {
               <View className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                 <Text className="text-xs text-slate-600">Requesting outlet: <Text className="font-bold text-slate-800">{selectedRequest?.to_branch_name}</Text></Text>
                 {selectedRequest?.remarks && (
-                  <Text className="text-xs text-slate-500 mt-1 italic">Remarks: "{selectedRequest.remarks}"</Text>
+                  <Text className="text-xs text-slate-500 mt-1 italic">Remarks: &quot;{selectedRequest.remarks}&quot;</Text>
                 )}
               </View>
 
@@ -6722,7 +6749,7 @@ export default function InventoryScreen() {
               <View className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                 <Text className="text-xs text-slate-600">Shipped from branch: <Text className="font-bold text-slate-800">{selectedDispatch?.from_branch_name}</Text></Text>
                 {selectedDispatch?.remarks && (
-                  <Text className="text-xs text-slate-500 mt-1 italic">Remarks: "{selectedDispatch.remarks}"</Text>
+                  <Text className="text-xs text-slate-500 mt-1 italic">Remarks: &quot;{selectedDispatch.remarks}&quot;</Text>
                 )}
               </View>
 
@@ -7498,10 +7525,10 @@ export default function InventoryScreen() {
                 <View className="flex-grow min-w-[140px] gap-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase">Wastage Reason*</Text>
                   <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {['Expired', 'Spoiled', 'Kitchen Waste', 'Damage', 'Theft', 'Other'].map((r) => (
+                    {(['Expired', 'Spoiled', 'Kitchen Waste', 'Damage', 'Theft', 'Other'] as const).map((r) => (
                       <Pressable
                         key={r}
-                        onPress={() => setWastageReason(r as any)}
+                        onPress={() => setWastageReason(r)}
                         className={`p-2 rounded mb-1 ${wastageReason === r ? 'bg-blue-100' : ''}`}
                       >
                         <Text className="text-[10px] font-bold">{r}</Text>
