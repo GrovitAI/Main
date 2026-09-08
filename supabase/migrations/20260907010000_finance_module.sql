@@ -324,6 +324,10 @@ BEGIN
 END;
 $$;
 
+-- Postgres grants EXECUTE to PUBLIC by default, which anon inherits. Revoke it
+-- first: financial totals must never be readable with the publishable anon key.
+REVOKE ALL ON FUNCTION public.get_finance_summary(uuid, uuid, timestamptz, timestamptz, date, date) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_finance_summary(uuid, uuid, timestamptz, timestamptz, date, date) FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_finance_summary(uuid, uuid, timestamptz, timestamptz, date, date) TO authenticated;
 
 -- 5b. get_finance_daily_series
@@ -393,6 +397,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.get_finance_daily_series(uuid, uuid, timestamptz, timestamptz, date, date, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_finance_daily_series(uuid, uuid, timestamptz, timestamptz, date, date, text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_finance_daily_series(uuid, uuid, timestamptz, timestamptz, date, date, text) TO authenticated;
 
 -- ---------------------------------------------------------------------------
