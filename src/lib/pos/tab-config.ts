@@ -77,6 +77,16 @@ export const MOBILE_TABS: TabConfig[] = [
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,  label: 'Settings' },
 ];
 
+/**
+ * Tabs on MOBILE_TABS that only owners and admins may open.
+ *
+ * The Staff and Branches screens already restrict editing to those two roles.
+ * Their contents are still tenant administration — staff email addresses, branch
+ * GSTIN and approval configuration — so a cashier or manager on a phone should
+ * not reach them at all.
+ */
+const OWNER_ONLY_MOBILE_TABS: ReadonlySet<string> = new Set(['staff', 'branches']);
+
 export const APP_TAB_ROUTE_NAMES = [
   'index',
   'orders',
@@ -97,7 +107,8 @@ export type AppTabRouteName = (typeof APP_TAB_ROUTE_NAMES)[number];
 export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
   if (isPhone) {
     if (role === 'kitchen') return KITCHEN_TABS;
-    return MOBILE_TABS;
+    if (role === 'owner' || role === 'admin') return MOBILE_TABS;
+    return MOBILE_TABS.filter((tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name));
   }
   switch (role) {
     case 'cashier':

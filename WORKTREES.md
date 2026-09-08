@@ -27,6 +27,12 @@ git worktree add ../Grovit-<name> -b feature/<name>
 Then copy `.env` into it and run `npm install`. Neither is tracked by git, so
 a new worktree starts without them.
 
+Also copy `expo-env.d.ts` across. Expo generates it and git ignores it, but
+`tsconfig.json` includes it, and it is what pulls in the react-native-web types.
+Without it `tsc` reports a spurious error on every `hovered` Pressable callback
+in the project. Running `npx expo start` once in the worktree regenerates it
+too.
+
 ## Merging back
 
 From the `Grovit` checkout, merge each finished branch:

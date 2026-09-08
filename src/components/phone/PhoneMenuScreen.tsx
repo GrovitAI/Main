@@ -288,7 +288,11 @@ export function PhoneMenuScreen({
             onChangeText={setSearchQuery}
           />
           {searchQuery ? (
-            <Pressable onPress={() => setSearchQuery('')}>
+            <Pressable
+              onPress={() => setSearchQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
               <X size={16} color="#64748B" />
             </Pressable>
           ) : null}
@@ -384,6 +388,8 @@ export function PhoneMenuScreen({
                 </View>
                 <Pressable
                   onPress={() => setIsModalOpen(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close menu item editor"
                   className="w-8 h-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
                 >
                   <X size={18} color="#0F2744" />
