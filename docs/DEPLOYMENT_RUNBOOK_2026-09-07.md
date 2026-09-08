@@ -10,12 +10,12 @@ in order. Each step says how to verify it.
 
 ## Current state of the live database, measured 2026-09-08
 
-None of the migrations below have been applied yet, and this was confirmed by
-querying the live project with the publishable anon key, the same key that ships
-inside the web bundle:
+None of the platform migrations (files 1 to 5 below) have been applied. File 6,
+the finance module, was applied on 2026-09-07. Both were confirmed by querying
+the live project with the publishable anon key, the key that ships in the bundle:
 
-- Every table is readable: 4,642 bills, 4,558 settlements, 4,732 orders, all
-  staff rows and the full product catalogue.
+- Every table is readable: 4,643 bills, 4,559 settlements, all staff rows and
+  the full product catalogue.
 - Writes are accepted too. A test row inserted into `inventory_categories`
   succeeded and was deleted immediately afterwards.
 - The four `get_analytics_*` functions are callable, so revenue totals are
@@ -24,6 +24,11 @@ inside the web bundle:
   `get_bills_ledger_kpis`, `create_dispatch`, `receive_dispatch`,
   `run_consumption_worker` and `check_rate_limit` do not exist, and neither do
   `branch_counters` or `api_rate_limits`.
+- The finance tables `expense_categories` (18 rows), `refunds` and
+  `finance_day_closures` do exist, and they have no policies. File 6's RLS
+  section was skipped on its first run because the `auth_*` helpers it depends
+  on are created by file 1, so those three tables are readable by the anon key
+  today.
 
 Two consequences follow. Anyone who reads the key out of the JavaScript bundle
 has full read and write access to the tenant's data right now. And the current
@@ -55,7 +60,7 @@ re-runnable (idempotent). Read the "NOTICE" lines in the result pane.
 | 3 | `supabase/migrations/20260907000300_ledger_kpis_indexes_hardening.sql` | If you see `settlements has duplicate bill_id rows`, reconcile them (pre-flight check 1 lists them) and re-run. |
 | 4 | `supabase/migrations/20260907000400_consumption_worker.sql` | If you see `pg_cron is not enabled`, enable **pg_cron** in Database → Extensions, then re-run only section 3 of the file. |
 | 5 | `supabase/migrations/20260907000500_transfer_rpcs.sql` | No errors. |
-| 6 | `supabase/migrations/20260907010000_finance_module.sql` | Optional, for the finance module. Adds columns to `expenses`, creates `expense_categories`, `refunds` and `finance_day_closures`, and enables RLS on them. The finance screens work read-only until it is run. |
+| 6 | `supabase/migrations/20260907010000_finance_module.sql` | **Already applied on 2026-09-07 — re-run it here anyway.** The first run created the columns and tables but skipped the RLS section, because the `auth_*` helpers it needs are created by file 1. The file is idempotent, so re-running it after file 1 adds the missing policies. |
 
 An earlier `20260906120000_settle_order_rpc.sql` was removed from the repository.
 It was never applied to any database, it was fully superseded by file 2, and it
