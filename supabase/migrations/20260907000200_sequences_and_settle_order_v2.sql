@@ -24,8 +24,29 @@
 --      the report query at the end for manual reconciliation.
 --
 -- How to apply: Supabase SQL Editor, run the whole file AFTER
--- 20260907000100_rls_policies.sql.
+-- 20260907000100_rls_policies.sql. This file is self-contained: it supersedes
+-- the earlier 20260906120000_settle_order_rpc.sql, which was never applied to
+-- any database and has been removed.
 -- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 0. One bill per order.
+--
+-- `settle_order` below upserts with ON CONFLICT (open_order_id), which requires
+-- a unique index on that column. Creating it here rather than relying on an
+-- earlier migration means this file can be applied on its own.
+--
+-- If this raises a duplicate key error, two bills already share an
+-- open_order_id: run supabase/preflight_checks.sql (check 4) to list them and
+-- reconcile before continuing.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_open_order_id')
+     AND NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'unique_open_order_id') THEN
+    ALTER TABLE public.bills ADD CONSTRAINT unique_open_order_id UNIQUE (open_order_id);
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 1. Counters table
