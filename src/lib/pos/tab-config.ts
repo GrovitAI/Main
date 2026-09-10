@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import {
   BarChart3,
@@ -67,7 +68,9 @@ const KITCHEN_TABS: TabConfig[] = [
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
-// Mobile Devices: Management & Analytics focused (POS/Orders excluded per user requirement)
+// The management layout. Every device that is not a till gets these: any
+// phone-width window, and every native build whatever its screen size.
+// POS and Orders are deliberately absent — see usesManagementTabs below.
 export const MOBILE_TABS: TabConfig[] = [
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp, label: 'Analytics' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,      label: 'Inventory' },
@@ -104,8 +107,20 @@ export const APP_TAB_ROUTE_NAMES = [
 
 export type AppTabRouteName = (typeof APP_TAB_ROUTE_NAMES)[number];
 
+/**
+ * True when a screen shows the management tabs rather than the till.
+ *
+ * Two cases lead here. A phone-width window, where the POS grid does not fit.
+ * And any native build, because billing happens on a till running the web app
+ * — the installed app is for running the business, not for taking payment.
+ * An iPad is wide enough for the till layout but still must not offer it.
+ */
+export function usesManagementTabs(isPhone: boolean): boolean {
+  return isPhone || Platform.OS !== 'web';
+}
+
 export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
-  if (isPhone) {
+  if (usesManagementTabs(isPhone)) {
     if (role === 'kitchen') return KITCHEN_TABS;
     if (role === 'owner' || role === 'admin') return MOBILE_TABS;
     return MOBILE_TABS.filter((tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name));
@@ -127,7 +142,7 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
 }
 
 export function getDefaultScreenForRole(role: UserRole, isPhone = false): string {
-  if (isPhone) {
+  if (usesManagementTabs(isPhone)) {
     if (role === 'kitchen') return '/(app)/kitchen';
     return '/(app)/analytics'; // Analytics is flagship home for phone
   }
@@ -160,7 +175,7 @@ export function getInitialRouteNameForRole(role: UserRole, isPhone = false): str
   const defaultHref = getDefaultScreenForRole(role, isPhone);
   const tabs = getTabsForRole(role, isPhone);
   const tab = tabs.find((entry) => entry.href === defaultHref);
-  return tab?.name ?? (isPhone ? 'analytics' : 'index');
+  return tab?.name ?? (usesManagementTabs(isPhone) ? 'analytics' : 'index');
 }
 
 export function getTabConfigForRoute(

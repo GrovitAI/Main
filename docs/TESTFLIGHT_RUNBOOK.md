@@ -3,6 +3,15 @@
 Everything needed to put Grovit in front of iOS testers. The repository side is
 done; what remains needs an Apple account, an Expo account, or a decision.
 
+## What the app contains
+
+The installed app is a management tool, not a till. It carries Analytics,
+Inventory, Menu, Staff, Branches and Settings, and it deliberately has no POS
+and no Orders screen. Billing stays on the counter hardware running the web
+app. `usesManagementTabs` in `src/lib/pos/tab-config.ts` enforces this: any
+native build gets the management tabs whatever its screen size, so an iPad is
+covered as well as an iPhone.
+
 ## What is already configured
 
 | Item | State |
@@ -83,11 +92,11 @@ test notes rather than letting a tester discover them:
   `http://localhost:4545`, which is the print agent running on a till PC. On an
   iPhone there is no such agent. PrintNode cloud printing goes through the
   serverless API and works normally.
-- **Settlement fails until the database migrations are applied.** The app calls
-  `settle_order`, `assign_order_numbers` and `next_kot_number`, none of which
-  exist on the live project yet. See `docs/DEPLOYMENT_RUNBOOK_2026-09-07.md`.
-  A TestFlight build handed out before that lands is a build that cannot take a
-  payment.
+- **Analytics is empty until the database migrations are applied.** The ledger
+  KPIs and the analytics aggregates are PostgreSQL functions that do not exist
+  on the live project yet, so the flagship screen of this build has nothing to
+  show. See `docs/DEPLOYMENT_RUNBOOK_2026-09-07.md`. Settlement is not a
+  concern here, because the app cannot take a payment by design.
 
 ## Optional: over-the-air updates
 
