@@ -482,6 +482,9 @@ export default function BranchesScreen() {
                       style={styles.iconBtn}
                       onPress={() => openEdit(b)}
                       id={`btn-edit-branch-${b.id}`}
+                      hitSlop={4}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${b.name}`}
                     >
                       <Pencil size={15} color="#0066b2" />
                     </Pressable>
@@ -489,6 +492,9 @@ export default function BranchesScreen() {
                       style={styles.iconBtn}
                       onPress={() => handleToggleActive(b)}
                       id={`btn-toggle-branch-${b.id}`}
+                      hitSlop={4}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${b.is_active ? 'Deactivate' : 'Activate'} ${b.name}`}
                     >
                       {b.is_active
                         ? <ToggleRight size={18} color="#22c55e" />
@@ -525,14 +531,14 @@ export default function BranchesScreen() {
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
               <Pressable
                 onPress={() => setVerifyModalVisible(false)}
-                style={{ flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
+                style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#475569' }}>Cancel</Text>
               </Pressable>
               <Pressable
                 disabled={verifyingEmail || verifyCode.length !== 6}
                 onPress={handleConfirmVerificationCode}
-                style={{ flex: 1, height: 42, borderRadius: 10, backgroundColor: (verifyingEmail || verifyCode.length !== 6) ? '#94A3B8' : '#0284C7', alignItems: 'center', justifyContent: 'center' }}
+                style={{ flex: 1, height: 44, borderRadius: 10, backgroundColor: (verifyingEmail || verifyCode.length !== 6) ? '#94A3B8' : '#0284C7', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
                   {verifyingEmail ? 'Verifying...' : 'Confirm'}

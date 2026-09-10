@@ -534,18 +534,39 @@ function StaffCard({
       {canManage && (
         <View style={styles.staffActions}>
           {!inactive && (
-            <Pressable style={styles.iconBtn} onPress={onEdit} id={`btn-edit-staff-${member.id}`}>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={onEdit}
+              id={`btn-edit-staff-${member.id}`}
+              hitSlop={5}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${member.name}`}
+            >
               <Pencil size={14} color="#0066b2" />
             </Pressable>
           )}
           {inactive
             ? (
-              <Pressable style={[styles.iconBtn, styles.activateBtn]} onPress={onReactivate} id={`btn-reactivate-${member.id}`}>
+              <Pressable
+                style={[styles.iconBtn, styles.activateBtn]}
+                onPress={onReactivate}
+                id={`btn-reactivate-${member.id}`}
+                hitSlop={5}
+                accessibilityRole="button"
+                accessibilityLabel={`Reactivate ${member.name}`}
+              >
                 <Check size={14} color="#16a34a" />
               </Pressable>
             )
             : (
-              <Pressable style={[styles.iconBtn, styles.deactivateBtn]} onPress={onDeactivate} id={`btn-deactivate-${member.id}`}>
+              <Pressable
+                style={[styles.iconBtn, styles.deactivateBtn]}
+                onPress={onDeactivate}
+                id={`btn-deactivate-${member.id}`}
+                hitSlop={5}
+                accessibilityRole="button"
+                accessibilityLabel={`Deactivate ${member.name}`}
+              >
                 <X size={14} color="#ef4444" />
               </Pressable>
             )

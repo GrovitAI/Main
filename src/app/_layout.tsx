@@ -8,6 +8,7 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { ApprovalProvider } from '@/lib/approval/ApprovalContext';
 import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
 import { BREAKPOINTS } from '@/lib/pos/useResponsive';
+import { useSupabaseAutoRefresh } from '@/lib/pos/use-supabase-auto-refresh';
 
 export const unstable_settings = {
   initialRouteName: '(auth)',
@@ -22,6 +23,8 @@ export default function RootLayout() {
   const segments = useSegments();
   const { width } = useWindowDimensions();
   const isPhone = width < BREAKPOINTS.tablet;
+
+  useSupabaseAutoRefresh();
 
   useEffect(() => {
     async function checkSession() {
