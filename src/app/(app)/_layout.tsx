@@ -9,6 +9,7 @@ import type { PosSession } from '@/lib/pos/session-context';
 
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 
 import { MapPin, User } from 'lucide-react-native';
 import {
@@ -452,6 +453,7 @@ export default function AppTabLayout() {
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>
+      <PhoneWebFrame active={isPhone}>
       <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
         {showHeader && (
           <GlobalHeader session={session} />
@@ -515,6 +517,7 @@ export default function AppTabLayout() {
           </View>
         )}
       </View>
+      </PhoneWebFrame>
     </UIContext.Provider>
   );
 }

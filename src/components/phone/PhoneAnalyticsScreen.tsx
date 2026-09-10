@@ -299,12 +299,18 @@ export function PhoneAnalyticsScreen({
       >
         {/* ACTIVE FILTER SUMMARY BANNER */}
         <View className="flex-row items-center justify-between bg-blue-50/90 border border-blue-200/70 rounded-2xl px-3.5 py-2.5 mb-4 shadow-2xs">
-          <View className="flex-row items-center gap-2 flex-1 pr-2">
+          <Pressable
+            onPress={() => setIsDatePickerModalOpen(true)}
+            className="flex-row items-center gap-2 flex-1 pr-2"
+            style={({ pressed }) => [{ minHeight: 44, opacity: pressed ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Change the report date range"
+          >
             <Calendar size={15} color="#0066B2" />
             <Text className="text-xs font-bold text-[#0066B2]" numberOfLines={1}>
               {getFilterLabel(currentPresetKey, startDate, endDate)}
             </Text>
-          </View>
+          </Pressable>
           <Pressable
             onPress={onOpenFilter}
             className="flex-row items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-blue-200"
