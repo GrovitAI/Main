@@ -9,7 +9,7 @@ SELECT '2. duplicate invoice numbers per branch, ALL TIME',
   WHERE invoice_number IS NOT NULL
   GROUP BY 1,2,3 HAVING count(*) > 1) d
 UNION ALL
-SELECT '3. duplicate invoice numbers created on/after 2026-09-07 (blocks partial UNIQUE in ...000200)',
+SELECT '3. duplicate invoice numbers created on/after 2026-09-07 (informational: migration 2 starts its rule when it runs, so these no longer block it)',
        count(*)::text FROM (
   SELECT tenant_id, branch_id, invoice_number FROM bills
   WHERE invoice_number IS NOT NULL AND created_at >= '2026-09-07'

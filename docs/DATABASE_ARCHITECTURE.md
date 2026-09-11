@@ -136,7 +136,7 @@ Every table has RLS enabled (`supabase/migrations/20260907000100_rls_policies.sq
 Policy shapes: tenant+branch tables use `auth_can_access_branch(tenant_id, branch_id)`; tenant-only tables use `tenant_id = auth_tenant_id()`; child tables without tenant columns (`open_order_items`, `kot_items`, `bill_items`, `inventory_transfer_request_items`, `inventory_dispatches`, `inventory_dispatch_items`, `inventory_recipe_items`) inherit access through their parent row. Transfers are visible to both the requesting and the supplying branch. `anon` has no table or RPC privileges.
 
 ### Document numbering
-`branch_counters(tenant_id, branch_id, bill_seq, order_seq, kot_seq)` — seeded from the highest existing numbers on first use, incremented under a row lock by `next_branch_sequence()`. `next_invoice_number()` formats `<branches.invoice_prefix or INV>-<4+ digits>`. Partial unique index `uniq_bills_invoice_number_per_branch_v2` guarantees uniqueness for bills created from 2026-09-07.
+`branch_counters(tenant_id, branch_id, bill_seq, order_seq, kot_seq)` — seeded from the highest existing numbers on first use, incremented under a row lock by `next_branch_sequence()`. `next_invoice_number()` formats `<branches.invoice_prefix or INV>-<4+ digits>`. Partial unique index `uniq_bills_invoice_number_per_branch_v2` guarantees uniqueness for bills created after migration 000200 was applied. Its cutoff is the moment the file ran, so duplicates produced by the pre-v2 per-till numbering stay as history.
 
 ### Transactional RPCs
 
