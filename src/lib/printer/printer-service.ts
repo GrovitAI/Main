@@ -254,6 +254,8 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
   const printNvLogo = '\x1Cp\x01\x00'; 
 
+  // Legal trading name, printed above the brand as on the stamped receipts.
+  const tradingName = 'NS TRADERS';
   const title = 'LE LABAN';
   const phone = branch?.phone || '90309 13610';
   const gstin = branch?.gstin;
@@ -265,6 +267,7 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   const lines: string[] = [
     '\x1Ba\x01',   // center alignment
     printNvLogo + '\n', // prints the engrained logo
+    boldOn + tradingName + boldOff + '\n',
     boldOn + title + boldOff + '\n',
     '\n',
     ...addressParts.map((part) => center(part, width) + '\n'),
