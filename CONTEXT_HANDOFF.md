@@ -9,7 +9,7 @@
 
 ## 1. What the Product Is
 
-**Grovit AI POS** is a multi-tenant SaaS Point of Sale (POS), Kitchen Order Ticket (KOT), Financial Settlement, and Inventory Supply Chain platform engineered for restaurant chains, central kitchens, and retail food outlets in India. The application serves multi-unit restaurant brands (reference tenant: *Le Leban*) operating multiple physical store branches, central preparation kitchens, and distribution warehouses. It is delivered as a single unified codebase targeting three distribution channels: desktop/tablet/mobile Web (`dinein.grovit.com`), Android APK, and iOS via TestFlight / Expo Go. Multi-tenancy is enforced from the database upward: every operational query must explicitly filter by `tenant_id` and `branch_id`, imported exclusively from `@/lib/pos/tenant-context`.
+**Grovit AI POS** is a multi-tenant SaaS Point of Sale (POS), Kitchen Order Ticket (KOT), Financial Settlement, and Inventory Supply Chain platform engineered for restaurant chains, central kitchens, and retail food outlets in India. The application serves multi-unit restaurant brands (reference tenant: *Le Leban*) operating multiple physical store branches, central preparation kitchens, and distribution warehouses. It is delivered as a single unified codebase targeting three distribution channels: desktop/tablet/mobile Web (`www.leleban.grovitai.com`), Android APK, and iOS via TestFlight / Expo Go. Multi-tenancy is enforced from the database upward: every operational query must explicitly filter by `tenant_id` and `branch_id`, imported exclusively from `@/lib/pos/tenant-context`.
 
 ---
 

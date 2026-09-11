@@ -114,7 +114,7 @@ Preview):
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | unchanged |
 | `PRINTNODE_API_KEY` | the NEW PrintNode key (remove `EXPO_PUBLIC_PRINTNODE_API_KEY` — it must not be public) |
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase → Project Settings → API (server-only; required by `/api/staff/create`) |
-| `ALLOWED_ORIGINS` | `https://dinein.grovit.com` (comma-separate extra origins, e.g. a preview domain) |
+| `ALLOWED_ORIGINS` | `https://www.leleban.grovitai.com` (comma-separate extra origins, e.g. a preview domain) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | with the NEW app password |
 
 Then **Redeploy** the project.

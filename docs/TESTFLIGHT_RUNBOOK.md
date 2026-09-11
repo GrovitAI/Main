@@ -22,7 +22,7 @@ covered as well as an iPhone.
 | App icon | `assets/images/icon.png`, 1024x1024 RGB with no alpha channel, which is what the App Store requires |
 | Splash screen | `expo-splash-screen` plugin, brand navy background |
 | Build profiles | `development`, `preview`, `production` in `eas.json`; `appVersionSource: remote` with `autoIncrement` on production, so EAS owns the build number |
-| API base URL | `apiFetch` falls back to `https://dinein.grovit.com` off the web, so the native build reaches the same serverless API |
+| API base URL | `apiFetch` falls back to `https://www.leleban.grovitai.com` off the web, so the native build reaches the same serverless API |
 
 ## Prerequisites
 
