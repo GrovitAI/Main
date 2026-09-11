@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Switch,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -243,6 +244,10 @@ export default function AnalyticsScreen() {
     }
   };
 
+  // A CSV download needs an anchor element and a DOM to click it in. The
+  // installed app has neither, so the export is a web-only affordance.
+  const canExportCsv = Platform.OS === 'web';
+
   const handleExportCSV = () => {
     if (!dashboardData || !dashboardData.rawTransactions || dashboardData.rawTransactions.length === 0) {
       return;
@@ -290,7 +295,7 @@ export default function AnalyticsScreen() {
 
     const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
     
-    if (typeof window !== 'undefined') {
+    if (canExportCsv) {
       const link = document.createElement('a');
       link.setAttribute('href', csvContent);
       link.setAttribute('download', `grovit_sales_report_${startDate}_to_${endDate}.csv`);
@@ -328,7 +333,7 @@ export default function AnalyticsScreen() {
 
     const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
     
-    if (typeof window !== 'undefined') {
+    if (canExportCsv) {
       const link = document.createElement('a');
       link.setAttribute('href', csvContent);
       link.setAttribute('download', `grovit_item_wise_sales_${startDate}_to_${endDate}.csv`);
@@ -1309,7 +1314,7 @@ export default function AnalyticsScreen() {
         </View>
 
         <View className="flex-row items-center gap-3">
-          {dashboardData && dashboardData.rawTransactions && dashboardData.rawTransactions.length > 0 && (
+          {canExportCsv && dashboardData && dashboardData.rawTransactions && dashboardData.rawTransactions.length > 0 && (
             <Pressable
               onPress={handleExportCSV}
               id="btn-export-csv"
@@ -1319,7 +1324,7 @@ export default function AnalyticsScreen() {
               <Text className="text-white text-xs font-bold">Export Transactions</Text>
             </Pressable>
           )}
-          {dashboardData && dashboardData.itemWiseReport && dashboardData.itemWiseReport.length > 0 && (
+          {canExportCsv && dashboardData && dashboardData.itemWiseReport && dashboardData.itemWiseReport.length > 0 && (
             <Pressable
               onPress={handleExportItemWiseCSV}
               id="btn-export-item-wise-csv"

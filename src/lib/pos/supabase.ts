@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 
 import { logSupabaseError } from './supabase-debug';
 
@@ -28,4 +30,23 @@ if (!hasValidSupabaseEnv && typeof __DEV__ !== 'undefined' && __DEV__) {
   });
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * supabase-js reaches for localStorage to persist a session, and falls back to
+ * an in-memory store when there is none. React Native has none, so without an
+ * explicit adapter every cold start of the installed app would land on the
+ * login screen. AsyncStorage is that adapter.
+ *
+ * The web app keeps its existing behaviour: no storage override, which leaves
+ * localStorage in place, and session detection in the URL stays on because the
+ * browser is where an auth redirect can arrive.
+ */
+const isWeb = Platform.OS === 'web';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: isWeb ? undefined : AsyncStorage,
+    detectSessionInUrl: isWeb,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});

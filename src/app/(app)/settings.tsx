@@ -248,7 +248,7 @@ export default function SettingsScreen() {
                   key={tab.key}
                   testID={`settings-tab-${tab.key}`}
                   onPress={() => setActiveTab(tab.key)}
-                  className={`flex-1 py-2 rounded-xl items-center justify-center min-h-[40px] flex-row gap-1.5 ${
+                  className={`flex-1 py-2 rounded-xl items-center justify-center min-h-[44px] flex-row gap-1.5 ${
                     isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent'
                   }`}
                   style={isSel ? { elevation: 1 } : {}}
