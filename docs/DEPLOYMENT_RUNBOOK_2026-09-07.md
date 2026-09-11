@@ -56,7 +56,7 @@ re-runnable (idempotent). Read the "NOTICE" lines in the result pane.
 | # | File | What to check in the output |
 |---|------|-----------------------------|
 | 1 | `supabase/migrations/20260907000100_rls_policies.sql` | Final SELECT lists every table with `rls_enabled = true` and `policies = 4` (branch_counters and api_rate_limits come later). This is the file that closes the anon exposure. |
-| 2 | `supabase/migrations/20260907000200_sequences_and_settle_order_v2.sql` | Final SELECT lists historical duplicate invoice numbers (140+ expected). These are pre-existing; new bills cannot duplicate. Decide whether to renumber them manually. |
+| 2 | `supabase/migrations/20260907000200_sequences_and_settle_order_v2.sql` | Final SELECT lists every duplicate invoice number already in the table (190 on 11 Sept, including INV-3407 issued twice on 10 Sept). They stay as history: the uniqueness rule starts at the moment this file runs, so no new number can repeat. Decide whether to renumber any of them manually. |
 | 3 | `supabase/migrations/20260907000300_ledger_kpis_indexes_hardening.sql` | If you see `settlements has duplicate bill_id rows`, reconcile them (pre-flight check 1 lists them) and re-run. |
 | 4 | `supabase/migrations/20260907000400_consumption_worker.sql` | If you see `pg_cron is not enabled`, enable **pg_cron** in Database → Extensions, then re-run only section 3 of the file. |
 | 5 | `supabase/migrations/20260907000500_transfer_rpcs.sql` | No errors. |

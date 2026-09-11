@@ -19,9 +19,9 @@
 --        * the inventory consumption batch row is inserted in the SAME
 --          transaction as the bill (processed later by the DB worker).
 --   4. Partial UNIQUE index on bills(tenant_id, branch_id, invoice_number)
---      for rows created from 2026-09-07 onward. Historical duplicates (140 in
---      the first 1000 rows at audit time) are left untouched and listed by
---      the report query at the end for manual reconciliation.
+--      for rows created from the moment this file is applied. Every duplicate
+--      already in the table is left untouched and listed by the report query
+--      at the end for manual reconciliation.
 --
 -- How to apply: Supabase SQL Editor, run the whole file AFTER
 -- 20260907000100_rls_policies.sql. This file is self-contained: it supersedes
@@ -483,15 +483,39 @@ GRANT EXECUTE ON FUNCTION public.settle_order(uuid, uuid, uuid, text, text, text
 
 -- ---------------------------------------------------------------------------
 -- 4. Uniqueness for all invoice numbers issued from now on.
+--
+-- The rule starts at the moment this file runs, not at a fixed date. The
+-- pre-v2 client picks the next number on each till, so it went on issuing
+-- duplicates after this migration was written: INV-3407 was issued twice on
+-- 2026-09-10. A fixed cutoff fails on any such pair created before the file
+-- is applied. "Now" cannot, because every duplicate that exists at that moment
+-- is older than it.
+--
+-- The cutoff is written as explicit UTC text so it does not depend on the
+-- session's TimeZone or DateStyle. Re-running the file finds the index in
+-- place and leaves its cutoff alone.
 -- ---------------------------------------------------------------------------
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_bills_invoice_number_per_branch_v2
-  ON public.bills (tenant_id, branch_id, invoice_number)
-  WHERE invoice_number IS NOT NULL AND created_at >= '2026-09-07 00:00:00+00';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+     WHERE schemaname = 'public'
+       AND indexname = 'uniq_bills_invoice_number_per_branch_v2'
+  ) THEN
+    EXECUTE format(
+      'CREATE UNIQUE INDEX uniq_bills_invoice_number_per_branch_v2 '
+      'ON public.bills (tenant_id, branch_id, invoice_number) '
+      'WHERE invoice_number IS NOT NULL AND created_at >= %L::timestamptz',
+      to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') || '+00'
+    );
+  END IF;
+END $$;
 
--- Report: historical duplicates that predate this migration (manual review).
+-- Report: every duplicate invoice number already in the table. All of them
+-- predate the index above, so they stay as history for manual review.
 SELECT tenant_id, branch_id, invoice_number, count(*) AS copies
   FROM public.bills
- WHERE invoice_number IS NOT NULL AND created_at < '2026-09-07 00:00:00+00'
+ WHERE invoice_number IS NOT NULL
  GROUP BY tenant_id, branch_id, invoice_number
 HAVING count(*) > 1
  ORDER BY copies DESC, invoice_number;
