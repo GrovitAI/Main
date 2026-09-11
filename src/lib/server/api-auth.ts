@@ -50,7 +50,7 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
-const DEFAULT_ALLOWED_ORIGINS = ['https://dinein.grovit.com'];
+const DEFAULT_ALLOWED_ORIGINS = ['https://www.leleban.grovitai.com'];
 
 function isProduction(): boolean {
   return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';

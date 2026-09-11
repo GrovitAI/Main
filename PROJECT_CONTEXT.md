@@ -8,13 +8,16 @@ One platform. Multiple restaurant businesses.
 Each restaurant is a tenant. Each tenant has multiple branches.
 
 ## Products
+Planned product names. None of these grovit.com hosts is live: that domain
+currently resolves to a parking service, not to Vercel.
 - dinein.grovit.com → POS (billing, KOT, kitchen display)
 - fin.grovit.com → Finance (expenses, settlements, reports)
 - admin.grovit.com → Internal Grovit dashboard
 - kitchen.grovit.com → Kitchen display
 
 ## Distribution
-- Web URL → desktop, tablet, mobile browser
+- Web URL → https://www.leleban.grovitai.com (live production on Vercel; the
+  serverless API is the same origin under /api) → desktop, tablet, mobile browser
 - Android → APK direct install
 - iOS → TestFlight beta distribution
 All three from this single Expo codebase.

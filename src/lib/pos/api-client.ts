@@ -14,7 +14,7 @@ function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location) {
     return window.location.origin;
   }
-  return process.env.EXPO_PUBLIC_API_BASE_URL || 'https://dinein.grovit.com';
+  return process.env.EXPO_PUBLIC_API_BASE_URL || 'https://www.leleban.grovitai.com';
 }
 
 async function getAccessToken(): Promise<string | null> {
