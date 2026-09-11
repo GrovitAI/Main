@@ -197,6 +197,8 @@ export function buildReceiptText(
 
   const lines: string[] = [];
 
+  // Legal trading name, printed above the brand as on the stamped receipts.
+  const tradingName = 'NS TRADERS';
   const title = 'LE LABAN';
   const phone = branch?.phone || cfg.phone.replace('PH:', '').trim();
   const gstin = branch?.gstin;
@@ -210,6 +212,7 @@ export function buildReceiptText(
   // ── Header ────────────────────────────────────────────────────────────────
   lines.push(ESC_CENTER);
   lines.push(printNvLogo); // Print NV logo
+  lines.push(ESC_BOLD_ON + ESC_DW_ON + centerText(tradingName, W) + ESC_DW_OFF + ESC_BOLD_OFF);
   lines.push(ESC_BOLD_ON + ESC_DW_ON + centerText(title, W) + ESC_DW_OFF + ESC_BOLD_OFF);
   if (cfg.tagline && !branch) lines.push(centerText(cfg.tagline, W));
   lines.push('');
