@@ -1,7 +1,8 @@
 import { fetchPrinters } from '@/lib/pos/printer-db-service';
 import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString } from '@/lib/printer/printer-service';
 import { apiFetch } from '@/lib/pos/api-client';
-import { RECEIPT_CONFIG, SHOW_GST_INFORMATION, PAPER_WIDTH } from './receiptConfig';
+import { RECEIPT_CONFIG, PAPER_WIDTH } from './receiptConfig';
+import { roundUpToWholeRupee } from '@/lib/pos/order-utils';
 
 /**
  * Checks whether the default PrintNode billing printer is online.
@@ -191,6 +192,8 @@ export function buildReceiptText(
   totalAmount: number,
   paymentMethod?: string | null,
   branch?: ReceiptBranch | null,
+  /** Branch GST percentage; 0 prints no GST lines. From pos_settings. */
+  taxPercentage = 0,
   discountAmount = 0,
   discountType: 'percent' | 'fixed' | null = null,
   discountValue = 0
@@ -290,17 +293,24 @@ export function buildReceiptText(
 
   const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
 
-  // GST breakdown — shown only when SHOW_GST_INFORMATION = true
+  // GST breakdown — the branch's own rate, split half CGST and half SGST.
+  // A branch with no rate configured prints no GST lines at all.
   let taxAmount = 0;
-  if (SHOW_GST_INFORMATION) {
-    const cgst = discountedSubtotal * 0.025;
-    const sgst = discountedSubtotal * 0.025;
+  if (taxPercentage > 0) {
+    const halfRate = taxPercentage / 2;
+    const cgst = discountedSubtotal * (halfRate / 100);
+    const sgst = cgst;
     taxAmount = cgst + sgst;
-    lines.push(alignLeftRight('CGST (2.5%)', cgst.toFixed(2), W));
-    lines.push(alignLeftRight('SGST (2.5%)', sgst.toFixed(2), W));
+    lines.push(alignLeftRight(`CGST (${halfRate}%)`, cgst.toFixed(2), W));
+    lines.push(alignLeftRight(`SGST (${halfRate}%)`, sgst.toFixed(2), W));
   }
 
-  const grandTotal = discountedSubtotal + taxAmount;
+  const exactTotal = discountedSubtotal + taxAmount;
+  const grandTotal = taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal;
+  const roundOff = grandTotal - exactTotal;
+  if (roundOff > 0.001) {
+    lines.push(alignLeftRight('Round Off', roundOff.toFixed(2), W));
+  }
 
   lines.push(div);
 

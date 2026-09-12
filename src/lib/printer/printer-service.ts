@@ -1,5 +1,7 @@
 import { Platform, Alert } from 'react-native';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
+import { getBranchTaxPercentage } from '../pos/pos-settings-service';
+import { roundUpToWholeRupee } from '../pos/order-utils';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 import { supabase } from '../pos/supabase';
 import { apiFetch } from '../pos/api-client';
@@ -244,7 +246,8 @@ function formatItemRow(name: string, qty: number, rate: number, amount: number, 
  * Set to true once GST registration is obtained.
  * When false: GSTIN, FSSAI, CGST, SGST lines are suppressed.
  */
-const SHOW_GST_INFORMATION = false;
+// GST is per branch: the rate comes from pos_settings.tax_percentage, read
+// through getBranchTaxPercentage(). 0 means the branch charges no GST.
 
 function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   // ESC/POS bold only — do NOT use double-width here.
@@ -334,7 +337,9 @@ function buildTotals(
   width = 42,
   discountAmount = 0,
   discountType: 'percent' | 'fixed' | null = null,
-  discountValue = 0
+  discountValue = 0,
+  /** Branch GST percentage; 0 prints no GST lines. */
+  taxPercentage = 0
 ): string[] {
   const lines: string[] = [
     separator(width) + '\n',
@@ -347,12 +352,13 @@ function buildTotals(
     lines.push(padLine(label, '-Rs. ' + discountAmount.toFixed(2), width) + '\n');
   }
 
-  if (SHOW_GST_INFORMATION) {
+  if (taxPercentage > 0) {
     const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-    const cgst = discountedSubtotal * 0.025;
+    const halfRate = taxPercentage / 2;
+    const cgst = discountedSubtotal * (halfRate / 100);
     const sgst = cgst;
-    lines.push(padLine('CGST (2.5%)', 'Rs. ' + cgst.toFixed(2), width) + '\n');
-    lines.push(padLine('SGST (2.5%)', 'Rs. ' + sgst.toFixed(2), width) + '\n');
+    lines.push(padLine(`CGST (${halfRate}%)`, 'Rs. ' + cgst.toFixed(2), width) + '\n');
+    lines.push(padLine(`SGST (${halfRate}%)`, 'Rs. ' + sgst.toFixed(2), width) + '\n');
   }
 
   return lines;
@@ -704,6 +710,9 @@ export const printerService = {
         .eq('id', printer.branch_id)
         .maybeSingle();
 
+      // GST rate for this branch; 0, or no pos_settings row, means no GST.
+      const taxPercentage = await getBranchTaxPercentage();
+
       // 1. Build Header
       const headerLines = buildHeader(width, branch as ReceiptBranchInfo | null);
 
@@ -730,19 +739,19 @@ export const printerService = {
       }
 
       // 6. Totals Section
-      const totalsLines = buildTotals(totalQty, totalAmount, width, discountAmount, discountType, discountValue);
+      const totalsLines = buildTotals(totalQty, totalAmount, width, discountAmount, discountType, discountValue, taxPercentage);
 
       // 7. Grand Total — bold, right-aligned, Rs. prefix (no Unicode ₹ — not supported on all Epson code pages)
       const boldOn  = '\x1B\x45\x01';
       const boldOff = '\x1B\x45\x00';
       const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
-      let taxAmount = 0;
-      if (SHOW_GST_INFORMATION) {
-        taxAmount = discountedSubtotal * 0.05;
-      }
-      const grandTotal = discountedSubtotal + taxAmount;
+      const taxAmount = discountedSubtotal * (taxPercentage / 100);
+      const exactTotal = discountedSubtotal + taxAmount;
+      const grandTotal = taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal;
+      const roundOff = grandTotal - exactTotal;
 
       const grandTotalLines = [
+        ...(roundOff > 0.001 ? [padLine('Round Off', 'Rs. ' + roundOff.toFixed(2), width) + '\n'] : []),
         separator(width) + '\n',
         boldOn + padLine('Grand Total', 'Rs. ' + grandTotal.toFixed(2), width) + boldOff + '\n',
         separator(width) + '\n',

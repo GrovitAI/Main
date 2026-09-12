@@ -32,6 +32,8 @@ export type BillTotals = {
   discountPaise: number;
   taxPaise: number;
   grandTotalPaise: number;
+  /** Paise added to reach a whole rupee at GST branches; 0 elsewhere. */
+  roundOffPaise: number;
   /** Effective discount percentage (0–100), derived for display. */
   discountPercent: number;
   lines: MoneyLine[];
@@ -40,6 +42,7 @@ export type BillTotals = {
   discountAmount: number;
   taxAmount: number;
   grandTotal: number;
+  roundOff: number;
 };
 
 /** Half-up rounding that is immune to binary float artefacts (0.145 → 0.15). */
@@ -137,6 +140,16 @@ export function computeBillTotals(lines: MoneyLineInput[], options: ComputeBillT
     grandTotalPaise = subtotalPaise - discountPaise + taxPaise;
   }
 
+  // A GST branch settles in whole rupees: the payable total rounds up and the
+  // difference prints as Round Off. The taxable value and the tax stay exact,
+  // which is what GST records need. A branch without GST keeps exact paise.
+  let roundOffPaise = 0;
+  if (taxPct > 0 && grandTotalPaise > 0) {
+    const roundedPaise = Math.ceil(grandTotalPaise / 100) * 100;
+    roundOffPaise = roundedPaise - grandTotalPaise;
+    grandTotalPaise = roundedPaise;
+  }
+
   const allocated = allocateDiscount(
     pricedLines.map((l) => l.linePaise),
     Math.min(discountPaise, subtotalPaise)
@@ -149,11 +162,13 @@ export function computeBillTotals(lines: MoneyLineInput[], options: ComputeBillT
     discountPaise,
     taxPaise,
     grandTotalPaise,
+    roundOffPaise,
     discountPercent,
     lines: pricedLines.map((l, i) => ({ ...l, discountPaise: allocated[i] })),
     subtotal: fromPaise(subtotalPaise),
     discountAmount: fromPaise(discountPaise),
     taxAmount: fromPaise(taxPaise),
     grandTotal: fromPaise(grandTotalPaise),
+    roundOff: fromPaise(roundOffPaise),
   };
 }

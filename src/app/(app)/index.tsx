@@ -21,6 +21,7 @@ import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradien
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
+import { getBranchTaxPercentage } from '@/lib/pos/pos-settings-service';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
@@ -36,7 +37,7 @@ import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-nat
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
-  TAX_RATE,
+  roundUpToWholeRupee,
 } from '@/lib/pos/order-utils';
 import {
   getCategories,
@@ -279,6 +280,19 @@ export default function PosBillingScreen() {
     return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
   }, [session]);
 
+  // GST rate for this branch, 0 when the branch charges none. Read once per
+  // branch: the cart, the printed bill and the settlement must all use it.
+  const [taxPercentage, setTaxPercentage] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void getBranchTaxPercentage().then((rate) => {
+      if (!cancelled) setTaxPercentage(rate);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.branchId]);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -500,8 +514,10 @@ export default function PosBillingScreen() {
 
   const orderTotal = useMemo(() => {
     const subtotal = calculateOrderSubtotal(activeOrderItems);
-    return calculateOrderTotal(subtotal, TAX_RATE);
-  }, [activeOrderItems]);
+    const total = calculateOrderTotal(subtotal, taxPercentage / 100);
+    // GST branches settle in whole rupees; the rest keep exact paise.
+    return taxPercentage > 0 ? roundUpToWholeRupee(total) : total;
+  }, [activeOrderItems, taxPercentage]);
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -710,7 +726,7 @@ export default function PosBillingScreen() {
             const updatedOrderName = updatedOrder?.order_name || orderName;
             const updatedInvoiceNumber = updatedOrder?.invoice_number || invoiceNumber;
 
-            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount, null, currentBranch);
+            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount, null, currentBranch, taxPercentage);
             const printResult = await printReceipt(printerName, receiptText);
             if (printResult.success) {
               showToast('Provisional bill printed successfully.');
@@ -753,7 +769,8 @@ export default function PosBillingScreen() {
         items,
         totalAmount,
         activeOrder.payment_method,
-        currentBranch
+        currentBranch,
+        taxPercentage
       );
       const printResult = await printReceipt(printerName, receiptText);
       if (printResult.success) {
@@ -1438,6 +1455,7 @@ export default function PosBillingScreen() {
   const orderPanel = (
     <OrderPanel
       order={activeOrder}
+      taxPercentage={taxPercentage}
       items={activeOrderItems}
       orderIndex={activeOrderIndex >= 0 ? activeOrderIndex : 0}
       isLoading={isLoadingActiveOrder}
@@ -1696,7 +1714,7 @@ export default function PosBillingScreen() {
             orderStatus={activeOrder?.status || 'draft'}
             orderIndex={activeOrderIndex >= 0 ? activeOrderIndex : 0}
             subtotal={calculateOrderSubtotal(activeOrderItems)}
-            taxAmount={calculateOrderSubtotal(activeOrderItems) * TAX_RATE}
+            taxAmount={calculateOrderSubtotal(activeOrderItems) * (taxPercentage / 100)}
             totalAmount={orderTotal}
             isLoading={isLoadingActiveOrder}
             isMutating={isMutating}

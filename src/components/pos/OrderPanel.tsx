@@ -24,7 +24,7 @@ import {
   calculateOrderTotal,
   calculateTax,
   formatOrderLabel,
-  TAX_RATE,
+  roundUpToWholeRupee,
 } from '@/lib/pos/order-utils';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
 import { webTextStyle } from '@/lib/pos/web-style';
@@ -55,10 +55,13 @@ type OrderPanelProps = {
   heldOrders: OpenOrder[];
   itemCountByOrderId: Record<string, number>;
   onResumeOrder: (orderId: string) => void;
+  /** Branch GST percentage; 0 hides the tax row. From pos_settings. */
+  taxPercentage?: number;
 };
 
 export function OrderPanel({
   order,
+  taxPercentage = 0,
   items,
   orderIndex,
   isLoading,
@@ -245,8 +248,16 @@ export function OrderPanel({
 
   const subtotal = useMemo(() => calculateOrderSubtotal(items), [items]);
   const discountedSubtotal = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
-  const tax = useMemo(() => calculateTax(discountedSubtotal, TAX_RATE), [discountedSubtotal]);
-  const total = useMemo(() => discountedSubtotal + tax, [discountedSubtotal, tax]);
+  const tax = useMemo(
+    () => calculateTax(discountedSubtotal, taxPercentage / 100),
+    [discountedSubtotal, taxPercentage],
+  );
+  const exactTotal = useMemo(() => discountedSubtotal + tax, [discountedSubtotal, tax]);
+  const total = useMemo(
+    () => (taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal),
+    [exactTotal, taxPercentage],
+  );
+  const roundOff = useMemo(() => Math.max(0, total - exactTotal), [total, exactTotal]);
 
   const isDraft     = order ? (order.status === 'draft' || order.status === 'open') : false;
   const isKitchen   = order?.status === 'in_kitchen';
@@ -761,9 +772,17 @@ export function OrderPanel({
         )}
         {tax > 0 && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-            <Text style={{ fontSize: 12, color: '#6B7280' }}>Tax (5%)</Text>
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>Tax ({taxPercentage}%)</Text>
             <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
               {formatCurrency(tax)}
+            </Text>
+          </View>
+        )}
+        {roundOff > 0.001 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>Round Off</Text>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
+              {formatCurrency(roundOff)}
             </Text>
           </View>
         )}

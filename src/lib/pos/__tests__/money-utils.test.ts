@@ -51,8 +51,23 @@ describe('money-utils', () => {
     expect(totals.discountPaise).toBe(4506); // 10% of 45055 = 4505.5 → 4506
     expect(totals.lines.reduce((s, l) => s + l.discountPaise, 0)).toBe(4506);
     expect(totals.taxPaise).toBe(2027); // 5% of 40549 = 2027.45 → 2027
-    expect(totals.grandTotalPaise).toBe(45055 - 4506 + 2027);
-    expect(totals.grandTotal).toBeCloseTo(425.76, 2);
+    // A GST branch settles in whole rupees: 425.76 is charged as 426.00 and
+    // the 24 paise appear on the bill as Round Off.
+    expect(45055 - 4506 + 2027).toBe(42576);
+    expect(totals.roundOffPaise).toBe(24);
+    expect(totals.grandTotalPaise).toBe(42600);
+    expect(totals.grandTotal).toBeCloseTo(426.0, 2);
+  });
+
+  test('a branch without GST keeps exact paise', () => {
+    const totals = computeBillTotals(
+      [{ id: 'a', qty: 1, price: 395 }],
+      { discountType: 'percent', discountValue: 10, taxPercentage: 0 }
+    );
+    expect(totals.taxPaise).toBe(0);
+    expect(totals.roundOffPaise).toBe(0);
+    expect(totals.grandTotalPaise).toBe(35550);
+    expect(totals.grandTotal).toBeCloseTo(355.5, 2);
   });
 
   test('complimentary bill zeroes the total and discounts subtotal + tax', () => {

@@ -343,6 +343,13 @@ BEGIN
     END IF;
     v_tax_paise   := round((v_subtotal_paise - v_discount_paise) * v_tax_pct / 100.0)::bigint;
     v_total_paise := v_subtotal_paise - v_discount_paise + v_tax_paise;
+
+    -- A GST branch settles in whole rupees, matching computeBillTotals on the
+    -- client and the Round Off line on the receipt. Tax and taxable value are
+    -- untouched: only the payable total moves.
+    IF v_tax_pct > 0 AND v_total_paise > 0 THEN
+      v_total_paise := ceil(v_total_paise / 100.0)::bigint * 100;
+    END IF;
   END IF;
 
   -- 5. Document numbers are owned by the database.

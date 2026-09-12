@@ -17,6 +17,20 @@ export function calculateOrderTotal(
   return subtotal + calculateTax(subtotal, taxRate);
 }
 
+/**
+ * Rounds a money amount up to the next whole rupee.
+ *
+ * Applied to the grand total at branches that charge GST, so a bill is never
+ * settled in paise. The difference appears on the bill as "Round Off". The
+ * taxable value and the tax itself stay exact, which is what GST records need.
+ *
+ * toFixed first: floating point can leave 410.00000000001, which must round
+ * to 410 rather than 411.
+ */
+export function roundUpToWholeRupee(amount: number): number {
+  return Math.ceil(Number(amount.toFixed(2)));
+}
+
 export function formatPosOrderName(orderNumber: number): string {
   return `Order #${orderNumber}`;
 }

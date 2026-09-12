@@ -37,6 +37,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { logSupabaseError } from '@/lib/pos/supabase-debug';
 import { printReceipt, buildReceiptText } from '@/services/printService';
+import { getBranchTaxPercentage } from '@/lib/pos/pos-settings-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { webTextStyle } from '@/lib/pos/web-style';
 
@@ -196,6 +197,18 @@ export default function OrdersScreen() {
   const currentBranch = useMemo(() => {
     return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
   }, [session]);
+
+  // GST rate for this branch, so a reprint matches the original bill.
+  const [taxPercentage, setTaxPercentage] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void getBranchTaxPercentage().then((rate) => {
+      if (!cancelled) setTaxPercentage(rate);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.branchId]);
   const error = storeError;
 
   // ── UI state ────────────────────────────────────────────────────────────────
@@ -543,7 +556,7 @@ export default function OrdersScreen() {
         price: item.price ?? 0,
       }));
 
-      const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod, currentBranch);
+      const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod, currentBranch, taxPercentage);
       const printResult = await printReceipt(printerName, receiptText);
       if (printResult.success) {
         showToast('Bill reprinted successfully.');
@@ -554,7 +567,7 @@ export default function OrdersScreen() {
       console.warn('[Reprint] Failed to reprint bill:', err);
       showToast('Failed to reprint bill.');
     }
-  }, [viewingSummary, viewingItems, currentBranch, showToast]);
+  }, [viewingSummary, viewingItems, currentBranch, taxPercentage, showToast]);
 
   const handleReprintPreviousBill = useCallback(() => {
     if (!viewingSummary) return;
