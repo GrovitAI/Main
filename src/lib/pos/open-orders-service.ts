@@ -2,6 +2,7 @@ import type { OpenOrder, OpenOrderItem, OpenOrderWithItems, KotTicket, KotTicket
 import { supabase } from './supabase';
 import { logSupabaseError } from './supabase-debug';
 import { getTenantContext } from './tenant-context';
+import { roundUpToWholeRupee } from './order-utils';
 import type { ServiceResult } from './settlement-service';
 import {
   getEffectiveReportingTimestamp,
@@ -1526,7 +1527,10 @@ export async function settleOrderById(
     let discountAmount = order.discount_amount || 0;
     let discountedSubtotal = Math.max(0, subtotal - discountAmount);
     let tax_amount = Math.round((discountedSubtotal * tax_percentage / 100.0) * 100) / 100;
-    let total_amount = discountedSubtotal + tax_amount;
+    // GST branches settle in whole rupees; the difference prints as Round Off.
+    let total_amount = tax_percentage > 0
+      ? roundUpToWholeRupee(discountedSubtotal + tax_amount)
+      : discountedSubtotal + tax_amount;
 
     if (isComplimentary) {
       // Preserve gross sales revenue analytics by applying 100% discount (subtotal + tax)

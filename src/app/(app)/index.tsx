@@ -34,6 +34,7 @@ import { colors } from '@/lib/pos/brand';
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
+  roundUpToWholeRupee,
 } from '@/lib/pos/order-utils';
 import {
   getCategories,
@@ -601,7 +602,9 @@ export default function PosBillingScreen() {
 
   const orderTotal = useMemo(() => {
     const subtotal = calculateOrderSubtotal(activeOrderItems);
-    return calculateOrderTotal(subtotal, taxPercentage / 100);
+    const total = calculateOrderTotal(subtotal, taxPercentage / 100);
+    // GST branches settle in whole rupees; the rest keep exact paise.
+    return taxPercentage > 0 ? roundUpToWholeRupee(total) : total;
   }, [activeOrderItems, taxPercentage]);
 
   const loadCatalog = useCallback(async () => {

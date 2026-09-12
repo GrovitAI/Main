@@ -1,6 +1,7 @@
 import { Platform, Alert } from 'react-native';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
 import { getBranchTaxPercentage } from '../pos/pos-settings-service';
+import { roundUpToWholeRupee } from '../pos/order-utils';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 import { supabase } from '../pos/supabase';
 
@@ -731,9 +732,12 @@ export const printerService = {
       const boldOff = '\x1B\x45\x00';
       const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
       const taxAmount = discountedSubtotal * (taxPercentage / 100);
-      const grandTotal = discountedSubtotal + taxAmount;
+      const exactTotal = discountedSubtotal + taxAmount;
+      const grandTotal = taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal;
+      const roundOff = grandTotal - exactTotal;
 
       const grandTotalLines = [
+        ...(roundOff > 0.001 ? [padLine('Round Off', 'Rs. ' + roundOff.toFixed(2), width) + '\n'] : []),
         separator(width) + '\n',
         boldOn + padLine('Grand Total', 'Rs. ' + grandTotal.toFixed(2), width) + boldOff + '\n',
         separator(width) + '\n',

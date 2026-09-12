@@ -24,6 +24,7 @@ import {
   calculateOrderTotal,
   calculateTax,
   formatOrderLabel,
+  roundUpToWholeRupee,
 } from '@/lib/pos/order-utils';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
 
@@ -237,7 +238,12 @@ export function OrderPanel({
     () => calculateTax(discountedSubtotal, taxPercentage / 100),
     [discountedSubtotal, taxPercentage],
   );
-  const total = useMemo(() => discountedSubtotal + tax, [discountedSubtotal, tax]);
+  const exactTotal = useMemo(() => discountedSubtotal + tax, [discountedSubtotal, tax]);
+  const total = useMemo(
+    () => (taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal),
+    [exactTotal, taxPercentage],
+  );
+  const roundOff = useMemo(() => Math.max(0, total - exactTotal), [total, exactTotal]);
 
   const isDraft     = order ? (order.status === 'draft' || order.status === 'open') : false;
   const isKitchen   = order?.status === 'in_kitchen';
@@ -755,6 +761,14 @@ export function OrderPanel({
             <Text style={{ fontSize: 12, color: '#6B7280' }}>Tax ({taxPercentage}%)</Text>
             <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
               {formatCurrency(tax)}
+            </Text>
+          </View>
+        )}
+        {roundOff > 0.001 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={{ fontSize: 12, color: '#6B7280' }}>Round Off</Text>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#111827' }}>
+              {formatCurrency(roundOff)}
             </Text>
           </View>
         )}

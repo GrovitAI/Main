@@ -1,6 +1,7 @@
 import { fetchPrinters } from '@/lib/pos/printer-db-service';
 import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString, getApiBaseUrl } from '@/lib/printer/printer-service';
 import { RECEIPT_CONFIG, PAPER_WIDTH } from './receiptConfig';
+import { roundUpToWholeRupee } from '@/lib/pos/order-utils';
 
 /**
  * Checks whether the default PrintNode billing printer is online.
@@ -300,7 +301,12 @@ export function buildReceiptText(
     lines.push(alignLeftRight(`SGST (${halfRate}%)`, sgst.toFixed(2), W));
   }
 
-  const grandTotal = discountedSubtotal + taxAmount;
+  const exactTotal = discountedSubtotal + taxAmount;
+  const grandTotal = taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal;
+  const roundOff = grandTotal - exactTotal;
+  if (roundOff > 0.001) {
+    lines.push(alignLeftRight('Round Off', roundOff.toFixed(2), W));
+  }
 
   lines.push(div);
 
