@@ -21,6 +21,7 @@ import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradien
 import { useNavigation } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
+import { getBranchTaxPercentage } from '@/lib/pos/pos-settings-service';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
@@ -33,7 +34,6 @@ import { colors } from '@/lib/pos/brand';
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
-  TAX_RATE,
 } from '@/lib/pos/order-utils';
 import {
   getCategories,
@@ -266,6 +266,19 @@ export default function PosBillingScreen() {
   const currentBranch = useMemo(() => {
     return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
   }, [session]);
+
+  // GST rate for this branch, 0 when the branch charges none. Read once per
+  // branch: the cart, the printed bill and the settlement must all use it.
+  const [taxPercentage, setTaxPercentage] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void getBranchTaxPercentage().then((rate) => {
+      if (!cancelled) setTaxPercentage(rate);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.branchId]);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -588,8 +601,8 @@ export default function PosBillingScreen() {
 
   const orderTotal = useMemo(() => {
     const subtotal = calculateOrderSubtotal(activeOrderItems);
-    return calculateOrderTotal(subtotal, TAX_RATE);
-  }, [activeOrderItems]);
+    return calculateOrderTotal(subtotal, taxPercentage / 100);
+  }, [activeOrderItems, taxPercentage]);
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -798,7 +811,7 @@ export default function PosBillingScreen() {
             const updatedOrderName = updatedOrder?.order_name || orderName;
             const updatedInvoiceNumber = updatedOrder?.invoice_number || invoiceNumber;
 
-            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount, null, currentBranch);
+            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount, null, currentBranch, taxPercentage);
             const printResult = await printReceipt(printerName, receiptText);
             if (printResult.success) {
               showToast('Provisional bill printed successfully.');
@@ -841,7 +854,8 @@ export default function PosBillingScreen() {
         items,
         totalAmount,
         activeOrder.payment_method,
-        currentBranch
+        currentBranch,
+        taxPercentage
       );
       const printResult = await printReceipt(printerName, receiptText);
       if (printResult.success) {
@@ -1524,6 +1538,7 @@ export default function PosBillingScreen() {
   const orderPanel = (
     <OrderPanel
       order={activeOrder}
+      taxPercentage={taxPercentage}
       items={activeOrderItems}
       orderIndex={activeOrderIndex >= 0 ? activeOrderIndex : 0}
       isLoading={isLoadingActiveOrder}

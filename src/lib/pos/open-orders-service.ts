@@ -1331,7 +1331,9 @@ export async function createOrUpdateBill(
   status: 'paid' | 'unpaid' | 'cancelled',
   discountType: 'percent' | 'fixed' | null = null,
   discountValue: number = 0,
-  items?: any[]
+  items?: any[],
+  /** Branch GST percentage, recorded on each line. 0 when no GST applies. */
+  taxPercentage: number = 0
 ): Promise<ServiceResult<any>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
@@ -1449,8 +1451,8 @@ export async function createOrUpdateBill(
           qty: item.qty,
           price: item.price || 0,
           price_paise,
-          tax_rate: taxAmount > 0 ? 5 : 0, // simple GST percentage indicator
-          gst_percentage: taxAmount > 0 ? 5 : 0,
+          tax_rate: taxAmount > 0 ? taxPercentage : 0,
+          gst_percentage: taxAmount > 0 ? taxPercentage : 0,
           discount_amount_paise: 0,
         };
       });
@@ -1558,7 +1560,8 @@ export async function settleOrderById(
       'paid',
       discountType,
       discountValue,
-      orderItems
+      orderItems,
+      tax_percentage
     );
 
     if (billResult.error || !billResult.data) {
