@@ -61,6 +61,7 @@ re-runnable (idempotent). Read the "NOTICE" lines in the result pane.
 | 4 | `supabase/migrations/20260907000400_consumption_worker.sql` | If you see `pg_cron is not enabled`, enable **pg_cron** in Database → Extensions, then re-run only section 3 of the file. |
 | 5 | `supabase/migrations/20260907000500_transfer_rpcs.sql` | No errors. |
 | 6 | `supabase/migrations/20260907010000_finance_module.sql` | **Already applied on 2026-09-07 — re-run it here anyway.** The first run created the columns and tables but skipped the RLS section, because the `auth_*` helpers it needs are created by file 1. The file is idempotent, so re-running it after file 1 adds the missing policies. |
+| 7 | `supabase/migrations/20260913000100_revoke_legacy_rpc_access.sql` | Closes five legacy SECURITY DEFINER `rpc_*` functions that the anon key could execute (post-flight check 4, found 2026-09-13). No application code calls them. Applied to the live project on 2026-09-13; re-running is safe. |
 
 An earlier `20260906120000_settle_order_rpc.sql` was removed from the repository.
 It was never applied to any database, it was fully superseded by file 2, and it
