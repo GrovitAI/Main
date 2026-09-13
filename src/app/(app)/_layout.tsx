@@ -61,7 +61,7 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   settings: '/settings',
   dashboard: '/dashboard',
   analytics: '/analytics',
-  expenses: '/expenses',
+  finance: '/finance',
   staff: '/staff',
   branches: '/branches',
   billing: '/billing',
@@ -289,7 +289,9 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
                 style={{
                   color: isFocused ? '#0066B2' : '#64748B',
                   fontWeight: isFocused ? '700' : '500',
-                  fontSize: 10,
+                  // Seven tabs share a phone's width once Finance is in; the
+                  // longer labels only fit at the smaller size.
+                  fontSize: activeTabNames.length > 6 ? 9 : 10,
                   marginTop: 2,
                   textAlign: 'center',
                   width: '100%',

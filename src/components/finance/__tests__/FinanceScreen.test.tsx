@@ -43,6 +43,7 @@ import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { emptyFinanceSummary } from '@/lib/pos/finance-utils';
 import type { Expense, FinanceSchemaStatus } from '@/lib/pos/finance-types';
 import { FinanceScreen } from '../FinanceScreen';
+import { PhoneFinanceScreen } from '../PhoneFinanceScreen';
 import { FinanceOverviewTab } from '../FinanceOverviewTab';
 import { ExpensesTab } from '../ExpensesTab';
 import { CashBookTab } from '../CashBookTab';
@@ -251,6 +252,55 @@ describe('FinanceScreen', () => {
     );
     const tree = renderTree(<FinanceScreen />);
     expect(textOf(tree)).toContain('Sign in to view finance');
+    unmountTree(tree);
+  });
+});
+
+describe('PhoneFinanceScreen', () => {
+  const noop = () => undefined;
+  const filters = { preset: '7days' as const, startDate: '2026-09-01', endDate: '2026-09-07', branchId: null };
+
+  function renderPhone(): ReactTestRenderer {
+    return renderTree(
+      <PhoneFinanceScreen
+        activeTab="overview"
+        filters={filters}
+        branches={[{ id: 'branch-1', name: 'Main Branch' }]}
+        canPickBranch
+        loading={false}
+        schema={FULL_SCHEMA}
+        onTab={noop}
+        onPreset={noop}
+        onCustomRange={noop}
+        onBranch={noop}
+        onRefresh={noop}
+      />,
+    );
+  }
+
+  test('shows the branch, the active range and all four tabs', () => {
+    const tree = renderPhone();
+    const text = textOf(tree);
+    expect(text).toContain('All branches');
+    expect(text).toContain('1 Sep – 7 Sep 2026');
+    for (const label of ['Overview', 'Expenses', 'Cash Book', 'Day Close']) {
+      expect(text).toContain(label);
+    }
+    // The presets live in the sheet, which is closed until asked for.
+    expect(text).not.toContain('This Month');
+    unmountTree(tree);
+  });
+
+  test('the Filters button opens the sheet with the presets and the branch picker', () => {
+    const tree = renderPhone();
+    const [button] = tree.root.findAllByProps({ accessibilityLabel: 'Open finance filters' });
+    const { onPress } = button.props as { onPress: () => void };
+    act(() => {
+      onPress();
+    });
+    const text = textOf(tree);
+    expect(text).toContain('This Month');
+    expect(text).toContain('Main Branch');
     unmountTree(tree);
   });
 });

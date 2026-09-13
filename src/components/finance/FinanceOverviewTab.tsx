@@ -20,7 +20,7 @@ import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { computeProfitAndLoss, formatINR, formatPaymentMethod, formatPercent } from '@/lib/pos/finance-utils';
 import { FinanceKpiCard } from './FinanceKpiCard';
 import { DonutChart, HorizontalBars, RevenueExpenseBars, type DonutSegment } from './FinanceCharts';
-import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, FinanceSectionCard } from './FinanceStateViews';
+import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, FinanceSectionCard, financeContentPadding } from './FinanceStateViews';
 
 const PAYMENT_COLORS: Record<string, string> = {
   cash: colors.primary,
@@ -66,7 +66,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   const netTone = pnl && pnl.netCashFlow < 0 ? 'negative' : 'positive';
 
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+    <ScrollView className="flex-1" contentContainerStyle={financeContentPadding(compact)} showsVerticalScrollIndicator={false}>
       {error ? <FinanceErrorView message={error} onRetry={loadOverview} /> : null}
       {loading && summary ? <FinanceLoadingView inline label="Refreshing…" /> : null}
 

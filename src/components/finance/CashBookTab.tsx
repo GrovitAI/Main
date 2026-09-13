@@ -7,7 +7,7 @@ import type { LedgerEntry } from '@/lib/pos/finance-types';
 import { formatDateLong, formatINR, formatPaymentMethod, formatTime, summarizeLedger } from '@/lib/pos/finance-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { FinanceKpiCard } from './FinanceKpiCard';
-import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView } from './FinanceStateViews';
+import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, financeContentPadding } from './FinanceStateViews';
 
 type Props = { compact?: boolean };
 
@@ -98,7 +98,7 @@ export function CashBookTab({ compact = false }: Props) {
           </View>
         )
       }
-      contentContainerStyle={{ paddingBottom: 32 }}
+      contentContainerStyle={financeContentPadding(compact)}
       showsVerticalScrollIndicator={false}
     />
   );

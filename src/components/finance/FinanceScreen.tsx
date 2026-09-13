@@ -93,19 +93,27 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
   return (
     <View className="flex-1 bg-surface-tint" style={{ paddingTop: insets.top }}>
       <View className="flex-1" style={{ paddingHorizontal: padding, paddingTop: 16 }}>
-        {/* Title row */}
+        {/* Title row. The tab bar shares it on desktop; a tablet held upright
+            has no room for it beside the title, so there it gets its own row. */}
         <View className="mb-4 flex-row items-center justify-between">
-          <View className="flex-row items-center">
+          <View className="flex-1 flex-row items-center">
             <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary">
               <Landmark size={22} color={colors.textOnPrimary} />
             </View>
-            <View>
+            <View className="flex-1">
               <Text className="text-2xl font-extrabold tracking-tight text-text-primary">Finance</Text>
-              <Text className="text-xs text-text-secondary">Revenue, expenses, cash book and day close · {session.tenantName}</Text>
+              <Text className="text-xs text-text-secondary" numberOfLines={1}>
+                Revenue, expenses, cash book and day close · {session.tenantName}
+              </Text>
             </View>
           </View>
-          <FinanceTabBar active={activeTab} onChange={setTab} />
+          {isDesktop ? <FinanceTabBar active={activeTab} onChange={setTab} /> : null}
         </View>
+        {!isDesktop ? (
+          <View className="mb-4">
+            <FinanceTabBar active={activeTab} onChange={setTab} />
+          </View>
+        ) : null}
 
         <FinanceFilterBar
           filters={filters}

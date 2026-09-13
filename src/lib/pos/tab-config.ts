@@ -13,6 +13,7 @@ import {
   DollarSign,
   GitBranch,
   BookOpen,
+  Landmark,
 } from 'lucide-react-native';
 
 import type { UserRole } from './session-context';
@@ -39,6 +40,7 @@ const MANAGER_TABS: TabConfig[] = [
   { name: 'kitchen',   href: '/(app)/kitchen',   icon: ChefHat,     label: 'Kitchen' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,       label: 'Inventory' },
   { name: 'analytics', href: '/(app)/analytics', icon: BarChart3,   label: 'Reports' },
+  { name: 'finance',   href: '/(app)/finance',   icon: Landmark,    label: 'Finance' },
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,   label: 'Settings' },
 ];
 
@@ -47,6 +49,7 @@ const OWNER_TABS: TabConfig[] = [
   { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
+  { name: 'finance',   href: '/(app)/finance',   icon: Landmark,     label: 'Finance' },
   { name: 'staff',     href: '/(app)/staff',     icon: Users,        label: 'Staff' },
   { name: 'branches',  href: '/(app)/branches',  icon: GitBranch,    label: 'Branches' },
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
@@ -58,6 +61,7 @@ const ADMIN_TABS: TabConfig[] = [
   { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
+  { name: 'finance',   href: '/(app)/finance',   icon: Landmark,     label: 'Finance' },
   { name: 'staff',     href: '/(app)/staff',     icon: Users,        label: 'Staff' },
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
 ];
@@ -73,6 +77,7 @@ const KITCHEN_TABS: TabConfig[] = [
 // POS and Orders are deliberately absent — see usesManagementTabs below.
 export const MOBILE_TABS: TabConfig[] = [
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp, label: 'Analytics' },
+  { name: 'finance',   href: '/(app)/finance',   icon: Landmark,   label: 'Finance' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,      label: 'Inventory' },
   { name: 'menu',      href: '/(app)/menu',      icon: BookOpen,   label: 'Menu' },
   { name: 'staff',     href: '/(app)/staff',     icon: Users,      label: 'Staff' },
@@ -90,6 +95,15 @@ export const MOBILE_TABS: TabConfig[] = [
  */
 const OWNER_ONLY_MOBILE_TABS: ReadonlySet<string> = new Set(['staff', 'branches']);
 
+/**
+ * Tabs on MOBILE_TABS that a cashier does not get.
+ *
+ * Finance shows the profit and loss, the cash book and the day close, and
+ * lets its user record and void expenses. That is the manager's job and up;
+ * a cashier works the till.
+ */
+const MANAGER_AND_ABOVE_MOBILE_TABS: ReadonlySet<string> = new Set(['finance']);
+
 export const APP_TAB_ROUTE_NAMES = [
   'index',
   'orders',
@@ -98,7 +112,7 @@ export const APP_TAB_ROUTE_NAMES = [
   'settings',
   'dashboard',
   'analytics',
-  'expenses',
+  'finance',
   'staff',
   'branches',
   'billing',
@@ -123,7 +137,10 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
   if (usesManagementTabs(isPhone)) {
     if (role === 'kitchen') return KITCHEN_TABS;
     if (role === 'owner' || role === 'admin') return MOBILE_TABS;
-    return MOBILE_TABS.filter((tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name));
+    if (role === 'manager') return MOBILE_TABS.filter((tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name));
+    return MOBILE_TABS.filter(
+      (tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name) && !MANAGER_AND_ABOVE_MOBILE_TABS.has(tab.name),
+    );
   }
   switch (role) {
     case 'cashier':

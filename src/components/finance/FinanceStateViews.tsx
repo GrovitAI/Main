@@ -108,6 +108,17 @@ export function FinanceSchemaNotice({ schema }: SchemaNoticeProps) {
   );
 }
 
+/**
+ * Bottom padding for every scrolling finance body.
+ *
+ * The app tab bar floats over the content: a fixed bar on phones, a floating
+ * pill on tablets and desktops. Without this the last row of every list sits
+ * underneath it, exactly as the analytics and staff screens found.
+ */
+export function financeContentPadding(compact: boolean): { paddingBottom: number } {
+  return { paddingBottom: compact ? 110 : 100 };
+}
+
 type SectionCardProps = {
   title: string;
   subtitle?: string;

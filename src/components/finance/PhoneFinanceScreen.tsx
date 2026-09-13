@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
-import { SlidersHorizontal, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Calendar, SlidersHorizontal, X } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type { FinanceFilters, FinancePreset, FinanceSchemaStatus, FinanceTab } from '@/lib/pos/finance-types';
 import { describeDateRange } from '@/lib/pos/finance-utils';
 import { FinanceFilterBar, type FinanceBranchOption } from './FinanceFilterBar';
@@ -43,14 +46,17 @@ export function PhoneFinanceScreen({
   onRefresh,
   onMenuPress,
 }: PhoneFinanceScreenProps) {
+  const insets = useSafeAreaInsets();
   const [filterOpen, setFilterOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const branchLabel = filters.branchId ? branches.find((b) => b.id === filters.branchId)?.name : canPickBranch ? 'All branches' : undefined;
+  const rangeLabel = describeDateRange(filters);
 
   return (
     <View className="flex-1 bg-surface-tint">
       <PhoneScreenHeader
         title="Finance"
-        subtitle={[describeDateRange(filters), branchLabel].filter(Boolean).join(' · ')}
+        subtitle={branchLabel ?? 'Revenue, expenses, cash book and day close'}
         onMenuPress={onMenuPress}
         rightActions={
           <Pressable
@@ -69,17 +75,53 @@ export function PhoneFinanceScreen({
         <FinanceTabBar active={activeTab} onChange={onTab} compact />
       </View>
 
-      <View className="flex-1 px-3 pt-3">
-        <FinanceSchemaNotice schema={schema} />
-        {activeTab === 'overview' ? <FinanceOverviewTab compact /> : null}
-        {activeTab === 'expenses' ? <ExpensesTab compact /> : null}
-        {activeTab === 'cashbook' ? <CashBookTab compact /> : null}
-        {activeTab === 'dayclose' ? <DayCloseTab compact /> : null}
+      {/* Active range, as on the analytics screen: tap the date to change it,
+          or open every filter at once. */}
+      <View className="mx-3 mt-3 flex-row items-center justify-between rounded-2xl border border-border-soft bg-accent-soft px-3 py-1">
+        <Pressable
+          onPress={() => setPickerOpen(true)}
+          className="min-h-[44px] flex-1 flex-row items-center pr-2"
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Change the finance date range"
+        >
+          <Calendar size={15} color={colors.primary} />
+          <Text className="ml-2 text-xs font-bold text-primary" numberOfLines={1}>
+            {rangeLabel}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setFilterOpen(true)}
+          className="min-h-[36px] flex-row items-center rounded-lg border border-border-soft bg-white px-2.5"
+          hitSlop={4}
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Open finance filters"
+        >
+          <SlidersHorizontal size={11} color={colors.primary} />
+          <Text className="ml-1 text-[11px] font-bold text-primary">Filters</Text>
+        </Pressable>
       </View>
+
+      {/* Day close and the expense forms carry text inputs, so the body lifts
+          clear of the iOS keyboard. */}
+      <KeyboardAvoider>
+        <View className="flex-1 px-3 pt-3">
+          <FinanceSchemaNotice schema={schema} />
+          {activeTab === 'overview' ? <FinanceOverviewTab compact /> : null}
+          {activeTab === 'expenses' ? <ExpensesTab compact /> : null}
+          {activeTab === 'cashbook' ? <CashBookTab compact /> : null}
+          {activeTab === 'dayclose' ? <DayCloseTab compact /> : null}
+        </View>
+      </KeyboardAvoider>
 
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setFilterOpen(false)}>
-          <Pressable onPress={() => undefined} className="rounded-t-3xl bg-white px-4 pb-8 pt-4">
+          <Pressable
+            onPress={() => undefined}
+            className="rounded-t-3xl bg-white px-4 pt-4"
+            style={{ paddingBottom: Math.max(24, insets.bottom + 12) }}
+          >
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-base font-bold text-text-primary">Filters</Text>
               <Pressable
@@ -109,10 +151,18 @@ export function PhoneFinanceScreen({
               onBranch={onBranch}
               onRefresh={onRefresh}
             />
-            <Text className="mt-3 text-xs text-text-secondary">{describeDateRange(filters)} · business days run 02:30 to 02:30 IST</Text>
+            <Text className="mt-3 text-xs text-text-secondary">{rangeLabel} · business days run 02:30 to 02:30 IST</Text>
           </Pressable>
         </Pressable>
       </Modal>
+
+      <DatePickerModal
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        onApply={(start, end) => onCustomRange(start, end)}
+      />
     </View>
   );
 }

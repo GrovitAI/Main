@@ -19,7 +19,7 @@ import {
 } from '@/lib/pos/finance-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { FinanceErrorView, FinanceLoadingView, FinanceSectionCard } from './FinanceStateViews';
+import { FinanceErrorView, FinanceLoadingView, FinanceSectionCard, financeContentPadding } from './FinanceStateViews';
 
 type Props = { compact?: boolean };
 
@@ -113,7 +113,7 @@ export function DayCloseTab({ compact = false }: Props) {
   }
 
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <ScrollView className="flex-1" contentContainerStyle={financeContentPadding(compact)} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {/* Date navigation */}
       <View className="mb-4 flex-row items-center justify-between rounded-2xl border border-border/60 bg-white px-3 py-2 shadow-sm">
         <Pressable

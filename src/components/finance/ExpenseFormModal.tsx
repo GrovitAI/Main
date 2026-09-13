@@ -4,6 +4,7 @@ import { Calendar, Check, Plus, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type { ExpenseCategory, ExpenseFormErrors, ExpenseFormValues, ExpenseInput, ExpensePaymentMethod } from '@/lib/pos/finance-types';
 import { EXPENSE_PAYMENT_METHODS } from '@/lib/pos/finance-types';
 import { PAYMENT_METHOD_LABELS, addDays, formatDateLong, getCurrentBusinessDate, validateExpenseForm } from '@/lib/pos/finance-utils';
@@ -93,6 +94,7 @@ export function ExpenseFormModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoider>
       <Pressable className="flex-1 items-center justify-center bg-black/40 px-4" onPress={onClose}>
         <Pressable
           onPress={() => undefined}
@@ -141,6 +143,7 @@ export function ExpenseFormModal({
                   <Pressable
                     onPress={() => setNewCategoryOpen((v) => !v)}
                     className="min-h-[36px] flex-row items-center rounded-full border border-dashed border-primary px-3"
+                    hitSlop={4}
                     style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                     accessibilityRole="button"
                     accessibilityLabel="Add a new category"
@@ -304,6 +307,7 @@ export function ExpenseFormModal({
           </View>
         </Pressable>
       </Pressable>
+      </KeyboardAvoider>
 
       <DatePickerModal
         visible={datePickerOpen}
@@ -343,6 +347,9 @@ function SelectChip({ label, active, onPress, small = false }: SelectChipProps) 
       className={`items-center justify-center rounded-full border ${small ? 'min-h-[32px] px-3' : 'min-h-[36px] px-3.5'} ${
         active ? 'border-primary bg-primary' : 'border-border bg-white'
       }`}
+      // The chips wrap in a dense grid, so the 44px target comes from hit slop
+      // rather than height.
+      hitSlop={small ? 6 : 4}
       style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}

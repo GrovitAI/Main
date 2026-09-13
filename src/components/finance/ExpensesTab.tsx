@@ -15,8 +15,9 @@ import {
   sumExpenses,
 } from '@/lib/pos/finance-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { ExpenseFormModal } from './ExpenseFormModal';
-import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView } from './FinanceStateViews';
+import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, financeContentPadding } from './FinanceStateViews';
 
 type Props = { compact?: boolean };
 
@@ -133,7 +134,7 @@ export function ExpensesTab({ compact = false }: Props) {
             accessibilityLabel="Search expenses"
           />
           {searchDraft.length > 0 ? (
-            <Pressable onPress={() => setSearchDraft('')} className="h-[36px] w-[36px] items-center justify-center" accessibilityRole="button" accessibilityLabel="Clear search">
+            <Pressable onPress={() => setSearchDraft('')} className="h-[36px] w-[36px] items-center justify-center" hitSlop={4} accessibilityRole="button" accessibilityLabel="Clear search">
               <X size={14} color={colors.textSecondary} />
             </Pressable>
           ) : null}
@@ -276,7 +277,7 @@ export function ExpensesTab({ compact = false }: Props) {
             />
           )
         }
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={financeContentPadding(compact)}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       />
@@ -296,6 +297,7 @@ export function ExpensesTab({ compact = false }: Props) {
 
       {/* Void confirmation */}
       <Modal visible={voidTarget !== null} transparent animationType="fade" onRequestClose={() => setVoidTarget(null)}>
+        <KeyboardAvoider>
         <Pressable className="flex-1 items-center justify-center bg-black/40 px-4" onPress={() => setVoidTarget(null)}>
           <Pressable onPress={() => undefined} className="w-full max-w-[440px] rounded-3xl bg-white p-5 shadow-panel">
             <Text className="text-base font-bold text-text-primary">Void this expense?</Text>
@@ -337,6 +339,7 @@ export function ExpensesTab({ compact = false }: Props) {
             </View>
           </Pressable>
         </Pressable>
+        </KeyboardAvoider>
       </Modal>
     </View>
   );
@@ -348,7 +351,7 @@ function FilterChip({ label, active, onPress }: FilterChipProps) {
   return (
     <Pressable
       onPress={onPress}
-      className={`mr-2 min-h-[36px] items-center justify-center rounded-full border px-3.5 ${active ? 'border-primary bg-accent-soft' : 'border-border bg-white'}`}
+      className={`mr-2 min-h-[44px] items-center justify-center rounded-full border px-3.5 ${active ? 'border-primary bg-accent-soft' : 'border-border bg-white'}`}
       style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
@@ -397,7 +400,7 @@ function ExpenseRow({ item, compact, extended, onEdit, onVoid }: ExpenseRowProps
             {voided ? (
               <Text className="mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: semantic.neutralSoft, color: semantic.neutral }}>VOID</Text>
             ) : extended ? (
-              <Pressable onPress={() => onVoid(item)} className="mt-1 h-[36px] w-[36px] items-center justify-center" accessibilityRole="button" accessibilityLabel="Void expense">
+              <Pressable onPress={() => onVoid(item)} className="mt-1 h-[44px] w-[44px] items-center justify-center" accessibilityRole="button" accessibilityLabel="Void expense">
                 <Ban size={15} color={colors.textSecondary} />
               </Pressable>
             ) : null}
