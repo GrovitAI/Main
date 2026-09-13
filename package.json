@@ -2,6 +2,9 @@
   "name": "grovit",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.106.1",
