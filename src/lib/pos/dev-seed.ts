@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getTenantContext } from './tenant-context';
+import { useSessionStore } from './use-session-store';
 
 /** One seeded bill line. */
 type SeedOrderItem = {
@@ -11,6 +12,13 @@ type SeedOrderItem = {
 
 export async function seedDevDatabase(): Promise<void> {
   if (typeof __DEV__ === 'undefined' || !__DEV__) {
+    return;
+  }
+
+  // The POS screen mounts for an instant before the login redirect. With no
+  // session there is nothing to seed, and getTenantContext() would throw an
+  // unhandled rejection that fills the dev overlay and hides the login form.
+  if (!useSessionStore.getState().session) {
     return;
   }
 
