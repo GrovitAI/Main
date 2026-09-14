@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Calendar, SlidersHorizontal, X } from 'lucide-react-native';
+import { Calendar, Plus, SlidersHorizontal, X } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
@@ -9,6 +9,7 @@ import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type { FinanceFilters, FinancePreset, FinanceSchemaStatus, FinanceTab } from '@/lib/pos/finance-types';
 import { describeDateRange } from '@/lib/pos/finance-utils';
+import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { FinanceFilterBar, type FinanceBranchOption } from './FinanceFilterBar';
 import { FinanceTabBar } from './FinanceTabBar';
 import { FinanceSchemaNotice } from './FinanceStateViews';
@@ -47,6 +48,7 @@ export function PhoneFinanceScreen({
   onMenuPress,
 }: PhoneFinanceScreenProps) {
   const insets = useSafeAreaInsets();
+  const requestNewExpense = useFinanceStore((s) => s.requestNewExpense);
   const [filterOpen, setFilterOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const branchLabel = filters.branchId ? branches.find((b) => b.id === filters.branchId)?.name : canPickBranch ? 'All branches' : undefined;
@@ -114,6 +116,26 @@ export function PhoneFinanceScreen({
           {activeTab === 'dayclose' ? <DayCloseTab compact /> : null}
         </View>
       </KeyboardAvoider>
+
+      {/* Recording an expense is the one thing done on a phone several times
+          a day, so it is one tap from every tab. The Expenses tab has its own
+          button in the toolbar. Sits above the app tab bar. */}
+      {activeTab !== 'expenses' ? (
+        // The wrapper carries the placement as a plain style object: on web,
+        // css-interop drops an inline offset given next to a positioning class.
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 72 + insets.bottom }}>
+          <Pressable
+            onPress={requestNewExpense}
+            className="h-[56px] flex-row items-center rounded-full bg-primary pl-4 pr-5 shadow-panel"
+            style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Record an expense"
+          >
+            <Plus size={20} color={colors.textOnPrimary} />
+            <Text className="ml-1.5 text-sm font-bold text-text-on-primary">Expense</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setFilterOpen(false)}>

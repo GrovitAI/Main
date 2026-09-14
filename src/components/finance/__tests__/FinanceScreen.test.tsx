@@ -291,6 +291,18 @@ describe('PhoneFinanceScreen', () => {
     unmountTree(tree);
   });
 
+  test('the quick-add button switches to Expenses and asks for a blank form', () => {
+    const tree = renderPhone();
+    const [button] = tree.root.findAllByProps({ accessibilityLabel: 'Record an expense' });
+    const { onPress } = button.props as { onPress: () => void };
+    act(() => {
+      onPress();
+    });
+    expect(useFinanceStore.getState().activeTab).toBe('expenses');
+    expect(useFinanceStore.getState().newExpenseRequested).toBe(true);
+    unmountTree(tree);
+  });
+
   test('the Filters button opens the sheet with the presets and the branch picker', () => {
     const tree = renderPhone();
     const [button] = tree.root.findAllByProps({ accessibilityLabel: 'Open finance filters' });

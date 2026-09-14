@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
-import { Ban, ChevronLeft, ChevronRight, Download, Pencil, Plus, Search, X } from 'lucide-react-native';
+import { Ban, CheckCircle2, ChevronLeft, ChevronRight, Download, Pencil, Plus, Search, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { EXPENSE_PAYMENT_METHODS, type Expense, type ExpenseFormValues, type ExpenseInput, type ExpensePaymentMethod } from '@/lib/pos/finance-types';
@@ -40,6 +40,8 @@ export function ExpensesTab({ compact = false }: Props) {
   const editExpense = useFinanceStore((s) => s.editExpense);
   const removeExpense = useFinanceStore((s) => s.removeExpense);
   const addCategory = useFinanceStore((s) => s.addCategory);
+  const newExpenseRequested = useFinanceStore((s) => s.newExpenseRequested);
+  const clearNewExpenseRequest = useFinanceStore((s) => s.clearNewExpenseRequest);
 
   const extended = schema?.expensesExtended ?? false;
 
@@ -49,6 +51,23 @@ export function ExpensesTab({ compact = false }: Props) {
   const [voidReason, setVoidReason] = useState('');
   const [voidError, setVoidError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(listState.search);
+  const [initialValues, setInitialValues] = useState<ExpenseFormValues>(() => emptyExpenseForm());
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  // The phone shell's quick-add button lands here with the form already open.
+  useEffect(() => {
+    if (!newExpenseRequested) return;
+    clearNewExpenseRequest();
+    setFormError(null);
+    setInitialValues(emptyExpenseForm());
+    setForm({ visible: true, mode: 'create', expense: null });
+  }, [newExpenseRequested, clearNewExpenseRequest]);
+
+  useEffect(() => {
+    if (!savedNotice) return;
+    const handle = setTimeout(() => setSavedNotice(null), 3500);
+    return () => clearTimeout(handle);
+  }, [savedNotice]);
 
   // Debounced search → store
   useEffect(() => {
@@ -58,26 +77,29 @@ export function ExpensesTab({ compact = false }: Props) {
     return () => clearTimeout(handle);
   }, [searchDraft, listState.search, setExpenseList]);
 
-  const initialValues: ExpenseFormValues = useMemo(
-    () => (form.expense ? expenseToFormValues(form.expense) : emptyExpenseForm()),
-    [form.expense],
-  );
-
   const openCreate = () => {
     setFormError(null);
+    setInitialValues(emptyExpenseForm());
     setForm({ visible: true, mode: 'create', expense: null });
   };
   const openEdit = (expense: Expense) => {
     setFormError(null);
+    setInitialValues(expenseToFormValues(expense));
     setForm({ visible: true, mode: 'edit', expense });
   };
   const closeForm = () => setForm((prev) => ({ ...prev, visible: false }));
 
-  const handleSubmit = async (input: ExpenseInput) => {
+  const handleSubmit = async (input: ExpenseInput, keepOpen: boolean) => {
     setFormError(null);
     const result = form.mode === 'edit' && form.expense ? await editExpense(form.expense.id, input) : await addExpense(input);
     if (!result.ok) {
       setFormError(result.error);
+      return;
+    }
+    setSavedNotice(`Saved ${formatINR(input.amount)} · ${input.category}`);
+    if (keepOpen) {
+      // End-of-day entry is a run of receipts; the form stays up for the next one.
+      setInitialValues(emptyExpenseForm());
       return;
     }
     closeForm();
@@ -205,6 +227,13 @@ export function ExpensesTab({ compact = false }: Props) {
         ) : null}
       </View>
 
+      {savedNotice ? (
+        <View className="mt-3 flex-row items-center rounded-xl px-3 py-2" style={{ backgroundColor: semantic.successSoft }} accessibilityLiveRegion="polite">
+          <CheckCircle2 size={14} color={semantic.success} />
+          <Text className="ml-2 text-xs font-bold" style={{ color: semantic.success }}>{savedNotice}</Text>
+        </View>
+      ) : null}
+
       {/* Summary strip */}
       <View className="mt-3 flex-row items-center justify-between rounded-xl bg-surface-tint px-3 py-2">
         <Text className="text-xs font-semibold text-text-secondary">
@@ -290,7 +319,8 @@ export function ExpensesTab({ compact = false }: Props) {
         canAddCategory={schema?.categoriesTable ?? false}
         submitting={mutating}
         serverError={formError}
-        onSubmit={handleSubmit}
+        onSubmit={(input) => void handleSubmit(input, false)}
+        onSubmitAndNext={(input) => void handleSubmit(input, true)}
         onAddCategory={addCategory}
         onClose={closeForm}
       />
