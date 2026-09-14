@@ -3,6 +3,7 @@ import { FlatList, Text, View } from 'react-native';
 import { ArrowDownLeft, ArrowUpRight, Banknote, RotateCcw, Scale } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import type { LedgerEntry } from '@/lib/pos/finance-types';
 import { formatDateLong, formatINR, formatPaymentMethod, formatTime, summarizeLedger } from '@/lib/pos/finance-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
@@ -20,6 +21,8 @@ export function CashBookTab({ compact = false }: Props) {
   const loading = useFinanceStore((s) => s.ledgerLoading);
   const error = useFinanceStore((s) => s.ledgerError);
   const loadLedger = useFinanceStore((s) => s.loadLedger);
+  const { isDesktop } = useResponsive();
+  const compactMoney = compact || !isDesktop;
 
   const totals = useMemo(() => summarizeLedger(ledger), [ledger]);
 
@@ -74,9 +77,9 @@ export function CashBookTab({ compact = false }: Props) {
   const header = (
     <View className="mb-2">
       <View className="flex-row flex-wrap gap-3">
-        <FinanceKpiCard label="Money in" value={formatINR(totals.totalIn, { compact })} hint={`Cash ${formatINR(totals.cashIn, { compact: true })}`} icon={ArrowDownLeft} tone="positive" compact />
-        <FinanceKpiCard label="Money out" value={formatINR(totals.totalOut, { compact })} hint={`Cash ${formatINR(totals.cashOut, { compact: true })}`} icon={ArrowUpRight} tone="negative" compact />
-        <FinanceKpiCard label="Net" value={formatINR(totals.net, { compact, signed: true })} hint={`${totals.entryCount} entries`} icon={Scale} tone={totals.net < 0 ? 'negative' : 'primary'} compact />
+        <FinanceKpiCard label="Money in" value={formatINR(totals.totalIn, { compact: compactMoney })} hint={`Cash ${formatINR(totals.cashIn, { compact: true })}`} icon={ArrowDownLeft} tone="positive" compact />
+        <FinanceKpiCard label="Money out" value={formatINR(totals.totalOut, { compact: compactMoney })} hint={`Cash ${formatINR(totals.cashOut, { compact: true })}`} icon={ArrowUpRight} tone="negative" compact />
+        <FinanceKpiCard label="Net" value={formatINR(totals.net, { compact: compactMoney, signed: true })} hint={`${totals.entryCount} entries`} icon={Scale} tone={totals.net < 0 ? 'negative' : 'primary'} compact />
       </View>
       {error ? <View className="mt-3"><FinanceErrorView message={error} onRetry={loadLedger} compact /></View> : null}
       {loading && ledger.length > 0 ? <FinanceLoadingView inline label="Updating…" /> : null}

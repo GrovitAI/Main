@@ -27,7 +27,9 @@ export function FinanceTabBar({ active, onChange, compact = false }: FinanceTabB
           <Pressable
             key={key}
             onPress={() => onChange(key)}
-            className={`min-h-[44px] flex-row items-center justify-center rounded-xl ${compact ? 'flex-1 px-2' : 'px-4'} ${
+            // Four labels do not fit beside their icons on a phone, so the
+            // compact bar stacks the icon over the label instead of clipping.
+            className={`min-h-[44px] items-center justify-center rounded-xl ${compact ? 'flex-1 px-1 py-1.5' : 'flex-row px-4'} ${
               isActive ? 'bg-primary' : ''
             }`}
             style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
@@ -37,7 +39,7 @@ export function FinanceTabBar({ active, onChange, compact = false }: FinanceTabB
           >
             <Icon size={15} color={isActive ? colors.textOnPrimary : colors.textSecondary} />
             <Text
-              className={`ml-1.5 font-bold ${compact ? 'text-[11px]' : 'text-xs'} ${isActive ? 'text-text-on-primary' : 'text-text-secondary'}`}
+              className={`font-bold ${compact ? 'mt-1 text-[10px]' : 'ml-1.5 text-xs'} ${isActive ? 'text-text-on-primary' : 'text-text-secondary'}`}
               numberOfLines={1}
             >
               {label}
