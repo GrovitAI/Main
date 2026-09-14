@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar, Check, Plus, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type { ExpenseCategory, ExpenseFormErrors, ExpenseFormValues, ExpenseInput, ExpensePaymentMethod } from '@/lib/pos/finance-types';
 import { EXPENSE_PAYMENT_METHODS } from '@/lib/pos/finance-types';
 import { PAYMENT_METHOD_LABELS, addDays, formatDateLong, getCurrentBusinessDate, validateExpenseForm } from '@/lib/pos/finance-utils';
@@ -23,6 +26,9 @@ export type ExpenseFormModalProps = {
 
 const FIELD_CLASS = 'min-h-[44px] rounded-xl border border-border bg-white px-3 text-sm text-text-primary';
 
+/** Categories shown on a phone before the user asks for the rest. */
+const PHONE_CATEGORY_LIMIT = 6;
+
 export function ExpenseFormModal({
   visible,
   mode,
@@ -36,6 +42,9 @@ export function ExpenseFormModal({
   onClose,
 }: ExpenseFormModalProps) {
   const { height: windowHeight } = useWindowDimensions();
+  const { isPhone } = useResponsive();
+  const insets = useSafeAreaInsets();
+  const [showAllCategories, setShowAllCategories] = useState(false);
   const [values, setValues] = useState<ExpenseFormValues>(initialValues);
   const [errors, setErrors] = useState<ExpenseFormErrors>({});
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -51,6 +60,7 @@ export function ExpenseFormModal({
       setNewCategoryOpen(false);
       setNewCategoryName('');
       setNewCategoryError(null);
+      setShowAllCategories(false);
     }
   }, [visible, initialValues]);
 
@@ -91,12 +101,23 @@ export function ExpenseFormModal({
   const categoryNames = categories.map((c) => c.name);
   const hasCustomCategory = values.category.length > 0 && !categoryNames.includes(values.category);
 
+  // A phone cannot spare a screen for eighteen chips. It gets the first few,
+  // whichever one is already chosen, and a chip that reveals the rest.
+  const canCollapseCategories = isPhone && categories.length > PHONE_CATEGORY_LIMIT;
+  const collapsed = canCollapseCategories && !showAllCategories;
+  const visibleCategories = collapsed
+    ? categories.filter((c, index) => index < PHONE_CATEGORY_LIMIT || c.name === values.category)
+    : categories;
+  const hiddenCategoryCount = categories.length - visibleCategories.length;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable className="flex-1 items-center justify-center bg-black/40 px-4" onPress={onClose}>
+      <KeyboardAvoider>
+      {/* A sheet from the bottom on phones, a centred dialog elsewhere. */}
+      <Pressable className={`flex-1 bg-black/40 ${isPhone ? 'justify-end' : 'items-center justify-center px-4'}`} onPress={onClose}>
         <Pressable
           onPress={() => undefined}
-          className="w-full max-w-[560px] overflow-hidden rounded-3xl bg-white shadow-panel"
+          className={`w-full overflow-hidden bg-white shadow-panel ${isPhone ? 'rounded-t-3xl' : 'max-w-[560px] rounded-3xl'}`}
           style={{ maxHeight: windowHeight * 0.92 }}
         >
           {/* Header */}
@@ -125,7 +146,7 @@ export function ExpenseFormModal({
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor={colors.textSecondary}
-                className={`${FIELD_CLASS} text-2xl font-extrabold`}
+                className={`${FIELD_CLASS} font-extrabold ${isPhone ? 'min-h-[56px] text-3xl' : 'text-2xl'}`}
                 accessibilityLabel="Amount"
               />
             </Field>
@@ -134,13 +155,20 @@ export function ExpenseFormModal({
             <Field label="Category" error={errors.category}>
               <View className="flex-row flex-wrap gap-2">
                 {hasCustomCategory ? <SelectChip label={values.category} active onPress={() => undefined} /> : null}
-                {categories.map((c) => (
+                {visibleCategories.map((c) => (
                   <SelectChip key={c.id} label={c.name} active={values.category === c.name} onPress={() => setField('category', c.name)} />
                 ))}
+                {collapsed ? (
+                  <SelectChip label={`${hiddenCategoryCount} more…`} active={false} onPress={() => setShowAllCategories(true)} />
+                ) : null}
+                {canCollapseCategories && showAllCategories ? (
+                  <SelectChip label="Fewer" active={false} onPress={() => setShowAllCategories(false)} />
+                ) : null}
                 {canAddCategory ? (
                   <Pressable
                     onPress={() => setNewCategoryOpen((v) => !v)}
                     className="min-h-[36px] flex-row items-center rounded-full border border-dashed border-primary px-3"
+                    hitSlop={4}
                     style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                     accessibilityRole="button"
                     accessibilityLabel="Add a new category"
@@ -279,7 +307,10 @@ export function ExpenseFormModal({
           </ScrollView>
 
           {/* Footer */}
-          <View className="flex-row items-center justify-end gap-2 border-t border-border-soft px-5 py-3">
+          <View
+            className="flex-row items-center justify-end gap-2 border-t border-border-soft px-5 py-3"
+            style={isPhone ? { paddingBottom: Math.max(12, insets.bottom) } : undefined}
+          >
             <Pressable
               onPress={onClose}
               disabled={submitting}
@@ -304,6 +335,7 @@ export function ExpenseFormModal({
           </View>
         </Pressable>
       </Pressable>
+      </KeyboardAvoider>
 
       <DatePickerModal
         visible={datePickerOpen}
@@ -343,6 +375,9 @@ function SelectChip({ label, active, onPress, small = false }: SelectChipProps) 
       className={`items-center justify-center rounded-full border ${small ? 'min-h-[32px] px-3' : 'min-h-[36px] px-3.5'} ${
         active ? 'border-primary bg-primary' : 'border-border bg-white'
       }`}
+      // The chips wrap in a dense grid, so the 44px target comes from hit slop
+      // rather than height.
+      hitSlop={small ? 6 : 4}
       style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}

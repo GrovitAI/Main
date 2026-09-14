@@ -1,12 +1,13 @@
 # FINANCE_MODULE.md — Grovit Finance
 
-> **Status**: built, tested, and **not wired into navigation**.
-> **Last Updated**: 2026-09-07
+> **Status**: built, tested, and **live as the Finance tab** since 2026-09-13.
+> **Last Updated**: 2026-09-13
 
-The finance module is complete as a standalone unit: data layer, business
-logic, state, and UI for tablet/desktop and phone. It is deliberately not
-registered as a route or a tab, so it cannot affect the POS, orders, kitchen or
-inventory work happening elsewhere in the app.
+The finance module is a self-contained unit: data layer, business logic,
+state, and UI for tablet/desktop and phone. The route
+`src/app/(app)/finance.tsx` mounts it and the tab appears for owners, admins
+and managers on every platform: the web app at any width, and the installed
+app on phones and tablets.
 
 ---
 
@@ -53,25 +54,23 @@ handled on all four tabs.
 
 ---
 
-## 3. Wiring it into the app later
+## 3. How it is wired in
 
-Three steps, none of which the module does for itself:
-
-1. Create `src/app/(app)/finance.tsx`:
-   ```tsx
-   import { FinanceScreen } from '@/components/finance/FinanceScreen';
-
-   export default function Finance() {
-     return <FinanceScreen />;
-   }
-   ```
-2. Add `'finance'` to `APP_TAB_ROUTE_NAMES` and `TAB_ROUTE_MAP` in
-   `src/lib/pos/tab-config.ts` and `src/app/(app)/_layout.tsx`.
-3. Add the tab entry to the role arrays that should see it. Finance is a
-   management screen, so owner, admin and manager, not cashier or kitchen.
-
-The existing `expenses.tsx` placeholder route can then be pointed at the
-Expenses tab or removed.
+- `src/app/(app)/finance.tsx` renders `<FinanceScreen />`. It replaced the
+  `expenses.tsx` placeholder, and `'finance'` replaced `'expenses'` in
+  `APP_TAB_ROUTE_NAMES` (`src/lib/pos/tab-config.ts`) and `TAB_ROUTE_MAP`
+  (`src/app/(app)/_layout.tsx`).
+- The tab sits after Analytics in the owner, admin and manager tab sets for
+  wide browsers, and in `MOBILE_TABS` for phones and the installed app.
+  Cashiers and the kitchen role never see it: a cashier on a phone gets
+  `MOBILE_TABS` minus staff, branches and finance.
+- Layout follows the other management screens. Under 768px the phone screen
+  shows a header, the four-tab bar, a banner with the active date range (tap
+  it for the calendar) and a Filters button that opens a bottom sheet with
+  the presets and the branch picker. From 768px the tablet layout applies;
+  the tab bar shares the title row on desktop widths and drops to its own row
+  on a tablet held upright. Every scrolling body leaves room for the app tab
+  bar, and the forms lift clear of the iOS keyboard.
 
 ---
 

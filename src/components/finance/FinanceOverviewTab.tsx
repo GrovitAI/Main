@@ -16,11 +16,12 @@ import {
 } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { computeProfitAndLoss, formatINR, formatPaymentMethod, formatPercent } from '@/lib/pos/finance-utils';
 import { FinanceKpiCard } from './FinanceKpiCard';
 import { DonutChart, HorizontalBars, RevenueExpenseBars, type DonutSegment } from './FinanceCharts';
-import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, FinanceSectionCard } from './FinanceStateViews';
+import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, FinanceSectionCard, financeContentPadding } from './FinanceStateViews';
 
 const PAYMENT_COLORS: Record<string, string> = {
   cash: colors.primary,
@@ -40,6 +41,10 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   const error = useFinanceStore((s) => s.overviewError);
   const degraded = useFinanceStore((s) => s.overviewDegraded);
   const loadOverview = useFinanceStore((s) => s.loadOverview);
+  const { isDesktop } = useResponsive();
+  // Four cards share a row on a tablet, where "₹2,38,981.20" does not fit
+  // in one; abbreviated figures do, and the desktop keeps the exact ones.
+  const compactMoney = compact || !isDesktop;
 
   const pnl = useMemo(() => (summary ? computeProfitAndLoss(summary) : null), [summary]);
 
@@ -66,7 +71,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   const netTone = pnl && pnl.netCashFlow < 0 ? 'negative' : 'positive';
 
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+    <ScrollView className="flex-1" contentContainerStyle={financeContentPadding(compact)} showsVerticalScrollIndicator={false}>
       {error ? <FinanceErrorView message={error} onRetry={loadOverview} /> : null}
       {loading && summary ? <FinanceLoadingView inline label="Refreshing…" /> : null}
 
@@ -75,8 +80,8 @@ export function FinanceOverviewTab({ compact = false }: Props) {
           {/* KPI grid */}
           <View className="mb-4 flex-row flex-wrap gap-3">
             <FinanceKpiCard
-              label="Collected revenue"
-              value={formatINR(summary.collectedRevenue, { compact })}
+              label="Collected"
+              value={formatINR(summary.collectedRevenue, { compact: compactMoney })}
               hint={`${summary.billCount} settled bills`}
               icon={Wallet}
               tone="primary"
@@ -84,7 +89,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             />
             <FinanceKpiCard
               label="Expenses"
-              value={formatINR(summary.expensesTotal, { compact })}
+              value={formatINR(summary.expensesTotal, { compact: compactMoney })}
               hint={`${summary.expensesCount} entries`}
               icon={Receipt}
               tone="negative"
@@ -92,44 +97,44 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             />
             <FinanceKpiCard
               label="Net cash flow"
-              value={formatINR(pnl.netCashFlow, { compact, signed: true })}
+              value={formatINR(pnl.netCashFlow, { compact: compactMoney, signed: true })}
               hint={`Margin ${formatPercent(pnl.margin)}`}
               icon={BarChart3}
               tone={netTone}
               compact={compact}
             />
             <FinanceKpiCard
-              label="Pending collections"
-              value={formatINR(summary.pendingCollections, { compact })}
-              hint="Unpaid bills"
+              label="Unpaid bills"
+              value={formatINR(summary.pendingCollections, { compact: compactMoney })}
+              hint="Pending collection"
               icon={Clock}
               tone="warning"
               compact={compact}
             />
             <FinanceKpiCard
               label="Purchases"
-              value={formatINR(summary.purchasesTotal, { compact })}
+              value={formatINR(summary.purchasesTotal, { compact: compactMoney })}
               hint={`${summary.purchasesCount} supplier invoices`}
               icon={ShoppingBag}
               compact={compact}
             />
             <FinanceKpiCard
               label="Tax collected"
-              value={formatINR(summary.taxCollected, { compact })}
+              value={formatINR(summary.taxCollected, { compact: compactMoney })}
               hint="GST on settled bills"
               icon={Percent}
               compact={compact}
             />
             <FinanceKpiCard
               label="Discounts"
-              value={formatINR(summary.discountsGiven, { compact })}
+              value={formatINR(summary.discountsGiven, { compact: compactMoney })}
               hint={`Comp. value ${formatINR(summary.complimentaryValue, { compact: true })}`}
               icon={CreditCard}
               compact={compact}
             />
             <FinanceKpiCard
               label="Refunds"
-              value={formatINR(summary.refundsTotal, { compact })}
+              value={formatINR(summary.refundsTotal, { compact: compactMoney })}
               hint={`${summary.refundsCount} refunds`}
               icon={RotateCcw}
               compact={compact}
@@ -238,11 +243,11 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             className="mb-4"
           >
             <View className="flex-row flex-wrap gap-3">
-              <FinanceKpiCard label="Cash in" value={formatINR(summary.cashIn, { compact })} hint="Cash settlements" icon={ArrowDownToLine} tone="positive" compact />
-              <FinanceKpiCard label="Cash out" value={formatINR(summary.cashOut, { compact })} hint="Cash expenses & refunds" icon={ArrowUpFromLine} tone="negative" compact />
+              <FinanceKpiCard label="Cash in" value={formatINR(summary.cashIn, { compact: compactMoney })} hint="Cash settlements" icon={ArrowDownToLine} tone="positive" compact />
+              <FinanceKpiCard label="Cash out" value={formatINR(summary.cashOut, { compact: compactMoney })} hint="Cash expenses & refunds" icon={ArrowUpFromLine} tone="negative" compact />
               <FinanceKpiCard
                 label="Net cash"
-                value={formatINR(summary.cashIn - summary.cashOut, { compact, signed: true })}
+                value={formatINR(summary.cashIn - summary.cashOut, { compact: compactMoney, signed: true })}
                 hint="Before opening float"
                 icon={Wallet}
                 tone={summary.cashIn - summary.cashOut < 0 ? 'negative' : 'primary'}

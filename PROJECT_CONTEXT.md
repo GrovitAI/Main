@@ -158,7 +158,7 @@ Will be replaced by auth session after Task 7.
 ⬜ Task 4: Orders screen with live Supabase data
 ⬜ Task 5: KOT generation + Kitchen display
 ⬜ Task 6: Settlement flow
-⬜ Task 7: Finance module
+✅ Task 7: Finance module (live as the Finance tab since 2026-09-13; see docs/FINANCE_MODULE.md)
 ⬜ Task 8: Analytics screen
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)

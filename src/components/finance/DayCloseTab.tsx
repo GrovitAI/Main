@@ -19,7 +19,7 @@ import {
 } from '@/lib/pos/finance-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { FinanceErrorView, FinanceLoadingView, FinanceSectionCard } from './FinanceStateViews';
+import { FinanceErrorView, FinanceLoadingView, FinanceSectionCard, financeContentPadding } from './FinanceStateViews';
 
 type Props = { compact?: boolean };
 
@@ -39,6 +39,7 @@ export function DayCloseTab({ compact = false }: Props) {
   const setDayCloseDate = useFinanceStore((s) => s.setDayCloseDate);
   const loadDayClose = useFinanceStore((s) => s.loadDayClose);
   const saveDayClose = useFinanceStore((s) => s.saveDayClose);
+  const setBranch = useFinanceStore((s) => s.setBranch);
 
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
   const needsBranch = isOwnerOrAdmin && filters.branchId === null;
@@ -99,6 +100,9 @@ export function DayCloseTab({ compact = false }: Props) {
   };
 
   if (needsBranch) {
+    // The branch filter lives in a sheet on phones, so the choice is offered
+    // right here rather than pointing at a bar the user cannot see.
+    const branchChoices = (session?.accessibleBranches ?? []).filter((b) => b.is_active);
     return (
       <View className="flex-1 items-center justify-center px-6 py-16">
         <View className="h-12 w-12 items-center justify-center rounded-full bg-accent-soft">
@@ -106,14 +110,29 @@ export function DayCloseTab({ compact = false }: Props) {
         </View>
         <Text className="mt-3 text-center text-sm font-bold text-text-primary">Pick a branch to close a day</Text>
         <Text className="mt-1 max-w-[360px] text-center text-xs text-text-secondary">
-          Cash is counted per branch. Choose a branch in the filter bar above and the day close for that till will load here.
+          Cash is counted per branch. Pick the till to reconcile.
         </Text>
+        <View className="mt-4 flex-row flex-wrap justify-center gap-2">
+          {branchChoices.map((b) => (
+            <Pressable
+              key={b.id}
+              onPress={() => setBranch(b.id)}
+              className="min-h-[44px] flex-row items-center rounded-full border border-primary bg-white px-4"
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Close the day for ${b.name}`}
+            >
+              <Building2 size={14} color={colors.primary} />
+              <Text className="ml-1.5 text-xs font-bold text-primary">{b.name}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <ScrollView className="flex-1" contentContainerStyle={financeContentPadding(compact)} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {/* Date navigation */}
       <View className="mb-4 flex-row items-center justify-between rounded-2xl border border-border/60 bg-white px-3 py-2 shadow-sm">
         <Pressable

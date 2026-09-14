@@ -53,10 +53,13 @@ describe('getTabsForRole on phones', () => {
   );
 
   it('still gives managers and cashiers somewhere to work', () => {
-    for (const role of ['manager', 'cashier'] as UserRole[]) {
-      const names = webNames(role, true);
-      expect(names).toEqual(['analytics', 'inventory', 'menu', 'settings']);
-    }
+    expect(webNames('manager', true)).toEqual(['analytics', 'finance', 'inventory', 'menu', 'settings']);
+    expect(webNames('cashier', true)).toEqual(['analytics', 'inventory', 'menu', 'settings']);
+  });
+
+  it('keeps finance away from cashiers, who work the till and not the books', () => {
+    expect(webNames('cashier', true)).not.toContain('finance');
+    expect(webNames('manager', true)).toContain('finance');
   });
 
   it('leaves the kitchen role on its own two tabs', () => {
@@ -83,6 +86,14 @@ describe('getTabsForRole on tablets and desktop browsers', () => {
   it('keeps POS away from owners, who bill through a cashier account', () => {
     expect(webNames('owner', false)).not.toContain('index');
   });
+
+  it('offers finance to every management role and to nobody else', () => {
+    for (const role of ['owner', 'admin', 'manager'] as UserRole[]) {
+      expect(webNames(role, false)).toContain('finance');
+    }
+    expect(webNames('cashier', false)).not.toContain('finance');
+    expect(webNames('kitchen', false)).not.toContain('finance');
+  });
 });
 
 describe('getTabsForRole in the installed app', () => {
@@ -96,7 +107,7 @@ describe('getTabsForRole in the installed app', () => {
 
   it('gives an iPad the same management tabs a phone gets', () => {
     expect(nativeTabletNames('owner')).toEqual(MOBILE_TABS.map((tab) => tab.name));
-    expect(nativeTabletNames('manager')).toEqual(['analytics', 'inventory', 'menu', 'settings']);
+    expect(nativeTabletNames('manager')).toEqual(['analytics', 'finance', 'inventory', 'menu', 'settings']);
   });
 
   it('still routes the kitchen role to the kitchen display', () => {
