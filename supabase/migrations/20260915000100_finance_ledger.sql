@@ -266,7 +266,7 @@ CREATE TABLE IF NOT EXISTS public.finance_entry_revisions (
   tenant_id   uuid NOT NULL,
   entry_id    uuid NOT NULL REFERENCES public.finance_entries(id) ON DELETE CASCADE,
   action      text NOT NULL CHECK (action IN ('create', 'update', 'void', 'settle')),
-  changed_by  uuid,
+  changed_by  uuid REFERENCES public.staff(id),
   changed_at  timestamptz NOT NULL DEFAULT now(),
   -- { "field": { "from": old, "to": new }, ... }; the full row on create.
   changes     jsonb NOT NULL DEFAULT '{}'::jsonb
@@ -274,6 +274,16 @@ CREATE TABLE IF NOT EXISTS public.finance_entry_revisions (
 
 CREATE INDEX IF NOT EXISTS finance_entry_revisions_entry_idx
   ON public.finance_entry_revisions (entry_id, changed_at);
+
+-- The reference PostgREST embeds the editor's name through; added after the
+-- first run, so it is stated separately for databases that already have the table.
+DO $
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'finance_entry_revisions_changed_by_fkey') THEN
+    ALTER TABLE public.finance_entry_revisions
+      ADD CONSTRAINT finance_entry_revisions_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.staff(id);
+  END IF;
+END $;
 
 -- ---------------------------------------------------------------------------
 -- 7. The ledger day and who may edit
@@ -499,18 +509,19 @@ BEGIN
     RAISE EXCEPTION 'Balances are visible to the owner.' USING ERRCODE = '42501';
   END IF;
 
+  -- sum() over bigint yields numeric; the casts keep the declared row type.
   RETURN QUERY
   SELECT
-    v_account.opening_cash_paise
+    (v_account.opening_cash_paise
       + coalesce(sum(CASE WHEN e.kind = 'income'   AND e.mode = 'cash' THEN e.amount_paise ELSE 0 END), 0)
       - coalesce(sum(CASE WHEN e.kind = 'expense'  AND e.mode = 'cash' THEN e.amount_paise ELSE 0 END), 0)
       + coalesce(sum(CASE WHEN e.kind = 'transfer' AND e.transfer_to   = 'cash' THEN e.amount_paise ELSE 0 END), 0)
-      - coalesce(sum(CASE WHEN e.kind = 'transfer' AND e.transfer_from = 'cash' THEN e.amount_paise ELSE 0 END), 0),
-    v_account.opening_bank_paise
+      - coalesce(sum(CASE WHEN e.kind = 'transfer' AND e.transfer_from = 'cash' THEN e.amount_paise ELSE 0 END), 0))::bigint,
+    (v_account.opening_bank_paise
       + coalesce(sum(CASE WHEN e.kind = 'income'   AND e.mode = 'bank' THEN e.amount_paise ELSE 0 END), 0)
       - coalesce(sum(CASE WHEN e.kind = 'expense'  AND e.mode = 'bank' THEN e.amount_paise ELSE 0 END), 0)
       + coalesce(sum(CASE WHEN e.kind = 'transfer' AND e.transfer_to   = 'bank' THEN e.amount_paise ELSE 0 END), 0)
-      - coalesce(sum(CASE WHEN e.kind = 'transfer' AND e.transfer_from = 'bank' THEN e.amount_paise ELSE 0 END), 0)
+      - coalesce(sum(CASE WHEN e.kind = 'transfer' AND e.transfer_from = 'bank' THEN e.amount_paise ELSE 0 END), 0))::bigint
   FROM public.finance_entries e
   WHERE e.account_id = p_account_id
     AND e.status = 'recorded'
