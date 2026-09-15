@@ -39,10 +39,12 @@ day of `entered_at`. The app greys the button out; the database refuses anyway.
 ## 2. Accounts: "assign to a branch or to the owner"
 
 An **account** is whose books an entry belongs to. There is one per branch
-(Kolathur, Velachery, Central Kitchen) and one **Owner** account for the
-partnership's own money. Every entry belongs to exactly one account. Each
-account keeps two running balances, **cash** and **bank**, computed as
-opening balance + money in − money out.
+(Kolathur, Velachery, Central Kitchen) and **one per partner**, because the
+partners take turns running the finances and each needs their own books.
+Every entry belongs to exactly one account. Each account keeps two running
+balances, **cash** and **bank**, computed as opening balance + money in −
+money out. Every partner signs in with their own owner login, so the ledger
+always records which partner entered or changed a row, whoever is on duty.
 
 Opening balances are entered once by the owner as an entry of kind income in
 the built-in category **Opening Balance**. That category is excluded from
@@ -109,10 +111,10 @@ three-level filter and Excel split follow directly from it.
 
 ## 5. Partners
 
-The Owner account represents the partnership. Each **partner** has a name and
-a profit share (percentages that total 100). Entries can be tagged to a
-partner in three ways, all as categories under a built-in **Partners**
-category so nothing new has to be learned:
+Each **partner** has their own account (§2), a name and a profit share
+(percentages that total 100). Money that is the partner's rather than a
+branch's goes into their account, using three built-in categories under
+**Partners** so nothing new has to be learned:
 
 - **Drawing** — a partner takes money out. Expense-like, reduces cash/bank,
   excluded from profit, deducted from that partner's statement.
@@ -122,9 +124,9 @@ category so nothing new has to be learned:
   Recorded as an expense for the account (counts in profit) and as a
   receivable owed to that partner.
 
-The **Partner statement** (owner only) for a period reads: profit for the
+The **Partner statement** (owners only) for a period reads: profit for the
 period × share % − drawings + contributions + amounts paid personally =
-what each partner is due. Profit is ledger income − ledger expenses across
+what each partner is due, taken from that partner's own account. Profit is ledger income − ledger expenses across
 all accounts, opening balances and partner categories excluded. Until POS
 sales feed the ledger this is the partnership's *ledger* profit, not the
 restaurant's; the Overview tab still shows bill revenue.
@@ -184,7 +186,7 @@ Export button. Sheets:
 2. **Transactions** — every entry of the month with all fields, including who
    entered it and when.
 3. **Outstanding** — payables and receivables still open at month end.
-4. **Partners** — the statement (Owner account workbook only).
+4. **Partners** — the statement (partner account workbooks only).
 
 Built on the server (`/api/finance/export`), so a phone gets the same file as
 the desktop: on web it downloads, in the installed app it opens the share
@@ -198,7 +200,7 @@ access as in §1:
 
 | Table | Purpose |
 | :--- | :--- |
-| `finance_accounts` | One per branch plus Owner; opening cash and bank; active flag |
+| `finance_accounts` | One per branch and one per partner; opening cash and bank; active flag |
 | `finance_catalog` | Categories, sub-categories and particulars in one tree: `level`, `parent_id`, `name`, `default_kind`, `sort_order`, `is_active` |
 | `finance_partners` | Name, share %, optional link to a staff member |
 | `finance_entries` | The ledger: account, kind, status, amount in paise, mode (or from/to for transfers), transaction date, entered at/by, category/sub-category/particular ids plus free-text particulars, counterparty, reference, notes, partner, `settles_entry_id`, settled at/by, void reason/at/by, `updated_at` |
