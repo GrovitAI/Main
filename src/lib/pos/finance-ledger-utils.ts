@@ -252,6 +252,12 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
 
 // ─── Filters ─────────────────────────────────────────────────────────────────
 
+/**
+ * How many rows a phone keeps as it scrolls. Past this the list stops
+ * growing and asks for a narrower range, so memory stays bounded.
+ */
+export const LEDGER_MAX_ROWS = 1000;
+
 export function initialLedgerFilters(now: Date = new Date()): LedgerFilters {
   const range = getPresetDateRange('month', undefined, now);
   return {

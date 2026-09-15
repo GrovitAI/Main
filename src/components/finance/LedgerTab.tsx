@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowDownLeft,
@@ -36,6 +36,7 @@ import {
   emptyEntryForm,
   entryDirection,
   entryToFormValues,
+  LEDGER_MAX_ROWS,
 } from '@/lib/pos/finance-ledger-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
@@ -81,6 +82,7 @@ export function LedgerTab({ compact = false }: Props) {
   const entries = useLedgerStore((s) => s.entries);
   const total = useLedgerStore((s) => s.total);
   const loading = useLedgerStore((s) => s.loading);
+  const loadingMore = useLedgerStore((s) => s.loadingMore);
   const error = useLedgerStore((s) => s.error);
   const mutating = useLedgerStore((s) => s.mutating);
   const selected = useLedgerStore((s) => s.selected);
@@ -89,6 +91,7 @@ export function LedgerTab({ compact = false }: Props) {
   const balances = useLedgerStore((s) => s.balances);
   const newEntryRequested = useLedgerStore((s) => s.newEntryRequested);
   const loadEntries = useLedgerStore((s) => s.loadEntries);
+  const loadMore = useLedgerStore((s) => s.loadMore);
   const setFilters = useLedgerStore((s) => s.setFilters);
   const addEntry = useLedgerStore((s) => s.addEntry);
   const editEntry = useLedgerStore((s) => s.editEntry);
@@ -193,8 +196,10 @@ export function LedgerTab({ compact = false }: Props) {
   const accountName = useCallback((id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account', [accounts]);
   const showBalances = canSeeBalances(role, rules) && balances.length > 0;
   const pageCount = Math.max(1, Math.ceil(total / filters.pageSize));
-  const firstIndex = total === 0 ? 0 : filters.page * filters.pageSize + 1;
-  const lastIndex = Math.min(total, (filters.page + 1) * filters.pageSize);
+  // The phone appends pages, so its "showing" runs from the first row.
+  const firstIndex = total === 0 ? 0 : compact ? 1 : filters.page * filters.pageSize + 1;
+  const lastIndex = compact ? Math.min(total, entries.length) : Math.min(total, (filters.page + 1) * filters.pageSize);
+  const atCap = compact && entries.length >= LEDGER_MAX_ROWS && entries.length < total;
 
   const pageTotals = useMemo(() => {
     let inSum = 0;
@@ -399,8 +404,15 @@ export function LedgerTab({ compact = false }: Props) {
     </View>
   );
 
-  const footer =
-    total > filters.pageSize ? (
+  const footer = compact ? (
+    loadingMore ? (
+      <FinanceLoadingView inline label="Loading more…" />
+    ) : atCap ? (
+      <Text className="py-4 text-center text-xs text-text-secondary">
+        Showing the first {LEDGER_MAX_ROWS.toLocaleString('en-IN')} of {total.toLocaleString('en-IN')}. Narrow the date range or filters to see the rest.
+      </Text>
+    ) : null
+  ) : total > filters.pageSize ? (
       <View className="mt-3 flex-row items-center justify-center gap-3 py-2">
         <Pressable
           onPress={() => loadEntries(filters.page - 1)}
@@ -451,6 +463,14 @@ export function LedgerTab({ compact = false }: Props) {
         contentContainerStyle={financeContentPadding(compact)}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        // A phone scrolls on; a desktop pages. Either way only the rows in
+        // view are mounted, and native drops the ones scrolled far away.
+        onEndReached={compact ? () => void loadMore() : undefined}
+        onEndReachedThreshold={0.6}
+        initialNumToRender={20}
+        maxToRenderPerBatch={20}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS !== 'web'}
       />
 
       <EntryFormModal
