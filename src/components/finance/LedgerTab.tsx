@@ -132,11 +132,14 @@ export function LedgerTab({ compact = false }: Props) {
     return () => clearTimeout(handle);
   }, [savedNotice]);
 
-  // The default account for a new entry: the user's own branch, else the first.
+  // The default account for a new entry is the primary books, the account
+  // whose profit the partners share (the Central Kitchen), because that is
+  // what the ledger is kept for. Failing that, the user's own branch.
   const defaultAccountId = useMemo(() => {
     const active = accounts.filter((a) => a.is_active);
+    const primary = active.find((a) => a.counts_in_partner_profit);
     const own = active.find((a) => a.branch_id === session?.branchId);
-    return (own ?? active[0])?.id ?? '';
+    return (primary ?? own ?? active[0])?.id ?? '';
   }, [accounts, session?.branchId]);
 
   const openCreate = useCallback(() => {
