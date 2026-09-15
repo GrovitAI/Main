@@ -20,7 +20,7 @@ can be switched on later as an automatic feed).
 | | Entry clerk (new staff role `accountant`) | Owner / admin |
 | :--- | :--- | :--- |
 | Record entries | Yes, into the account(s) assigned to them | Yes, any account |
-| See entries | **Own entries only** | All entries, all accounts |
+| See entries | **Entries recorded by clerks** (their own and other clerks'), never the partners' entries | All entries, all accounts |
 | See balances (cash, bank, profit) | **No** | Yes |
 | Edit an entry | Only their own, and only **until midnight IST** of the day it was entered | Any entry, any time; every edit is logged |
 | Void an entry | No | Yes, with a reason; the row stays, marked void |
@@ -43,8 +43,11 @@ An **account** is whose books an entry belongs to. There is one per branch
 partners take turns running the finances and each needs their own books.
 Every entry belongs to exactly one account. Each account keeps two running
 balances, **cash** and **bank**, computed as opening balance + money in −
-money out. Every partner signs in with their own owner login, so the ledger
-always records which partner entered or changed a row, whoever is on duty.
+money out. Every partner signs in with their own **owner** login (each partner
+is added in Staff with the owner role before the build), so the ledger always
+records which partner entered or changed a row, whoever is on duty. The
+account picker on every entry lists the branches and the partners side by
+side: that is the "is this for a branch or for an owner" choice.
 
 Opening balances are entered once by the owner as an entry of kind income in
 the built-in category **Opening Balance**. That category is excluded from
@@ -99,7 +102,8 @@ Sales (income)
 - The entry form has one search box: type two letters, matching particulars
   appear, one tap fills category, sub-category, particular and kind. Typing
   something not in the list is allowed and is saved as free text; the owner
-  can promote it to a particular later from the Catalog screen.
+  can promote it to a particular later from the Catalog screen. Allowed from
+  day one on purpose, to learn what items actually come up.
 - Deactivating a category, sub-category or particular hides it from the
   picker; existing entries keep it. Nothing is ever deleted.
 - The 18 expense categories seeded on 2026-09-07 become the first categories
@@ -137,7 +141,7 @@ A single settings card, Settings → Finance rules, with these toggles, defaults
 as the client asked:
 
 - Clerks can see balances — **off**
-- Clerks can see everyone's entries — **off**
+- Clerks can see the partners' entries too — **off**
 - Clerks can edit their own entries after the day ends — **off**
 - Clerks can void their own entries — **off**
 - Clerks can record transfers — **off**
@@ -155,8 +159,8 @@ database policies, so a switch takes effect everywhere at once.
   status, person who entered it, and a free-text search on particulars and
   notes. Sort by transaction date, entry time, amount, category. Tap a row for
   the detail sheet: every field, the settlement link if any, and the **edit
-  history** (who changed what, when, old → new). Clerks see only their own
-  rows here.
+  history** (who changed what, when, old → new). Clerks see the rows
+  recorded by clerks here, not the partners'.
 - **Outstanding** — open payables and receivables, oldest first, with a Settle
   button that opens the payment form pre-filled.
 - **Catalog** (owner) — categories, sub-categories, particulars; add, rename,
