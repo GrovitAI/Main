@@ -13,7 +13,7 @@ export type ServiceResult<T> = {
 
 export type FinancePreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
 
-export type FinanceTab = 'overview' | 'expenses' | 'cashbook' | 'dayclose';
+export type FinanceTab = 'overview' | 'ledger' | 'expenses' | 'cashbook' | 'dayclose';
 
 export const EXPENSE_PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'] as const;
 export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];
@@ -236,4 +236,175 @@ export type FinanceSchemaStatus = {
   dayClosuresTable: boolean;
   refundsExtended: boolean;
   summaryRpc: boolean;
+};
+
+// ─── Ledger (docs/FINANCE_LEDGER_PLAN.md) ────────────────────────────────────
+
+export const LEDGER_KINDS = ['income', 'expense', 'payable', 'receivable', 'transfer'] as const;
+export type LedgerKind = (typeof LEDGER_KINDS)[number];
+/** Kinds a catalog item can preselect; a transfer is never catalogued. */
+export type CatalogKind = Exclude<LedgerKind, 'transfer'>;
+
+export const LEDGER_MODES = ['cash', 'bank'] as const;
+export type LedgerMode = (typeof LEDGER_MODES)[number];
+
+/** income/expense/transfer: recorded → void. payable/receivable: open → settled or void. */
+export type LedgerStatus = 'recorded' | 'open' | 'settled' | 'void';
+
+export type FinanceAccountKind = 'branch' | 'partner';
+
+export type FinanceAccount = {
+  id: string;
+  tenant_id: string;
+  kind: FinanceAccountKind;
+  branch_id: string | null;
+  staff_id: string | null;
+  name: string;
+  opening_cash: number;
+  opening_bank: number;
+  counts_in_partner_profit: boolean;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type CatalogLevel = 'category' | 'subcategory' | 'particular';
+
+export type CatalogItem = {
+  id: string;
+  level: CatalogLevel;
+  parent_id: string | null;
+  name: string;
+  /** Preselected kind; null inherits from the parent. */
+  default_kind: CatalogKind | null;
+  sort_order: number;
+  is_system: boolean;
+  is_active: boolean;
+};
+
+export type FinanceRules = {
+  tenant_id: string;
+  clerk_sees_balances: boolean;
+  clerk_sees_partner_entries: boolean;
+  clerk_edits_after_day_end: boolean;
+  clerk_can_void: boolean;
+  clerk_can_transfer: boolean;
+  /** HH:MM, IST. */
+  day_end_time: string;
+};
+
+export type FinanceEntry = {
+  id: string;
+  account_id: string;
+  kind: LedgerKind;
+  status: LedgerStatus;
+  amount: number;
+  amount_paise: number;
+  mode: LedgerMode | null;
+  transfer_from: LedgerMode | null;
+  transfer_to: LedgerMode | null;
+  /** YYYY-MM-DD, the day the money moved. */
+  transaction_date: string;
+  entered_at: string;
+  entered_by: string;
+  entered_by_name: string | null;
+  category_id: string | null;
+  subcategory_id: string | null;
+  particular_id: string | null;
+  particulars: string;
+  counterparty: string | null;
+  reference_no: string | null;
+  notes: string | null;
+  settles_entry_id: string | null;
+  settled: number;
+  settled_at: string | null;
+  void_reason: string | null;
+  voided_at: string | null;
+  updated_at: string;
+  version: number;
+};
+
+export type FinanceEntryInput = {
+  account_id: string;
+  kind: LedgerKind;
+  amount: number;
+  mode: LedgerMode | null;
+  transfer_from: LedgerMode | null;
+  transfer_to: LedgerMode | null;
+  transaction_date: string;
+  category_id: string | null;
+  subcategory_id: string | null;
+  particular_id: string | null;
+  particulars: string;
+  counterparty: string | null;
+  reference_no: string | null;
+  notes: string | null;
+};
+
+/** Raw form values before validation (everything is a string from TextInput). */
+export type EntryFormValues = {
+  account_id: string;
+  kind: LedgerKind;
+  amount: string;
+  mode: LedgerMode;
+  transfer_from: LedgerMode;
+  transfer_to: LedgerMode;
+  transaction_date: string;
+  category_id: string;
+  subcategory_id: string;
+  particular_id: string;
+  particulars: string;
+  counterparty: string;
+  reference_no: string;
+  notes: string;
+};
+
+export type EntryFormErrors = Partial<Record<keyof EntryFormValues, string>>;
+
+export type LedgerSort = 'transaction_date' | 'entered_at' | 'amount' | 'particulars';
+/** 'active' = everything that is not void. */
+export type LedgerStatusFilter = 'active' | 'open' | 'settled' | 'void' | 'all';
+
+export type LedgerFilters = {
+  startDate: string;
+  endDate: string;
+  accountId: string | null;
+  kind: LedgerKind | null;
+  mode: LedgerMode | null;
+  categoryId: string | null;
+  subcategoryId: string | null;
+  particularId: string | null;
+  /** staff id */
+  enteredBy: string | null;
+  status: LedgerStatusFilter;
+  search: string;
+  sort: LedgerSort;
+  sortDir: 'asc' | 'desc';
+  page: number;
+  pageSize: number;
+};
+
+export type LedgerPage = {
+  rows: FinanceEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type EntryRevisionAction = 'create' | 'update' | 'void' | 'settle';
+export type EntryFieldChange = { from: unknown; to: unknown };
+
+export type EntryRevision = {
+  id: string;
+  entry_id: string;
+  action: EntryRevisionAction;
+  changed_by: string | null;
+  changed_by_name: string | null;
+  changed_at: string;
+  changes: Record<string, EntryFieldChange>;
+};
+
+export type AccountBalance = {
+  account_id: string;
+  cash: number;
+  bank: number;
 };

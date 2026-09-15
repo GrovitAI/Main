@@ -27,14 +27,14 @@ import {
   type ApiResponse,
 } from '../../src/lib/server/api-auth';
 
-const ROLES = ['owner', 'admin', 'manager', 'cashier', 'kitchen'] as const;
+const ROLES = ['owner', 'admin', 'manager', 'cashier', 'kitchen', 'accountant'] as const;
 type Role = (typeof ROLES)[number];
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 /** A manager may not create a role above their own. */
 function canAssignRole(callerRole: Role, targetRole: Role): boolean {
-  const rank: Record<Role, number> = { owner: 5, admin: 4, manager: 3, cashier: 2, kitchen: 1 };
+  const rank: Record<Role, number> = { owner: 5, admin: 4, manager: 3, cashier: 2, kitchen: 1, accountant: 1 };
   return rank[targetRole] < rank[callerRole] || callerRole === 'owner';
 }
 
