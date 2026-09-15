@@ -71,6 +71,10 @@ handled on all four tabs.
   the tab bar shares the title row on desktop widths and drops to its own row
   on a tablet held upright. Every scrolling body leaves room for the app tab
   bar, and the forms lift clear of the iOS keyboard.
+- Recording an expense on a phone is one tap from any finance tab: a
+  floating "Expense" button opens the form on the Expenses tab with the
+  amount focused and the keypad up. "Save & add another" keeps the form open
+  for a run of receipts, and a green line confirms each save.
 
 ---
 

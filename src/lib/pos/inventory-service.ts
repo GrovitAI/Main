@@ -1887,8 +1887,11 @@ export async function fetchInventoryDashboardKPIs(): Promise<ServiceResult<Dashb
     for (const mat of tenantMaterials) {
       const stock = toNumber(mat.current_stock);
       const cost = toNumber(mat.average_cost);
-      inventoryValuation += stock * cost;
-      if (stock === 0) {
+      // Stock goes below zero when sales consume a material nobody has
+      // recorded buying. The shelf still holds nothing, so it is worth
+      // nothing and counts as out of stock; it must not pull the total down.
+      inventoryValuation += Math.max(0, stock) * cost;
+      if (stock <= 0) {
         outOfStockCount++;
       } else if (stock <= toNumber(mat.reorder_level)) {
         lowStockCount++;

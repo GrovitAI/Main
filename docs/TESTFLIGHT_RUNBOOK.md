@@ -1,13 +1,14 @@
-# TestFlight Runbook
+# TestFlight and Android Runbook
 
-Everything needed to put Grovit in front of iOS testers. The repository side is
-done; what remains needs an Apple account, an Expo account, or a decision.
+Everything needed to put Grovit in front of iOS testers through TestFlight and
+Android testers through a direct APK. The repository side is done; what
+remains needs an Apple account, an Expo account, or a decision.
 
 ## What the app contains
 
 The installed app is a management tool, not a till. It carries Analytics,
-Inventory, Menu, Staff, Branches and Settings, and it deliberately has no POS
-and no Orders screen. Billing stays on the counter hardware running the web
+Finance, Inventory, Menu, Staff, Branches and Settings, and it deliberately
+has no POS and no Orders screen. Billing stays on the counter hardware running the web
 app. `usesManagementTabs` in `src/lib/pos/tab-config.ts` enforces this: any
 native build gets the management tabs whatever its screen size, so an iPad is
 covered as well as an iPhone.
@@ -16,7 +17,8 @@ covered as well as an iPhone.
 
 | Item | State |
 | :--- | :--- |
-| `ios.bundleIdentifier` | `com.grovit.pos` |
+| `ios.bundleIdentifier` / `android.package` | `com.grovit.pos` |
+| Android icon | Adaptive icon set in `assets/images/android-icon-*.png` on the brand navy |
 | `ios.supportsTablet` | `true` — the tablet layout is the one cashiers use |
 | `ios.config.usesNonExemptEncryption` | `false`, so App Store Connect stops asking the export-compliance question on every upload |
 | App icon | `assets/images/icon.png`, 1024x1024 RGB with no alpha channel, which is what the App Store requires |
@@ -32,6 +34,31 @@ covered as well as an iPhone.
    Expo's macOS workers, so no Mac is needed here.
 3. `eas-cli` version 16 or newer. There is no need to add it to the project:
    `npx eas-cli@latest <command>` works, as does a global install.
+4. **Nothing for Android** beyond the Expo account. A direct APK needs no
+   Google account; only a Play Store listing does (Google Play Console, 25 USD
+   once), and that is not part of this runbook.
+
+## 0. Give the build its environment variables
+
+The app reads `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+at build time. Locally they come from `.env`, which is gitignored, and **EAS
+does not upload gitignored files**, so a build made without this step starts,
+fails to create a Supabase client, and shows nothing but the sign-in error.
+Create both once on the EAS project, for the `preview` and `production`
+environments; they are then baked into every build:
+
+```bash
+npx eas-cli@latest env:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --environment preview --environment production --visibility plaintext
+```
+```bash
+npx eas-cli@latest env:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --environment preview --environment production --visibility plaintext
+```
+
+Each command prompts for the value; paste it from `.env`. Both values are
+already public in the web bundle, so plaintext visibility is fine. The API
+base URL needs nothing: off the web the app falls back to
+`https://www.leleban.grovitai.com`. Do not set the SMTP or PrintNode
+variables here; those belong to the server, never to the app.
 
 ## 1. Link the repository to an EAS project
 
@@ -53,6 +80,20 @@ The first run asks about credentials. Let EAS manage them: it creates the
 distribution certificate and the provisioning profile against your Apple
 Developer account and stores them, so later builds need no input. The build
 itself takes roughly 15 to 30 minutes.
+
+## 2b. Build an Android APK for direct install
+
+```bash
+npx eas-cli@latest build --profile preview --platform android
+```
+
+The `preview` profile produces an APK rather than a Play Store bundle. EAS
+generates and keeps the signing keystore on the first run; accept the default.
+When the build finishes, the EAS dashboard shows a link and a QR code.
+Testers open the link on the phone, download the APK, and allow installs from
+that source when Android asks. No Play Store step is involved. The
+`production` profile builds an `.aab`, which only the Play Store can
+install, so keep to `preview` for hand-distributed testing.
 
 ## 3. Upload to App Store Connect
 
@@ -92,11 +133,10 @@ test notes rather than letting a tester discover them:
   `http://localhost:4545`, which is the print agent running on a till PC. On an
   iPhone there is no such agent. PrintNode cloud printing goes through the
   serverless API and works normally.
-- **Analytics is empty until the database migrations are applied.** The ledger
-  KPIs and the analytics aggregates are PostgreSQL functions that do not exist
-  on the live project yet, so the flagship screen of this build has nothing to
-  show. See `docs/DEPLOYMENT_RUNBOOK_2026-09-07.md`. Settlement is not a
-  concern here, because the app cannot take a payment by design.
+- **Finance is where phones earn their keep.** The floating "Expense" button
+  records an expense from any finance tab; day close needs a branch picked.
+  Settlement is not a concern here, because the app cannot take a payment by
+  design.
 
 ## Optional: over-the-air updates
 

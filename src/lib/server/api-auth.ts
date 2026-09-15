@@ -27,7 +27,7 @@ export type ApiResponse = {
   end(body?: string): void;
 };
 
-export type StaffRole = 'owner' | 'admin' | 'manager' | 'cashier' | 'kitchen';
+export type StaffRole = 'owner' | 'admin' | 'manager' | 'cashier' | 'kitchen' | 'accountant';
 
 export type AuthenticatedCaller = {
   /** Supabase client bound to the caller's JWT — RLS enforced. */

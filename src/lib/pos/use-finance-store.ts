@@ -78,6 +78,8 @@ type FinanceState = {
   expensesLoading: boolean;
   expensesError: string | null;
   expenseMutating: boolean;
+  /** Set by the phone's quick-add button; the Expenses tab opens its form and clears this. */
+  newExpenseRequested: boolean;
   categories: ExpenseCategory[];
   categoriesLoading: boolean;
 
@@ -107,6 +109,8 @@ type FinanceState = {
 
   loadExpenses: (page?: number) => Promise<void>;
   setExpenseList: (patch: Partial<ExpenseListState>) => void;
+  requestNewExpense: () => void;
+  clearNewExpenseRequest: () => void;
   addExpense: (input: ExpenseInput) => Promise<MutationResult>;
   editExpense: (id: string, input: ExpenseInput) => Promise<MutationResult>;
   removeExpense: (id: string, reason: string) => Promise<MutationResult>;
@@ -185,6 +189,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     expensesLoading: false,
     expensesError: null,
     expenseMutating: false,
+    newExpenseRequested: false,
     categories: [],
     categoriesLoading: false,
 
@@ -299,6 +304,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
       set({ expenseList: { ...get().expenseList, ...patch } });
       void get().loadExpenses(0);
     },
+
+    requestNewExpense: () => {
+      set({ newExpenseRequested: true });
+      get().setTab('expenses');
+    },
+
+    clearNewExpenseRequest: () => set({ newExpenseRequested: false }),
 
     addExpense: async (input) => {
       set({ expenseMutating: true });

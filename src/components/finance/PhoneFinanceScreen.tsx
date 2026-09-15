@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Calendar, SlidersHorizontal, X } from 'lucide-react-native';
+import { Calendar, Plus, SlidersHorizontal, X } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
@@ -9,16 +9,19 @@ import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type { FinanceFilters, FinancePreset, FinanceSchemaStatus, FinanceTab } from '@/lib/pos/finance-types';
 import { describeDateRange } from '@/lib/pos/finance-utils';
+import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { FinanceFilterBar, type FinanceBranchOption } from './FinanceFilterBar';
-import { FinanceTabBar } from './FinanceTabBar';
+import { FINANCE_TABS, FinanceTabBar, type FinanceTabDef } from './FinanceTabBar';
 import { FinanceSchemaNotice } from './FinanceStateViews';
 import { FinanceOverviewTab } from './FinanceOverviewTab';
-import { ExpensesTab } from './ExpensesTab';
+import { LedgerTab } from './LedgerTab';
 import { CashBookTab } from './CashBookTab';
 import { DayCloseTab } from './DayCloseTab';
 
 export type PhoneFinanceScreenProps = {
   activeTab: FinanceTab;
+  /** The tabs this role may open; a single tab hides the bar. */
+  tabs?: FinanceTabDef[];
   filters: FinanceFilters;
   branches: FinanceBranchOption[];
   canPickBranch: boolean;
@@ -34,6 +37,7 @@ export type PhoneFinanceScreenProps = {
 
 export function PhoneFinanceScreen({
   activeTab,
+  tabs = FINANCE_TABS,
   filters,
   branches,
   canPickBranch,
@@ -47,6 +51,7 @@ export function PhoneFinanceScreen({
   onMenuPress,
 }: PhoneFinanceScreenProps) {
   const insets = useSafeAreaInsets();
+  const requestNewEntry = useLedgerStore((s) => s.requestNewEntry);
   const [filterOpen, setFilterOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const branchLabel = filters.branchId ? branches.find((b) => b.id === filters.branchId)?.name : canPickBranch ? 'All branches' : undefined;
@@ -71,9 +76,11 @@ export function PhoneFinanceScreen({
         }
       />
 
-      <View className="px-3 pt-3">
-        <FinanceTabBar active={activeTab} onChange={onTab} compact />
-      </View>
+      {tabs.length > 1 ? (
+        <View className="px-3 pt-3">
+          <FinanceTabBar active={activeTab} onChange={onTab} tabs={tabs} compact />
+        </View>
+      ) : null}
 
       {/* Active range, as on the analytics screen: tap the date to change it,
           or open every filter at once. */}
@@ -109,11 +116,34 @@ export function PhoneFinanceScreen({
         <View className="flex-1 px-3 pt-3">
           <FinanceSchemaNotice schema={schema} />
           {activeTab === 'overview' ? <FinanceOverviewTab compact /> : null}
-          {activeTab === 'expenses' ? <ExpensesTab compact /> : null}
+          {activeTab === 'ledger' ? <LedgerTab compact /> : null}
           {activeTab === 'cashbook' ? <CashBookTab compact /> : null}
           {activeTab === 'dayclose' ? <DayCloseTab compact /> : null}
         </View>
       </KeyboardAvoider>
+
+      {/* Recording an entry is the one thing done on a phone several times a
+          day, so it is one tap from every tab. The Ledger tab has its own
+          button in the toolbar. Sits above the app tab bar. */}
+      {activeTab !== 'ledger' ? (
+        // The wrapper carries the placement as a plain style object: on web,
+        // css-interop drops an inline offset given next to a positioning class.
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 72 + insets.bottom }}>
+          <Pressable
+            onPress={() => {
+              requestNewEntry();
+              onTab('ledger');
+            }}
+            className="h-[56px] flex-row items-center rounded-full bg-primary pl-4 pr-5 shadow-panel"
+            style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Record an entry"
+          >
+            <Plus size={20} color={colors.textOnPrimary} />
+            <Text className="ml-1.5 text-sm font-bold text-text-on-primary">Entry</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <Pressable className="flex-1 justify-end bg-black/40" onPress={() => setFilterOpen(false)}>

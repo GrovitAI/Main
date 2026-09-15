@@ -66,6 +66,7 @@ const ROLES: { value: UserRole; label: string; description: string }[] = [
   { value: 'manager', label: 'Manager', description: 'POS + reports for own branch' },
   { value: 'cashier', label: 'Cashier', description: 'POS + orders for own branch' },
   { value: 'kitchen', label: 'Kitchen', description: 'Kitchen display only' },
+  { value: 'accountant', label: 'Accountant', description: 'Records finance entries; no balances' },
 ];
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -74,6 +75,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   manager: '#0891b2',
   cashier: '#16a34a',
   kitchen: '#ea580c',
+  accountant: '#b45309',
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ export type Permission =
   | 'staff_manage'
   | 'tenant_settings';
 
-export type UserRole = 'owner' | 'admin' | 'manager' | 'cashier' | 'kitchen';
+export type UserRole = 'owner' | 'admin' | 'manager' | 'cashier' | 'kitchen' | 'accountant';
 
 export type TerminalStatus = 'REGISTERED' | 'PENDING_APPROVAL' | 'DISABLED' | 'UNKNOWN_DEVICE';
 
@@ -89,6 +89,9 @@ export function getPermissionsForRole(role: UserRole): Permission[] {
         'discount',
       ];
     case 'kitchen':
+      return [];
+    // Records finance entries under the owner's rules; nothing operational.
+    case 'accountant':
       return [];
     default:
       return [];

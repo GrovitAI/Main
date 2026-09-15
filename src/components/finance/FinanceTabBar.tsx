@@ -1,27 +1,42 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { BookOpen, LayoutDashboard, Lock, Receipt, type LucideIcon } from 'lucide-react-native';
+import { BookOpen, LayoutDashboard, Lock, NotebookPen, type LucideIcon } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import type { FinanceTab } from '@/lib/pos/finance-types';
+import type { UserRole } from '@/lib/pos/session-context';
+import { isFinanceOwner } from '@/lib/pos/finance-ledger-utils';
 
-export const FINANCE_TABS: { key: FinanceTab; label: string; icon: LucideIcon }[] = [
+export type FinanceTabDef = { key: FinanceTab; label: string; icon: LucideIcon };
+
+export const FINANCE_TABS: FinanceTabDef[] = [
   { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { key: 'expenses', label: 'Expenses', icon: Receipt },
+  { key: 'ledger', label: 'Ledger', icon: NotebookPen },
   { key: 'cashbook', label: 'Cash Book', icon: BookOpen },
   { key: 'dayclose', label: 'Day Close', icon: Lock },
 ];
 
+/**
+ * The tabs a role may open. Owners, admins and managers get the tills' view
+ * and the ledger; an accountant exists for the ledger alone and never sees
+ * revenue, the cash book or day close.
+ */
+export function financeTabsForRole(role: UserRole | null | undefined): FinanceTabDef[] {
+  if (isFinanceOwner(role) || role === 'manager') return FINANCE_TABS;
+  return FINANCE_TABS.filter((tab) => tab.key === 'ledger');
+}
+
 type FinanceTabBarProps = {
   active: FinanceTab;
   onChange: (tab: FinanceTab) => void;
+  tabs?: FinanceTabDef[];
   compact?: boolean;
 };
 
-export function FinanceTabBar({ active, onChange, compact = false }: FinanceTabBarProps) {
+export function FinanceTabBar({ active, onChange, tabs = FINANCE_TABS, compact = false }: FinanceTabBarProps) {
   return (
     <View className={`flex-row rounded-2xl border border-border/60 bg-white p-1 shadow-sm ${compact ? '' : 'self-start'}`}>
-      {FINANCE_TABS.map(({ key, label, icon: Icon }) => {
+      {tabs.map(({ key, label, icon: Icon }) => {
         const isActive = key === active;
         return (
           <Pressable

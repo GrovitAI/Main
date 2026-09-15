@@ -15,10 +15,10 @@ import { useResponsive, getResponsivePadding } from '@/lib/pos/useResponsive';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { FinanceFilterBar, type FinanceBranchOption } from './FinanceFilterBar';
-import { FinanceTabBar } from './FinanceTabBar';
+import { FinanceTabBar, financeTabsForRole } from './FinanceTabBar';
 import { FinanceSchemaNotice } from './FinanceStateViews';
 import { FinanceOverviewTab } from './FinanceOverviewTab';
-import { ExpensesTab } from './ExpensesTab';
+import { LedgerTab } from './LedgerTab';
 import { CashBookTab } from './CashBookTab';
 import { DayCloseTab } from './DayCloseTab';
 import { PhoneFinanceScreen } from './PhoneFinanceScreen';
@@ -51,9 +51,16 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
       (s.activeTab === 'dayclose' && s.dayCloseLoading),
   );
 
+  const role = session?.role ?? null;
+  const tabs = useMemo(() => financeTabsForRole(role), [role]);
+  const allowedTab = tabs.some((tab) => tab.key === activeTab);
+
   useEffect(() => {
+    // The tab is settled before the store loads, so an accountant's session
+    // never fetches the revenue figures behind Overview.
+    if (!allowedTab && tabs.length > 0) setTab(tabs[0].key);
     if (session && !initialized) void initialize();
-  }, [session, initialized, initialize]);
+  }, [session, initialized, initialize, allowedTab, tabs, setTab]);
 
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
   const branches: FinanceBranchOption[] = useMemo(
@@ -72,7 +79,8 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
   if (isPhone) {
     return (
       <PhoneFinanceScreen
-        activeTab={activeTab}
+        activeTab={allowedTab ? activeTab : tabs[0]?.key ?? 'ledger'}
+        tabs={tabs}
         filters={filters}
         branches={branches}
         canPickBranch={isOwnerOrAdmin}
@@ -107,11 +115,11 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
               </Text>
             </View>
           </View>
-          {isDesktop ? <FinanceTabBar active={activeTab} onChange={setTab} /> : null}
+          {isDesktop && tabs.length > 1 ? <FinanceTabBar active={activeTab} onChange={setTab} tabs={tabs} /> : null}
         </View>
-        {!isDesktop ? (
+        {!isDesktop && tabs.length > 1 ? (
           <View className="mb-4">
-            <FinanceTabBar active={activeTab} onChange={setTab} />
+            <FinanceTabBar active={activeTab} onChange={setTab} tabs={tabs} />
           </View>
         ) : null}
 
@@ -130,7 +138,7 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
 
         <View className="flex-1" style={isDesktop ? { maxWidth: 1400, width: '100%', alignSelf: 'center' } : undefined}>
           {activeTab === 'overview' ? <FinanceOverviewTab /> : null}
-          {activeTab === 'expenses' ? <ExpensesTab /> : null}
+          {activeTab === 'ledger' ? <LedgerTab /> : null}
           {activeTab === 'cashbook' ? <CashBookTab /> : null}
           {activeTab === 'dayclose' ? <DayCloseTab /> : null}
         </View>

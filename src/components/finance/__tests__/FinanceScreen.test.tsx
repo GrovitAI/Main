@@ -35,11 +35,14 @@ jest.mock('lucide-react-native', () => {
   );
 });
 jest.mock('@/lib/pos/finance-service');
+jest.mock('@/lib/pos/finance-ledger-service');
 jest.mock('@/lib/pos/use-session-store');
 
 import * as financeService from '@/lib/pos/finance-service';
+import * as ledgerService from '@/lib/pos/finance-ledger-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { emptyFinanceSummary } from '@/lib/pos/finance-utils';
 import type { Expense, FinanceSchemaStatus } from '@/lib/pos/finance-types';
 import { FinanceScreen } from '../FinanceScreen';
@@ -50,6 +53,61 @@ import { CashBookTab } from '../CashBookTab';
 import { DayCloseTab } from '../DayCloseTab';
 
 const mocked = financeService as jest.Mocked<typeof financeService>;
+const mockedLedger = ledgerService as jest.Mocked<typeof ledgerService>;
+
+const RULES = {
+  tenant_id: 'tenant-1',
+  clerk_sees_balances: false,
+  clerk_sees_partner_entries: false,
+  clerk_edits_after_day_end: false,
+  clerk_can_void: false,
+  clerk_can_transfer: false,
+  day_end_time: '00:00',
+};
+
+const ACCOUNTS = [
+  { id: 'acct-ck', tenant_id: 'tenant-1', kind: 'branch' as const, branch_id: 'branch-1', staff_id: null, name: 'Central Kitchen', opening_cash: 0, opening_bank: 0, counts_in_partner_profit: true, sort_order: 1, is_active: true },
+  { id: 'acct-owner', tenant_id: 'tenant-1', kind: 'partner' as const, branch_id: null, staff_id: 'staff-1', name: 'Owner', opening_cash: 0, opening_bank: 0, counts_in_partner_profit: false, sort_order: 100, is_active: true },
+];
+
+const CATALOG = [
+  { id: 'cat-util', level: 'category' as const, parent_id: null, name: 'Utilities', default_kind: 'expense' as const, sort_order: 1, is_system: false, is_active: true },
+  { id: 'sub-elec', level: 'subcategory' as const, parent_id: 'cat-util', name: 'Electricity', default_kind: null, sort_order: 1, is_system: false, is_active: true },
+  { id: 'par-eb', level: 'particular' as const, parent_id: 'sub-elec', name: 'EB bill', default_kind: null, sort_order: 1, is_system: false, is_active: true },
+];
+
+function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry> = {}): import('@/lib/pos/finance-types').FinanceEntry {
+  return {
+    id: 'entry-1',
+    account_id: 'acct-ck',
+    kind: 'expense',
+    status: 'recorded',
+    amount: 1250,
+    amount_paise: 125000,
+    mode: 'cash',
+    transfer_from: null,
+    transfer_to: null,
+    transaction_date: '2026-09-15',
+    entered_at: '2026-09-15T04:30:00.000Z',
+    entered_by: 'staff-1',
+    entered_by_name: 'Owner',
+    category_id: 'cat-util',
+    subcategory_id: 'sub-elec',
+    particular_id: 'par-eb',
+    particulars: 'EB bill',
+    counterparty: 'TANGEDCO',
+    reference_no: null,
+    notes: null,
+    settles_entry_id: null,
+    settled: 0,
+    settled_at: null,
+    void_reason: null,
+    voided_at: null,
+    updated_at: '2026-09-15T04:30:00.000Z',
+    version: 1,
+    ...over,
+  };
+}
 
 const FULL_SCHEMA: FinanceSchemaStatus = {
   expensesExtended: true,
@@ -166,10 +224,19 @@ function unmountTree(tree: ReactTestRenderer): void {
 }
 
 const INITIAL_STATE = useFinanceStore.getState();
+const INITIAL_LEDGER_STATE = useLedgerStore.getState();
 
 beforeEach(() => {
   jest.clearAllMocks();
   useFinanceStore.setState(INITIAL_STATE, true);
+  useLedgerStore.setState(INITIAL_LEDGER_STATE, true);
+
+  mockedLedger.fetchFinanceAccounts.mockResolvedValue({ data: ACCOUNTS, error: null });
+  mockedLedger.fetchFinanceCatalog.mockResolvedValue({ data: CATALOG, error: null });
+  mockedLedger.fetchFinanceRules.mockResolvedValue({ data: RULES, error: null });
+  mockedLedger.fetchLedgerEntries.mockResolvedValue({ data: { rows: [makeEntry()], total: 1, page: 0, pageSize: 50 }, error: null });
+  mockedLedger.fetchAccountBalances.mockResolvedValue({ data: [{ account_id: 'acct-ck', cash: 4250, bank: 120000 }], error: null });
+  mockedLedger.fetchEntryRevisions.mockResolvedValue({ data: [], error: null });
   (useSessionStore as unknown as jest.Mock).mockImplementation(
     (selector: (s: { session: typeof SESSION }) => unknown) => selector({ session: SESSION }),
   );
@@ -283,11 +350,38 @@ describe('PhoneFinanceScreen', () => {
     const text = textOf(tree);
     expect(text).toContain('All branches');
     expect(text).toContain('1 Sep – 7 Sep 2026');
-    for (const label of ['Overview', 'Expenses', 'Cash Book', 'Day Close']) {
+    for (const label of ['Overview', 'Ledger', 'Cash Book', 'Day Close']) {
       expect(text).toContain(label);
     }
     // The presets live in the sheet, which is closed until asked for.
     expect(text).not.toContain('This Month');
+    unmountTree(tree);
+  });
+
+  test('the quick-add button switches to the Ledger and asks for a blank form', () => {
+    const onTab = jest.fn();
+    const tree = renderTree(
+      <PhoneFinanceScreen
+        activeTab="overview"
+        filters={filters}
+        branches={[{ id: 'branch-1', name: 'Main Branch' }]}
+        canPickBranch
+        loading={false}
+        schema={FULL_SCHEMA}
+        onTab={onTab}
+        onPreset={noop}
+        onCustomRange={noop}
+        onBranch={noop}
+        onRefresh={noop}
+      />,
+    );
+    const [button] = tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' });
+    const { onPress } = button.props as { onPress: () => void };
+    act(() => {
+      onPress();
+    });
+    expect(onTab).toHaveBeenCalledWith('ledger');
+    expect(useLedgerStore.getState().newEntryRequested).toBe(true);
     unmountTree(tree);
   });
 

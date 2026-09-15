@@ -20,6 +20,8 @@ export type ExpenseFormModalProps = {
   submitting: boolean;
   serverError: string | null;
   onSubmit: (input: ExpenseInput) => void;
+  /** Create mode only: save, then keep the form open with fresh values. */
+  onSubmitAndNext?: (input: ExpenseInput) => void;
   onAddCategory: (name: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   onClose: () => void;
 };
@@ -38,6 +40,7 @@ export function ExpenseFormModal({
   submitting,
   serverError,
   onSubmit,
+  onSubmitAndNext,
   onAddCategory,
   onClose,
 }: ExpenseFormModalProps) {
@@ -69,14 +72,16 @@ export function ExpenseFormModal({
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (andNext = false) => {
     const result = validateExpenseForm(values);
     if (!result.ok) {
       setErrors(result.errors);
       return;
     }
-    onSubmit(result.value);
+    if (andNext && onSubmitAndNext) onSubmitAndNext(result.value);
+    else onSubmit(result.value);
   };
+  const canSaveAndNext = mode === 'create' && onSubmitAndNext !== undefined;
 
   const handleAddCategory = async () => {
     setAddingCategory(true);
@@ -147,6 +152,8 @@ export function ExpenseFormModal({
                 placeholder="0.00"
                 placeholderTextColor={colors.textSecondary}
                 className={`${FIELD_CLASS} font-extrabold ${isPhone ? 'min-h-[56px] text-3xl' : 'text-2xl'}`}
+                // A new entry starts at the amount with the keypad already up.
+                autoFocus={mode === 'create'}
                 accessibilityLabel="Amount"
               />
             </Field>
@@ -308,9 +315,23 @@ export function ExpenseFormModal({
 
           {/* Footer */}
           <View
-            className="flex-row items-center justify-end gap-2 border-t border-border-soft px-5 py-3"
+            className="border-t border-border-soft px-5 py-3"
             style={isPhone ? { paddingBottom: Math.max(12, insets.bottom) } : undefined}
           >
+            {canSaveAndNext ? (
+              <Pressable
+                onPress={() => handleSubmit(true)}
+                disabled={submitting}
+                className="mb-2 min-h-[44px] flex-row items-center justify-center rounded-xl border border-primary bg-white px-4"
+                style={({ pressed }) => [{ opacity: pressed || submitting ? 0.7 : 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Save and add another expense"
+              >
+                <Plus size={15} color={colors.primary} />
+                <Text className="ml-1.5 text-sm font-bold text-primary">Save & add another</Text>
+              </Pressable>
+            ) : null}
+            <View className="flex-row items-center justify-end gap-2">
             <Pressable
               onPress={onClose}
               disabled={submitting}
@@ -321,7 +342,7 @@ export function ExpenseFormModal({
               <Text className="text-sm font-bold text-text-secondary">Cancel</Text>
             </Pressable>
             <Pressable
-              onPress={handleSubmit}
+              onPress={() => handleSubmit(false)}
               disabled={submitting}
               className="min-h-[44px] min-w-[140px] flex-row items-center justify-center rounded-xl bg-primary px-5"
               style={({ pressed }) => [{ opacity: pressed || submitting ? 0.7 : 1 }]}
@@ -332,6 +353,7 @@ export function ExpenseFormModal({
                 {mode === 'create' ? 'Save expense' : 'Save changes'}
               </Text>
             </Pressable>
+            </View>
           </View>
         </Pressable>
       </Pressable>

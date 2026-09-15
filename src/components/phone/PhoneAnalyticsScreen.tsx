@@ -233,71 +233,14 @@ export function PhoneAnalyticsScreen({
         }
       />
 
-      {/* Date Preset Filter Bar */}
-      <View className="bg-white border-b border-[#E2E8F0] py-2.5 px-3">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 }}
-        >
-          {PRESET_OPTIONS.map((opt) => {
-            const isActive = currentPresetKey === opt.key;
-            return (
-              <Pressable
-                key={opt.key}
-                onPress={() => handlePresetClick(opt.key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                aria-selected={isActive}
-                // Fully inline so the active background is never dropped by css-interop on web.
-                style={({ pressed }) => [
-                  {
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderRadius: 999,
-                    marginRight: 8,
-                    minHeight: 38,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'row',
-                    borderWidth: 1,
-                    backgroundColor: isActive ? '#0066B2' : '#FFFFFF',
-                    borderColor: isActive ? '#0066B2' : '#CBD5E1',
-                    shadowColor: isActive ? '#0066B2' : 'transparent',
-                    shadowOffset: { width: 0, height: isActive ? 2 : 0 },
-                    shadowOpacity: isActive ? 0.25 : 0,
-                    shadowRadius: isActive ? 3 : 0,
-                    elevation: isActive ? 2 : 0,
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                {isActive && (
-                  <View style={{ marginRight: 5 }}>
-                    <Check size={12} color="#FFFFFF" />
-                  </View>
-                )}
-                <Text
-                  className="text-xs font-bold"
-                  style={{
-                    color: isActive ? '#FFFFFF' : '#475569',
-                    letterSpacing: 0.2,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       <ScrollView
         className="flex-1 px-4 pt-4"
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ACTIVE FILTER SUMMARY BANNER */}
+        {/* The active range, and the only date controls on this screen: tap the
+            date for the calendar, or Filters for presets and branches. The
+            preset strip that used to sit under the header duplicated both. */}
         <View className="flex-row items-center justify-between bg-blue-50/90 border border-blue-200/70 rounded-2xl px-3.5 py-2.5 mb-4 shadow-2xs">
           <Pressable
             onPress={() => setIsDatePickerModalOpen(true)}

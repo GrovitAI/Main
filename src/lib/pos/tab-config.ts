@@ -72,6 +72,13 @@ const KITCHEN_TABS: TabConfig[] = [
   { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
 ];
 
+// Accountant: records finance entries under the owner's rules. The same two
+// tabs on every device, because the role exists for the ledger alone.
+const ACCOUNTANT_TABS: TabConfig[] = [
+  { name: 'finance',  href: '/(app)/finance',  icon: Landmark,  label: 'Finance' },
+  { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
+];
+
 // The management layout. Every device that is not a till gets these: any
 // phone-width window, and every native build whatever its screen size.
 // POS and Orders are deliberately absent — see usesManagementTabs below.
@@ -136,6 +143,7 @@ export function usesManagementTabs(isPhone: boolean): boolean {
 export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
   if (usesManagementTabs(isPhone)) {
     if (role === 'kitchen') return KITCHEN_TABS;
+    if (role === 'accountant') return ACCOUNTANT_TABS;
     if (role === 'owner' || role === 'admin') return MOBILE_TABS;
     if (role === 'manager') return MOBILE_TABS.filter((tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name));
     return MOBILE_TABS.filter(
@@ -153,6 +161,8 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
       return ADMIN_TABS;
     case 'kitchen':
       return KITCHEN_TABS;
+    case 'accountant':
+      return ACCOUNTANT_TABS;
     default:
       return CASHIER_TABS;
   }
@@ -161,6 +171,7 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
 export function getDefaultScreenForRole(role: UserRole, isPhone = false): string {
   if (usesManagementTabs(isPhone)) {
     if (role === 'kitchen') return '/(app)/kitchen';
+    if (role === 'accountant') return '/(app)/finance';
     return '/(app)/analytics'; // Analytics is flagship home for phone
   }
   switch (role) {
@@ -174,6 +185,8 @@ export function getDefaultScreenForRole(role: UserRole, isPhone = false): string
       return '/(app)/index';
     case 'kitchen':
       return '/(app)/kitchen';
+    case 'accountant':
+      return '/(app)/finance';
     default:
       return '/(app)/index';
   }

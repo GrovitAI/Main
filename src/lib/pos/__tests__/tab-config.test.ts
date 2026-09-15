@@ -66,6 +66,12 @@ describe('getTabsForRole on phones', () => {
     expect(webNames('kitchen', true)).toEqual(['kitchen', 'settings']);
   });
 
+  it('gives an accountant the ledger and settings, nothing else, on every device', () => {
+    expect(webNames('accountant', true)).toEqual(['finance', 'settings']);
+    expect(webNames('accountant', false)).toEqual(['finance', 'settings']);
+    expect(nativeTabletNames('accountant')).toEqual(['finance', 'settings']);
+  });
+
   it('excludes POS and orders for every role, which phones do not carry', () => {
     for (const role of ['owner', 'admin', 'manager', 'cashier'] as UserRole[]) {
       const names = webNames(role, true);
