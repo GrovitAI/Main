@@ -457,6 +457,7 @@ export function EntryFormModal({
         onClose={() => setDatePickerOpen(false)}
         startDate={values.transaction_date}
         endDate={values.transaction_date}
+        mode="single"
         onApply={(start) => setField('transaction_date', start)}
       />
     </Modal>

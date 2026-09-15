@@ -364,6 +364,7 @@ export function ExpenseFormModal({
         onClose={() => setDatePickerOpen(false)}
         startDate={values.expense_date}
         endDate={values.expense_date}
+        mode="single"
         onApply={(start) => setField('expense_date', start)}
       />
     </Modal>
