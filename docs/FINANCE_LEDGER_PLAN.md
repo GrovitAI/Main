@@ -130,10 +130,13 @@ branch's goes into their account, using three built-in categories under
 
 The **Partner statement** (owners only) for a period reads: profit for the
 period × share % − drawings + contributions + amounts paid personally =
-what each partner is due, taken from that partner's own account. Profit is ledger income − ledger expenses across
-all accounts, opening balances and partner categories excluded. Until POS
-sales feed the ledger this is the partnership's *ledger* profit, not the
-restaurant's; the Overview tab still shows bill revenue.
+what each partner is due, taken from that partner's own account. Profit is
+ledger income − ledger expenses of the **Central Kitchen** account, opening
+balances and partner categories excluded (decision of 2026-09-15: the ledger
+is the kitchen's books first). Which accounts count towards partner profit is
+a flag on the account, so a branch can be brought in later with one switch.
+Until POS sales feed the ledger this is the kitchen's *ledger* profit, not
+the restaurant's; the Overview tab still shows bill revenue.
 
 ## 6. Finance rules (owner switches)
 
@@ -204,7 +207,7 @@ access as in §1:
 
 | Table | Purpose |
 | :--- | :--- |
-| `finance_accounts` | One per branch and one per partner; opening cash and bank; active flag |
+| `finance_accounts` | One per branch and one per partner; opening cash and bank; counts-towards-partner-profit flag; active flag |
 | `finance_catalog` | Categories, sub-categories and particulars in one tree: `level`, `parent_id`, `name`, `default_kind`, `sort_order`, `is_active` |
 | `finance_partners` | Name, share %, optional link to a staff member |
 | `finance_entries` | The ledger: account, kind, status, amount in paise, mode (or from/to for transfers), transaction date, entered at/by, category/sub-category/particular ids plus free-text particulars, counterparty, reference, notes, partner, `settles_entry_id`, settled at/by, void reason/at/by, `updated_at` |
