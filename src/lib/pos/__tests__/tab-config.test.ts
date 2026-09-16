@@ -82,6 +82,14 @@ describe('getTabsForRole on phones', () => {
 });
 
 describe('getTabsForRole on tablets and desktop browsers', () => {
+  it('puts menu management one tap away for everyone who manages the menu', () => {
+    for (const role of ['owner', 'admin', 'manager'] as const) {
+      expect(webNames(role, false)).toContain('menu');
+    }
+    expect(webNames('cashier', false)).not.toContain('menu');
+    expect(webNames('kitchen', false)).not.toContain('menu');
+  });
+
   it('is unaffected by the phone-only restriction', () => {
     expect(webNames('manager', false)).toContain('index');
     expect(webNames('cashier', false)).toContain('orders');

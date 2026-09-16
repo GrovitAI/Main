@@ -39,6 +39,7 @@ const MANAGER_TABS: TabConfig[] = [
   { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
   { name: 'kitchen',   href: '/(app)/kitchen',   icon: ChefHat,     label: 'Kitchen' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,       label: 'Inventory' },
+  { name: 'menu',      href: '/(app)/menu',      icon: BookOpen,    label: 'Menu' },
   { name: 'analytics', href: '/(app)/analytics', icon: BarChart3,   label: 'Reports' },
   { name: 'finance',   href: '/(app)/finance',   icon: Landmark,    label: 'Finance' },
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,   label: 'Settings' },
@@ -48,6 +49,7 @@ const MANAGER_TABS: TabConfig[] = [
 const OWNER_TABS: TabConfig[] = [
   { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
+  { name: 'menu',      href: '/(app)/menu',      icon: BookOpen,     label: 'Menu' },
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
   { name: 'finance',   href: '/(app)/finance',   icon: Landmark,     label: 'Finance' },
   { name: 'staff',     href: '/(app)/staff',     icon: Users,        label: 'Staff' },
@@ -60,6 +62,7 @@ const ADMIN_TABS: TabConfig[] = [
   { name: 'index',     href: '/(app)/index',     icon: Receipt,      label: 'POS' },
   { name: 'orders',    href: '/(app)/orders',    icon: ShoppingCart, label: 'Orders' },
   { name: 'inventory', href: '/(app)/inventory', icon: Boxes,        label: 'Inventory' },
+  { name: 'menu',      href: '/(app)/menu',      icon: BookOpen,     label: 'Menu' },
   { name: 'analytics', href: '/(app)/analytics', icon: TrendingUp,   label: 'Analytics' },
   { name: 'finance',   href: '/(app)/finance',   icon: Landmark,     label: 'Finance' },
   { name: 'staff',     href: '/(app)/staff',     icon: Users,        label: 'Staff' },
