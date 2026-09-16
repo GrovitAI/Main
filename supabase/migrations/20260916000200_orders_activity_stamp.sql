@@ -15,7 +15,8 @@
 --      nobody writes to it except the trigger (SECURITY DEFINER).
 --
 -- Idempotent and additive. Safe to apply while the shop is open: AFTER triggers,
--- no change to existing rows. Not yet applied to the live project.
+-- no change to existing rows. Applied to the live project on 2026-09-16 and
+-- verified with a rolled-back test update on an order and one of its items.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.branch_activity (
