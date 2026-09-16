@@ -1,6 +1,7 @@
 # Finance Ledger — Plan
 
-> **Status**: proposal, awaiting sign-off. Nothing here is built.
+> **Status**: steps 1 and 2 of §10 are built and live (2026-09-15 and 2026-09-16).
+> Steps 3 to 5 (catalog screen, partners, month-end Excel) are still to do.
 > **Written**: 2026-09-15, from the owner's requirements of the same day.
 > **Scope for now**: the central kitchen's books, with branches and the
 > partnership able to use the same ledger later.
@@ -41,9 +42,17 @@ day of `entered_at`. The app greys the button out; the database refuses anyway.
 An **account** is whose books an entry belongs to. There is one per branch
 (Kolathur, Velachery, Central Kitchen) and **one per partner**, because the
 partners take turns running the finances and each needs their own books.
-Every entry belongs to exactly one account. Each account keeps two running
-balances, **cash** and **bank**, computed as opening balance + money in −
-money out. Every partner signs in with their own **owner** login (each partner
+Every entry belongs to exactly one account, the one whose books carry it
+(**For**). When another account's cash or bank actually moved, the entry also
+names it (**Paid from**; decision of 2026-09-15, built 2026-09-16): Velachery
+pays the gas vendor for the kitchen as one entry, *paid from Velachery, for
+Central Kitchen*. Balances follow the paying account; categories, profit and
+the transactions page follow the account the entry is for. Everything one
+account paid for another nets into a **Between accounts** position ("Central
+Kitchen owes Velachery ₹12,000"), which a transfer between the two clears.
+The everyday case, the same account on both sides, needs no second picker.
+Each account keeps two running balances, **cash** and **bank**, computed as
+opening balance + money in − money out. Every partner signs in with their own **owner** login (each partner
 is added in Staff with the owner role before the build), so the ledger always
 records which partner entered or changed a row, whoever is on duty. The
 account picker on every entry lists the branches and the partners side by
@@ -62,7 +71,7 @@ plain income entry would do).
 | **Expense** | − cash or − bank | |
 | **Payable** (we owe) | none until settled | Sits in *Outstanding*; status `open` |
 | **Receivable** (owed to us) | none until settled | Sits in *Outstanding*; status `open` |
-| **Transfer** | − one side, + the other | cash → bank (deposit) or bank → cash (withdrawal); same account; not income or expense |
+| **Transfer** | − one side, + the other | cash → bank (deposit) or bank → cash (withdrawal) within an account, or from one account to another (which also clears a Between-accounts position); not income or expense |
 
 **Settling** a payable or receivable creates a new expense (or income) entry
 for the amount paid, in the same category, linked to the original. The

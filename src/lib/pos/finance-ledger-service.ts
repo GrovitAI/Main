@@ -19,9 +19,12 @@ import type {
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
+  InterAccountPosition,
+  LedgerAccountSummary,
   LedgerFilters,
   LedgerPage,
   ServiceResult,
+  SettleEntryInput,
 } from './finance-types';
 import { fromPaise, toPaise } from './finance-utils';
 
@@ -82,7 +85,7 @@ function explain(error: PgError, fallback: string): string {
 // ─── Mapping ──────────────────────────────────────────────────────────────────
 
 const ENTRY_COLUMNS =
-  'id, account_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, entered_at, entered_by, ' +
+  'id, account_id, paid_from_account_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, entered_at, entered_by, ' +
   'category_id, subcategory_id, particular_id, particulars, counterparty, reference_no, notes, settles_entry_id, settled_paise, ' +
   'settled_at, void_reason, voided_at, updated_at, version, entered_staff:staff!finance_entries_entered_by_fkey(name)';
 
@@ -93,6 +96,7 @@ function mapEntry(row: Record<string, unknown>): FinanceEntry {
   return {
     id: toText(row.id),
     account_id: toText(row.account_id),
+    paid_from_account_id: toStringOrNull(row.paid_from_account_id),
     kind,
     status: toText(row.status, 'recorded') as FinanceEntry['status'],
     amount: fromPaise(paise),
@@ -333,6 +337,7 @@ export async function fetchLedgerEntry(id: string): Promise<ServiceResult<Financ
 function entryPayload(input: FinanceEntryInput): Record<string, unknown> {
   return {
     account_id: input.account_id,
+    paid_from_account_id: input.paid_from_account_id,
     kind: input.kind,
     amount_paise: toPaise(input.amount),
     mode: input.mode,
@@ -421,6 +426,34 @@ export async function fetchEntryRevisions(entryId: string): Promise<ServiceResul
   }
 }
 
+// ─── Settlement ───────────────────────────────────────────────────────────────
+
+/**
+ * Records the payment of an open payable or receivable. The database does the
+ * whole thing in one transaction (finance_settle_entry) and returns the new
+ * payment entry, which the caller shows as the saved row.
+ */
+export async function settleLedgerEntry(input: SettleEntryInput): Promise<ServiceResult<FinanceEntry>> {
+  try {
+    if (!currentStaffId()) return { data: null, error: 'Sign in again to settle an entry.' };
+    const { data, error } = await supabase.rpc('finance_settle_entry', {
+      p_entry_id: input.entry_id,
+      p_amount_paise: toPaise(input.amount),
+      p_mode: input.mode,
+      p_transaction_date: input.transaction_date,
+      p_paid_from_account_id: input.paid_from_account_id,
+      p_reference_no: input.reference_no,
+      p_notes: input.notes,
+    });
+    if (error) return { data: null, error: explain(error, 'Unable to settle the entry.') };
+    const paymentId = typeof data === 'string' ? data : null;
+    if (!paymentId) return { data: null, error: 'Unable to settle the entry.' };
+    return fetchLedgerEntry(paymentId);
+  } catch {
+    return { data: null, error: 'Unable to settle the entry.' };
+  }
+}
+
 // ─── Balances ─────────────────────────────────────────────────────────────────
 
 /**
@@ -450,5 +483,51 @@ export async function fetchAccountBalances(accountIds: readonly string[], upto?:
     return { data: balances, error: null };
   } catch {
     return { data: null, error: 'Unable to load the balances.' };
+  }
+}
+
+/**
+ * Who owes whom, from everything one account paid for another. Refused for a
+ * clerk who may not see balances; that comes back as an empty list.
+ */
+export async function fetchInterAccountPositions(): Promise<ServiceResult<InterAccountPosition[]>> {
+  try {
+    const { data, error } = await supabase.rpc('finance_interaccount_positions');
+    if (error) {
+      if (isForbidden(error)) return { data: [], error: null };
+      return { data: null, error: 'Unable to load the positions between accounts.' };
+    }
+    const positions = asRecords(data).map((row) => ({
+      owed_by: toText(row.owed_by),
+      owed_to: toText(row.owed_to),
+      amount: fromPaise(toNumber(row.amount_paise)),
+    }));
+    return { data: positions, error: null };
+  } catch {
+    return { data: null, error: 'Unable to load the positions between accounts.' };
+  }
+}
+
+/**
+ * Ledger income, expenses and what is still open, per account, for the Books
+ * card. Refused for a clerk who may not see balances; that is an empty list.
+ */
+export async function fetchLedgerSummary(startDate: string, endDate: string): Promise<ServiceResult<LedgerAccountSummary[]>> {
+  try {
+    const { data, error } = await supabase.rpc('finance_ledger_summary', { p_start: startDate, p_end: endDate });
+    if (error) {
+      if (isForbidden(error)) return { data: [], error: null };
+      return { data: null, error: 'Unable to load the ledger summary.' };
+    }
+    const rows = asRecords(data).map((row) => ({
+      account_id: toText(row.account_id),
+      income: fromPaise(toNumber(row.income_paise)),
+      expenses: fromPaise(toNumber(row.expense_paise)),
+      openPayables: fromPaise(toNumber(row.open_payables_paise)),
+      openReceivables: fromPaise(toNumber(row.open_receivables_paise)),
+    }));
+    return { data: rows, error: null };
+  } catch {
+    return { data: null, error: 'Unable to load the ledger summary.' };
   }
 }

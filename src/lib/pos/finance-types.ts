@@ -294,7 +294,10 @@ export type FinanceRules = {
 
 export type FinanceEntry = {
   id: string;
+  /** Whose books carry the entry ("For"). */
   account_id: string;
+  /** Whose cash or bank moved ("Paid from"), when that is another account; null means account_id. */
+  paid_from_account_id: string | null;
   kind: LedgerKind;
   status: LedgerStatus;
   amount: number;
@@ -325,6 +328,7 @@ export type FinanceEntry = {
 
 export type FinanceEntryInput = {
   account_id: string;
+  paid_from_account_id: string | null;
   kind: LedgerKind;
   amount: number;
   mode: LedgerMode | null;
@@ -343,6 +347,8 @@ export type FinanceEntryInput = {
 /** Raw form values before validation (everything is a string from TextInput). */
 export type EntryFormValues = {
   account_id: string;
+  /** '' when the same account pays. */
+  paid_from_account_id: string;
   kind: LedgerKind;
   amount: string;
   mode: LedgerMode;
@@ -408,4 +414,43 @@ export type AccountBalance = {
   account_id: string;
   cash: number;
   bank: number;
+};
+
+// ─── Settlement and positions (plan §3, step 2) ──────────────────────────────
+
+export type SettleEntryInput = {
+  entry_id: string;
+  amount: number;
+  mode: LedgerMode;
+  transaction_date: string;
+  paid_from_account_id: string | null;
+  reference_no: string | null;
+  notes: string | null;
+};
+
+export type SettleFormValues = {
+  amount: string;
+  mode: LedgerMode;
+  transaction_date: string;
+  paid_from_account_id: string;
+  reference_no: string;
+  notes: string;
+};
+
+export type SettleFormErrors = Partial<Record<keyof SettleFormValues, string>>;
+
+/** One account owes another, netted over everything one paid for the other. */
+export type InterAccountPosition = {
+  owed_by: string;
+  owed_to: string;
+  amount: number;
+};
+
+/** The Books card: ledger income and expenses in range, and what is still open. */
+export type LedgerAccountSummary = {
+  account_id: string;
+  income: number;
+  expenses: number;
+  openPayables: number;
+  openReceivables: number;
 };

@@ -80,6 +80,7 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
   return {
     id: 'entry-1',
     account_id: 'acct-ck',
+    paid_from_account_id: null,
     kind: 'expense',
     status: 'recorded',
     amount: 1250,
@@ -237,6 +238,8 @@ beforeEach(() => {
   mockedLedger.fetchLedgerEntries.mockResolvedValue({ data: { rows: [makeEntry()], total: 1, page: 0, pageSize: 50 }, error: null });
   mockedLedger.fetchAccountBalances.mockResolvedValue({ data: [{ account_id: 'acct-ck', cash: 4250, bank: 120000 }], error: null });
   mockedLedger.fetchEntryRevisions.mockResolvedValue({ data: [], error: null });
+  mockedLedger.fetchInterAccountPositions.mockResolvedValue({ data: [], error: null });
+  mockedLedger.fetchLedgerSummary.mockResolvedValue({ data: [], error: null });
   (useSessionStore as unknown as jest.Mock).mockImplementation(
     (selector: (s: { session: typeof SESSION }) => unknown) => selector({ session: SESSION }),
   );

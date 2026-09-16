@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Banknote,
   BarChart3,
+  BookOpen,
   Clock,
   CreditCard,
   Percent,
@@ -18,6 +19,9 @@ import {
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { useLedgerStore } from '@/lib/pos/use-ledger-store';
+import { useSessionStore } from '@/lib/pos/use-session-store';
+import { isFinanceOwner } from '@/lib/pos/finance-ledger-utils';
 import { computeProfitAndLoss, formatINR, formatPaymentMethod, formatPercent } from '@/lib/pos/finance-utils';
 import { FinanceKpiCard } from './FinanceKpiCard';
 import { DonutChart, HorizontalBars, RevenueExpenseBars, type DonutSegment } from './FinanceCharts';
@@ -45,6 +49,54 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   // Four cards share a row on a tablet, where "₹2,38,981.20" does not fit
   // in one; abbreviated figures do, and the desktop keeps the exact ones.
   const compactMoney = compact || !isDesktop;
+
+  // The Books card: the ledger's position per account, owners only. The
+  // ledger store loads on demand here, since the Ledger tab may not have
+  // been opened yet, and follows the same date range as the rest of the tab.
+  const session = useSessionStore((s) => s.session);
+  const isOwner = isFinanceOwner(session?.role);
+  const filters = useFinanceStore((s) => s.filters);
+  const ledgerInitialized = useLedgerStore((s) => s.initialized);
+  const initializeLedger = useLedgerStore((s) => s.initialize);
+  const ledgerFilters = useLedgerStore((s) => s.filters);
+  const setLedgerFilters = useLedgerStore((s) => s.setFilters);
+  const accounts = useLedgerStore((s) => s.accounts);
+  const balances = useLedgerStore((s) => s.balances);
+  const ledgerSummary = useLedgerStore((s) => s.summary);
+  const positions = useLedgerStore((s) => s.positions);
+
+  useEffect(() => {
+    if (isOwner && session) void initializeLedger();
+  }, [isOwner, session, initializeLedger]);
+
+  useEffect(() => {
+    if (!isOwner || !ledgerInitialized) return;
+    if (ledgerFilters.startDate === filters.startDate && ledgerFilters.endDate === filters.endDate) return;
+    setLedgerFilters({ startDate: filters.startDate, endDate: filters.endDate });
+  }, [isOwner, ledgerInitialized, filters.startDate, filters.endDate, ledgerFilters.startDate, ledgerFilters.endDate, setLedgerFilters]);
+
+  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account';
+  const books = useMemo(
+    () =>
+      accounts
+        .filter((a) => a.is_active)
+        .map((a) => {
+          const balance = balances.find((b) => b.account_id === a.id);
+          const row = ledgerSummary.find((r) => r.account_id === a.id);
+          return {
+            id: a.id,
+            name: a.name,
+            cash: balance?.cash ?? null,
+            bank: balance?.bank ?? null,
+            income: row?.income ?? 0,
+            expenses: row?.expenses ?? 0,
+            openPayables: row?.openPayables ?? 0,
+            openReceivables: row?.openReceivables ?? 0,
+          };
+        }),
+    [accounts, balances, ledgerSummary],
+  );
+  const showBooks = isOwner && ledgerInitialized && balances.length > 0;
 
   const pnl = useMemo(() => (summary ? computeProfitAndLoss(summary) : null), [summary]);
 
@@ -234,6 +286,52 @@ export function FinanceOverviewTab({ compact = false }: Props) {
               )}
             </FinanceSectionCard>
           </View>
+
+          {/* Books: the hand-kept ledger, per account */}
+          {showBooks ? (
+            <FinanceSectionCard
+              title="Books"
+              subtitle="Ledger income and expenses in range; cash, bank and outstanding as of today"
+              icon={<BookOpen size={16} color={colors.primary} />}
+              className="mb-4"
+            >
+              {books.map((b) => (
+                <View key={b.id} className="border-b border-border-soft py-2">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="flex-1 text-xs font-bold text-text-primary" numberOfLines={1}>{b.name}</Text>
+                    <Text className="text-xs font-semibold text-text-secondary">
+                      Cash {b.cash === null ? '—' : formatINR(b.cash, { compact: compactMoney })} · Bank {b.bank === null ? '—' : formatINR(b.bank, { compact: compactMoney })}
+                    </Text>
+                  </View>
+                  <View className="mt-1 flex-row flex-wrap items-center justify-between">
+                    <Text className="text-[11px] text-text-secondary">
+                      In <Text style={{ color: semantic.success }}>{formatINR(b.income, { compact: compactMoney })}</Text> · Out{' '}
+                      <Text style={{ color: semantic.danger }}>{formatINR(b.expenses, { compact: compactMoney })}</Text> · Net{' '}
+                      <Text className="font-bold text-text-primary">{formatINR(b.income - b.expenses, { compact: compactMoney, signed: true })}</Text>
+                    </Text>
+                    {b.openPayables > 0 || b.openReceivables > 0 ? (
+                      <Text className="text-[11px] text-text-secondary">
+                        To pay {formatINR(b.openPayables, { compact: compactMoney })} · To collect {formatINR(b.openReceivables, { compact: compactMoney })}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+              {positions.length > 0 ? (
+                <View className="mt-2">
+                  <Text className="mb-1 text-[11px] font-bold uppercase tracking-wide text-text-secondary">Between accounts</Text>
+                  {positions.map((p) => (
+                    <Text key={`${p.owed_by}-${p.owed_to}`} className="text-xs text-text-primary">
+                      <Text className="font-bold">{accountName(p.owed_by)}</Text> owes <Text className="font-bold">{accountName(p.owed_to)}</Text> {formatINR(p.amount, { compact: compactMoney })}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+              <Text className="mt-2 text-[11px] text-text-secondary">
+                Opening balances and partner entries are left out of income and expenses. Full detail is on the Ledger tab.
+              </Text>
+            </FinanceSectionCard>
+          ) : null}
 
           {/* Cash position */}
           <FinanceSectionCard
