@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowDownLeft,
@@ -12,7 +12,10 @@ import {
   History,
   Pencil,
   Plus,
+  ChevronDown,
+  ChevronUp,
   Search,
+  SlidersHorizontal,
   X,
 } from 'lucide-react-native';
 
@@ -33,6 +36,7 @@ import {
   emptyEntryForm,
   entryDirection,
   entryToFormValues,
+  LEDGER_MAX_ROWS,
 } from '@/lib/pos/finance-ledger-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
@@ -78,6 +82,7 @@ export function LedgerTab({ compact = false }: Props) {
   const entries = useLedgerStore((s) => s.entries);
   const total = useLedgerStore((s) => s.total);
   const loading = useLedgerStore((s) => s.loading);
+  const loadingMore = useLedgerStore((s) => s.loadingMore);
   const error = useLedgerStore((s) => s.error);
   const mutating = useLedgerStore((s) => s.mutating);
   const selected = useLedgerStore((s) => s.selected);
@@ -86,6 +91,7 @@ export function LedgerTab({ compact = false }: Props) {
   const balances = useLedgerStore((s) => s.balances);
   const newEntryRequested = useLedgerStore((s) => s.newEntryRequested);
   const loadEntries = useLedgerStore((s) => s.loadEntries);
+  const loadMore = useLedgerStore((s) => s.loadMore);
   const setFilters = useLedgerStore((s) => s.setFilters);
   const addEntry = useLedgerStore((s) => s.addEntry);
   const editEntry = useLedgerStore((s) => s.editEntry);
@@ -101,6 +107,9 @@ export function LedgerTab({ compact = false }: Props) {
   const [voidReason, setVoidReason] = useState('');
   const [voidError, setVoidError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(filters.search);
+  // The filter rows fold away: the start page shows the search, the active
+  // filters as removable chips, and the entries. Open the panel to change them.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (session) void initialize();
@@ -126,11 +135,14 @@ export function LedgerTab({ compact = false }: Props) {
     return () => clearTimeout(handle);
   }, [savedNotice]);
 
-  // The default account for a new entry: the user's own branch, else the first.
+  // The default account for a new entry is the primary books, the account
+  // whose profit the partners share (the Central Kitchen), because that is
+  // what the ledger is kept for. Failing that, the user's own branch.
   const defaultAccountId = useMemo(() => {
     const active = accounts.filter((a) => a.is_active);
+    const primary = active.find((a) => a.counts_in_partner_profit);
     const own = active.find((a) => a.branch_id === session?.branchId);
-    return (own ?? active[0])?.id ?? '';
+    return (primary ?? own ?? active[0])?.id ?? '';
   }, [accounts, session?.branchId]);
 
   const openCreate = useCallback(() => {
@@ -184,8 +196,10 @@ export function LedgerTab({ compact = false }: Props) {
   const accountName = useCallback((id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account', [accounts]);
   const showBalances = canSeeBalances(role, rules) && balances.length > 0;
   const pageCount = Math.max(1, Math.ceil(total / filters.pageSize));
-  const firstIndex = total === 0 ? 0 : filters.page * filters.pageSize + 1;
-  const lastIndex = Math.min(total, (filters.page + 1) * filters.pageSize);
+  // The phone appends pages, so its "showing" runs from the first row.
+  const firstIndex = total === 0 ? 0 : compact ? 1 : filters.page * filters.pageSize + 1;
+  const lastIndex = compact ? Math.min(total, entries.length) : Math.min(total, (filters.page + 1) * filters.pageSize);
+  const atCap = compact && entries.length >= LEDGER_MAX_ROWS && entries.length < total;
 
   const pageTotals = useMemo(() => {
     let inSum = 0;
@@ -211,29 +225,50 @@ export function LedgerTab({ compact = false }: Props) {
     [compact, accountName, catalog, openEntry],
   );
 
+  const activeFilterChips: { key: string; label: string; clear: () => void }[] = [];
+  if (filters.accountId) activeFilterChips.push({ key: 'account', label: accountName(filters.accountId), clear: () => setFilters({ accountId: null }) });
+  if (filters.kind) activeFilterChips.push({ key: 'kind', label: LEDGER_KIND_LABELS[filters.kind], clear: () => setFilters({ kind: null }) });
+  if (filters.mode) activeFilterChips.push({ key: 'mode', label: LEDGER_MODE_LABELS[filters.mode], clear: () => setFilters({ mode: null }) });
+  if (filters.enteredBy) activeFilterChips.push({ key: 'mine', label: 'Mine', clear: () => setFilters({ enteredBy: null }) });
+  if (filters.status !== 'active') {
+    activeFilterChips.push({
+      key: 'status',
+      label: STATUS_FILTERS.find((s) => s.key === filters.status)?.label ?? filters.status,
+      clear: () => setFilters({ status: 'active' }),
+    });
+  }
+  const sortLabel = `${SORTS.find((s) => s.key === filters.sort)?.label ?? 'Date'} ${filters.sortDir === 'desc' ? '↓' : '↑'}`;
+  const clearAllFilters = () => setFilters({ accountId: null, kind: null, mode: null, enteredBy: null, status: 'active' });
+
+  const balanceCards = balances.map((b) => (
+    <View key={b.account_id} className={`rounded-2xl border border-border/60 bg-white p-3 shadow-sm ${compact ? 'min-w-[200px]' : 'min-w-[220px] flex-1'}`}>
+      <Text className="text-[11px] font-bold uppercase tracking-wide text-text-secondary" numberOfLines={1}>{accountName(b.account_id)}</Text>
+      <View className="mt-1 flex-row items-end justify-between">
+        <View>
+          <Text className="text-[10px] text-text-secondary">Cash</Text>
+          <Text className="text-base font-extrabold text-text-primary">{formatINR(b.cash, { compact: compactMoney })}</Text>
+        </View>
+        <View className="items-end">
+          <Text className="text-[10px] text-text-secondary">Bank</Text>
+          <Text className="text-base font-extrabold text-text-primary">{formatINR(b.bank, { compact: compactMoney })}</Text>
+        </View>
+      </View>
+    </View>
+  ));
+
   const header = (
     <View className="mb-3">
       {showBalances ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ gap: 12 }}>
-          {balances.map((b) => (
-            <View key={b.account_id} className="min-w-[200px] rounded-2xl border border-border/60 bg-white p-3 shadow-sm">
-              <Text className="text-[11px] font-bold uppercase tracking-wide text-text-secondary" numberOfLines={1}>{accountName(b.account_id)}</Text>
-              <View className="mt-1 flex-row items-end justify-between">
-                <View>
-                  <Text className="text-[10px] text-text-secondary">Cash</Text>
-                  <Text className="text-base font-extrabold text-text-primary">{formatINR(b.cash, { compact: compactMoney })}</Text>
-                </View>
-                <View className="items-end">
-                  <Text className="text-[10px] text-text-secondary">Bank</Text>
-                  <Text className="text-base font-extrabold text-text-primary">{formatINR(b.bank, { compact: compactMoney })}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        compact ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ gap: 12, paddingVertical: 4, paddingHorizontal: 2 }}>
+            {balanceCards}
+          </ScrollView>
+        ) : (
+          <View className="mb-3 flex-row flex-wrap gap-3">{balanceCards}</View>
+        )
       ) : null}
 
-      {/* Toolbar */}
+      {/* Toolbar: search, the filter toggle, record */}
       <View className={compact ? 'gap-2' : 'flex-row items-center gap-2'}>
         <View className="min-h-[44px] flex-1 flex-row items-center rounded-xl border border-border bg-white px-3">
           <Search size={16} color={colors.textSecondary} />
@@ -251,53 +286,99 @@ export function LedgerTab({ compact = false }: Props) {
             </Pressable>
           ) : null}
         </View>
-        <Pressable
-          onPress={openCreate}
-          disabled={!initialized}
-          className={`min-h-[44px] flex-row items-center justify-center rounded-xl bg-primary px-4 ${compact ? '' : ''}`}
-          style={({ pressed }) => [{ opacity: pressed || !initialized ? 0.7 : 1 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Record an entry"
-        >
-          <Plus size={16} color={colors.textOnPrimary} />
-          <Text className="ml-1.5 text-sm font-bold text-text-on-primary">Record entry</Text>
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={() => setFiltersOpen((v) => !v)}
+            className={`min-h-[44px] flex-row items-center justify-center rounded-xl border px-3 ${filtersOpen || activeFilterChips.length > 0 ? 'border-primary bg-accent-soft' : 'border-border bg-white'}`}
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel={filtersOpen ? 'Hide filters' : 'Show filters'}
+            accessibilityState={{ expanded: filtersOpen }}
+          >
+            <SlidersHorizontal size={15} color={colors.primary} />
+            <Text className="ml-1.5 text-xs font-bold text-primary">
+              Filters{activeFilterChips.length > 0 ? ` · ${activeFilterChips.length}` : ''}
+            </Text>
+            <View className="ml-1">{filtersOpen ? <ChevronUp size={14} color={colors.primary} /> : <ChevronDown size={14} color={colors.primary} />}</View>
+          </Pressable>
+          <Pressable
+            onPress={openCreate}
+            disabled={!initialized}
+            className={`min-h-[44px] flex-row items-center justify-center rounded-xl bg-primary px-4 ${compact ? 'flex-1' : ''}`}
+            style={({ pressed }) => [{ opacity: pressed || !initialized ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Record an entry"
+          >
+            <Plus size={16} color={colors.textOnPrimary} />
+            <Text className="ml-1.5 text-sm font-bold text-text-on-primary">Record entry</Text>
+          </Pressable>
+        </View>
       </View>
 
-      {/* Filters: account, kind, mode, status, mine */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-3" contentContainerStyle={{ alignItems: 'center' }}>
-        <FilterChip label="All accounts" active={filters.accountId === null} onPress={() => setFilters({ accountId: null })} />
-        {accounts.filter((a) => a.is_active).map((a) => (
-          <FilterChip key={a.id} label={a.name} active={filters.accountId === a.id} onPress={() => setFilters({ accountId: filters.accountId === a.id ? null : a.id })} />
-        ))}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2" contentContainerStyle={{ alignItems: 'center' }}>
-        <FilterChip label="Any kind" active={filters.kind === null} onPress={() => setFilters({ kind: null })} />
-        {LEDGER_KINDS.map((k: LedgerKind) => (
-          <FilterChip key={k} label={LEDGER_KIND_LABELS[k]} active={filters.kind === k} onPress={() => setFilters({ kind: filters.kind === k ? null : k })} />
-        ))}
-        <View className="mx-1 h-6 w-px bg-border" />
-        {LEDGER_MODES.map((m) => (
-          <FilterChip key={m} label={LEDGER_MODE_LABELS[m]} active={filters.mode === m} onPress={() => setFilters({ mode: filters.mode === m ? null : m })} />
-        ))}
-        <View className="mx-1 h-6 w-px bg-border" />
-        <FilterChip label="Mine" active={filters.enteredBy !== null} onPress={() => setFilters({ enteredBy: filters.enteredBy ? null : staffId })} />
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2" contentContainerStyle={{ alignItems: 'center' }}>
-        {STATUS_FILTERS.map((s) => (
-          <FilterChip key={s.key} label={s.label} active={filters.status === s.key} onPress={() => setFilters({ status: s.key })} />
-        ))}
-        <View className="mx-1 h-6 w-px bg-border" />
-        <Text className="mr-2 text-[11px] font-bold uppercase text-text-secondary">Sort</Text>
-        {SORTS.map((s) => (
-          <FilterChip
-            key={s.key}
-            label={filters.sort === s.key ? `${s.label} ${filters.sortDir === 'desc' ? '↓' : '↑'}` : s.label}
-            active={filters.sort === s.key}
-            onPress={() => setFilters(filters.sort === s.key ? { sortDir: filters.sortDir === 'desc' ? 'asc' : 'desc' } : { sort: s.key, sortDir: 'desc' })}
-          />
-        ))}
-      </ScrollView>
+      {/* What is filtering the list right now, each removable with a tap */}
+      {activeFilterChips.length > 0 && !filtersOpen ? (
+        <View className="mt-2 flex-row flex-wrap items-center gap-2">
+          {activeFilterChips.map((chip) => (
+            <Pressable
+              key={chip.key}
+              onPress={chip.clear}
+              className="min-h-[36px] flex-row items-center rounded-full border border-primary bg-accent-soft px-3"
+              hitSlop={4}
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove filter ${chip.label}`}
+            >
+              <Text className="text-xs font-bold text-primary">{chip.label}</Text>
+              <View className="ml-1"><X size={12} color={colors.primary} /></View>
+            </Pressable>
+          ))}
+          <Pressable onPress={clearAllFilters} className="min-h-[36px] justify-center px-2" hitSlop={4} accessibilityRole="button" accessibilityLabel="Clear all filters">
+            <Text className="text-xs font-bold text-text-secondary">Clear all</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {filtersOpen ? (
+        <View className="mt-3 rounded-2xl border border-border/60 bg-white p-3 shadow-sm">
+          <FilterRow label="Account" compact={compact}>
+            <FilterChip label="All accounts" active={filters.accountId === null} onPress={() => setFilters({ accountId: null })} />
+            {accounts.filter((a) => a.is_active).map((a) => (
+              <FilterChip key={a.id} label={a.name} active={filters.accountId === a.id} onPress={() => setFilters({ accountId: filters.accountId === a.id ? null : a.id })} />
+            ))}
+          </FilterRow>
+          <FilterRow label="Kind" compact={compact}>
+            <FilterChip label="Any kind" active={filters.kind === null} onPress={() => setFilters({ kind: null })} />
+            {LEDGER_KINDS.map((k: LedgerKind) => (
+              <FilterChip key={k} label={LEDGER_KIND_LABELS[k]} active={filters.kind === k} onPress={() => setFilters({ kind: filters.kind === k ? null : k })} />
+            ))}
+          </FilterRow>
+          <FilterRow label="Paid via" compact={compact}>
+            <FilterChip label="Cash or bank" active={filters.mode === null} onPress={() => setFilters({ mode: null })} />
+            {LEDGER_MODES.map((m) => (
+              <FilterChip key={m} label={LEDGER_MODE_LABELS[m]} active={filters.mode === m} onPress={() => setFilters({ mode: filters.mode === m ? null : m })} />
+            ))}
+          </FilterRow>
+          <FilterRow label="Entered by" compact={compact}>
+            <FilterChip label="Anyone" active={filters.enteredBy === null} onPress={() => setFilters({ enteredBy: null })} />
+            <FilterChip label="Me" active={filters.enteredBy !== null} onPress={() => setFilters({ enteredBy: staffId })} />
+          </FilterRow>
+          <FilterRow label="Status" compact={compact}>
+            {STATUS_FILTERS.map((s) => (
+              <FilterChip key={s.key} label={s.label} active={filters.status === s.key} onPress={() => setFilters({ status: s.key })} />
+            ))}
+          </FilterRow>
+          <FilterRow label="Sort" compact={compact} last>
+            {SORTS.map((s) => (
+              <FilterChip
+                key={s.key}
+                label={filters.sort === s.key ? `${s.label} ${filters.sortDir === 'desc' ? '↓' : '↑'}` : s.label}
+                active={filters.sort === s.key}
+                onPress={() => setFilters(filters.sort === s.key ? { sortDir: filters.sortDir === 'desc' ? 'asc' : 'desc' } : { sort: s.key, sortDir: 'desc' })}
+              />
+            ))}
+          </FilterRow>
+        </View>
+      ) : null}
 
       {savedNotice ? (
         <View className="mt-3 flex-row items-center rounded-xl px-3 py-2" style={{ backgroundColor: semantic.successSoft }} accessibilityLiveRegion="polite">
@@ -308,7 +389,7 @@ export function LedgerTab({ compact = false }: Props) {
       {/* Summary strip */}
       <View className="mt-3 flex-row items-center justify-between rounded-xl bg-surface-tint px-3 py-2">
         <Text className="text-xs font-semibold text-text-secondary">
-          {total === 0 ? 'No entries' : `Showing ${firstIndex}–${lastIndex} of ${total}`}
+          {total === 0 ? 'No entries' : `Showing ${firstIndex}–${lastIndex} of ${total}`} · {sortLabel}
         </Text>
         <Text className="text-xs font-bold text-text-primary">
           <Text style={{ color: semantic.success }}>{formatINR(pageTotals.inSum, { signed: true, compact: compactMoney })}</Text>
@@ -323,8 +404,15 @@ export function LedgerTab({ compact = false }: Props) {
     </View>
   );
 
-  const footer =
-    total > filters.pageSize ? (
+  const footer = compact ? (
+    loadingMore ? (
+      <FinanceLoadingView inline label="Loading more…" />
+    ) : atCap ? (
+      <Text className="py-4 text-center text-xs text-text-secondary">
+        Showing the first {LEDGER_MAX_ROWS.toLocaleString('en-IN')} of {total.toLocaleString('en-IN')}. Narrow the date range or filters to see the rest.
+      </Text>
+    ) : null
+  ) : total > filters.pageSize ? (
       <View className="mt-3 flex-row items-center justify-center gap-3 py-2">
         <Pressable
           onPress={() => loadEntries(filters.page - 1)}
@@ -375,6 +463,14 @@ export function LedgerTab({ compact = false }: Props) {
         contentContainerStyle={financeContentPadding(compact)}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        // A phone scrolls on; a desktop pages. Either way only the rows in
+        // view are mounted, and native drops the ones scrolled far away.
+        onEndReached={compact ? () => void loadMore() : undefined}
+        onEndReachedThreshold={0.6}
+        initialNumToRender={20}
+        maxToRenderPerBatch={20}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS !== 'web'}
       />
 
       <EntryFormModal
@@ -469,13 +565,27 @@ export function LedgerTab({ compact = false }: Props) {
 
 // ─── Pieces ──────────────────────────────────────────────────────────────────
 
+type FilterRowProps = { label: string; compact: boolean; last?: boolean; children: React.ReactNode };
+
+function FilterRow({ label, compact, last = false, children }: FilterRowProps) {
+  return (
+    <View className={`${last ? '' : 'mb-2'} ${compact ? '' : 'flex-row items-center'}`}>
+      <Text className={`text-[11px] font-bold uppercase tracking-wide text-text-secondary ${compact ? 'mb-1.5' : 'w-[96px]'}`}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ alignItems: 'center' }}>
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
+
 type FilterChipProps = { label: string; active: boolean; onPress: () => void };
 
 function FilterChip({ label, active, onPress }: FilterChipProps) {
   return (
     <Pressable
       onPress={onPress}
-      className={`mr-2 min-h-[44px] items-center justify-center rounded-full border px-3.5 ${active ? 'border-primary bg-accent-soft' : 'border-border bg-white'}`}
+      className={`mr-2 min-h-[40px] items-center justify-center rounded-full border px-3.5 ${active ? 'border-primary bg-accent-soft' : 'border-border bg-white'}`}
+      hitSlop={2}
       style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}

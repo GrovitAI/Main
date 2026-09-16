@@ -275,6 +275,7 @@ export function DayCloseTab({ compact = false }: Props) {
         onClose={() => setPickerOpen(false)}
         startDate={dayCloseDate}
         endDate={dayCloseDate}
+        mode="single"
         onApply={(start) => {
           if (start <= today) setDayCloseDate(start);
         }}

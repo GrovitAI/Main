@@ -385,7 +385,8 @@ export type LedgerFilters = {
 
 export type LedgerPage = {
   rows: FinanceEntry[];
-  total: number;
+  /** null when the page was fetched without counting (pages after the first). */
+  total: number | null;
   page: number;
   pageSize: number;
 };

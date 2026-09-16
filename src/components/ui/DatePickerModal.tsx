@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,11 @@ export interface DatePickerModalProps {
   startTime?: string; // HH:mm
   endTime?: string;   // HH:mm
   showTimePicker?: boolean;
+  /**
+   * 'range' (default) picks a start and an end. 'single' picks one day: no
+   * range presets, one tap selects, and the button reads "Use this date".
+   */
+  mode?: 'range' | 'single';
   onApply: (start: string, end: string, startTime?: string, endTime?: string) => void;
 }
 
@@ -28,8 +33,10 @@ export function DatePickerModal({
   startTime = '11:30',
   endTime = '02:30',
   showTimePicker = false,
+  mode = 'range',
   onApply,
 }: DatePickerModalProps) {
+  const single = mode === 'single';
   const [selectedStart, setSelectedStart] = useState(startDate || new Date().toISOString().slice(0, 10));
   const [selectedEnd, setSelectedEnd] = useState(endDate || new Date().toISOString().slice(0, 10));
   const [selectedStartTime, setSelectedStartTime] = useState(startTime);
@@ -40,6 +47,17 @@ export function DatePickerModal({
     const init = new Date(startDate || Date.now());
     return isNaN(init.getTime()) ? new Date() : init;
   });
+
+  // The picker stays mounted between openings, so each opening starts from
+  // the dates it was given rather than whatever was picked last time.
+  useEffect(() => {
+    if (!visible) return;
+    const start = startDate || new Date().toISOString().slice(0, 10);
+    setSelectedStart(start);
+    setSelectedEnd(single ? start : endDate || start);
+    const init = new Date(start);
+    setViewDate(isNaN(init.getTime()) ? new Date() : init);
+  }, [visible, startDate, endDate, single]);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -67,6 +85,11 @@ export function DatePickerModal({
   };
 
   const handleDayPress = (dayStr: string) => {
+    if (single) {
+      setSelectedStart(dayStr);
+      setSelectedEnd(dayStr);
+      return;
+    }
     if (!selectedStart || (selectedStart && selectedEnd && selectedStart !== selectedEnd)) {
       setSelectedStart(dayStr);
       setSelectedEnd(dayStr);
@@ -114,8 +137,14 @@ export function DatePickerModal({
   };
 
   const handleConfirm = () => {
-    onApply(selectedStart, selectedEnd, selectedStartTime, selectedEndTime);
+    onApply(selectedStart, single ? selectedStart : selectedEnd, selectedStartTime, selectedEndTime);
     onClose();
+  };
+
+  const longDate = (iso: string): string => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso || 'Not set';
+    return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   const renderCalendarGrid = () => {
@@ -168,7 +197,7 @@ export function DatePickerModal({
           <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
             <View className="flex-row items-center space-x-2">
               <CalendarIcon size={18} color="#0284c7" />
-              <Text className="text-sm font-bold text-slate-900">Select Date & Business Hours</Text>
+              <Text className="text-sm font-bold text-slate-900">{single ? 'Pick a date' : 'Select Date & Business Hours'}</Text>
             </View>
             <Pressable onPress={onClose} className="p-1 rounded-lg hover:bg-slate-200">
               <X size={18} color="#64748b" />
@@ -177,7 +206,7 @@ export function DatePickerModal({
 
           <ScrollView className="p-5 max-h-[500px]">
             {/* Quick Presets */}
-            <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Quick Ranges</Text>
+            <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">{single ? 'Quick pick' : 'Quick Ranges'}</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
               {([
                 { id: 'today', label: 'Today' },
@@ -185,7 +214,9 @@ export function DatePickerModal({
                 { id: '7days', label: 'Last 7 Days' },
                 { id: '30days', label: 'Last 30 Days' },
                 { id: 'month', label: 'This Month' },
-              ] as const).map((p) => (
+              ] as const)
+                .filter((p) => !single || p.id === 'today' || p.id === 'yesterday')
+                .map((p) => (
                 <Pressable
                   key={p.id}
                   onPress={() => applyPreset(p.id)}
@@ -223,18 +254,25 @@ export function DatePickerModal({
             {/* Calendar Grid */}
             <View className="flex-row flex-wrap mb-4">{renderCalendarGrid()}</View>
 
-            {/* Selected Range Display */}
-            <View className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex-row items-center justify-between">
-              <View>
-                <Text className="text-[10px] font-bold text-slate-400 uppercase">From</Text>
-                <Text className="text-xs font-bold text-slate-800">{selectedStart || 'Not set'}</Text>
+            {/* Selected date or range */}
+            {single ? (
+              <View className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4">
+                <Text className="text-[10px] font-bold text-slate-400 uppercase">Date</Text>
+                <Text className="text-sm font-bold text-slate-800">{longDate(selectedStart)}</Text>
               </View>
-              <Text className="text-slate-400 font-bold">→</Text>
-              <View className="items-end">
-                <Text className="text-[10px] font-bold text-slate-400 uppercase">To</Text>
-                <Text className="text-xs font-bold text-slate-800">{selectedEnd || 'Not set'}</Text>
+            ) : (
+              <View className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4 flex-row items-center justify-between">
+                <View>
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase">From</Text>
+                  <Text className="text-xs font-bold text-slate-800">{selectedStart || 'Not set'}</Text>
+                </View>
+                <Text className="text-slate-400 font-bold">→</Text>
+                <View className="items-end">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase">To</Text>
+                  <Text className="text-xs font-bold text-slate-800">{selectedEnd || 'Not set'}</Text>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Optional Time Range Picker */}
             {showTimePicker && (
@@ -273,7 +311,7 @@ export function DatePickerModal({
               <Text className="text-xs font-bold text-slate-700">Cancel</Text>
             </Pressable>
             <Pressable onPress={handleConfirm} className="px-5 py-2 rounded-xl bg-blue-600 active:opacity-90">
-              <Text className="text-xs font-bold text-white">Apply Range</Text>
+              <Text className="text-xs font-bold text-white">{single ? 'Use this date' : 'Apply Range'}</Text>
             </Pressable>
           </View>
         </View>

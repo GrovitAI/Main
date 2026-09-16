@@ -30,7 +30,7 @@ import type {
   FinanceRules,
   LedgerFilters,
 } from './finance-types';
-import { initialLedgerFilters } from './finance-ledger-utils';
+import { LEDGER_MAX_ROWS, initialLedgerFilters } from './finance-ledger-utils';
 
 type MutationResult = { ok: true } | { ok: false; error: string };
 
@@ -47,6 +47,8 @@ type LedgerState = {
   entries: FinanceEntry[];
   total: number;
   loading: boolean;
+  /** A further page is being appended (phone scrolling). */
+  loadingMore: boolean;
   error: string | null;
   mutating: boolean;
 
@@ -63,7 +65,9 @@ type LedgerState = {
 
   initialize: () => Promise<void>;
   refreshReference: () => Promise<void>;
-  loadEntries: (page?: number) => Promise<void>;
+  loadEntries: (page?: number, options?: { append?: boolean }) => Promise<void>;
+  /** Appends the next page, for a scrolling list. No-op at the end or the cap. */
+  loadMore: () => Promise<void>;
   setFilters: (patch: Partial<LedgerFilters>) => void;
   addEntry: (input: FinanceEntryInput) => Promise<MutationResult>;
   editEntry: (id: string, input: FinanceEntryInput) => Promise<MutationResult>;
@@ -92,6 +96,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     entries: [],
     total: 0,
     loading: false,
+    loadingMore: false,
     error: null,
     mutating: false,
 
@@ -123,17 +128,32 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
       });
     },
 
-    loadEntries: async (page) => {
+    loadEntries: async (page, options) => {
       const requestId = ++entriesRequest;
+      const append = options?.append === true;
       const filters = { ...get().filters, page: page ?? get().filters.page };
-      set({ loading: true, error: null, filters });
-      const { data, error } = await fetchLedgerEntries(filters);
+      set({ loading: !append, loadingMore: append, error: null, filters });
+      // The count is asked for on the first page only; later pages reuse it.
+      const { data, error } = await fetchLedgerEntries(filters, { withCount: filters.page === 0 });
       if (requestId !== entriesRequest) return;
       if (error || !data) {
-        set({ loading: false, error: error ?? 'Unable to load the ledger.' });
+        set({ loading: false, loadingMore: false, error: error ?? 'Unable to load the ledger.' });
         return;
       }
-      set({ loading: false, entries: data.rows, total: data.total, filters: { ...get().filters, page: data.page } });
+      set({
+        loading: false,
+        loadingMore: false,
+        entries: append ? [...get().entries, ...data.rows] : data.rows,
+        total: data.total ?? get().total,
+        filters: { ...get().filters, page: data.page },
+      });
+    },
+
+    loadMore: async () => {
+      const { filters, entries, total, loading, loadingMore } = get();
+      if (loading || loadingMore) return;
+      if (entries.length >= total || entries.length >= LEDGER_MAX_ROWS) return;
+      await get().loadEntries(filters.page + 1, { append: true });
     },
 
     setFilters: (patch) => {

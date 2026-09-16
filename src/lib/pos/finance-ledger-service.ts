@@ -260,7 +260,15 @@ function sanitizeSearch(raw: string): string {
   return raw.replace(/[%,()\\]/g, ' ').trim().slice(0, 80);
 }
 
-export async function fetchLedgerEntries(filters: LedgerFilters): Promise<ServiceResult<LedgerPage>> {
+export type FetchLedgerOptions = {
+  /**
+   * Count the matching rows. An exact count costs a scan of every match, so
+   * the store asks for it only when the filters change, not on every page.
+   */
+  withCount?: boolean;
+};
+
+export async function fetchLedgerEntries(filters: LedgerFilters, options: FetchLedgerOptions = {}): Promise<ServiceResult<LedgerPage>> {
   try {
     const { tenant_id } = getTenantContext();
     const pageSize = Math.max(1, Math.min(200, filters.pageSize));
@@ -269,7 +277,7 @@ export async function fetchLedgerEntries(filters: LedgerFilters): Promise<Servic
 
     let q = supabase
       .from('finance_entries')
-      .select(ENTRY_COLUMNS, { count: 'exact' })
+      .select(ENTRY_COLUMNS, options.withCount ? { count: 'exact' } : undefined)
       .eq('tenant_id', tenant_id)
       .gte('transaction_date', filters.startDate)
       .lte('transaction_date', filters.endDate);
@@ -304,7 +312,7 @@ export async function fetchLedgerEntries(filters: LedgerFilters): Promise<Servic
 
     const { data, error, count } = await q;
     if (error) return { data: null, error: 'Unable to load the ledger.' };
-    return { data: { rows: asRecords(data).map(mapEntry), total: count ?? 0, page, pageSize }, error: null };
+    return { data: { rows: asRecords(data).map(mapEntry), total: options.withCount ? count ?? 0 : null, page, pageSize }, error: null };
   } catch {
     return { data: null, error: 'Unable to load the ledger.' };
   }
