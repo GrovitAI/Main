@@ -17,6 +17,7 @@ import { FinanceOverviewTab } from './FinanceOverviewTab';
 import { LedgerTab } from './LedgerTab';
 import { CashBookTab } from './CashBookTab';
 import { DayCloseTab } from './DayCloseTab';
+import { CatalogTab } from './CatalogTab';
 
 export type PhoneFinanceScreenProps = {
   activeTab: FinanceTab;
@@ -119,6 +120,7 @@ export function PhoneFinanceScreen({
           {activeTab === 'ledger' ? <LedgerTab compact /> : null}
           {activeTab === 'cashbook' ? <CashBookTab compact /> : null}
           {activeTab === 'dayclose' ? <DayCloseTab compact /> : null}
+          {activeTab === 'catalog' ? <CatalogTab compact /> : null}
         </View>
       </KeyboardAvoider>
 

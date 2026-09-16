@@ -9,17 +9,21 @@
 import { create } from 'zustand';
 
 import {
+  createCatalogItem,
   createLedgerEntry,
   fetchAccountBalances,
   fetchEntryRevisions,
   fetchFinanceAccounts,
   fetchFinanceCatalog,
   fetchFinanceRules,
+  fetchFreeTextParticulars,
   fetchInterAccountPositions,
   fetchLedgerEntries,
   fetchLedgerEntry,
   fetchLedgerSummary,
+  reorderCatalogItems,
   settleLedgerEntry,
+  updateCatalogItem,
   updateFinanceRules,
   updateLedgerEntry,
   voidLedgerEntry,
@@ -27,17 +31,20 @@ import {
 import type {
   AccountBalance,
   CatalogItem,
+  CatalogItemInput,
+  CatalogItemPatch,
   EntryRevision,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
+  FreeTextParticular,
   InterAccountPosition,
   LedgerAccountSummary,
   LedgerFilters,
   SettleEntryInput,
 } from './finance-types';
-import { LEDGER_MAX_ROWS, initialLedgerFilters } from './finance-ledger-utils';
+import { LEDGER_MAX_ROWS, catalogSiblings, initialLedgerFilters, moveCatalogSibling } from './finance-ledger-utils';
 
 type MutationResult = { ok: true } | { ok: false; error: string };
 
@@ -71,6 +78,10 @@ type LedgerState = {
   /** Per-account ledger income, expenses and open amounts for the current range. */
   summary: LedgerAccountSummary[];
 
+  /** Free-text particulars under the category the Catalog screen is looking at. */
+  freeText: FreeTextParticular[];
+  freeTextLoading: boolean;
+
   /** Set by the phone's quick-add button; the ledger opens a blank form and clears it. */
   newEntryRequested: boolean;
 
@@ -90,6 +101,11 @@ type LedgerState = {
   openEntryById: (id: string) => Promise<void>;
   loadBalances: () => Promise<void>;
   saveRules: (patch: Partial<Omit<FinanceRules, 'tenant_id'>>) => Promise<MutationResult>;
+  /** Catalog (owner): add, change, hide or show, and reorder. Nothing is deleted. */
+  addCatalogItem: (input: CatalogItemInput) => Promise<MutationResult>;
+  changeCatalogItem: (id: string, patch: CatalogItemPatch) => Promise<MutationResult>;
+  moveCatalogItem: (id: string, direction: 'up' | 'down') => Promise<MutationResult>;
+  loadFreeText: (categoryId: string | null, subcategoryId: string | null) => Promise<void>;
   requestNewEntry: () => void;
   clearNewEntryRequest: () => void;
 };
@@ -123,6 +139,9 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     balancesLoading: false,
     positions: [],
     summary: [],
+
+    freeText: [],
+    freeTextLoading: false,
 
     newEntryRequested: false,
 
@@ -274,6 +293,48 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
       if (error || !data) return { ok: false, error: error ?? 'Unable to save the finance rules.' };
       set({ rules: data });
       return { ok: true };
+    },
+
+    addCatalogItem: async (input) => {
+      set({ mutating: true });
+      const { data, error } = await createCatalogItem(input);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to add to the catalog.' };
+      set({ catalog: [...get().catalog, data] });
+      return { ok: true };
+    },
+
+    changeCatalogItem: async (id, patch) => {
+      set({ mutating: true });
+      const { data, error } = await updateCatalogItem(id, patch);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to update the catalog.' };
+      set({ catalog: get().catalog.map((c) => (c.id === id ? data : c)) });
+      return { ok: true };
+    },
+
+    moveCatalogItem: async (id, direction) => {
+      const item = get().catalog.find((c) => c.id === id);
+      if (!item) return { ok: false, error: 'That item is no longer in the catalog.' };
+      const orders = moveCatalogSibling(catalogSiblings(get().catalog, item.parent_id), id, direction);
+      if (!orders) return { ok: true };
+      set({ mutating: true });
+      const { error } = await reorderCatalogItems(orders);
+      set({ mutating: false });
+      if (error) return { ok: false, error };
+      const byId = new Map(orders.map((o) => [o.id, o.sort_order]));
+      set({ catalog: get().catalog.map((c) => (byId.has(c.id) ? { ...c, sort_order: byId.get(c.id) ?? c.sort_order } : c)) });
+      return { ok: true };
+    },
+
+    loadFreeText: async (categoryId, subcategoryId) => {
+      if (!categoryId) {
+        set({ freeText: [], freeTextLoading: false });
+        return;
+      }
+      set({ freeTextLoading: true });
+      const { data } = await fetchFreeTextParticulars(categoryId, subcategoryId);
+      set({ freeText: data ?? [], freeTextLoading: false });
     },
 
     requestNewEntry: () => set({ newEntryRequested: true }),

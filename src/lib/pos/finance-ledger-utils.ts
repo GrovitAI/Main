@@ -8,6 +8,7 @@
 import type {
   CatalogItem,
   CatalogKind,
+  CatalogLevel,
   EntryFieldChange,
   EntryFormErrors,
   EntryFormValues,
@@ -158,6 +159,77 @@ export function catalogById(catalog: readonly CatalogItem[], id: string | null):
   return catalog.find((item) => item.id === id) ?? null;
 }
 
+/** Active itself and under active parents, so the picker can offer it. */
+export function isCatalogUsable(catalog: readonly CatalogItem[], id: string | null): boolean {
+  let current = catalogById(catalog, id);
+  let guard = 0;
+  while (current && guard < 4) {
+    if (!current.is_active) return false;
+    if (!current.parent_id) return true;
+    current = catalogById(catalog, current.parent_id);
+    guard += 1;
+  }
+  return current === null ? false : true;
+}
+
+export const CATALOG_LEVEL_LABELS: Record<CatalogLevel, string> = {
+  category: 'Category',
+  subcategory: 'Sub-category',
+  particular: 'Particular',
+};
+
+export function childLevel(level: CatalogLevel): CatalogLevel | null {
+  if (level === 'category') return 'subcategory';
+  if (level === 'subcategory') return 'particular';
+  return null;
+}
+
+/** Items under a parent, active or not, in the owner's order. What the Catalog screen lists. */
+export function catalogSiblings(catalog: readonly CatalogItem[], parentId: string | null): CatalogItem[] {
+  return catalog
+    .filter((item) => item.parent_id === parentId)
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+}
+
+export const CATALOG_NAME_MAX = 60;
+
+/** Why a name cannot be used among these siblings, or null when it can. */
+export function validateCatalogName(name: string, siblings: readonly CatalogItem[], excludeId: string | null = null): string | null {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return 'Give it a name.';
+  if (trimmed.length > CATALOG_NAME_MAX) return `Keep the name under ${CATALOG_NAME_MAX} characters.`;
+  const lower = trimmed.toLowerCase();
+  if (siblings.some((s) => s.id !== excludeId && s.name.trim().toLowerCase() === lower)) return 'That name is already in use here.';
+  return null;
+}
+
+/** The sort order a new item takes: after the last sibling. */
+export function nextSortOrder(siblings: readonly CatalogItem[]): number {
+  return siblings.reduce((max, s) => Math.max(max, s.sort_order), 0) + 10;
+}
+
+/**
+ * Moves one item a step up or down among its siblings and returns fresh sort
+ * orders for all of them (10, 20, 30…), or null when it is already at the end.
+ */
+export function moveCatalogSibling(
+  siblings: readonly CatalogItem[],
+  id: string,
+  direction: 'up' | 'down',
+): { id: string; sort_order: number }[] | null {
+  const ordered = [...siblings].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  const index = ordered.findIndex((s) => s.id === id);
+  if (index < 0) return null;
+  const target = direction === 'up' ? index - 1 : index + 1;
+  if (target < 0 || target >= ordered.length) return null;
+  const moved = ordered[index];
+  const other = ordered[target];
+  if (!moved || !other) return null;
+  ordered[index] = other;
+  ordered[target] = moved;
+  return ordered.map((s, i) => ({ id: s.id, sort_order: (i + 1) * 10 }));
+}
+
 /** The kind an item preselects, walking up to the category when it inherits. */
 export function resolveCatalogKind(catalog: readonly CatalogItem[], id: string | null): CatalogKind | null {
   let current = catalogById(catalog, id);
@@ -188,7 +260,7 @@ export function suggestCatalog(catalog: readonly CatalogItem[], query: string, l
   if (needle.length < 2) return [];
   const rank: Record<CatalogItem['level'], number> = { particular: 0, subcategory: 1, category: 2 };
   return catalog
-    .filter((item) => item.is_active && !item.is_system && item.name.toLowerCase().includes(needle))
+    .filter((item) => !item.is_system && item.name.toLowerCase().includes(needle) && isCatalogUsable(catalog, item.id))
     .sort((a, b) => rank[a.level] - rank[b.level] || a.name.localeCompare(b.name))
     .slice(0, limit)
     .map((item) => {
