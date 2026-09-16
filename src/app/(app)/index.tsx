@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
 import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
 import { getBranchTaxPercentage } from '@/lib/pos/pos-settings-service';
+import { useActiveInterval } from '@/lib/pos/use-active-interval';
 
 import { CategoryTabs } from '@/components/pos/CategoryTabs';
 import { Sidebar } from '@/components/pos/Sidebar';
@@ -34,6 +35,8 @@ import { ApprovalAction } from '@/lib/approval/approval.types';
 import { colors } from '@/lib/pos/brand';
 import { webTextStyle, webViewStyle } from '@/lib/pos/web-style';
 import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
+
+const PRINTER_HEALTH_INTERVAL_MS = 60_000;
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
@@ -318,19 +321,24 @@ export default function PosBillingScreen() {
     }
   }, [isMutating]);
 
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const isOnline = await isPrintAgentRunning();
-        setPrintAgentOnline(isOnline);
-      } catch {
-        setPrintAgentOnline(false);
-      }
-    };
-    checkHealth();
-    const interval = setInterval(checkHealth, 15000); // Check every 15 seconds
-    return () => clearInterval(interval);
+  const checkPrinterHealth = useCallback(async () => {
+    try {
+      const isOnline = await isPrintAgentRunning();
+      setPrintAgentOnline(isOnline);
+    } catch {
+      setPrintAgentOnline(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void checkPrinterHealth();
+  }, [checkPrinterHealth]);
+
+  // The indicator is only on this screen, so the check runs only while the
+  // screen is on and the app is in the foreground. Once a minute is enough
+  // for a status dot; each check is an authenticated round trip to PrintNode.
+  const [isFocused, setIsFocused] = useState(false);
+  useActiveInterval(() => void checkPrinterHealth(), PRINTER_HEALTH_INTERVAL_MS, { focused: isFocused });
 
   const [timeStr, setTimeStr] = useState('11:42 AM');
   const [dateStr, setDateStr] = useState('20 May 2025');
@@ -407,10 +415,14 @@ export default function PosBillingScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       const timer = setTimeout(() => {
         searchRef.current?.focus();
       }, 50);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        setIsFocused(false);
+      };
     }, [])
   );
 

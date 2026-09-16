@@ -1061,6 +1061,39 @@ export async function resumeHeldOrder(
  * Includes item prices so totalAmount can be computed per order.
  * Scoped to today only for performance.
  */
+/**
+ * Reads when this branch's orders, items or kitchen tickets last changed.
+ *
+ * One row, written by a database trigger (migration 20260916000200). The
+ * Orders tab polls this instead of the day's orders and downloads them only
+ * when the stamp moves. A branch with no row yet has never written an order,
+ * so 'none' is returned as its stamp; it changes to a timestamp on the first
+ * write. An error (for example, the migration not being applied) returns
+ * data: null, and callers fall back to a full reload.
+ */
+export async function fetchOrdersActivityStamp(): Promise<ServiceResult<string | null>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+
+    const { data, error } = await supabase
+      .from('branch_activity')
+      .select('orders_changed_at')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .maybeSingle();
+
+    if (error) {
+      logSupabaseError('fetchOrdersActivityStamp', error);
+      return { data: null, error: 'Unable to check for order changes.' };
+    }
+
+    const row = data as { orders_changed_at: string } | null;
+    return { data: row?.orders_changed_at ?? 'none', error: null };
+  } catch {
+    return { data: null, error: 'Unable to check for order changes.' };
+  }
+}
+
 export async function getAllOrders(): Promise<ServiceResult<OpenOrderSummary[]>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();

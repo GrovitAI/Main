@@ -1,19 +1,49 @@
-import { fetchPrinters } from '@/lib/pos/printer-db-service';
+import { fetchPrinters, type Printer } from '@/lib/pos/printer-db-service';
+import { getTenantContext } from '@/lib/pos/tenant-context';
 import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString } from '@/lib/printer/printer-service';
 import { apiFetch } from '@/lib/pos/api-client';
 import { RECEIPT_CONFIG, PAPER_WIDTH } from './receiptConfig';
 import { roundUpToWholeRupee } from '@/lib/pos/order-utils';
+
+/** How long the health check reuses the printer it resolved from the database. */
+const HEALTH_PRINTER_CACHE_MS = 5 * 60_000;
+
+let healthPrinterCache: { key: string; printer: Printer | null; resolvedAt: number } | null = null;
+
+/**
+ * The printer the health check should probe, read from the database at most
+ * once every five minutes per branch. The check used to reload every printer
+ * row on every run, which on an idle till was a large share of the day's
+ * database egress for a value that almost never changes.
+ */
+async function resolveHealthPrinter(): Promise<Printer | null> {
+  const { tenant_id, branch_id } = getTenantContext();
+  const key = `${tenant_id}:${branch_id}`;
+  const now = Date.now();
+  if (healthPrinterCache && healthPrinterCache.key === key && now - healthPrinterCache.resolvedAt < HEALTH_PRINTER_CACHE_MS) {
+    return healthPrinterCache.printer;
+  }
+
+  const res = await fetchPrinters();
+  if (res.error || !res.data) {
+    // Keep any earlier answer; a transient read failure should not turn the
+    // indicator red or force a reload on the next run.
+    return healthPrinterCache?.key === key ? healthPrinterCache.printer : null;
+  }
+  const printer = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill')
+               || res.data.find(p => p.is_active && p.is_default)
+               || res.data.find(p => p.is_active)
+               || null;
+  healthPrinterCache = { key, printer, resolvedAt: now };
+  return printer;
+}
 
 /**
  * Checks whether the default PrintNode billing printer is online.
  */
 export async function isPrintAgentRunning(): Promise<boolean> {
   try {
-    const res = await fetchPrinters();
-    if (res.error || !res.data) return false;
-    const activePrinter = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill')
-                       || res.data.find(p => p.is_active && p.is_default)
-                       || res.data.find(p => p.is_active);
+    const activePrinter = await resolveHealthPrinter();
     if (!activePrinter) return false;
     const status = await diagnosePrinterConnection(activePrinter);
     return status === 'connected';

@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { useActiveInterval } from '@/lib/pos/use-active-interval';
 
 import {
   OrderCard,
@@ -247,13 +248,18 @@ export default function OrdersScreen() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const searchInputRef = useRef<TextInput>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       const timer = setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        setIsFocused(false);
+      };
     }, [])
   );
 
@@ -310,9 +316,11 @@ export default function OrdersScreen() {
 
   useEffect(() => {
     void loadOrders();
-    const id = setInterval(() => void loadOrders(true), REFRESH_INTERVAL_MS);
-    return () => clearInterval(id);
   }, [loadOrders]);
+
+  // Background refresh runs only while this tab is on screen and the app is
+  // in the foreground; an idle till otherwise polls the database all day.
+  useActiveInterval(() => void loadOrders(true), REFRESH_INTERVAL_MS, { focused: isFocused });
 
   // ── Search handler ──────────────────────────────────────────────────────────
   const handleSearchSubmit = useCallback(() => {
