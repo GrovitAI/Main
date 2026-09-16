@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { BookOpen, LayoutDashboard, Lock, NotebookPen, type LucideIcon } from 'lucide-react-native';
+import { BookOpen, LayoutDashboard, Lock, NotebookPen, Tags, type LucideIcon } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import type { FinanceTab } from '@/lib/pos/finance-types';
@@ -14,15 +14,18 @@ export const FINANCE_TABS: FinanceTabDef[] = [
   { key: 'ledger', label: 'Ledger', icon: NotebookPen },
   { key: 'cashbook', label: 'Cash Book', icon: BookOpen },
   { key: 'dayclose', label: 'Day Close', icon: Lock },
+  { key: 'catalog', label: 'Catalog', icon: Tags },
 ];
 
 /**
- * The tabs a role may open. Owners, admins and managers get the tills' view
- * and the ledger; an accountant exists for the ledger alone and never sees
- * revenue, the cash book or day close.
+ * The tabs a role may open. Owners and admins get everything, including the
+ * Catalog, which is theirs to manage. Managers get the tills' view and the
+ * ledger. An accountant exists for the ledger alone and never sees revenue,
+ * the cash book or day close.
  */
 export function financeTabsForRole(role: UserRole | null | undefined): FinanceTabDef[] {
-  if (isFinanceOwner(role) || role === 'manager') return FINANCE_TABS;
+  if (isFinanceOwner(role)) return FINANCE_TABS;
+  if (role === 'manager') return FINANCE_TABS.filter((tab) => tab.key !== 'catalog');
   return FINANCE_TABS.filter((tab) => tab.key === 'ledger');
 }
 

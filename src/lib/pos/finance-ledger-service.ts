@@ -13,12 +13,15 @@ import { useSessionStore } from './use-session-store';
 import type {
   AccountBalance,
   CatalogItem,
+  CatalogItemInput,
+  CatalogItemPatch,
   EntryFieldChange,
   EntryRevision,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
+  FreeTextParticular,
   InterAccountPosition,
   LedgerAccountSummary,
   LedgerFilters,
@@ -79,6 +82,7 @@ function explain(error: PgError, fallback: string): string {
     return 'You are not allowed to do that.';
   }
   if (error.code === '23514' && error.message) return error.message;
+  if (error.code === '23505') return 'That name is already in use here.';
   return fallback;
 }
 
@@ -214,6 +218,105 @@ export async function fetchFinanceCatalog(): Promise<ServiceResult<CatalogItem[]
     return { data: asRecords(data).map(mapCatalog), error: null };
   } catch {
     return { data: null, error: 'Unable to load the categories.' };
+  }
+}
+
+export async function createCatalogItem(input: CatalogItemInput): Promise<ServiceResult<CatalogItem>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('finance_catalog')
+      .insert({
+        tenant_id,
+        level: input.level,
+        parent_id: input.parent_id,
+        name: input.name.trim(),
+        default_kind: input.default_kind,
+        sort_order: input.sort_order,
+      })
+      .select('*')
+      .single();
+    if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to add to the catalog.') };
+    return { data: mapCatalog(data), error: null };
+  } catch {
+    return { data: null, error: 'Unable to add to the catalog.' };
+  }
+}
+
+export async function updateCatalogItem(id: string, patch: CatalogItemPatch): Promise<ServiceResult<CatalogItem>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const payload: Record<string, unknown> = {};
+    if (patch.name !== undefined) payload.name = patch.name.trim();
+    if (patch.default_kind !== undefined) payload.default_kind = patch.default_kind;
+    if (patch.is_active !== undefined) payload.is_active = patch.is_active;
+    if (patch.sort_order !== undefined) payload.sort_order = patch.sort_order;
+    const { data, error } = await supabase
+      .from('finance_catalog')
+      .update(payload)
+      .eq('id', id)
+      .eq('tenant_id', tenant_id)
+      .eq('is_system', false)
+      .select('*')
+      .maybeSingle();
+    if (error) return { data: null, error: explain(error, 'Unable to update the catalog.') };
+    // Zero rows back: a built-in item, or not the owner.
+    if (!isRecord(data)) return { data: null, error: 'This item cannot be changed.' };
+    return { data: mapCatalog(data), error: null };
+  } catch {
+    return { data: null, error: 'Unable to update the catalog.' };
+  }
+}
+
+/** Writes new sort orders for a set of siblings. Nothing else about them changes. */
+export async function reorderCatalogItems(orders: readonly { id: string; sort_order: number }[]): Promise<ServiceResult<void>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const results = await Promise.all(
+      orders.map((o) => supabase.from('finance_catalog').update({ sort_order: o.sort_order }).eq('id', o.id).eq('tenant_id', tenant_id)),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) return { data: null, error: explain(failed.error, 'Unable to reorder the catalog.') };
+    return { data: undefined, error: null };
+  } catch {
+    return { data: null, error: 'Unable to reorder the catalog.' };
+  }
+}
+
+/**
+ * Particulars typed as free text into entries under a category (and
+ * sub-category, when given) that are not catalog items yet, most used first.
+ * What the owner promotes into the catalog from the Catalog screen.
+ */
+export async function fetchFreeTextParticulars(categoryId: string, subcategoryId: string | null): Promise<ServiceResult<FreeTextParticular[]>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    let q = supabase
+      .from('finance_entries')
+      .select('particulars')
+      .eq('tenant_id', tenant_id)
+      .eq('category_id', categoryId)
+      .is('particular_id', null)
+      .neq('status', 'void')
+      .order('entered_at', { ascending: false })
+      .limit(300);
+    if (subcategoryId) q = q.eq('subcategory_id', subcategoryId);
+    else q = q.is('subcategory_id', null);
+    const { data, error } = await q;
+    if (error) return { data: null, error: 'Unable to load recent particulars.' };
+    const counts = new Map<string, FreeTextParticular>();
+    for (const row of asRecords(data)) {
+      const name = toText(row.particulars).trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const existing = counts.get(key);
+      if (existing) existing.count += 1;
+      else counts.set(key, { name, count: 1 });
+    }
+    const list = [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 20);
+    return { data: list, error: null };
+  } catch {
+    return { data: null, error: 'Unable to load recent particulars.' };
   }
 }
 

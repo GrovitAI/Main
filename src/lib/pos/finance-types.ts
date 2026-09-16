@@ -13,7 +13,7 @@ export type ServiceResult<T> = {
 
 export type FinancePreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
 
-export type FinanceTab = 'overview' | 'ledger' | 'expenses' | 'cashbook' | 'dayclose';
+export type FinanceTab = 'overview' | 'ledger' | 'expenses' | 'cashbook' | 'dayclose' | 'catalog';
 
 export const EXPENSE_PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'] as const;
 export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];
@@ -280,6 +280,21 @@ export type CatalogItem = {
   is_system: boolean;
   is_active: boolean;
 };
+
+/** A new category, sub-category or particular. */
+export type CatalogItemInput = {
+  level: CatalogLevel;
+  parent_id: string | null;
+  name: string;
+  default_kind: CatalogKind | null;
+  sort_order: number;
+};
+
+/** What the owner may change on an existing catalog item. */
+export type CatalogItemPatch = Partial<Pick<CatalogItem, 'name' | 'default_kind' | 'is_active' | 'sort_order'>>;
+
+/** Free-text particulars typed into entries that are not in the catalog yet. */
+export type FreeTextParticular = { name: string; count: number };
 
 export type FinanceRules = {
   tenant_id: string;

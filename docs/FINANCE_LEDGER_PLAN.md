@@ -1,7 +1,7 @@
 # Finance Ledger — Plan
 
-> **Status**: steps 1 and 2 of §10 are built and live (2026-09-15 and 2026-09-16).
-> Steps 3 to 5 (catalog screen, partners, month-end Excel) are still to do.
+> **Status**: steps 1 to 3 of §10 are built and live (2026-09-15 and 2026-09-16).
+> Steps 4 and 5 (partners, month-end Excel) are still to do.
 > **Written**: 2026-09-15, from the owner's requirements of the same day.
 > **Scope for now**: the central kitchen's books, with branches and the
 > partnership able to use the same ledger later.
@@ -114,7 +114,10 @@ Sales (income)
   can promote it to a particular later from the Catalog screen. Allowed from
   day one on purpose, to learn what items actually come up.
 - Deactivating a category, sub-category or particular hides it from the
-  picker; existing entries keep it. Nothing is ever deleted.
+  picker, and everything under it; existing entries keep it. Nothing is ever
+  deleted. The Catalog tab (owners and admins) adds, renames, hides and
+  reorders with up and down arrows, and lists the free-text particulars typed
+  under a sub-category so each can be promoted with one tap.
 - The 18 expense categories seeded on 2026-09-07 become the first categories
   so the list is not empty on day one.
 
