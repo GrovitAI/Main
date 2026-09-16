@@ -31,3 +31,22 @@ input:focus, textarea:focus, select:focus, button:focus, [tabindex]:focus, input
 *:focus {
   outline: none !important;
 }
+
+/* react-native-web gives every input its own 14px, which beats the Tailwind
+   size classes, so the amount fields never got their large text on the web.
+   Phone browsers also zoom into any input smaller than 16px (Safari
+   especially) and stay zoomed after the keyboard closes. Both are fixed here:
+   the size classes win, and on narrow screens no input goes under 16px.
+   Native apps are unaffected. */
+input.text-xl, textarea.text-xl { font-size: 20px !important; }
+input.text-2xl, textarea.text-2xl { font-size: 24px !important; }
+input.text-3xl, textarea.text-3xl { font-size: 30px !important; }
+
+@media (max-width: 767px) {
+  input, textarea {
+    font-size: 16px !important;
+  }
+  input.text-xl, textarea.text-xl { font-size: 20px !important; }
+  input.text-2xl, textarea.text-2xl { font-size: 24px !important; }
+  input.text-3xl, textarea.text-3xl { font-size: 30px !important; }
+}
