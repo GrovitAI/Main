@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Eye, EyeOff, Lock, Penci
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { centerFieldOnFocus } from '@/lib/pos/web-style';
 import type { CatalogItem, CatalogKind, CatalogLevel } from '@/lib/pos/finance-types';
 import {
   CATALOG_LEVEL_LABELS,
@@ -422,6 +423,7 @@ function ItemFormModal({ form, error, submitting, parentName, onChange, onSubmit
                 autoFocus
                 onSubmitEditing={onSubmit}
                 accessibilityLabel={`${levelLabel} name`}
+                onFocus={centerFieldOnFocus}
               />
               <Text className="mb-1.5 mt-4 text-[11px] font-bold uppercase tracking-wide text-text-secondary">Kind</Text>
               <View className="flex-row flex-wrap gap-2">

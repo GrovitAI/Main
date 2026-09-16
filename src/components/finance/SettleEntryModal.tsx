@@ -5,6 +5,7 @@ import { Calendar, CheckCircle2, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { centerFieldOnFocus } from '@/lib/pos/web-style';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { SearchSelect, type SearchSelectOption } from '@/components/ui/SearchSelect';
@@ -121,6 +122,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
                   className={`${FIELD_CLASS} font-extrabold ${isPhone ? 'min-h-[56px] text-3xl' : 'text-2xl'}`}
                   selectTextOnFocus
                   accessibilityLabel="Amount"
+                  onFocus={centerFieldOnFocus}
                 />
               </Field>
 
@@ -143,6 +145,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
                     className={`${FIELD_CLASS} flex-1`}
                     autoCapitalize="none"
                     accessibilityLabel="Transaction date"
+                    onFocus={centerFieldOnFocus}
                   />
                   <Pressable
                     onPress={() => setDatePickerOpen(true)}
@@ -210,6 +213,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
                       className={FIELD_CLASS}
                       autoCapitalize="characters"
                       accessibilityLabel="Reference number"
+                      onFocus={centerFieldOnFocus}
                     />
                   </Field>
                 </View>
@@ -222,6 +226,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
                       placeholderTextColor={colors.textSecondary}
                       className={FIELD_CLASS}
                       accessibilityLabel="Notes"
+                      onFocus={centerFieldOnFocus}
                     />
                   </Field>
                 </View>
