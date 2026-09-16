@@ -5,6 +5,7 @@ import { Calendar, CheckCircle2, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { useVisualViewport } from '@/lib/pos/use-visual-viewport';
 import { centerFieldOnFocus } from '@/lib/pos/web-style';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -33,6 +34,8 @@ const FIELD_CLASS = 'min-h-[44px] rounded-xl border border-border bg-white px-3 
  */
 export function SettleEntryModal({ entry, accounts, submitting, serverError, onSubmit, onClose }: SettleEntryModalProps) {
   const { height: windowHeight } = useWindowDimensions();
+  const { height: visibleHeight } = useVisualViewport();
+  const sheetMaxHeight = Math.min(windowHeight, visibleHeight) * 0.92;
   const { isPhone } = useResponsive();
   const insets = useSafeAreaInsets();
   const today = getCurrentBusinessDate();
@@ -91,7 +94,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
           <Pressable
             onPress={() => undefined}
             className={`w-full overflow-hidden bg-white shadow-panel ${isPhone ? 'rounded-t-3xl' : 'max-w-[520px] rounded-3xl'}`}
-            style={{ maxHeight: windowHeight * 0.92 }}
+            style={{ maxHeight: sheetMaxHeight }}
           >
             <View className="flex-row items-center justify-between border-b border-border-soft px-5 py-4">
               <View className="flex-1 pr-2">

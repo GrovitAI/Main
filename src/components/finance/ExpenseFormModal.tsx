@@ -5,6 +5,7 @@ import { Calendar, Check, Plus, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { useVisualViewport } from '@/lib/pos/use-visual-viewport';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type { ExpenseCategory, ExpenseFormErrors, ExpenseFormValues, ExpenseInput, ExpensePaymentMethod } from '@/lib/pos/finance-types';
@@ -45,6 +46,8 @@ export function ExpenseFormModal({
   onClose,
 }: ExpenseFormModalProps) {
   const { height: windowHeight } = useWindowDimensions();
+  // On a phone browser the sheet must fit above the keyboard, not the page.
+  const { height: visibleHeight } = useVisualViewport();
   const { isPhone } = useResponsive();
   const insets = useSafeAreaInsets();
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -123,7 +126,7 @@ export function ExpenseFormModal({
         <Pressable
           onPress={() => undefined}
           className={`w-full overflow-hidden bg-white shadow-panel ${isPhone ? 'rounded-t-3xl' : 'max-w-[560px] rounded-3xl'}`}
-          style={{ maxHeight: windowHeight * 0.92 }}
+          style={{ maxHeight: Math.min(windowHeight, visibleHeight) * 0.92 }}
         >
           {/* Header */}
           <View className="flex-row items-center justify-between border-b border-border-soft px-5 py-4">
