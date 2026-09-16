@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar, Plus, X } from 'lucide-react-native';
 
@@ -313,8 +313,10 @@ export function EntryFormModal({
                 placeholder="0.00"
                 placeholderTextColor={colors.textSecondary}
                 className={`${FIELD_CLASS} font-extrabold ${isPhone ? 'min-h-[56px] text-3xl' : 'text-2xl'}`}
-                // A new entry starts at the amount with the keypad already up.
-                autoFocus={mode === 'create'}
+                // A new entry starts at the amount with the keypad already up. A
+                // phone browser cannot raise its keyboard without a tap, so there
+                // the focus would only make the sheet jump; the user taps the box.
+                autoFocus={mode === 'create' && !(isPhone && Platform.OS === 'web')}
                 accessibilityLabel="Amount"
                 onFocus={centerFieldOnFocus}
               />
