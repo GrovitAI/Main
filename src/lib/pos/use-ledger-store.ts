@@ -15,7 +15,11 @@ import {
   fetchFinanceAccounts,
   fetchFinanceCatalog,
   fetchFinanceRules,
+  fetchInterAccountPositions,
   fetchLedgerEntries,
+  fetchLedgerEntry,
+  fetchLedgerSummary,
+  settleLedgerEntry,
   updateFinanceRules,
   updateLedgerEntry,
   voidLedgerEntry,
@@ -28,7 +32,10 @@ import type {
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
+  InterAccountPosition,
+  LedgerAccountSummary,
   LedgerFilters,
+  SettleEntryInput,
 } from './finance-types';
 import { LEDGER_MAX_ROWS, initialLedgerFilters } from './finance-ledger-utils';
 
@@ -59,6 +66,10 @@ type LedgerState = {
 
   balances: AccountBalance[];
   balancesLoading: boolean;
+  /** Who owes whom across accounts; empty for a clerk who may not see balances. */
+  positions: InterAccountPosition[];
+  /** Per-account ledger income, expenses and open amounts for the current range. */
+  summary: LedgerAccountSummary[];
 
   /** Set by the phone's quick-add button; the ledger opens a blank form and clears it. */
   newEntryRequested: boolean;
@@ -72,7 +83,11 @@ type LedgerState = {
   addEntry: (input: FinanceEntryInput) => Promise<MutationResult>;
   editEntry: (id: string, input: FinanceEntryInput) => Promise<MutationResult>;
   voidEntry: (id: string, reason: string) => Promise<MutationResult>;
+  /** Records a payment against an open payable or receivable. */
+  settleEntry: (input: SettleEntryInput) => Promise<MutationResult>;
   openEntry: (entry: FinanceEntry | null) => Promise<void>;
+  /** Opens an entry that may not be on the current page, such as the one a payment settles. */
+  openEntryById: (id: string) => Promise<void>;
   loadBalances: () => Promise<void>;
   saveRules: (patch: Partial<Omit<FinanceRules, 'tenant_id'>>) => Promise<MutationResult>;
   requestNewEntry: () => void;
@@ -106,6 +121,8 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
 
     balances: [],
     balancesLoading: false,
+    positions: [],
+    summary: [],
 
     newEntryRequested: false,
 
@@ -157,8 +174,12 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     },
 
     setFilters: (patch) => {
-      set({ filters: { ...get().filters, ...patch, page: 0 } });
+      const before = get().filters;
+      set({ filters: { ...before, ...patch, page: 0 } });
       void get().loadEntries(0);
+      if ((patch.startDate && patch.startDate !== before.startDate) || (patch.endDate && patch.endDate !== before.endDate)) {
+        void get().loadBalances();
+      }
     },
 
     addEntry: async (input) => {
@@ -196,6 +217,18 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
       return { ok: true };
     },
 
+    settleEntry: async (input) => {
+      set({ mutating: true });
+      const { data, error } = await settleLedgerEntry(input);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to settle the entry.' };
+      // The original's status and settled amount changed on the server too.
+      await Promise.all([get().loadEntries(0), get().loadBalances()]);
+      const refreshed = get().entries.find((e) => e.id === input.entry_id) ?? null;
+      if (get().selected?.id === input.entry_id) await get().openEntry(refreshed);
+      return { ok: true };
+    },
+
     openEntry: async (entry) => {
       const requestId = ++revisionsRequest;
       set({ selected: entry, revisions: [], revisionsLoading: entry !== null });
@@ -205,15 +238,35 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
       set({ revisions: data ?? [], revisionsLoading: false });
     },
 
+    openEntryById: async (id) => {
+      const onPage = get().entries.find((e) => e.id === id);
+      if (onPage) {
+        await get().openEntry(onPage);
+        return;
+      }
+      const { data } = await fetchLedgerEntry(id);
+      if (data) await get().openEntry(data);
+    },
+
     loadBalances: async () => {
       const ids = get().accounts.filter((a) => a.is_active).map((a) => a.id);
       if (ids.length === 0) {
-        set({ balances: [] });
+        set({ balances: [], positions: [], summary: [] });
         return;
       }
       set({ balancesLoading: true });
-      const { data } = await fetchAccountBalances(ids);
-      set({ balances: data ?? [], balancesLoading: false });
+      const { startDate, endDate } = get().filters;
+      const [balances, positions, summary] = await Promise.all([
+        fetchAccountBalances(ids),
+        fetchInterAccountPositions(),
+        fetchLedgerSummary(startDate, endDate),
+      ]);
+      set({
+        balances: balances.data ?? [],
+        positions: positions.data ?? [],
+        summary: summary.data ?? [],
+        balancesLoading: false,
+      });
     },
 
     saveRules: async (patch) => {

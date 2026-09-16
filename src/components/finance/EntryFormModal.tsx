@@ -17,6 +17,8 @@ import {
   canTransfer,
   catalogChildren,
   isFinanceOwner,
+  kindCanHavePayer,
+  payerLabel,
   resolveCatalogKind,
   suggestCatalog,
   validateEntryForm,
@@ -65,6 +67,8 @@ export function EntryFormModal({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  // The second account picker stays folded away for the everyday case.
+  const [payerOpen, setPayerOpen] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -72,6 +76,7 @@ export function EntryFormModal({
       setErrors({});
       setShowAllCategories(false);
       setSuggestionsOpen(false);
+      setPayerOpen(initialValues.paid_from_account_id.length > 0);
     }
   }, [visible, initialValues]);
 
@@ -103,6 +108,14 @@ export function EntryFormModal({
   const isTransfer = values.kind === 'transfer';
 
   const activeAccounts = useMemo(() => accounts.filter((a) => a.is_active), [accounts]);
+  const otherAccounts = useMemo(() => activeAccounts.filter((a) => a.id !== values.account_id), [activeAccounts, values.account_id]);
+  const payerAllowed = kindCanHavePayer(values.kind) && otherAccounts.length > 0;
+  const forName = activeAccounts.find((a) => a.id === values.account_id)?.name ?? 'this account';
+
+  const pickKind = (k: LedgerKind) => {
+    setValues((prev) => ({ ...prev, kind: k, paid_from_account_id: kindCanHavePayer(k) ? prev.paid_from_account_id : '' }));
+    if (!kindCanHavePayer(k)) setPayerOpen(false);
+  };
 
   // Built-in categories (Opening Balance, Partners) are the owner's business.
   const categories = useMemo(
@@ -197,17 +210,51 @@ export function EntryFormModal({
                     key={a.id}
                     label={a.kind === 'partner' ? `${a.name} (partner)` : a.name}
                     active={values.account_id === a.id}
-                    onPress={() => setField('account_id', a.id)}
+                    onPress={() => setValues((prev) => ({ ...prev, account_id: a.id, paid_from_account_id: prev.paid_from_account_id === a.id ? '' : prev.paid_from_account_id }))}
                   />
                 ))}
               </View>
             </Field>
 
+            {/* Paid from / For: whose cash or bank moved, when it was not the account above */}
+            {payerAllowed ? (
+              <Field
+                label={payerLabel(values.kind)}
+                hint={payerOpen ? `The money leaves that account; the cost or income stays with ${forName}.` : undefined}
+              >
+                {payerOpen ? (
+                  <View className="flex-row flex-wrap gap-2">
+                    <SelectChip label={forName} active={values.paid_from_account_id === ''} onPress={() => setField('paid_from_account_id', '')} />
+                    {otherAccounts.map((a) => (
+                      <SelectChip
+                        key={a.id}
+                        label={a.kind === 'partner' ? `${a.name} (partner)` : a.name}
+                        active={values.paid_from_account_id === a.id}
+                        onPress={() => setField('paid_from_account_id', a.id)}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => setPayerOpen(true)}
+                    className="min-h-[44px] justify-center"
+                    hitSlop={4}
+                    accessibilityRole="button"
+                    accessibilityLabel="Paid by another account"
+                  >
+                    <Text className="text-sm font-semibold text-text-primary">
+                      {forName} · <Text className="font-bold text-primary">{values.kind === 'income' ? 'received by another account?' : values.kind === 'transfer' ? 'from another account?' : 'paid by another account?'}</Text>
+                    </Text>
+                  </Pressable>
+                )}
+              </Field>
+            ) : null}
+
             {/* Kind */}
             <Field label="Kind">
               <View className="flex-row flex-wrap gap-2">
                 {kinds.map((k) => (
-                  <SelectChip key={k} label={LEDGER_KIND_LABELS[k]} active={values.kind === k} onPress={() => setField('kind', k)} />
+                  <SelectChip key={k} label={LEDGER_KIND_LABELS[k]} active={values.kind === k} onPress={() => pickKind(k)} />
                 ))}
               </View>
               {values.kind === 'payable' || values.kind === 'receivable' ? (

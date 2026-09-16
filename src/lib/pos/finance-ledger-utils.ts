@@ -17,6 +17,9 @@ import type {
   LedgerFilters,
   LedgerKind,
   LedgerMode,
+  SettleEntryInput,
+  SettleFormErrors,
+  SettleFormValues,
 } from './finance-types';
 import type { UserRole } from './session-context';
 import { EXPENSE_MAX_AMOUNT, getPresetDateRange, parseAmountInput } from './finance-utils';
@@ -100,6 +103,48 @@ export function canSeeBalances(role: UserRole | null | undefined, rules: Finance
   return isFinanceOwner(role) || (isFinanceClerk(role) && (rules?.clerk_sees_balances ?? false));
 }
 
+// ─── Payables, receivables, paid from ────────────────────────────────────────
+
+/** What is still to be paid or collected on a payable or receivable. */
+export function remainingAmount(entry: Pick<FinanceEntry, 'amount' | 'settled'>): number {
+  return Math.max(0, Math.round((entry.amount - entry.settled) * 100) / 100);
+}
+
+/** Owners and clerks may record the payment of an open payable or receivable. */
+export function canSettleEntry(entry: Pick<FinanceEntry, 'kind' | 'status'>, role: UserRole | null | undefined): boolean {
+  if (entry.status !== 'open') return false;
+  if (entry.kind !== 'payable' && entry.kind !== 'receivable') return false;
+  return isFinanceOwner(role) || isFinanceClerk(role);
+}
+
+/** A payable or receivable moves no money until it is settled, so it has no paying account. */
+export function kindCanHavePayer(kind: LedgerKind): boolean {
+  return kind !== 'payable' && kind !== 'receivable';
+}
+
+/** The label for the second account picker, by which way the money moves. */
+export function payerLabel(kind: LedgerKind): string {
+  if (kind === 'income' || kind === 'receivable') return 'Received by';
+  if (kind === 'transfer') return 'From account';
+  return 'Paid from';
+}
+
+/**
+ * "Paid by Velachery · for Central Kitchen" when another account paid; null
+ * for the everyday case, where the row's account name says it all.
+ */
+export function payerCaption(
+  entry: Pick<FinanceEntry, 'kind' | 'account_id' | 'paid_from_account_id'>,
+  accountName: (id: string) => string,
+): string | null {
+  if (!entry.paid_from_account_id || entry.paid_from_account_id === entry.account_id) return null;
+  const payer = accountName(entry.paid_from_account_id);
+  const owner = accountName(entry.account_id);
+  if (entry.kind === 'income') return `Received by ${payer} · for ${owner}`;
+  if (entry.kind === 'transfer') return `From ${payer} · to ${owner}`;
+  return `Paid by ${payer} · for ${owner}`;
+}
+
 // ─── Catalog ─────────────────────────────────────────────────────────────────
 
 export function catalogChildren(catalog: readonly CatalogItem[], parentId: string | null): CatalogItem[] {
@@ -161,6 +206,7 @@ export function suggestCatalog(catalog: readonly CatalogItem[], query: string, l
 export function emptyEntryForm(accountId: string, defaultDate: string): EntryFormValues {
   return {
     account_id: accountId,
+    paid_from_account_id: '',
     kind: 'expense',
     amount: '',
     mode: 'cash',
@@ -180,6 +226,7 @@ export function emptyEntryForm(accountId: string, defaultDate: string): EntryFor
 export function entryToFormValues(entry: FinanceEntry): EntryFormValues {
   return {
     account_id: entry.account_id,
+    paid_from_account_id: entry.paid_from_account_id ?? '',
     kind: entry.kind,
     amount: entry.amount.toString(),
     mode: entry.mode ?? 'cash',
@@ -229,10 +276,13 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
   if (Object.keys(errors).length > 0 || amount === null) return { ok: false, errors };
 
   const isTransfer = values.kind === 'transfer';
+  // A payable or receivable has no payer yet; the same account on both sides is "no other payer".
+  const payer = kindCanHavePayer(values.kind) ? emptyToNull(values.paid_from_account_id) : null;
   return {
     ok: true,
     value: {
       account_id: values.account_id,
+      paid_from_account_id: payer === values.account_id ? null : payer,
       kind: values.kind,
       amount,
       mode: isTransfer ? null : values.mode,
@@ -244,6 +294,49 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
       particular_id: isTransfer ? null : emptyToNull(values.particular_id),
       particulars,
       counterparty: emptyToNull(values.counterparty),
+      reference_no: emptyToNull(values.reference_no),
+      notes: emptyToNull(values.notes),
+    },
+  };
+}
+
+// ─── Settle form ─────────────────────────────────────────────────────────────
+
+export function emptySettleForm(entry: FinanceEntry, defaultDate: string): SettleFormValues {
+  return {
+    amount: remainingAmount(entry).toString(),
+    mode: 'cash',
+    transaction_date: defaultDate,
+    paid_from_account_id: '',
+    reference_no: '',
+    notes: '',
+  };
+}
+
+export type SettleValidation = { ok: true; value: SettleEntryInput } | { ok: false; errors: SettleFormErrors };
+
+export function validateSettleForm(values: SettleFormValues, entry: FinanceEntry): SettleValidation {
+  const errors: SettleFormErrors = {};
+  const remaining = remainingAmount(entry);
+  const amount = parseAmountInput(values.amount);
+  if (amount === null) errors.amount = 'Enter an amount like 1250 or 1250.50.';
+  else if (amount <= 0) errors.amount = 'The amount must be more than zero.';
+  else if (amount > remaining + 0.004) errors.amount = `Only ${remaining.toFixed(2)} remains on this entry.`;
+  if (!ISO_DATE.test(values.transaction_date) || Number.isNaN(Date.parse(values.transaction_date))) {
+    errors.transaction_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
+  }
+  if (values.reference_no.length > 60) errors.reference_no = 'Keep the reference under 60 characters.';
+  if (values.notes.length > 500) errors.notes = 'Keep notes under 500 characters.';
+  if (Object.keys(errors).length > 0 || amount === null) return { ok: false, errors };
+  const payer = emptyToNull(values.paid_from_account_id);
+  return {
+    ok: true,
+    value: {
+      entry_id: entry.id,
+      amount,
+      mode: values.mode,
+      transaction_date: values.transaction_date,
+      paid_from_account_id: payer === entry.account_id ? null : payer,
       reference_no: emptyToNull(values.reference_no),
       notes: emptyToNull(values.notes),
     },
@@ -283,6 +376,7 @@ export function initialLedgerFilters(now: Date = new Date()): LedgerFilters {
 
 const FIELD_LABELS: Record<string, string> = {
   account_id: 'Account',
+  paid_from_account_id: 'Paid from',
   kind: 'Kind',
   status: 'Status',
   amount_paise: 'Amount',
@@ -318,7 +412,7 @@ export function describeChanges(
     if (field === 'amount_paise' || field === 'settled_paise') {
       return typeof value === 'number' ? formatMoney(value / 100) : String(value);
     }
-    if (field === 'account_id') return lookups.accounts.find((a) => a.id === value)?.name ?? String(value);
+    if (field === 'account_id' || field === 'paid_from_account_id') return lookups.accounts.find((a) => a.id === value)?.name ?? String(value);
     if (field === 'category_id' || field === 'subcategory_id' || field === 'particular_id') {
       return catalogById(lookups.catalog, String(value))?.name ?? String(value);
     }

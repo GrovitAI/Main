@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Ban,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -22,7 +23,7 @@ import {
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import type { EntryFormValues, FinanceEntry, FinanceEntryInput, LedgerKind, LedgerSort, LedgerStatusFilter } from '@/lib/pos/finance-types';
+import type { EntryFormValues, FinanceEntry, FinanceEntryInput, LedgerKind, LedgerSort, LedgerStatusFilter, SettleEntryInput } from '@/lib/pos/finance-types';
 import { LEDGER_KINDS, LEDGER_MODES } from '@/lib/pos/finance-types';
 import { formatDateLabel, formatDateLong, formatDateTime, formatINR, formatTime, getCurrentBusinessDate } from '@/lib/pos/finance-utils';
 import {
@@ -30,18 +31,22 @@ import {
   LEDGER_MODE_LABELS,
   canEditEntry,
   canSeeBalances,
+  canSettleEntry,
   canVoidEntry,
   catalogById,
   describeChanges,
   emptyEntryForm,
   entryDirection,
   entryToFormValues,
+  payerCaption,
+  remainingAmount,
   LEDGER_MAX_ROWS,
 } from '@/lib/pos/finance-ledger-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { EntryFormModal } from './EntryFormModal';
+import { SettleEntryModal } from './SettleEntryModal';
 import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, financeContentPadding } from './FinanceStateViews';
 
 type Props = { compact?: boolean };
@@ -89,6 +94,8 @@ export function LedgerTab({ compact = false }: Props) {
   const revisions = useLedgerStore((s) => s.revisions);
   const revisionsLoading = useLedgerStore((s) => s.revisionsLoading);
   const balances = useLedgerStore((s) => s.balances);
+  const positions = useLedgerStore((s) => s.positions);
+  const summary = useLedgerStore((s) => s.summary);
   const newEntryRequested = useLedgerStore((s) => s.newEntryRequested);
   const loadEntries = useLedgerStore((s) => s.loadEntries);
   const loadMore = useLedgerStore((s) => s.loadMore);
@@ -96,7 +103,9 @@ export function LedgerTab({ compact = false }: Props) {
   const addEntry = useLedgerStore((s) => s.addEntry);
   const editEntry = useLedgerStore((s) => s.editEntry);
   const voidEntry = useLedgerStore((s) => s.voidEntry);
+  const settleEntry = useLedgerStore((s) => s.settleEntry);
   const openEntry = useLedgerStore((s) => s.openEntry);
+  const openEntryById = useLedgerStore((s) => s.openEntryById);
   const clearNewEntryRequest = useLedgerStore((s) => s.clearNewEntryRequest);
 
   const [form, setForm] = useState<FormState>({ visible: false, mode: 'create', entry: null });
@@ -106,6 +115,8 @@ export function LedgerTab({ compact = false }: Props) {
   const [voidTarget, setVoidTarget] = useState<FinanceEntry | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [voidError, setVoidError] = useState<string | null>(null);
+  const [settleTarget, setSettleTarget] = useState<FinanceEntry | null>(null);
+  const [settleError, setSettleError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(filters.search);
   // The filter rows fold away: the start page shows the search, the active
   // filters as removable chips, and the entries. Open the panel to change them.
@@ -193,6 +204,22 @@ export function LedgerTab({ compact = false }: Props) {
     setVoidReason('');
   };
 
+  const openSettle = (entry: FinanceEntry) => {
+    setSettleError(null);
+    setSettleTarget(entry);
+  };
+
+  const handleSettle = async (input: SettleEntryInput) => {
+    setSettleError(null);
+    const result = await settleEntry(input);
+    if (!result.ok) {
+      setSettleError(result.error);
+      return;
+    }
+    setSettleTarget(null);
+    setSavedNotice(`Recorded ${formatINR(input.amount)} ${settleTarget?.kind === 'receivable' ? 'received' : 'paid'} · ${settleTarget?.particulars ?? ''}`);
+  };
+
   const accountName = useCallback((id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account', [accounts]);
   const showBalances = canSeeBalances(role, rules) && balances.length > 0;
   const pageCount = Math.max(1, Math.ceil(total / filters.pageSize));
@@ -218,11 +245,13 @@ export function LedgerTab({ compact = false }: Props) {
         item={item}
         compact={compact}
         accountName={accountName(item.account_id)}
+        payer={payerCaption(item, accountName)}
         categoryPath={[catalogById(catalog, item.category_id)?.name, catalogById(catalog, item.subcategory_id)?.name].filter(Boolean).join(' › ')}
         onPress={() => void openEntry(item)}
+        onSettle={canSettleEntry(item, role) ? () => openSettle(item) : undefined}
       />
     ),
-    [compact, accountName, catalog, openEntry],
+    [compact, accountName, catalog, openEntry, role],
   );
 
   const activeFilterChips: { key: string; label: string; clear: () => void }[] = [];
@@ -256,16 +285,68 @@ export function LedgerTab({ compact = false }: Props) {
     </View>
   ));
 
+  // Outstanding: what is still to be paid and collected, across accounts.
+  const outstanding = summary.reduce(
+    (acc, row) => ({ payables: acc.payables + row.openPayables, receivables: acc.receivables + row.openReceivables }),
+    { payables: 0, receivables: 0 },
+  );
+  const showOutstanding = summary.length > 0 && (outstanding.payables > 0 || outstanding.receivables > 0);
+  const outstandingActive = filters.status === 'open';
+  const showOutstandingList = () =>
+    setFilters(outstandingActive ? { status: 'active', sort: 'transaction_date', sortDir: 'desc' } : { status: 'open', kind: null, sort: 'transaction_date', sortDir: 'asc' });
+
+  const outstandingCard = showOutstanding ? (
+    <Pressable
+      key="outstanding"
+      onPress={showOutstandingList}
+      className={`rounded-2xl border bg-white p-3 shadow-sm ${outstandingActive ? 'border-primary' : 'border-border/60'} ${compact ? 'min-w-[200px]' : 'min-w-[220px] flex-1'}`}
+      style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+      accessibilityRole="button"
+      accessibilityLabel={outstandingActive ? 'Show all entries' : 'Show outstanding payables and receivables'}
+      accessibilityState={{ selected: outstandingActive }}
+    >
+      <Text className="text-[11px] font-bold uppercase tracking-wide" style={{ color: semantic.warning }} numberOfLines={1}>Outstanding</Text>
+      <View className="mt-1 flex-row items-end justify-between">
+        <View>
+          <Text className="text-[10px] text-text-secondary">To pay</Text>
+          <Text className="text-base font-extrabold" style={{ color: semantic.danger }}>{formatINR(outstanding.payables, { compact: compactMoney })}</Text>
+        </View>
+        <View className="items-end">
+          <Text className="text-[10px] text-text-secondary">To collect</Text>
+          <Text className="text-base font-extrabold" style={{ color: semantic.success }}>{formatINR(outstanding.receivables, { compact: compactMoney })}</Text>
+        </View>
+      </View>
+    </Pressable>
+  ) : null;
+
+  const positionLines = positions.map((p) => (
+    <Text key={`${p.owed_by}-${p.owed_to}`} className="text-xs text-text-primary">
+      <Text className="font-bold">{accountName(p.owed_by)}</Text> owes <Text className="font-bold">{accountName(p.owed_to)}</Text> {formatINR(p.amount, { compact: compactMoney })}
+    </Text>
+  ));
+
   const header = (
     <View className="mb-3">
-      {showBalances ? (
+      {showBalances || showOutstanding ? (
         compact ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ gap: 12, paddingVertical: 4, paddingHorizontal: 2 }}>
-            {balanceCards}
+            {showBalances ? balanceCards : null}
+            {outstandingCard}
           </ScrollView>
         ) : (
-          <View className="mb-3 flex-row flex-wrap gap-3">{balanceCards}</View>
+          <View className="mb-3 flex-row flex-wrap gap-3">
+            {showBalances ? balanceCards : null}
+            {outstandingCard}
+          </View>
         )
+      ) : null}
+
+      {/* Between accounts: built up from every entry one account paid for another */}
+      {positions.length > 0 ? (
+        <View className="mb-3 rounded-2xl border border-border/60 bg-white px-3 py-2 shadow-sm">
+          <Text className="mb-1 text-[11px] font-bold uppercase tracking-wide text-text-secondary">Between accounts</Text>
+          <View className="gap-0.5">{positionLines}</View>
+        </View>
       ) : null}
 
       {/* Toolbar: search, the filter toggle, record */}
@@ -492,6 +573,17 @@ export function LedgerTab({ compact = false }: Props) {
         entry={selected}
         compact={compact}
         accountName={selected ? accountName(selected.account_id) : ''}
+        payerName={selected?.paid_from_account_id ? accountName(selected.paid_from_account_id) : null}
+        canSettle={selected ? canSettleEntry(selected, role) : false}
+        onSettle={() => {
+          if (!selected) return;
+          const target = selected;
+          void openEntry(null);
+          openSettle(target);
+        }}
+        onViewSettled={() => {
+          if (selected?.settles_entry_id) void openEntryById(selected.settles_entry_id);
+        }}
         categoryPath={selected ? [catalogById(catalog, selected.category_id)?.name, catalogById(catalog, selected.subcategory_id)?.name].filter(Boolean).join(' › ') : ''}
         revisions={revisions}
         revisionsLoading={revisionsLoading}
@@ -511,6 +603,15 @@ export function LedgerTab({ compact = false }: Props) {
         }}
         onClose={() => void openEntry(null)}
         describe={(changes) => describeChanges(changes, { catalog, accounts }, (r) => formatINR(r))}
+      />
+
+      <SettleEntryModal
+        entry={settleTarget}
+        accounts={accounts}
+        submitting={mutating}
+        serverError={settleError}
+        onSubmit={(input) => void handleSettle(input)}
+        onClose={() => setSettleTarget(null)}
       />
 
       {/* Void confirmation */}
@@ -623,12 +724,28 @@ function StatusPill({ status }: { status: FinanceEntry['status'] }) {
   );
 }
 
-type EntryRowProps = { item: FinanceEntry; compact: boolean; accountName: string; categoryPath: string; onPress: () => void };
+type EntryRowProps = {
+  item: FinanceEntry;
+  compact: boolean;
+  accountName: string;
+  /** "Paid by X · for Y" when another account paid; null otherwise. */
+  payer: string | null;
+  categoryPath: string;
+  onPress: () => void;
+  /** Present when the user may settle this open payable or receivable. */
+  onSettle?: () => void;
+};
 
-function EntryRow({ item, compact, accountName, categoryPath, onPress }: EntryRowProps) {
+function EntryRow({ item, compact, accountName, payer, categoryPath, onPress, onSettle }: EntryRowProps) {
   const voided = item.status === 'void';
   const tone = kindTone(item.kind);
-  const meta = [accountName, categoryPath || LEDGER_KIND_LABELS[item.kind], item.counterparty].filter(Boolean).join(' · ');
+  const meta = [payer ?? accountName, categoryPath || LEDGER_KIND_LABELS[item.kind], item.counterparty].filter(Boolean).join(' · ');
+  const progress =
+    (item.kind === 'payable' || item.kind === 'receivable') && item.status !== 'void' && item.settled > 0
+      ? `${formatINR(item.settled)} of ${formatINR(item.amount)} settled`
+      : item.settles_entry_id
+        ? `Settles a ${item.kind === 'income' ? 'receivable' : 'payable'} recorded earlier`
+        : null;
   const who = `${formatDateLabel(item.transaction_date)} · ${item.mode ? LEDGER_MODE_LABELS[item.mode] : `${item.transfer_from} → ${item.transfer_to}`} · ${item.entered_by_name ?? 'Staff'} ${formatTime(item.entered_at)}`;
 
   return (
@@ -646,12 +763,27 @@ function EntryRow({ item, compact, accountName, categoryPath, onPress }: EntryRo
         <Text className="text-sm font-bold text-text-primary" numberOfLines={1}>{item.particulars}</Text>
         <Text className="text-[11px] text-text-secondary" numberOfLines={1}>{meta}</Text>
         <Text className="text-[11px] text-text-secondary" numberOfLines={1}>{who}</Text>
+        {progress ? <Text className="text-[11px] font-semibold text-text-secondary" numberOfLines={1}>{progress}</Text> : null}
       </View>
       <View className="items-end">
         <Text className="text-sm font-extrabold" style={{ color: tone.color, textDecorationLine: voided ? 'line-through' : 'none' }}>
           {signedAmount(item, compact)}
         </Text>
-        <StatusPill status={item.status} />
+        {onSettle ? (
+          <Pressable
+            onPress={onSettle}
+            className="mt-1 min-h-[36px] flex-row items-center justify-center rounded-full border border-primary bg-accent-soft px-3"
+            hitSlop={4}
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel={item.kind === 'receivable' ? `Collect ${item.particulars}` : `Settle ${item.particulars}`}
+          >
+            <CheckCircle2 size={13} color={colors.primary} />
+            <Text className="ml-1 text-[11px] font-bold text-primary">{item.kind === 'receivable' ? 'Collect' : 'Settle'}</Text>
+          </Pressable>
+        ) : (
+          <StatusPill status={item.status} />
+        )}
       </View>
     </Pressable>
   );
@@ -661,6 +793,12 @@ type EntryDetailSheetProps = {
   entry: FinanceEntry | null;
   compact: boolean;
   accountName: string;
+  /** The account whose cash or bank moved, when not accountName's. */
+  payerName: string | null;
+  canSettle: boolean;
+  onSettle: () => void;
+  /** Opens the payable or receivable this payment settles. */
+  onViewSettled: () => void;
   categoryPath: string;
   revisions: ReturnType<typeof useLedgerStore.getState>['revisions'];
   revisionsLoading: boolean;
@@ -672,13 +810,18 @@ type EntryDetailSheetProps = {
   describe: (changes: Record<string, { from: unknown; to: unknown }>) => { field: string; label: string; from: string; to: string }[];
 };
 
-function EntryDetailSheet({ entry, compact, accountName, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
+function EntryDetailSheet({ entry, compact, accountName, payerName, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
   const insets = useSafeAreaInsets();
   if (!entry) return null;
   const tone = kindTone(entry.kind);
+  const isOutstandingKind = entry.kind === 'payable' || entry.kind === 'receivable';
   const rows: { label: string; value: string }[] = [
-    { label: 'Account', value: accountName },
+    { label: entry.kind === 'transfer' ? 'To account' : 'For', value: accountName },
+    ...(payerName ? [{ label: entry.kind === 'income' ? 'Received by' : entry.kind === 'transfer' ? 'From account' : 'Paid from', value: payerName }] : []),
     { label: 'Kind', value: LEDGER_KIND_LABELS[entry.kind] },
+    ...(isOutstandingKind && entry.status !== 'void'
+      ? [{ label: 'Settled', value: `${formatINR(entry.settled)} of ${formatINR(entry.amount)} · ${formatINR(remainingAmount(entry))} remaining${entry.settled_at ? ` · closed ${formatDateTime(entry.settled_at)}` : ''}` }]
+      : []),
     { label: entry.kind === 'transfer' ? 'Moved' : entryDirection(entry.kind) === 'in' ? 'Received via' : 'Paid via', value: entry.mode ? LEDGER_MODE_LABELS[entry.mode] : `${entry.transfer_from} → ${entry.transfer_to}` },
     { label: 'Transaction date', value: formatDateLong(entry.transaction_date) },
     { label: 'Category', value: categoryPath || '—' },
@@ -717,6 +860,19 @@ function EntryDetailSheet({ entry, compact, accountName, categoryPath, revisions
                 <Text className="flex-1 text-right text-sm text-text-primary">{row.value}</Text>
               </View>
             ))}
+            {entry.settles_entry_id ? (
+              <Pressable
+                onPress={onViewSettled}
+                className="min-h-[44px] flex-row items-center justify-between border-b border-border-soft py-2"
+                accessibilityRole="button"
+                accessibilityLabel="Open the entry this settles"
+              >
+                <Text className="w-[130px] text-[11px] font-bold uppercase tracking-wide text-text-secondary">Settles</Text>
+                <Text className="flex-1 text-right text-sm font-bold text-primary">
+                  {entry.kind === 'income' ? 'A receivable' : 'A payable'} recorded earlier · View
+                </Text>
+              </Pressable>
+            ) : null}
 
             <View className="mt-4 flex-row items-center">
               <History size={14} color={colors.textSecondary} />
@@ -749,8 +905,14 @@ function EntryDetailSheet({ entry, compact, accountName, categoryPath, revisions
             )}
           </ScrollView>
 
-          {canEdit || canVoid ? (
+          {canEdit || canVoid || canSettle ? (
             <View className="flex-row items-center justify-end gap-2 border-t border-border-soft px-5 py-3" style={compact ? { paddingBottom: Math.max(12, insets.bottom) } : undefined}>
+              {canSettle ? (
+                <Pressable onPress={onSettle} className="min-h-[44px] flex-row items-center justify-center rounded-xl border border-primary bg-accent-soft px-4" style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel={entry.kind === 'receivable' ? 'Collect' : 'Settle'}>
+                  <CheckCircle2 size={15} color={colors.primary} />
+                  <Text className="ml-1.5 text-sm font-bold text-primary">{entry.kind === 'receivable' ? 'Collect' : 'Settle'}</Text>
+                </Pressable>
+              ) : null}
               {canVoid ? (
                 <Pressable onPress={onVoid} className="min-h-[44px] flex-row items-center justify-center rounded-xl border px-4" style={({ pressed }) => [{ borderColor: semantic.danger, opacity: pressed ? 0.7 : 1 }]} accessibilityRole="button" accessibilityLabel="Void entry">
                   <Ban size={15} color={semantic.danger} />
