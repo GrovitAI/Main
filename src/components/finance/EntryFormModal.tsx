@@ -5,6 +5,7 @@ import { Calendar, Plus, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { centerFieldOnFocus } from '@/lib/pos/web-style';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { SearchSelect, type SearchSelectOption } from '@/components/ui/SearchSelect';
@@ -315,6 +316,7 @@ export function EntryFormModal({
                 // A new entry starts at the amount with the keypad already up.
                 autoFocus={mode === 'create'}
                 accessibilityLabel="Amount"
+                onFocus={centerFieldOnFocus}
               />
             </Field>
 
@@ -362,6 +364,7 @@ export function EntryFormModal({
                   className={`${FIELD_CLASS} flex-1`}
                   autoCapitalize="none"
                   accessibilityLabel="Transaction date"
+                  onFocus={centerFieldOnFocus}
                 />
                 <Pressable
                   onPress={() => setDatePickerOpen(true)}
@@ -389,7 +392,10 @@ export function EntryFormModal({
                   setSuggestionsOpen(true);
                   if (errors.particulars) setErrors((prev) => ({ ...prev, particulars: undefined }));
                 }}
-                onFocus={() => setSuggestionsOpen(true)}
+                onFocus={(e) => {
+                  centerFieldOnFocus(e);
+                  setSuggestionsOpen(true);
+                }}
                 placeholder={isTransfer ? 'e.g. Cash deposited at bank' : 'What was this for?'}
                 placeholderTextColor={colors.textSecondary}
                 className={FIELD_CLASS}
@@ -458,6 +464,7 @@ export function EntryFormModal({
                     placeholderTextColor={colors.textSecondary}
                     className={FIELD_CLASS}
                     accessibilityLabel="Counterparty"
+                    onFocus={centerFieldOnFocus}
                   />
                 </Field>
               </View>
@@ -471,6 +478,7 @@ export function EntryFormModal({
                     className={FIELD_CLASS}
                     autoCapitalize="characters"
                     accessibilityLabel="Reference number"
+                    onFocus={centerFieldOnFocus}
                   />
                 </Field>
               </View>
@@ -487,6 +495,7 @@ export function EntryFormModal({
                 multiline
                 textAlignVertical="top"
                 accessibilityLabel="Notes"
+                onFocus={centerFieldOnFocus}
               />
             </Field>
 

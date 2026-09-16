@@ -84,7 +84,8 @@ export function PhoneFinanceScreen({
       ) : null}
 
       {/* Active range, as on the analytics screen: tap the date to change it,
-          or open every filter at once. */}
+          or open every filter at once. The Catalog has no range. */}
+      {activeTab !== 'catalog' ? (
       <View className="mx-3 mt-3 flex-row items-center justify-between rounded-2xl border border-border-soft bg-accent-soft px-3 py-1">
         <Pressable
           onPress={() => setPickerOpen(true)}
@@ -110,6 +111,7 @@ export function PhoneFinanceScreen({
           <Text className="ml-1 text-[11px] font-bold text-primary">Filters</Text>
         </Pressable>
       </View>
+      ) : null}
 
       {/* Day close and the expense forms carry text inputs, so the body lifts
           clear of the iOS keyboard. */}

@@ -1,4 +1,5 @@
-import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import { Platform } from 'react-native';
+import type { ImageStyle, NativeSyntheticEvent, TargetedEvent, TextStyle, ViewStyle } from 'react-native';
 
 /**
  * Web-only CSS properties (outlineStyle, transition, whiteSpace, cursor, ...)
@@ -18,6 +19,19 @@ export function webTextStyle(style: Record<string, unknown>): TextStyle {
 
 export function webImageStyle(style: Record<string, unknown>): ImageStyle {
   return style as unknown as ImageStyle;
+}
+
+/**
+ * On the web, scrolls a field that just took focus to the middle of the
+ * screen, so a phone shows it above the keyboard without the browser zooming
+ * to it. The short delay lets the keyboard and the sheet settle first. A
+ * no-op on native, where the keyboard avoider does this.
+ */
+export function centerFieldOnFocus(event: NativeSyntheticEvent<TargetedEvent>): void {
+  if (Platform.OS !== 'web') return;
+  const target = (event as unknown as { target?: unknown }).target;
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return;
+  setTimeout(() => target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
 }
 
 /** Removes the browser focus ring on web; a no-op on native. */

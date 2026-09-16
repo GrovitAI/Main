@@ -124,16 +124,18 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
           </View>
         ) : null}
 
-        <FinanceFilterBar
-          filters={filters}
-          branches={branches}
-          canPickBranch={isOwnerOrAdmin}
-          loading={loading}
-          onPreset={setPreset}
-          onCustomRange={setCustomRange}
-          onBranch={setBranch}
-          onRefresh={() => void refreshActive()}
-        />
+        {activeTab !== 'catalog' ? (
+          <FinanceFilterBar
+            filters={filters}
+            branches={branches}
+            canPickBranch={isOwnerOrAdmin}
+            loading={loading}
+            onPreset={setPreset}
+            onCustomRange={setCustomRange}
+            onBranch={setBranch}
+            onRefresh={() => void refreshActive()}
+          />
+        ) : null}
 
         <FinanceSchemaNotice schema={schema} />
 
