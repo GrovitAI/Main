@@ -7,6 +7,7 @@ import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { SearchSelect, type SearchSelectOption } from '@/components/ui/SearchSelect';
 import type { CatalogItem, EntryFormErrors, EntryFormValues, FinanceAccount, FinanceEntryInput, FinanceRules, LedgerKind, LedgerMode } from '@/lib/pos/finance-types';
 import { LEDGER_KINDS, LEDGER_MODES } from '@/lib/pos/finance-types';
 import type { UserRole } from '@/lib/pos/session-context';
@@ -15,6 +16,7 @@ import {
   LEDGER_KIND_LABELS,
   LEDGER_MODE_LABELS,
   canTransfer,
+  catalogById,
   catalogChildren,
   isFinanceOwner,
   kindCanHavePayer,
@@ -42,9 +44,6 @@ export type EntryFormModalProps = {
 
 const FIELD_CLASS = 'min-h-[44px] rounded-xl border border-border bg-white px-3 text-sm text-text-primary';
 
-/** Categories shown on a phone before the user asks for the rest. */
-const PHONE_CATEGORY_LIMIT = 6;
-
 export function EntryFormModal({
   visible,
   mode,
@@ -65,7 +64,6 @@ export function EntryFormModal({
   const [values, setValues] = useState<EntryFormValues>(initialValues);
   const [errors, setErrors] = useState<EntryFormErrors>({});
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [showAllCategories, setShowAllCategories] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   // The second account picker stays folded away for the everyday case.
   const [payerOpen, setPayerOpen] = useState(false);
@@ -74,7 +72,6 @@ export function EntryFormModal({
     if (visible) {
       setValues(initialValues);
       setErrors({});
-      setShowAllCategories(false);
       setSuggestionsOpen(false);
       setPayerOpen(initialValues.paid_from_account_id.length > 0);
     }
@@ -131,13 +128,38 @@ export function EntryFormModal({
     [catalog, values.particulars, suggestionsOpen, isTransfer],
   );
 
-  // A phone cannot spare a screen for twenty chips.
-  const canCollapseCategories = isPhone && categories.length > PHONE_CATEGORY_LIMIT;
-  const collapsed = canCollapseCategories && !showAllCategories;
-  const visibleCategories = collapsed
-    ? categories.filter((c, index) => index < PHONE_CATEGORY_LIMIT || c.id === values.category_id)
-    : categories;
-  const hiddenCategoryCount = categories.length - visibleCategories.length;
+  // A phone cannot spare a screen for rows of chips, so there each of these
+  // is one line that opens a searchable list: whose books, who paid, and the
+  // category with its sub-categories under it.
+  const accountLabel = (a: FinanceAccount) => (a.kind === 'partner' ? `${a.name} (partner)` : a.name);
+  const accountOptions: SearchSelectOption[] = useMemo(
+    () => activeAccounts.map((a) => ({ id: a.id, label: accountLabel(a), hint: a.kind === 'partner' ? 'Partner' : 'Branch' })),
+    [activeAccounts],
+  );
+  const payerOptions: SearchSelectOption[] = useMemo(
+    () => [{ id: '', label: forName, hint: 'Same account' }, ...otherAccounts.map((a) => ({ id: a.id, label: accountLabel(a) }))],
+    [forName, otherAccounts],
+  );
+  const categoryOptions: SearchSelectOption[] = useMemo(
+    () =>
+      categories.flatMap((c) => [
+        { id: c.id, label: c.name, hint: c.default_kind ? LEDGER_KIND_LABELS[c.default_kind] : undefined },
+        ...catalogChildren(catalog, c.id).map((sub) => ({ id: sub.id, label: sub.name, hint: c.name, nested: true })),
+      ]),
+    [categories, catalog],
+  );
+  const pickCategoryOption = (id: string) => {
+    const item = catalogById(catalog, id);
+    if (!item) return;
+    const kind = resolveCatalogKind(catalog, id);
+    setValues((prev) => ({
+      ...prev,
+      category_id: item.level === 'subcategory' ? item.parent_id ?? '' : id,
+      subcategory_id: item.level === 'subcategory' ? id : '',
+      particular_id: '',
+      kind: kind && prev.kind !== 'transfer' ? kind : prev.kind,
+    }));
+  };
 
   const pickCategory = (id: string) => {
     const kind = resolveCatalogKind(catalog, id);
@@ -204,16 +226,26 @@ export function EntryFormModal({
           <ScrollView className="px-5 py-4" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {/* Account */}
             <Field label="For" error={errors.account_id}>
-              <View className="flex-row flex-wrap gap-2">
-                {activeAccounts.map((a) => (
-                  <SelectChip
-                    key={a.id}
-                    label={a.kind === 'partner' ? `${a.name} (partner)` : a.name}
-                    active={values.account_id === a.id}
-                    onPress={() => setValues((prev) => ({ ...prev, account_id: a.id, paid_from_account_id: prev.paid_from_account_id === a.id ? '' : prev.paid_from_account_id }))}
-                  />
-                ))}
-              </View>
+              {isPhone ? (
+                <SearchSelect
+                  value={values.account_id}
+                  options={accountOptions}
+                  placeholder="Whose books"
+                  onChange={(id) => setValues((prev) => ({ ...prev, account_id: id, paid_from_account_id: prev.paid_from_account_id === id ? '' : prev.paid_from_account_id }))}
+                  accessibilityLabel="Account"
+                />
+              ) : (
+                <View className="flex-row flex-wrap gap-2">
+                  {activeAccounts.map((a) => (
+                    <SelectChip
+                      key={a.id}
+                      label={accountLabel(a)}
+                      active={values.account_id === a.id}
+                      onPress={() => setValues((prev) => ({ ...prev, account_id: a.id, paid_from_account_id: prev.paid_from_account_id === a.id ? '' : prev.paid_from_account_id }))}
+                    />
+                  ))}
+                </View>
+              )}
             </Field>
 
             {/* Paid from / For: whose cash or bank moved, when it was not the account above */}
@@ -222,13 +254,20 @@ export function EntryFormModal({
                 label={payerLabel(values.kind)}
                 hint={payerOpen ? `The money leaves that account; the cost or income stays with ${forName}.` : undefined}
               >
-                {payerOpen ? (
+                {payerOpen && isPhone ? (
+                  <SearchSelect
+                    value={values.paid_from_account_id}
+                    options={payerOptions}
+                    placeholder={payerLabel(values.kind)}
+                    onChange={(id) => setField('paid_from_account_id', id)}
+                  />
+                ) : payerOpen ? (
                   <View className="flex-row flex-wrap gap-2">
                     <SelectChip label={forName} active={values.paid_from_account_id === ''} onPress={() => setField('paid_from_account_id', '')} />
                     {otherAccounts.map((a) => (
                       <SelectChip
                         key={a.id}
-                        label={a.kind === 'partner' ? `${a.name} (partner)` : a.name}
+                        label={accountLabel(a)}
                         active={values.paid_from_account_id === a.id}
                         onPress={() => setField('paid_from_account_id', a.id)}
                       />
@@ -376,19 +415,24 @@ export function EntryFormModal({
             </Field>
 
             {/* Category and sub-category */}
-            {!isTransfer ? (
+            {!isTransfer && isPhone ? (
+              <Field label="Category" hint="Sub-categories sit under their category; type a few letters to jump to one.">
+                <SearchSelect
+                  value={values.subcategory_id || values.category_id || null}
+                  options={categoryOptions}
+                  placeholder="Pick a category"
+                  onChange={pickCategoryOption}
+                  accessibilityLabel="Category"
+                />
+              </Field>
+            ) : null}
+            {!isTransfer && !isPhone ? (
               <>
                 <Field label="Category">
                   <View className="flex-row flex-wrap gap-2">
-                    {visibleCategories.map((c) => (
+                    {categories.map((c) => (
                       <SelectChip key={c.id} label={c.name} active={values.category_id === c.id} onPress={() => pickCategory(c.id)} />
                     ))}
-                    {collapsed ? (
-                      <SelectChip label={`${hiddenCategoryCount} more…`} active={false} onPress={() => setShowAllCategories(true)} />
-                    ) : null}
-                    {canCollapseCategories && showAllCategories ? (
-                      <SelectChip label="Fewer" active={false} onPress={() => setShowAllCategories(false)} />
-                    ) : null}
                   </View>
                 </Field>
                 {subcategories.length > 0 ? (

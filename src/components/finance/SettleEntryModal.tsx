@@ -7,6 +7,7 @@ import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { SearchSelect, type SearchSelectOption } from '@/components/ui/SearchSelect';
 import type { FinanceAccount, FinanceEntry, LedgerMode, SettleEntryInput, SettleFormErrors, SettleFormValues } from '@/lib/pos/finance-types';
 import { LEDGER_MODES } from '@/lib/pos/finance-types';
 import { addDays, formatDateLabel, formatDateLong, formatINR, getCurrentBusinessDate } from '@/lib/pos/finance-utils';
@@ -57,6 +58,11 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
   const isPayable = entry.kind === 'payable';
   const remaining = remainingAmount(entry);
   const ownerName = accounts.find((a) => a.id === entry.account_id)?.name ?? 'this account';
+  // On a phone the payer is one line that opens a searchable list.
+  const payerOptions: SearchSelectOption[] = [
+    { id: '', label: ownerName, hint: 'Same account' },
+    ...otherAccounts.map((a) => ({ id: a.id, label: a.kind === 'partner' ? `${a.name} (partner)` : a.name })),
+  ];
 
   const setField = <K extends keyof SettleFormValues>(key: K, value: SettleFormValues[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -158,7 +164,14 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
               {/* Who actually paid, when it was not the account whose books carry the entry */}
               {otherAccounts.length > 0 ? (
                 <Field label={isPayable ? 'Paid from' : 'Received by'} hint={payerOpen ? `The money leaves that account; the cost stays with ${ownerName}.` : undefined}>
-                  {payerOpen ? (
+                  {payerOpen && isPhone ? (
+                    <SearchSelect
+                      value={values.paid_from_account_id}
+                      options={payerOptions}
+                      placeholder={isPayable ? 'Paid from' : 'Received by'}
+                      onChange={(id) => setField('paid_from_account_id', id)}
+                    />
+                  ) : payerOpen ? (
                     <View className="flex-row flex-wrap gap-2">
                       <SelectChip label={ownerName} active={values.paid_from_account_id === ''} onPress={() => setField('paid_from_account_id', '')} />
                       {otherAccounts.map((a) => (
