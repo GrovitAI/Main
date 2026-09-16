@@ -15,6 +15,7 @@ import {
   holdOpenOrder,
   resumeHeldOrder,
   fetchKotsForOrders,
+  fetchOrdersActivityStamp,
   getAllOrders,
   settleOrderById,
   updateOpenOrderStatus,
@@ -35,6 +36,8 @@ import { isBillSettled, upsertBill } from './bill-service';
 import { getBranchTaxPercentage } from './pos-settings-service';
 import { computeBillTotals } from './money-utils';
 import { getTenantContext } from './tenant-context';
+import { getBusinessDayBounds } from './reporting-utils';
+import { shouldRefreshSummaries, type SummariesMarker } from './orders-refresh-utils';
 import { supabase } from './supabase';
 import { printerService } from './printer-service';
 
@@ -42,6 +45,8 @@ type OrdersState = {
   orders: OpenOrder[];
   heldOrders: OpenOrder[];
   summaries: OpenOrderSummary[];
+  /** What the last full load of summaries was based on; lets background polls skip unchanged days. */
+  summariesMarker: SummariesMarker | null;
   activeOrderId: string | null;
   activeOrderItems: PosOrderItem[];
   itemCountByOrderId: Record<string, number>;
@@ -173,6 +178,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
   heldOrders: [],
   summaries: [],
+  summariesMarker: null,
   activeOrderId: (typeof window !== 'undefined' && window.localStorage)
     ? window.localStorage.getItem('grovit_active_order_id')
     : null,
@@ -346,6 +352,17 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   },
 
   loadSummaries: async (silent = false) => {
+    // Background polls read one small row (the branch's change stamp) and
+    // only download the day's orders when it has moved. A visible reload
+    // always downloads.
+    const dayStart = getBusinessDayBounds('today').startTimestamp;
+    const stamp = (await fetchOrdersActivityStamp()).data;
+    const now = Date.now();
+    if (silent && !shouldRefreshSummaries({ stamp, dayStart, now }, get().summariesMarker)) {
+      return;
+    }
+    const marker: SummariesMarker = { stamp, dayStart, fetchedAt: now };
+
     if (!silent) set({ isLoadingOrders: true, error: null });
     const result = await getAllOrders();
     if (result.error) {
@@ -382,6 +399,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
 
         return {
           summaries: [...missingFromDb, ...merged],
+          summariesMarker: marker,
           isLoadingOrders: false,
         };
       });
