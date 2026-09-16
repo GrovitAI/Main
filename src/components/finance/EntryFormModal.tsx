@@ -5,6 +5,7 @@ import { Calendar, Plus, X } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { useVisualViewport } from '@/lib/pos/use-visual-viewport';
 import { centerFieldOnFocus } from '@/lib/pos/web-style';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -60,6 +61,9 @@ export function EntryFormModal({
   onClose,
 }: EntryFormModalProps) {
   const { height: windowHeight } = useWindowDimensions();
+  // On a phone browser the sheet must fit above the keyboard, not the page.
+  const { height: visibleHeight } = useVisualViewport();
+  const sheetMaxHeight = Math.min(windowHeight, visibleHeight) * 0.92;
   const { isPhone } = useResponsive();
   const insets = useSafeAreaInsets();
   const [values, setValues] = useState<EntryFormValues>(initialValues);
@@ -205,7 +209,7 @@ export function EntryFormModal({
         <Pressable
           onPress={() => undefined}
           className={`w-full overflow-hidden bg-white shadow-panel ${isPhone ? 'rounded-t-3xl' : 'max-w-[600px] rounded-3xl'}`}
-          style={{ maxHeight: windowHeight * 0.92 }}
+          style={{ maxHeight: sheetMaxHeight }}
         >
           {/* Header */}
           <View className="flex-row items-center justify-between border-b border-border-soft px-5 py-4">
