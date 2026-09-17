@@ -1,3 +1,4 @@
+import { canViewAllBranches } from './branch-access';
 import { useSessionStore } from './use-session-store';
 import type { UserRole } from './session-context';
 
@@ -18,6 +19,11 @@ export type TenantContext = {
    * branch_id filter when this is true so owners can see across all branches.
    */
   isOwnerOrAdmin: boolean;
+  /**
+   * True for the owner only. Reports and finance use this, not isOwnerOrAdmin,
+   * to decide whether a user may look beyond their own branch.
+   */
+  canViewAllBranches: boolean;
 };
 
 /**
@@ -43,6 +49,7 @@ export function getTenantContext(): TenantContext {
     branch_id: session.branchId,
     role: session.role,
     isOwnerOrAdmin,
+    canViewAllBranches: canViewAllBranches(session.role),
   };
 }
 

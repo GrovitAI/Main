@@ -12,6 +12,7 @@ import { Landmark } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';
 import { useResponsive, getResponsivePadding } from '@/lib/pos/useResponsive';
+import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { FinanceFilterBar, type FinanceBranchOption } from './FinanceFilterBar';
@@ -63,7 +64,8 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
     if (session && !initialized) void initialize();
   }, [session, initialized, initialize, allowedTab, tabs, setTab]);
 
-  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
+  // Only the owner may switch branch or see them all; an admin sees their own.
+  const canPickBranch = canViewAllBranches(session?.role);
   const branches: FinanceBranchOption[] = useMemo(
     () => (session?.accessibleBranches ?? []).filter((b) => b.is_active).map((b) => ({ id: b.id, name: b.name })),
     [session],
@@ -84,7 +86,7 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
         tabs={tabs}
         filters={filters}
         branches={branches}
-        canPickBranch={isOwnerOrAdmin}
+        canPickBranch={canPickBranch}
         loading={loading}
         schema={schema}
         onTab={setTab}
@@ -128,7 +130,7 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
           <FinanceFilterBar
             filters={filters}
             branches={branches}
-            canPickBranch={isOwnerOrAdmin}
+            canPickBranch={canPickBranch}
             loading={loading}
             onPreset={setPreset}
             onCustomRange={setCustomRange}

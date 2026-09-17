@@ -64,6 +64,8 @@ export interface PhoneAnalyticsScreenProps {
     selectedBranchId?: string;
   };
   branches: { id: string; name: string }[];
+  /** Whether the user may switch branch or see all of them. The owner only. */
+  canPickBranch?: boolean;
   startDate?: string;
   endDate?: string;
   startTime?: string;
@@ -128,6 +130,7 @@ export function PhoneAnalyticsScreen({
   itemSales,
   filterState,
   branches,
+  canPickBranch = true,
   startDate = '',
   endDate = '',
   startTime = '11:30',
@@ -725,8 +728,8 @@ export function PhoneAnalyticsScreen({
                 })}
               </View>
 
-              {/* Branch Selector (for Owners & Admins) */}
-              {branches.length > 0 && (
+              {/* Branch Selector (owner only) */}
+              {canPickBranch && branches.length > 0 && (
                 <>
                   <Text className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2.5">
                     Branch Location
