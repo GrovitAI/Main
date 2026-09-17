@@ -41,7 +41,9 @@ export function getTenantContext(): TenantContext {
     throw new Error('Grovit Security Exception: Active session required to retrieve tenant context.');
   }
 
-  // Owner and admin roles have cross-branch reporting access
+  // Owner and admin share manager-level powers. Looking across branches is
+  // the owner's alone (canViewAllBranches); the database enforces that too, so a
+  // query that skips the branch filter for an admin still returns their branch.
   const isOwnerOrAdmin = session.role === 'owner' || session.role === 'admin';
 
   return {

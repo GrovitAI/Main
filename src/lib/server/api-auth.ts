@@ -39,7 +39,7 @@ export type AuthenticatedCaller = {
   role: StaffRole;
   name: string;
   email: string | null;
-  /** owner / admin: may act on any branch of the tenant. */
+  /** The owner only: may act on any branch of the tenant. An admin runs one branch. */
   isTenantWide: boolean;
   /** owner / admin / manager. */
   isManager: boolean;
@@ -185,7 +185,7 @@ export async function authenticate(req: ApiRequest): Promise<AuthenticatedCaller
   }
 
   const role = String(staff.role) as StaffRole;
-  const isTenantWide = role === 'owner' || role === 'admin';
+  const isTenantWide = role === 'owner';
   return {
     db,
     userId: userData.user.id,
@@ -196,7 +196,7 @@ export async function authenticate(req: ApiRequest): Promise<AuthenticatedCaller
     name: typeof staff.name === 'string' ? staff.name : 'Staff',
     email: typeof staff.email === 'string' ? staff.email : null,
     isTenantWide,
-    isManager: isTenantWide || role === 'manager',
+    isManager: role === 'owner' || role === 'admin' || role === 'manager',
   };
 }
 

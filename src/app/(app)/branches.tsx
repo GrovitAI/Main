@@ -79,7 +79,9 @@ export default function BranchesScreen() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const canManage = session?.role === 'owner' || session?.role === 'admin';
+  // Branches belong to the business, so only the owner creates or edits them.
+  // The database enforces the same rule.
+  const canManage = session?.role === 'owner';
 
   const [verifyingEmail, setVerifyingEmail] = useState(false);
   const [verifyModalVisible, setVerifyModalVisible] = useState(false);

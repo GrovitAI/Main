@@ -33,6 +33,8 @@ export type EntryFormModalProps = {
   mode: 'create' | 'edit';
   initialValues: EntryFormValues;
   accounts: FinanceAccount[];
+  /** The accounts this user may book an entry to. Defaults to all of them. */
+  scopeAccounts?: FinanceAccount[];
   catalog: CatalogItem[];
   rules: FinanceRules | null;
   role: UserRole | null;
@@ -51,6 +53,7 @@ export function EntryFormModal({
   mode,
   initialValues,
   accounts,
+  scopeAccounts,
   catalog,
   rules,
   role,
@@ -110,6 +113,8 @@ export function EntryFormModal({
   const isTransfer = values.kind === 'transfer';
 
   const activeAccounts = useMemo(() => accounts.filter((a) => a.is_active), [accounts]);
+  // "For" is limited to the user's own books; the payer may be any account.
+  const forAccounts = useMemo(() => (scopeAccounts ?? accounts).filter((a) => a.is_active), [scopeAccounts, accounts]);
   const otherAccounts = useMemo(() => activeAccounts.filter((a) => a.id !== values.account_id), [activeAccounts, values.account_id]);
   const payerAllowed = kindCanHavePayer(values.kind) && otherAccounts.length > 0;
   const forName = activeAccounts.find((a) => a.id === values.account_id)?.name ?? 'this account';
@@ -138,8 +143,8 @@ export function EntryFormModal({
   // category with its sub-categories under it.
   const accountLabel = (a: FinanceAccount) => (a.kind === 'partner' ? `${a.name} (partner)` : a.name);
   const accountOptions: SearchSelectOption[] = useMemo(
-    () => activeAccounts.map((a) => ({ id: a.id, label: accountLabel(a), hint: a.kind === 'partner' ? 'Partner' : 'Branch' })),
-    [activeAccounts],
+    () => forAccounts.map((a) => ({ id: a.id, label: accountLabel(a), hint: a.kind === 'partner' ? 'Partner' : 'Branch' })),
+    [forAccounts],
   );
   const payerOptions: SearchSelectOption[] = useMemo(
     () => [{ id: '', label: forName, hint: 'Same account' }, ...otherAccounts.map((a) => ({ id: a.id, label: accountLabel(a) }))],
@@ -241,7 +246,7 @@ export function EntryFormModal({
                 />
               ) : (
                 <View className="flex-row flex-wrap gap-2">
-                  {activeAccounts.map((a) => (
+                  {forAccounts.map((a) => (
                     <SelectChip
                       key={a.id}
                       label={accountLabel(a)}
