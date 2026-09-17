@@ -34,9 +34,23 @@ The password is never written into a migration or this repository.
 3. Apply `20260917000200_demo_tenant_owner.sql`. It links that user to the demo
    tenant as owner, and fails with a clear message if the user is missing.
 
-The sample bills do not move forward in time. If a review happens months later
-and the dashboard's "today" looks empty, add fresh bills for the demo tenant
-before submitting.
+### Keeping the sample data current
+
+Analytics opens on Today, so sample bills that stop in the past make the app
+look empty on the very first screen a reviewer sees. `demo_tenant_roll_forward()`
+(migration `20260918000300_demo_tenant_keep_current.sql`) shifts the demo
+tenant's bills forward by whole days so the newest always lands on today,
+keeping each bill's time of day. The `demo-tenant-roll-forward` cron job runs it
+at 19:05 UTC — 00:35 IST — so the demo is current before Cupertino starts work,
+and it stays current however long the review queue takes.
+
+The function hardcodes the demo tenant id and re-checks the tenant is named
+"Grovit Demo Cafe" before writing anything, so it cannot reach Le Leban's books.
+It only ever shifts; it never deletes or reorders, it refuses a shift larger
+than 400 days, and running it twice in a day does nothing the second time.
+
+To check it by hand: `SELECT public.demo_tenant_roll_forward();` returns the
+number of days it moved, or `0` when the data already ends today.
 
 ## Test Information (App Store Connect > TestFlight > Test Information)
 
