@@ -2,25 +2,41 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
+import { isSupabaseAnonKeyValid, isSupabaseUrlValid } from './supabase-env';
 import { logSupabaseError } from './supabase-debug';
 
-const supabaseUrl =
+const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
+const PLACEHOLDER_KEY = 'placeholder-key';
+
+const configuredUrl = (
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   process.env.SUPABASE_URL ||
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  'https://placeholder.supabase.co';
+  ''
+).trim();
 
-const supabaseAnonKey =
+const configuredAnonKey = (
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  'placeholder-key';
+  ''
+).trim();
 
-const hasValidSupabaseEnv =
-  supabaseUrl.length > 0 &&
-  supabaseAnonKey.length > 0 &&
-  !supabaseUrl.includes('placeholder') &&
-  supabaseUrl.startsWith('https://');
+/**
+ * Whether the build carries usable Supabase settings. The values are baked in
+ * when the app is built, so a bad one (a stray control character pasted into
+ * the build service, for instance) cannot be corrected on the device.
+ */
+export const isSupabaseConfigured =
+  isSupabaseUrlValid(configuredUrl) && isSupabaseAnonKeyValid(configuredAnonKey);
+
+// createClient throws on a malformed URL, and it runs while the first screen
+// loads, so a bad value would close the installed app before anything shows.
+// Falling back keeps the app open; the login screen explains what is wrong.
+const supabaseUrl = isSupabaseConfigured ? configuredUrl : PLACEHOLDER_URL;
+const supabaseAnonKey = isSupabaseConfigured ? configuredAnonKey : PLACEHOLDER_KEY;
+
+const hasValidSupabaseEnv = isSupabaseConfigured;
 
 if (!hasValidSupabaseEnv && typeof __DEV__ !== 'undefined' && __DEV__) {
   logSupabaseError('supabase.init', {

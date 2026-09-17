@@ -1,6 +1,6 @@
 {
   "name": "grovit",
-  "main": "expo-router/entry",
+  "main": "./index.js",
   "version": "1.0.0",
   "engines": {
     "node": ">=22"
@@ -57,7 +57,8 @@
     "lint": "expo lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run typecheck && npm run lint && npm test",
+    "eas-build-pre-install": "node scripts/check-build-env.js"
   },
   "private": true,
   "jest": {
