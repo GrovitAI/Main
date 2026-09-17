@@ -138,20 +138,17 @@ test notes rather than letting a tester discover them:
   Settlement is not a concern here, because the app cannot take a payment by
   design.
 
-## Optional: over-the-air updates
+## Over-the-air updates
 
-`eas.json` sets `channel` on the `preview` and `production` profiles, but
-`expo-updates` is not installed, so those channels do nothing today. Builds ship
-exactly the JavaScript they were built with. To push JavaScript-only fixes to
-testers without a new build, install the package and configure it:
+`expo-updates` was installed and configured by the first `eas build` on
+2026-09-17: `updates.url` and a `runtimeVersion` policy of `appVersion` are in
+`app.json`, and the `preview` and `production` profiles each have a channel.
+A JavaScript-only fix can now reach installed builds without a new build:
 
 ```bash
-npx expo install expo-updates
-```
-```bash
-npx eas-cli@latest update:configure
+npx eas-cli@latest update --channel production --message "what changed"
 ```
 
-This is not needed for a first TestFlight release, and it changes launch
-behaviour (the app checks for an update on start), so it is better done
-deliberately than as part of the first build.
+The app checks for an update on launch and applies it on the next start. An
+update only reaches builds with the same app version, so bumping `version` in
+`app.json` needs a new build. Anything that adds a native package needs one too.
