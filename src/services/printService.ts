@@ -5,37 +5,51 @@ import { apiFetch } from '@/lib/pos/api-client';
 import { RECEIPT_CONFIG, PAPER_WIDTH } from './receiptConfig';
 import { roundUpToWholeRupee } from '@/lib/pos/order-utils';
 
-/** How long the health check reuses the printer it resolved from the database. */
-const HEALTH_PRINTER_CACHE_MS = 5 * 60_000;
+/** How long the branch's printer rows are reused before the database is asked again. */
+const PRINTER_CACHE_MS = 5 * 60_000;
 
-let healthPrinterCache: { key: string; printer: Printer | null; resolvedAt: number } | null = null;
+let printerCache: { key: string; printers: Printer[]; resolvedAt: number } | null = null;
 
 /**
- * The printer the health check should probe, read from the database at most
- * once every five minutes per branch. The check used to reload every printer
- * row on every run, which on an idle till was a large share of the day's
- * database egress for a value that almost never changes.
+ * The branch's printers, read from the database at most once every five
+ * minutes. The rows almost never change, and both users of them are on hot
+ * paths: the health check ran this read on every tick (a large share of an
+ * idle till's database egress), and printing a bill waited for it before the
+ * job could even be sent.
  */
-async function resolveHealthPrinter(): Promise<Printer | null> {
+async function loadBranchPrinters(forceFresh = false): Promise<{ printers: Printer[] | null; error: string | null }> {
   const { tenant_id, branch_id } = getTenantContext();
   const key = `${tenant_id}:${branch_id}`;
   const now = Date.now();
-  if (healthPrinterCache && healthPrinterCache.key === key && now - healthPrinterCache.resolvedAt < HEALTH_PRINTER_CACHE_MS) {
-    return healthPrinterCache.printer;
+  if (!forceFresh && printerCache && printerCache.key === key && now - printerCache.resolvedAt < PRINTER_CACHE_MS) {
+    return { printers: printerCache.printers, error: null };
   }
 
   const res = await fetchPrinters();
   if (res.error || !res.data) {
     // Keep any earlier answer; a transient read failure should not turn the
-    // indicator red or force a reload on the next run.
-    return healthPrinterCache?.key === key ? healthPrinterCache.printer : null;
+    // indicator red or stop a bill from printing.
+    if (printerCache?.key === key) return { printers: printerCache.printers, error: null };
+    return { printers: null, error: res.error || 'No printers configured.' };
   }
-  const printer = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill')
-               || res.data.find(p => p.is_active && p.is_default)
-               || res.data.find(p => p.is_active)
-               || null;
-  healthPrinterCache = { key, printer, resolvedAt: now };
-  return printer;
+  printerCache = { key, printers: res.data, resolvedAt: now };
+  return { printers: res.data, error: null };
+}
+
+/** The printer the health check should probe. */
+async function resolveHealthPrinter(): Promise<Printer | null> {
+  const { printers } = await loadBranchPrinters();
+  if (!printers) return null;
+  return printers.find(p => p.is_active && p.is_default && p.printer_role === 'bill')
+      || printers.find(p => p.is_active && p.is_default)
+      || printers.find(p => p.is_active)
+      || null;
+}
+
+function pickBillPrinter(printers: Printer[]): Printer | null {
+  return printers.find(p => p.is_active && p.is_default && p.printer_role === 'bill')
+      || printers.find(p => p.is_active && p.printer_role === 'bill')
+      || null;
 }
 
 /**
@@ -62,16 +76,20 @@ export async function getPrinters(): Promise<string[]> {
 /**
  * Sends a thermal receipt print job directly via PrintNode API to the default billing printer.
  */
-export async function printReceipt(printerName: string, content: string): Promise<{ success: boolean; error?: string }> {
+export async function printReceipt(printerName: string, content: string, useCachedPrinter = true): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetchPrinters();
-    if (res.error || !res.data) {
-      return { success: false, error: res.error || 'No printers configured.' };
+    // The cashier is waiting on this, so the printer comes from the cache
+    // rather than a database round trip. If the job then fails, the printer
+    // may have been changed in Settings: reload it and try once more.
+    const loaded = await loadBranchPrinters(!useCachedPrinter);
+    if (!loaded.printers) {
+      return { success: false, error: loaded.error || 'No printers configured.' };
     }
-    
+
     // Find active primary bill printer
-    const defaultBillPrinter = res.data.find(p => p.is_active && p.is_default && p.printer_role === 'bill') || res.data.find(p => p.is_active && p.printer_role === 'bill');
+    const defaultBillPrinter = pickBillPrinter(loaded.printers);
     if (!defaultBillPrinter) {
+      if (useCachedPrinter) return printReceipt(printerName, content, false);
       return { success: false, error: 'No active bill printer configured in database.' };
     }
 
@@ -102,6 +120,7 @@ export async function printReceipt(printerName: string, content: string): Promis
         body: { printerId, base64Content },
       });
       if (response.error) {
+        if (useCachedPrinter) return printReceipt(printerName, content, false);
         return { success: false, error: response.error };
       }
 
@@ -244,7 +263,7 @@ export function buildReceiptText(
   const addressParts = addressRaw.split(/[,\n]/).map((p) => p.trim()).filter(Boolean);
 
   // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
-  const printNvLogo = '\x1Cp\x01\x00'; 
+  const printNvLogo = '\x1Cp\x01\x00';
 
   // ── Header ────────────────────────────────────────────────────────────────
   lines.push(ESC_CENTER);
