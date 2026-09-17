@@ -53,6 +53,7 @@ import {
   ProductInsight,
   PaymentSplit,
 } from '@/lib/analytics/analytics-service';
+import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 
 export default function AnalyticsScreen() {
@@ -61,10 +62,11 @@ export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const { isPhone, width: windowWidth } = useResponsive();
 
-  // Branch filter — relevant for owner and admin
-  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
+  // Branch filter — the owner only. An admin sees their own branch, like everyone else.
+  const canPickBranch = canViewAllBranches(session?.role);
   const accessibleBranches = session?.accessibleBranches ?? [];
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null); // null = all branches
+  const [pickedBranchId, setSelectedBranchId] = useState<string | null>(null); // null = all branches
+  const selectedBranchId = canPickBranch ? pickedBranchId : session?.branchId ?? null;
 
   // State for filters
   const [preset, setPreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom'>('7days');
@@ -216,7 +218,7 @@ export default function AnalyticsScreen() {
         endDate,
         ...(advancedTime ? { startTime, endTime } : {}),
         // Pass selected branch for owner; undefined means all branches
-        ...(isOwnerOrAdmin && selectedBranchId ? { branchId: selectedBranchId } : {}),
+        ...(canPickBranch && selectedBranchId ? { branchId: selectedBranchId } : {}),
       };
 
       const res = await fetchAnalyticsDashboard(filters);
@@ -1269,6 +1271,7 @@ export default function AnalyticsScreen() {
           selectedBranchId: selectedBranchId || undefined,
         }}
         branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
+        canPickBranch={canPickBranch}
         startDate={startDate}
         endDate={endDate}
         startTime={startTime}
@@ -1341,8 +1344,8 @@ export default function AnalyticsScreen() {
       {/* FILTER CONTROL TOOLBAR */}
       <View className="bg-white border-b border-border/40 py-3.5 px-4 md:px-6 shadow-sm">
 
-        {/* ── Branch Filter (owner/admin only) ── */}
-        {isOwnerOrAdmin && accessibleBranches.length > 0 && (
+        {/* ── Branch Filter (owner only) ── */}
+        {canPickBranch && accessibleBranches.length > 0 && (
           <View style={{ marginBottom: 10 }}>
             <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
               Branch

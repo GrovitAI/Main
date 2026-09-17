@@ -96,7 +96,7 @@ function sanitizeSearch(term: string): string {
 
 type Scope = {
   tenant_id: string;
-  /** null = every branch the user can see (owner/admin "All branches"). */
+  /** null = every branch (the owner's "All branches"). */
   branch_id: string | null;
   /** Branch new rows are written to. */
   writeBranchId: string;
@@ -104,12 +104,14 @@ type Scope = {
 };
 
 /**
- * Non-owner roles are always pinned to their own branch regardless of what the
- * UI asks for; owners/admins may pick a branch or see all.
+ * Everyone but the owner is pinned to their own branch regardless of what the
+ * UI asks for; the owner may pick a branch or see all. An admin keeps the
+ * owner-level permissions inside their branch (isOwnerOrAdmin) but not the
+ * view across branches.
  */
 function resolveScope(requestedBranchId: string | null | undefined): Scope {
   const ctx = getTenantContext();
-  if (ctx.isOwnerOrAdmin) {
+  if (ctx.canViewAllBranches) {
     return {
       tenant_id: ctx.tenant_id,
       branch_id: requestedBranchId ?? null,
@@ -121,7 +123,7 @@ function resolveScope(requestedBranchId: string | null | undefined): Scope {
     tenant_id: ctx.tenant_id,
     branch_id: ctx.branch_id,
     writeBranchId: ctx.branch_id,
-    isOwnerOrAdmin: false,
+    isOwnerOrAdmin: ctx.isOwnerOrAdmin,
   };
 }
 

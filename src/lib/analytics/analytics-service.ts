@@ -128,7 +128,7 @@ export async function fetchAnalyticsDashboard(
   filters: AnalyticsFilters,
 ): Promise<ServiceResult<AnalyticsDashboard>> {
   try {
-    const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
+    const { tenant_id, branch_id, canViewAllBranches } = getTenantContext();
 
     const { startTimestamp, endTimestamp } = getBusinessDayBounds(
       'custom',
@@ -136,8 +136,9 @@ export async function fetchAnalyticsDashboard(
       filters.endDate
     );
 
-    // Determine effective branch: explicit filter > session branch (non-owner)
-    const effectiveBranchId = filters.branchId ?? (!isOwnerOrAdmin ? branch_id : null);
+    // Only the owner may choose a branch or see them all. Everyone else gets
+    // their own branch whatever the screen asked for.
+    const effectiveBranchId = canViewAllBranches ? (filters.branchId ?? null) : branch_id;
 
     const timezone = DEFAULT_BUSINESS_DAY_CONFIG.timezone;
 

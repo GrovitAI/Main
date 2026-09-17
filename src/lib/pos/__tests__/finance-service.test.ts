@@ -55,8 +55,9 @@ function filtersFor(table: string): Record<string, unknown> {
   return out;
 }
 
-const OWNER = { tenant_id: 'tenant-1', branch_id: 'branch-1', role: 'owner', isOwnerOrAdmin: true };
-const CASHIER = { tenant_id: 'tenant-1', branch_id: 'branch-1', role: 'cashier', isOwnerOrAdmin: false };
+const OWNER = { tenant_id: 'tenant-1', branch_id: 'branch-1', role: 'owner', isOwnerOrAdmin: true, canViewAllBranches: true };
+const ADMIN = { tenant_id: 'tenant-1', branch_id: 'branch-1', role: 'admin', isOwnerOrAdmin: true, canViewAllBranches: false };
+const CASHIER = { tenant_id: 'tenant-1', branch_id: 'branch-1', role: 'cashier', isOwnerOrAdmin: false, canViewAllBranches: false };
 
 const MISSING_COLUMN = { code: '42703', message: 'column does not exist' };
 const MISSING_TABLE = { code: 'PGRST205', message: 'table not found' };
@@ -147,6 +148,31 @@ describe('branch scoping', () => {
     const filters = filtersFor('expenses');
     expect(filters.tenant_id).toBe('tenant-1');
     expect(filters.branch_id).toBe('branch-1');
+  });
+
+  test('an admin is pinned to their own branch, whether asking for all or for another', async () => {
+    mockTenantContext.mockReturnValue(ADMIN);
+    mockFrom.mockImplementation((t: string) => makeQuery(t, { data: [], error: null, count: 0 }));
+    mockRpc.mockResolvedValue({ data: {}, error: null });
+
+    const { fetchExpenses } = loadService();
+    for (const branchId of [null, 'someone-elses-branch']) {
+      await fetchExpenses({
+        startDate: '2026-09-01',
+        endDate: '2026-09-07',
+        branchId,
+        category: null,
+        paymentMethod: null,
+        search: '',
+        includeVoid: false,
+        page: 0,
+        pageSize: 50,
+      });
+
+      const filters = filtersFor('expenses');
+      expect(filters.tenant_id).toBe('tenant-1');
+      expect(filters.branch_id).toBe('branch-1');
+    }
   });
 
   test('an owner viewing all branches sends no branch filter', async () => {

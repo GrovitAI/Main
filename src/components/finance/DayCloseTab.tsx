@@ -18,6 +18,7 @@ import {
   parseAmountInput,
 } from '@/lib/pos/finance-utils';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { FinanceErrorView, FinanceLoadingView, FinanceSectionCard, financeContentPadding } from './FinanceStateViews';
 
@@ -41,8 +42,8 @@ export function DayCloseTab({ compact = false }: Props) {
   const saveDayClose = useFinanceStore((s) => s.saveDayClose);
   const setBranch = useFinanceStore((s) => s.setBranch);
 
-  const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
-  const needsBranch = isOwnerOrAdmin && filters.branchId === null;
+  // Only the owner can be on "All branches"; everyone else is already on their own.
+  const needsBranch = canViewAllBranches(session?.role) && filters.branchId === null;
   const branchName = useMemo(() => {
     const id = filters.branchId ?? session?.branchId ?? null;
     return session?.accessibleBranches.find((b) => b.id === id)?.name ?? session?.branchName ?? 'Branch';
