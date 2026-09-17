@@ -50,6 +50,12 @@
         "projectId": "33683278-0fc8-4fee-93bf-84d3d89ab8db"
       }
     },
-    "owner": "grovitais-team"
+    "owner": "grovitais-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/33683278-0fc8-4fee-93bf-84d3d89ab8db"
+    }
   }
 }
