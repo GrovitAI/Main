@@ -5,6 +5,7 @@
  * database; the mirrors here only decide what the screen offers, so a clerk
  * never taps a button the server would refuse.
  */
+import { canViewAllBranches } from './branch-access';
 import type {
   CatalogItem,
   CatalogKind,
@@ -12,6 +13,7 @@ import type {
   EntryFieldChange,
   EntryFormErrors,
   EntryFormValues,
+  FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
@@ -47,6 +49,23 @@ export function entryDirection(kind: LedgerKind): 'in' | 'out' | 'move' {
 
 export function isFinanceOwner(role: UserRole | null | undefined): boolean {
   return role === 'owner' || role === 'admin';
+}
+
+/**
+ * The accounts a user keeps books for: the owner, all of them; anyone else, the
+ * account of their own branch. Mirrors finance_account_in_scope() in the
+ * database, which is what actually enforces it; this only keeps the screen from
+ * offering accounts the database would refuse. Other accounts stay available
+ * as the payer of an entry ("paid by another account").
+ */
+export function accountsInScope(
+  accounts: readonly FinanceAccount[],
+  role: UserRole | null | undefined,
+  branchId: string | null | undefined,
+): FinanceAccount[] {
+  if (!role) return [];
+  if (canViewAllBranches(role)) return [...accounts];
+  return accounts.filter((a) => a.kind === 'branch' && a.branch_id !== null && a.branch_id === branchId);
 }
 
 export function isFinanceClerk(role: UserRole | null | undefined): boolean {

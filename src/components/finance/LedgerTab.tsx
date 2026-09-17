@@ -27,6 +27,7 @@ import type { EntryFormValues, FinanceEntry, FinanceEntryInput, LedgerKind, Ledg
 import { LEDGER_KINDS, LEDGER_MODES } from '@/lib/pos/finance-types';
 import { formatDateLabel, formatDateLong, formatDateTime, formatINR, formatTime, getCurrentBusinessDate } from '@/lib/pos/finance-utils';
 import {
+  accountsInScope,
   LEDGER_KIND_LABELS,
   LEDGER_MODE_LABELS,
   canEditEntry,
@@ -149,12 +150,16 @@ export function LedgerTab({ compact = false }: Props) {
   // The default account for a new entry is the primary books, the account
   // whose profit the partners share (the Central Kitchen), because that is
   // what the ledger is kept for. Failing that, the user's own branch.
+  // The accounts this user keeps books for: all of them for the owner, their
+  // own branch's account for anyone else.
+  const myAccounts = useMemo(() => accountsInScope(accounts, role, session?.branchId), [accounts, role, session?.branchId]);
+
   const defaultAccountId = useMemo(() => {
-    const active = accounts.filter((a) => a.is_active);
+    const active = myAccounts.filter((a) => a.is_active);
     const primary = active.find((a) => a.counts_in_partner_profit);
     const own = active.find((a) => a.branch_id === session?.branchId);
     return (primary ?? own ?? active[0])?.id ?? '';
-  }, [accounts, session?.branchId]);
+  }, [myAccounts, session?.branchId]);
 
   const openCreate = useCallback(() => {
     setFormError(null);
@@ -422,8 +427,10 @@ export function LedgerTab({ compact = false }: Props) {
       {filtersOpen ? (
         <View className="mt-3 rounded-2xl border border-border/60 bg-white p-3 shadow-sm">
           <FilterRow label="Account" compact={compact}>
-            <FilterChip label="All accounts" active={filters.accountId === null} onPress={() => setFilters({ accountId: null })} />
-            {accounts.filter((a) => a.is_active).map((a) => (
+            {myAccounts.length > 1 ? (
+              <FilterChip label="All accounts" active={filters.accountId === null} onPress={() => setFilters({ accountId: null })} />
+            ) : null}
+            {myAccounts.filter((a) => a.is_active).map((a) => (
               <FilterChip key={a.id} label={a.name} active={filters.accountId === a.id} onPress={() => setFilters({ accountId: filters.accountId === a.id ? null : a.id })} />
             ))}
           </FilterRow>
@@ -559,6 +566,7 @@ export function LedgerTab({ compact = false }: Props) {
         mode={form.mode}
         initialValues={initialValues}
         accounts={accounts}
+        scopeAccounts={myAccounts}
         catalog={catalog}
         rules={rules}
         role={role}

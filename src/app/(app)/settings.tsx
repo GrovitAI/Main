@@ -23,6 +23,8 @@ export default function SettingsScreen() {
   const isPhone = width < 768;
   const { session, signOut } = useSessionStore();
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
+  // Finance rules apply to the whole business, so only the owner sets them.
+  const isOwner = session?.role === 'owner';
   const [activeTab, setActiveTab] = useState<SettingsTab>('system');
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,7 +243,7 @@ export default function SettingsScreen() {
               { key: 'system' as SettingsTab, label: 'System', icon: Settings },
               { key: 'printers' as SettingsTab, label: 'Printers', icon: PrinterIcon },
               ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approvals', icon: ShieldCheck }] : []),
-              ...(isOwnerOrAdmin ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
+              ...(isOwner ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
@@ -271,7 +273,7 @@ export default function SettingsScreen() {
                   { key: 'system' as SettingsTab, label: 'System Settings', icon: Settings },
                   { key: 'printers' as SettingsTab, label: 'Printer Configuration', icon: PrinterIcon },
                   ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approval Policies', icon: ShieldCheck }] : []),
-                  ...(isOwnerOrAdmin ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
+                  ...(isOwner ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
                 ].map((tab) => {
                   const isSel = activeTab === tab.key;
                   const Icon = tab.icon;
