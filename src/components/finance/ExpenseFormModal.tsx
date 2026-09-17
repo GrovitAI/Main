@@ -156,7 +156,8 @@ export function ExpenseFormModal({
                 placeholderTextColor={colors.textSecondary}
                 className={`${FIELD_CLASS} font-extrabold ${isPhone ? 'min-h-[56px] text-3xl' : 'text-2xl'}`}
                 // A new entry starts at the amount with the keypad already up.
-                autoFocus={mode === 'create'}
+                // Desktop only: on a phone the sheet opens at rest and the user taps a field.
+                autoFocus={mode === 'create' && !isPhone}
                 accessibilityLabel="Amount"
               />
             </Field>
