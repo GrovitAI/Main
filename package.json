@@ -1,6 +1,6 @@
 {
   "name": "grovit",
-  "main": "expo-router/entry",
+  "main": "./index.js",
   "version": "1.0.0",
   "engines": {
     "node": ">=22"

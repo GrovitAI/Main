@@ -10,6 +10,9 @@ import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
 import { BREAKPOINTS } from '@/lib/pos/useResponsive';
 import { useSupabaseAutoRefresh } from '@/lib/pos/use-supabase-auto-refresh';
 
+// A render error in an installed app would otherwise close it; this shows the message instead.
+export { ErrorBoundary } from 'expo-router';
+
 export const unstable_settings = {
   initialRouteName: '(auth)',
 };
