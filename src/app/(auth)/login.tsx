@@ -6,11 +6,15 @@ import { StatusBar } from 'expo-status-bar';
 import { BrandedGradient } from '@/components/pos/BrandedGradient';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { brand } from '@/lib/pos/brand';
+import { isSupabaseConfigured } from '@/lib/pos/supabase';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
 import { useResponsive } from '@/lib/pos/useResponsive';
 
 const logoSource = require('../../../assets/images/le-leban-logo.png');
+
+/** Shown when the build was made without usable server settings; signing in cannot work. */
+const NOT_CONFIGURED_MESSAGE = 'This version of the app was built without its server settings. Please install the latest version.';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -56,7 +60,7 @@ export default function LoginScreen() {
     await signIn(trimmedEmail, password);
   };
 
-  const displayError = validationError || authError;
+  const displayError = validationError || authError || (isSupabaseConfigured ? null : NOT_CONFIGURED_MESSAGE);
 
   return (
     <>
