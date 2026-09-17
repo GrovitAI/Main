@@ -48,22 +48,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       return;
     }
 
-    const allowed = await rateLimit(caller.db, `printjobs:${caller.branchId}`, 120, 60);
+    // The two checks are independent, and a cashier is waiting on the paper,
+    // so they run side by side instead of one after the other.
+    // The printer must be registered to the caller's branch (RLS scopes this lookup).
+    // For PrintNode printers the numeric PrintNode id is stored in printers.ip_address.
+    const [allowed, { data: printer }] = await Promise.all([
+      rateLimit(caller.db, `printjobs:${caller.branchId}`, 120, 60),
+      caller.db
+        .from('printers')
+        .select('id')
+        .eq('tenant_id', caller.tenantId)
+        .eq('connection', 'printnode')
+        .eq('ip_address', String(numericPrinterId))
+        .limit(1)
+        .maybeSingle(),
+    ]);
     if (!allowed) {
       sendJson(res, 429, { error: 'Too many print jobs. Please wait a moment.' });
       return;
     }
-
-    // The printer must be registered to the caller's branch (RLS scopes this lookup).
-    // For PrintNode printers the numeric PrintNode id is stored in printers.ip_address.
-    const { data: printer } = await caller.db
-      .from('printers')
-      .select('id')
-      .eq('tenant_id', caller.tenantId)
-      .eq('connection', 'printnode')
-      .eq('ip_address', String(numericPrinterId))
-      .limit(1)
-      .maybeSingle();
     if (!printer) {
       forbidden(res, 'That printer is not registered to your branch.');
       return;
