@@ -45,7 +45,7 @@ export const gradients = {
 };
 
 export const brand = {
-  name: 'Le Leban',
+  name: 'Le Laban',
   tagline: 'Restaurant POS',
 } as const;
 
