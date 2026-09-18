@@ -65,7 +65,7 @@ export function InventoryMobileMenu({ visible, onClose, activeTab, onSelectTab, 
             }}
           >
             <View className="flex-row items-center justify-between w-full">
-              <Image source={leLabanLogo} style={{ height: 40, width: 62, resizeMode: 'contain', opacity: 0.96 }} accessibilityLabel="Le Leban logo" />
+              <Image source={leLabanLogo} style={{ height: 40, width: 62, resizeMode: 'contain', opacity: 0.96 }} accessibilityLabel="Le Laban logo" />
               <Pressable onPress={onClose} className="p-1 rounded-lg min-w-[44px] min-h-[44px] items-center justify-center" accessibilityRole="button" accessibilityLabel="Close menu">
                 <X size={16} color={colors.textOnPrimary} />
               </Pressable>

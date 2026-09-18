@@ -227,7 +227,7 @@ export default function SettingsScreen() {
           <View className="flex-row items-center gap-3">
             <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
               <View className="w-2 h-2 rounded-full bg-emerald-500" />
-              <Text className="text-xs font-bold text-slate-700">Le Leban POS Main</Text>
+              <Text className="text-xs font-bold text-slate-700">Le Laban POS Main</Text>
             </View>
           </View>
         </View>
