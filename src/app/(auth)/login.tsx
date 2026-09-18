@@ -152,10 +152,6 @@ export default function LoginScreen() {
               </BrandedGradient>
             </Pressable>
           </View>
-
-          <Text className="mt-6 text-center text-sm text-text-on-primary/80">
-            Powered by Grovit
-          </Text>
         </View>
         </KeyboardAvoider>
       </BrandedGradient>
