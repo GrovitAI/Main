@@ -95,7 +95,7 @@ export const useSessionStore = create<SessionState>((set) => {
           .select('name')
           .eq('id', tenantId)
           .maybeSingle();
-        const tenantName = tenant?.name || 'Le Leban';
+        const tenantName = tenant?.name || 'Le Laban';
 
         // Fetch branch details
         const { data: branch } = await supabase
@@ -242,7 +242,7 @@ export const useSessionStore = create<SessionState>((set) => {
           .select('name')
           .eq('id', tenantId)
           .maybeSingle();
-        const tenantName = tenant?.name || 'Le Leban';
+        const tenantName = tenant?.name || 'Le Laban';
 
         // Fetch branch details
         const { data: branch } = await supabase

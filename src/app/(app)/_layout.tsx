@@ -548,7 +548,7 @@ function GlobalHeader({ session }: { session: PosSession | null }) {
           source={headerLogo}
           style={{ width: 56, height: 26 }}
           resizeMode="contain"
-          accessibilityLabel="Le Leban Logo"
+          accessibilityLabel="Le Laban logo"
         />
         <View style={styles.roleBadge}>
           <Text style={styles.roleText}>{session.role.toUpperCase()}</Text>

@@ -250,7 +250,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
             overflow: 'hidden',
           }}
         >
-          <Image source={leLabanLogo} style={logoStyle} accessibilityLabel="Le Leban logo" />
+          <Image source={leLabanLogo} style={logoStyle} accessibilityLabel="Le Laban logo" />
           <SidebarLabel expanded={expanded} style={{ alignItems: 'center' }}>
             <Text
               style={[

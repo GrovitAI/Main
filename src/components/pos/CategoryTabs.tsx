@@ -73,7 +73,7 @@ export function CategoryTabs({
             source={leLabanLogo}
             className="h-[60px] w-[100px]"
             resizeMode="contain"
-            accessibilityLabel="Le Leban logo"
+            accessibilityLabel="Le Laban logo"
           />
           <Text className="mt-4 text-[12px] font-medium text-white">
             Main Branch

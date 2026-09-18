@@ -5814,7 +5814,7 @@ export default function InventoryScreen() {
                   ? { transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1)' }
                   : {}),
               })}
-              accessibilityLabel="Le Leban logo"
+              accessibilityLabel="Le Laban logo"
             />
             <SidebarLabel expanded={sidebarExpanded} style={{ alignItems: 'center' }}>
               <Text style={webTextStyle({ fontSize: 10, fontWeight: '700', letterSpacing: -0.3, color: '#FFFFFF', marginTop: 4, whiteSpace: 'nowrap' })}>

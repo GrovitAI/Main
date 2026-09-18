@@ -14,7 +14,7 @@ export const SHOW_GST_INFORMATION = false;
 // ─── Restaurant Information ───────────────────────────────────────────────────
 
 export const RECEIPT_CONFIG = {
-  restaurantName: 'LE LEBAN',
+  restaurantName: 'LE LABAN',
   tagline: '',           // e.g. 'DESSERT BAR' — leave blank to omit
   addressLine1: 'No. 13, Balaji Nagar Main Road',
   addressLine2: 'Kolathur',

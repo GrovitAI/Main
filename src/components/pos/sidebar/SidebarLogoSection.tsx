@@ -12,7 +12,7 @@ export function SidebarLogoSection() {
           source={leLabanLogo}
           style={{ width: 75, height: 40 }}
           resizeMode="contain"
-          accessibilityLabel="Le Leban logo"
+          accessibilityLabel="Le Laban logo"
         />
       </View>
 
