@@ -12,6 +12,9 @@
       "bundleIdentifier": "com.grovit.pos",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDisplayName": "Le Laban"
       }
     },
     "android": {
