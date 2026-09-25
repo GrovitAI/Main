@@ -66,6 +66,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
 import { getTenantContext } from '@/lib/pos/tenant-context';
+import { useSessionStore } from '@/lib/pos/use-session-store';
+import { canViewAllBranches } from '@/lib/pos/branch-access';
+import { canRaiseTransferRequest } from '@/lib/pos/transfer-access';
 import { webImageStyle, webTextStyle, webViewStyle } from '@/lib/pos/web-style';
 import { Sparkline, CircularProgress } from '@/components/inventory/InventoryCharts';
 import { SidebarDecoration, SidebarLabel } from '@/components/inventory/InventorySidebar';
@@ -445,8 +448,14 @@ export default function InventoryScreen() {
   const [isImporting, setIsImporting] = useState(false);
 
   // ─── CENTRAL KITCHEN & TRANSFERS STATES ─────────────────────────────────────
-  const [simulatedBranchId, setSimulatedBranchId] = useState<string>(() => getTenantContext().branch_id);
+  const [viewedBranchId, setViewedBranchId] = useState<string>(() => getTenantContext().branch_id);
   const [dbBranches, setDbBranches] = useState<Branch[]>([]);
+  const { session } = useSessionStore();
+  // The owner may look at any branch's stock, transfers and reports. Everyone
+  // else is pinned to their own branch, so the picker is never drawn for them.
+  const canPickBranch = canViewAllBranches(session?.role);
+  const accessibleBranches = session?.accessibleBranches ?? [];
+  const branchPickerVisible = canPickBranch && accessibleBranches.length > 1;
   const [transferRequests, setTransferRequests] = useState<InventoryTransferRequest[]>([]);
   const [dispatchesList, setDispatchesList] = useState<InventoryDispatch[]>([]);
   const [transferSubTab, setTransferSubTab] = useState<'requests' | 'dispatches' | 'adjustments'>('requests');
@@ -603,7 +612,7 @@ export default function InventoryScreen() {
     entities.forEach((entity) => loadedEntities.current.delete(entity));
   }, []);
 
-  const loadAllData = useCallback(async (silent = false, targetBranchId = simulatedBranchId) => {
+  const loadAllData = useCallback(async (silent = false, targetBranchId = viewedBranchId) => {
     if (lastFetchedBranchId.current !== targetBranchId) {
       loadedEntities.current.clear();
       lastFetchedBranchId.current = targetBranchId;
@@ -676,28 +685,28 @@ export default function InventoryScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeTab, simulatedBranchId, TAB_DEPENDENCIES]);
+  }, [activeTab, viewedBranchId, TAB_DEPENDENCIES]);
 
   useEffect(() => {
-    loadAllData(false, simulatedBranchId);
-  }, [simulatedBranchId, loadAllData]);
+    loadAllData(false, viewedBranchId);
+  }, [viewedBranchId, loadAllData]);
 
   useFocusEffect(
     useCallback(() => {
       const deps = TAB_DEPENDENCIES[activeTab] || [];
       deps.forEach((d) => loadedEntities.current.delete(d));
-      loadAllData(true, simulatedBranchId);
-    }, [simulatedBranchId, activeTab, loadAllData, TAB_DEPENDENCIES])
+      loadAllData(true, viewedBranchId);
+    }, [viewedBranchId, activeTab, loadAllData, TAB_DEPENDENCIES])
   );
 
   useEffect(() => {
     // Refresh silently when changing tabs/panels in inventory to ensure fresh state
-    loadAllData(true, simulatedBranchId);
+    loadAllData(true, viewedBranchId);
 
     if (['materials', 'suppliers', 'units', 'categories'].includes(activeTab)) {
       setIsMasterExpanded(true);
     }
-  }, [activeTab, simulatedBranchId, loadAllData]);
+  }, [activeTab, viewedBranchId, loadAllData]);
 
 
   // ─── FILTERS ───────────────────────────────────────────────────────────────
@@ -851,7 +860,7 @@ export default function InventoryScreen() {
         setIsImportModalOpen(false);
         setImportSummary(null);
         invalidateEntities(['materials', 'kpis']);
-        await loadAllData(false, simulatedBranchId);
+        await loadAllData(false, viewedBranchId);
       } else {
         Alert.alert('Import Error', 'Import process finished without data or error.');
       }
@@ -1340,7 +1349,7 @@ export default function InventoryScreen() {
 
       const res = await createTransferRequest(
         newReqFromBranchId,
-        simulatedBranchId,
+        viewedBranchId,
         itemsPayload,
         newReqRemarks
       );
@@ -1356,7 +1365,7 @@ export default function InventoryScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [newReqFromBranchId, newReqItems, simulatedBranchId, newReqRemarks, invalidateEntities, loadAllData]);
+  }, [newReqFromBranchId, newReqItems, viewedBranchId, newReqRemarks, invalidateEntities, loadAllData]);
 
   const handleOpenApprovalModal = useCallback(async (req: InventoryTransferRequest) => {
     setModalError(null);
@@ -4349,7 +4358,35 @@ export default function InventoryScreen() {
   };
 
 
-
+  // ─── BRANCH PICKER (owner only) ─────────────────────────────────────────────
+  const renderBranchButtons = (label: string) => {
+    if (!branchPickerVisible) return null;
+    return (
+      <View className="flex-row items-center gap-4 flex-wrap">
+        <View className="flex-row items-center">
+          <View className="w-2.5 h-2.5 bg-primary rounded-full mr-2" />
+          <Text className="text-xs font-black text-slate-700 uppercase tracking-wider">{label}:</Text>
+        </View>
+        <View className="flex-row gap-2 flex-wrap">
+          {accessibleBranches.map((b) => {
+            const isSelected = b.id === viewedBranchId;
+            return (
+              <Pressable
+                key={b.id}
+                onPress={() => setViewedBranchId(b.id)}
+                className={`px-3 py-1.5 rounded-xl border ${isSelected ? 'bg-primary border-primary' : 'bg-white border-slate-200'}`}
+                style={{ minHeight: 44 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+              >
+                <Text className={`text-[11px] font-bold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{b.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
 
   const renderTransfers = () => {
     if (isCreatingRequest) {
@@ -4357,64 +4394,11 @@ export default function InventoryScreen() {
     }
     return (
       <View className="flex-1">
-        {/* Branch Simulator switcher */}
-        <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-6 flex-row items-center justify-between flex-wrap gap-3">
-          <View className="flex-row items-center">
-            <View className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-2" />
-            <Text className="text-xs font-black text-slate-700 uppercase tracking-wider">Simulate Active Branch:</Text>
+        {branchPickerVisible ? (
+          <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-6">
+            {renderBranchButtons('Viewing branch')}
           </View>
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={() => setSimulatedBranchId('bbbbbbbb-0000-0000-0000-000000000001')}
-              className={`px-3 py-1.5 rounded-xl border ${
-                simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001'
-                  ? 'bg-blue-600 border-blue-600'
-                  : 'bg-white border-slate-200'
-              }`}
-              style={{ minHeight: 40 }}
-            >
-              <Text
-                className={`text-[11px] font-bold ${
-                  simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'
-                }`}
-              >
-                Main Restaurant
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setSimulatedBranchId('cccccccc-0000-0000-0000-000000000001')}
-              className={`px-3 py-1.5 rounded-xl border ${
-                simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001'
-                  ? 'bg-blue-600 border-blue-600'
-                  : 'bg-white border-slate-200'
-              }`}
-              style={{ minHeight: 40 }}
-            >
-              <Text
-                className={`text-[11px] font-bold ${
-                  simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'
-                }`}
-              >
-                Central Kitchen
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* DIAGNOSTIC DEV BANNER */}
-        <View className="bg-blue-50 border border-blue-200 p-3 rounded-2xl mb-4">
-          <Text className="text-xs font-bold text-blue-800">
-            [Diagnostics] Simulated Branch: {simulatedBranchId} ({simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' ? 'Main Restaurant' : 'Central Kitchen'})
-          </Text>
-          <Text className="text-[10px] text-blue-600 mt-1 font-semibold">
-            Loaded requests count: {transferRequests.length}
-          </Text>
-          {transferRequests.map(r => (
-            <Text key={r.id} className="text-[9px] text-slate-500 font-mono mt-0.5">
-              - ID: {r.id.substring(0,6)}... | From: {r.from_branch_id?.substring(0,6)}... | To: {r.to_branch_id?.substring(0,6)}... | Status: {r.status}
-            </Text>
-          ))}
-        </View>
+        ) : null}
 
         {/* Header Title with Primary Action */}
         <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
@@ -4424,7 +4408,7 @@ export default function InventoryScreen() {
               Manage transfer requests between your outlets and the Central Kitchen.
             </Text>
           </View>
-          {transferSubTab === 'requests' && simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' && (
+          {transferSubTab === 'requests' && canRaiseTransferRequest(viewedBranchId, dbBranches) && (
             <Pressable
               onPress={handleOpenNewRequestModal}
               className="flex-row bg-blue-600 items-center justify-center py-2.5 px-4 rounded-xl shadow-md active:scale-95"
@@ -4690,7 +4674,7 @@ export default function InventoryScreen() {
     const renderVarianceReport = () => {
       // Aggregate consumption and variance for each material
       const items = materials.map(m => {
-        const branchLedger = stockLedger.filter(l => l.branch_id === simulatedBranchId && l.material_id === m.id);
+        const branchLedger = stockLedger.filter(l => l.branch_id === viewedBranchId && l.material_id === m.id);
 
         // Theoretical: Recipe Consumption qty_out
         const theoreticalQty = branchLedger
@@ -4785,42 +4769,9 @@ export default function InventoryScreen() {
 
     return (
       <View className="flex-col gap-6">
-        {/* Branch Simulator & Reports Sub-Tab switcher */}
+        {/* Branch picker & Reports Sub-Tab switcher */}
         <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-1 flex-row items-center justify-between flex-wrap gap-3">
-          <View className="flex-row items-center gap-4 flex-wrap">
-            <View className="flex-row items-center">
-              <View className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-2" />
-              <Text className="text-xs font-black text-slate-700 uppercase tracking-wider">Reports Branch:</Text>
-            </View>
-            <View className="flex-row gap-2">
-              <Pressable
-                onPress={() => setSimulatedBranchId('bbbbbbbb-0000-0000-0000-000000000001')}
-                className={`px-3 py-1.5 rounded-xl border ${
-                  simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001'
-                    ? 'bg-blue-600 border-blue-600'
-                    : 'bg-white border-slate-200'
-                }`}
-                style={{ minHeight: 40 }}
-              >
-                <Text className={`text-[11px] font-bold ${simulatedBranchId === 'bbbbbbbb-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'}`}>
-                  Main Restaurant
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setSimulatedBranchId('cccccccc-0000-0000-0000-000000000001')}
-                className={`px-3 py-1.5 rounded-xl border ${
-                  simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001'
-                    ? 'bg-blue-600 border-blue-600'
-                    : 'bg-white border-slate-200'
-                }`}
-                style={{ minHeight: 40 }}
-              >
-                <Text className={`text-[11px] font-bold ${simulatedBranchId === 'cccccccc-0000-0000-0000-000000000001' ? 'text-white' : 'text-slate-600'}`}>
-                  Central Kitchen
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          {renderBranchButtons('Reports branch')}
 
           <View className="flex-row gap-1">
             <Pressable
@@ -5287,8 +5238,8 @@ export default function InventoryScreen() {
   }, [materials, handleDecrementNewReqItem, handleUpdateNewReqItemQty, handleIncrementNewReqItem, handleRemoveNewReqItem]);
 
   const renderRequestItem = useCallback(({ item }: { item: InventoryTransferRequest }) => {
-    const isCreator = item.to_branch_id === simulatedBranchId;
-    const isSupplier = item.from_branch_id === simulatedBranchId;
+    const isCreator = item.to_branch_id === viewedBranchId;
+    const isSupplier = item.from_branch_id === viewedBranchId;
     
     let statusColor = 'bg-slate-100 text-slate-600 border-slate-200';
     if (item.status === 'Pending') statusColor = 'bg-amber-50 text-amber-700 border-amber-200';
@@ -5388,10 +5339,10 @@ export default function InventoryScreen() {
         </View>
       </View>
     );
-  }, [simulatedBranchId, handleOpenEventsModal, handleProcessCancelRequest, handleOpenApprovalModal]);
+  }, [viewedBranchId, handleOpenEventsModal, handleProcessCancelRequest, handleOpenApprovalModal]);
 
   const renderDispatchItem = useCallback(({ item }: { item: InventoryDispatch }) => {
-    const isReceiver = item.to_branch_id === simulatedBranchId;
+    const isReceiver = item.to_branch_id === viewedBranchId;
     const isReceived = item.status === 'Received';
     
     let statusColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
@@ -5457,7 +5408,7 @@ export default function InventoryScreen() {
         )}
       </View>
     );
-  }, [simulatedBranchId, handleOpenReceiveModal]);
+  }, [viewedBranchId, handleOpenReceiveModal]);
 
   const renderAdjustmentItem = useCallback(({ item }: { item: InventoryAdjustment }) => {
     const isAdd = item.adjustment_type === 'Add';
