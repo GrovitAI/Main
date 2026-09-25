@@ -38,7 +38,8 @@ Never hardcode UUIDs outside tenant-context.ts.
 
 ## Correctness rules (not premature optimization)
 - Settled orders must never appear in active orders fetch
-  Always filter: .eq('status', 'open')
+  Always filter in the database: .in('status', ACTIVE_ORDER_STATUSES)
+  from open-orders-service.ts. Never fetch all rows and filter on the device
 - Settlement must confirm DB write before clearing UI
   Never clear a bill optimistically
 - Every bill insert must include tenant_id and branch_id
