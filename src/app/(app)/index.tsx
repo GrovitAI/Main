@@ -36,7 +36,10 @@ import { colors } from '@/lib/pos/brand';
 import { webTextStyle, webViewStyle } from '@/lib/pos/web-style';
 import type { NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
 
-const PRINTER_HEALTH_INTERVAL_MS = 60_000;
+// Every check is an authenticated round trip through the API, and its three
+// logged requests a minute per till were a third of all API traffic. Five
+// minutes keeps the dot honest; a failed print re-checks at once (below).
+const PRINTER_HEALTH_INTERVAL_MS = 5 * 60_000;
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
@@ -335,8 +338,7 @@ export default function PosBillingScreen() {
   }, [checkPrinterHealth]);
 
   // The indicator is only on this screen, so the check runs only while the
-  // screen is on and the app is in the foreground. Once a minute is enough
-  // for a status dot; each check is an authenticated round trip to PrintNode.
+  // screen is on and the app is in the foreground.
   const [isFocused, setIsFocused] = useState(false);
   useActiveInterval(() => void checkPrinterHealth(), PRINTER_HEALTH_INTERVAL_MS, { focused: isFocused });
 
@@ -744,6 +746,7 @@ export default function PosBillingScreen() {
               showToast('Provisional bill printed successfully.');
             } else {
               showToast(`Provisional bill saved. (Print failed: ${printResult.error || 'unknown error'})`);
+              void checkPrinterHealth();
             }
           }
         } catch (printErr) {
@@ -751,7 +754,7 @@ export default function PosBillingScreen() {
         }
       })();
     }
-  }, [isMutating, activeOrderId, activeOrder, activeOrderItems, saveAndPrint, showToast]);
+  }, [isMutating, activeOrderId, activeOrder, activeOrderItems, saveAndPrint, showToast, checkPrinterHealth]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
