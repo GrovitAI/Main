@@ -5,22 +5,18 @@ import { getTenantContext } from './tenant-context';
 import type { ServiceResult } from './settlement-service';
 import { getBusinessDayBounds } from './reporting-utils';
 
-function isOpenOrderRow(order: OpenOrder): boolean {
-  if (!order.status) {
-    return true;
-  }
-  return (
-    order.status === 'open' ||
-    order.status === 'draft' ||
-    order.status === 'held' ||
-    order.status === 'unpaid' ||
-    order.status === 'in_kitchen'
-  );
-}
-
-function filterOpenOrders(orders: OpenOrder[]): OpenOrder[] {
-  return orders.filter(isOpenOrderRow);
-}
+/**
+ * The statuses the till treats as live billing work. Held and draft orders
+ * are parked, not active; the store keeps them in memory and the Orders
+ * screen lists them through getAllOrders().
+ *
+ * Any query that feeds the till must send this list to the database with
+ * `.in('status', ACTIVE_ORDER_STATUSES)`. Never fetch the whole history and
+ * filter on the device: PostgREST caps a response at its max-rows setting
+ * (1,000 by default), so once a branch has more history than that, an old
+ * unpaid or in-kitchen order silently falls outside the response.
+ */
+export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = ['open', 'unpaid', 'in_kitchen'];
 
 export type OrderItemPreview = {
   name: string;
@@ -114,112 +110,6 @@ export async function fetchKotsForOrders(
     return { data: map, error: null };
   } catch {
     return { data: null, error: 'Unable to load kitchen tickets.' };
-  }
-}
-
-export async function getOpenOrders(): Promise<ServiceResult<OpenOrderSummary[]>> {
-  try {
-    const { tenant_id, branch_id } = getTenantContext();
-
-    const { data: orders, error: ordersError } = await supabase
-      .from('open_orders')
-      .select('*')
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .order('created_at', { ascending: false });
-
-    if (ordersError) {
-      logSupabaseError('getOpenOrders.orders', ordersError);
-      if (typeof __DEV__ !== 'undefined' && __DEV__) {
-        if (ordersError.code === '42P01' || ordersError.message?.toLowerCase().includes('does not exist')) {
-          return { data: [], error: null };
-        }
-      }
-      return { data: null, error: 'Unable to load open orders.' };
-    }
-
-    const openOrders = filterOpenOrders((orders ?? []) as OpenOrderRow[]);
-    if (openOrders.length === 0) {
-      return { data: [], error: null };
-    }
-
-    const orderIds = openOrders.map((order) => order.id);
-
-    const { data: itemRows, error: itemsError } = await supabase
-      .from('open_order_items')
-      .select('open_order_id, qty, product_id')
-      .in('open_order_id', orderIds);
-
-    if (itemsError) {
-      logSupabaseError('getOpenOrders.items', itemsError);
-      const summariesWithoutItems: OpenOrderSummary[] = openOrders.map((order) => ({
-        order,
-        itemCount: 0,
-        created_at: order.created_at,
-        previewItems: [],
-        remainingItemLines: 0,
-        totalAmount: 0,
-      }));
-      const filtered = summariesWithoutItems.filter((s) => s.order.status !== 'draft');
-      return { data: filtered, error: null };
-    }
-
-    const items = (itemRows ?? []) as OrderItemRow[];
-    const productIds = [...new Set(items.map((item) => item.product_id))];
-    const productNames = await fetchProductNameMap(productIds);
-
-    const itemsByOrderId: Record<string, OrderItemPreview[]> = {};
-    const itemCountByOrderId: Record<string, number> = {};
-
-    for (const item of items) {
-      const preview: OrderItemPreview = {
-        name: productNames[item.product_id] ?? 'Item',
-        quantity: item.qty,
-      };
-      const existing = itemsByOrderId[item.open_order_id] ?? [];
-      existing.push(preview);
-      itemsByOrderId[item.open_order_id] = existing;
-      itemCountByOrderId[item.open_order_id] =
-        (itemCountByOrderId[item.open_order_id] ?? 0) + item.qty;
-    }
-
-    const kotResult = await fetchKotsForOrders(orderIds);
-    const kotsMap = kotResult.data ?? {};
-
-    const summaries: OpenOrderSummary[] = openOrders.map((order) => {
-      const orderItems = itemsByOrderId[order.id] ?? [];
-      const previewItems = orderItems.slice(0, 3);
-      const remainingItemLines = Math.max(0, orderItems.length - previewItems.length);
-      const orderKots = kotsMap[order.id] ?? [];
-      const kotNumbers = orderKots.map(k => k.kot_number);
-
-      return {
-        order,
-        itemCount: itemCountByOrderId[order.id] ?? 0,
-        created_at: order.created_at,
-        previewItems,
-        remainingItemLines,
-        totalAmount: 0, // getOpenOrders does not fetch prices
-        kotNumbers,
-      };
-    });
-
-    const filteredSummaries = summaries.filter((summary) => {
-      if (summary.order.status === 'draft' && summary.itemCount === 0) {
-        return false;
-      }
-      return true;
-    });
-
-    return { data: filteredSummaries, error: null };
-  } catch (err) {
-    if (typeof __DEV__ !== 'undefined' && __DEV__) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('fetch failed') || msg.includes('ENOTFOUND')) {
-        return { data: [], error: null };
-      }
-    }
-    return { data: null, error: 'Unable to load open orders.' };
   }
 }
 
@@ -676,22 +566,27 @@ export async function getOrders(
   }
 }
 
+/**
+ * The till's active orders: every order of this branch still awaiting
+ * payment, newest first. The status filter runs in the database (see
+ * ACTIVE_ORDER_STATUSES), so the response holds only live work and can never
+ * be truncated by the row cap.
+ *
+ * Always scoped to the session's branch, for owners too: a till belongs to
+ * one branch, and fetchOpenOrderById() and getAllOrders() already scope the
+ * same way, so an order from another branch could be listed but never opened.
+ */
 export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
   try {
-    const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
+    const { tenant_id, branch_id } = getTenantContext();
 
-    let query = supabase
+    const { data, error } = await supabase
       .from('open_orders')
       .select('*')
       .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .in('status', [...ACTIVE_ORDER_STATUSES])
       .order('created_at', { ascending: false });
-
-    // Owners and admins see all branches; cashiers/managers see only their branch
-    if (!isOwnerOrAdmin) {
-      query = query.eq('branch_id', branch_id);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
       logSupabaseError('fetchOpenOrders', error);
@@ -703,9 +598,7 @@ export async function fetchOpenOrders(): Promise<ServiceResult<OpenOrder[]>> {
       return { data: null, error: 'Unable to load orders.' };
     }
 
-    const allOpen = filterOpenOrders((data ?? []) as OpenOrder[]);
-    const activeBilling = allOpen.filter(order => order.status !== 'held' && order.status !== 'draft');
-    return { data: activeBilling, error: null };
+    return { data: (data ?? []) as OpenOrder[], error: null };
   } catch (err) {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       const msg = err instanceof Error ? err.message : String(err);
