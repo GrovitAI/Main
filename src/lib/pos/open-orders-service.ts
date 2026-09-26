@@ -652,92 +652,16 @@ export async function fetchOpenOrderById(
   }
 }
 
-let openOrdersCols = new Set<string>();
-let openOrderItemsCols = new Set<string>();
-let detectedSchema = false;
-
-async function ensureSchemaDetected() {
-  if (detectedSchema) return;
-  try {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-    if (supabaseUrl && supabaseAnonKey) {
-      const restUrl = `${supabaseUrl}/rest/v1/`;
-      const res = await fetch(restUrl, {
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-      });
-      if (res.ok) {
-        const schema = await res.json();
-        const definitions = schema.definitions;
-        if (definitions) {
-          const extractCols = (tableName: string) => {
-            const properties = definitions[tableName]?.properties;
-            return properties ? new Set(Object.keys(properties)) : new Set<string>();
-          };
-          openOrdersCols = extractCols('open_orders');
-          openOrderItemsCols = extractCols('open_order_items');
-          detectedSchema = true;
-        }
-      }
-    }
-  } catch {
-    // Fail silently
-  }
-}
-
-function filterPayload(
-  payload: Record<string, unknown>,
-  allowedCols: Set<string>,
-  fallbackCols: string[]
-): Record<string, unknown> {
-  const filtered: Record<string, unknown> = {};
-  const colsToUse = detectedSchema ? allowedCols : new Set(fallbackCols);
-  for (const [key, val] of Object.entries(payload)) {
-    if (colsToUse.has(key)) {
-      filtered[key] = val;
-    }
-  }
-
-  return filtered;
-}
-
 export async function createOpenOrder(
   orderName: string,
   status: 'open' | 'draft' | string = 'draft',
 ): Promise<ServiceResult<OpenOrder>> {
   try {
-    await ensureSchemaDetected();
     const { tenant_id, branch_id } = getTenantContext();
-
-    const rawPayload = {
-      tenant_id,
-      branch_id,
-      order_name: orderName,
-      status: status,
-    };
-
-    const fallbackCols = [
-      'tenant_id',
-      'branch_id',
-      'order_name',
-      'status',
-      'invoice_number',
-      'token_number',
-      'payment_method',
-      'held_at',
-      'paid_at',
-      'cancelled_at',
-      'completed_at',
-      'notes',
-    ];
-    const filteredPayload = filterPayload(rawPayload, openOrdersCols, fallbackCols);
 
     const { data, error } = await supabase
       .from('open_orders')
-      .insert(filteredPayload)
+      .insert({ tenant_id, branch_id, order_name: orderName, status })
       .select('*')
       .single();
 
@@ -763,22 +687,16 @@ export async function addOrderItem(input: {
   price: number;
 }): Promise<ServiceResult<OpenOrderItem>> {
   try {
-    await ensureSchemaDetected();
-    const rawPayload = {
-      open_order_id: input.openOrderId,
-      product_id: input.productId,
-      item_name: input.itemName,
-      qty: input.quantity,
-      price: input.price,
-      kot_sent: false,
-    };
-
-    const fallbackCols = ['open_order_id', 'product_id', 'item_name', 'qty', 'price', 'kot_sent'];
-    const filteredPayload = filterPayload(rawPayload, openOrderItemsCols, fallbackCols);
-
     const { data, error } = await supabase
       .from('open_order_items')
-      .insert(filteredPayload)
+      .insert({
+        open_order_id: input.openOrderId,
+        product_id: input.productId,
+        item_name: input.itemName,
+        qty: input.quantity,
+        price: input.price,
+        kot_sent: false,
+      })
       .select('*')
       .single();
 
