@@ -29,6 +29,19 @@ Import pattern (always):
 
 Never hardcode UUIDs outside tenant-context.ts.
 
+## Migration rules
+- One file per change in supabase/migrations/, applied one at a time and verified before the next
+- Every migration that creates a table must, in the same file:
+    ALTER TABLE public.t ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON public.t FROM anon;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.t TO service_role;
+    GRANT <only what the app needs> ON public.t TO authenticated;   -- or REVOKE ALL if only functions write it
+  Supabase stops granting the API roles automatically from 2026-10-30; a table
+  without its own grants is unreachable on a fresh database, preview branch or
+  db reset. See 20260926000100_explicit_table_grants.sql for the current shape.
+- Never grant anon on a table: the app always signs in
+- Idempotent: IF NOT EXISTS, CREATE OR REPLACE, and guards, so a file can run twice
+
 ## Service layer rules
 - All Supabase logic in src/lib/pos/*-service.ts files
 - Follow settlement-service.ts as reference architecture
