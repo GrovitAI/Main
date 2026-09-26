@@ -130,6 +130,10 @@ export type InventoryPurchaseHeader = {
   status: 'Draft' | 'Completed';
   created_by: string | null;
   created_at: string;
+  /** The ledger entry record_purchase() posted: an expense when paid at once, a payable otherwise. */
+  finance_entry_id?: string | null;
+  /** That entry's kind and status when the caller may read it. Paid = an expense, or a settled payable. */
+  finance_entry?: { kind: string; status: string } | null;
   supplier_name?: string;
 };
 
@@ -454,6 +458,7 @@ type BranchNameRow = { id: string; name: string | null };
 
 type PurchaseHeaderRow = InventoryPurchaseHeader & {
   supplier: { supplier_name: string | null } | null;
+  finance_entry?: { kind: string; status: string } | { kind: string; status: string }[] | null;
 };
 type PurchaseItemRow = InventoryPurchaseItem & { material: MaterialNameJoin };
 type LedgerRow = InventoryStockLedger & { material: MaterialNameJoin };
@@ -1150,11 +1155,14 @@ export async function fetchVendorPrices(materialId?: string): Promise<ServiceRes
 export async function fetchPurchases(): Promise<ServiceResult<InventoryPurchaseHeader[]>> {
   try {
     const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
+    // The ledger entry says whether the purchase is paid. Its select policy
+    // decides who may see it; a refused embed simply comes back empty.
     let query = supabase
       .from('inventory_purchase_headers')
       .select(`
         *,
-        supplier:inventory_suppliers(supplier_name)
+        supplier:inventory_suppliers(supplier_name),
+        finance_entry:finance_entries!inventory_purchase_headers_finance_entry_id_fkey(kind, status)
       `)
       .eq('tenant_id', tenant_id);
     if (!isOwnerOrAdmin) query = query.eq('branch_id', branch_id);
@@ -1167,8 +1175,9 @@ export async function fetchPurchases(): Promise<ServiceResult<InventoryPurchaseH
 
     const rows = (data ?? []) as PurchaseHeaderRow[];
     const formatted: InventoryPurchaseHeader[] = rows.map((p) => {
-      const { supplier, ...rest } = p;
-      return { ...rest, supplier_name: supplier?.supplier_name || 'Unknown Supplier' };
+      const { supplier, finance_entry, ...rest } = p;
+      const entry = Array.isArray(finance_entry) ? finance_entry[0] ?? null : finance_entry ?? null;
+      return { ...rest, finance_entry: entry, supplier_name: supplier?.supplier_name || 'Unknown Supplier' };
     });
 
     return { data: formatted, error: null };
@@ -1208,174 +1217,90 @@ export async function fetchPurchaseItems(purchaseId: string): Promise<ServiceRes
   }
 }
 
+/** A date-only value for the database: 'YYYY-MM-DD', or the date part of an ISO timestamp. */
+function toDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  return match ? match[1] : null;
+}
+
+function mapPurchaseRpcError(err: unknown): string {
+  const { code, message } = describeError(err);
+  console.error('[inventory-service] createPurchase:', code || 'UNKNOWN', message);
+  if (code === 'PGRST202') return 'The purchase service is not deployed yet.';
+  if (message.includes('PURCHASE_NO_ACCOUNT')) return 'This branch has no finance account yet. Add it under Finance before recording purchases.';
+  if (message.includes('PURCHASE_SUPPLIER_NOT_FOUND')) return 'Choose a supplier.';
+  if (message.includes('PURCHASE_MATERIAL_NOT_FOUND')) return 'One of the materials no longer exists. Remove it and try again.';
+  if (message.includes('PURCHASE_INVALID')) return 'Check the quantities, prices and the invoice date.';
+  if (message.includes('_FORBIDDEN')) return 'You cannot record purchases for that branch.';
+  return 'Unable to save purchase.';
+}
+
 /**
- * Creates a purchase and automates cost averaging, ledger logs, pricing history logs and location stock splits.
+ * Records a goods receipt. The `record_purchase` database function writes the
+ * header, the lines, the material averages, the stock level, the stock ledger
+ * and the finance entry in ONE transaction: an expense in the branch's books
+ * when `paid`, otherwise a payable to the supplier that Finance settles later.
+ * Numbered PO-<branch>-0001 from the branch counter.
  */
 export async function createPurchase(
-  header: Omit<InventoryPurchaseHeader, 'id' | 'tenant_id' | 'branch_id' | 'purchase_number' | 'created_at' | 'status'>,
+  header: Omit<InventoryPurchaseHeader, 'id' | 'tenant_id' | 'branch_id' | 'purchase_number' | 'created_at' | 'status' | 'finance_entry_id' | 'finance_entry'>,
   items: Omit<InventoryPurchaseItem, 'id' | 'tenant_id' | 'branch_id' | 'purchase_header_id' | 'created_at'>[],
-  location_id = 'Dry Storage'
+  location_id = 'Dry Storage',
+  paid = true
 ): Promise<ServiceResult<InventoryPurchaseHeader>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
-    const purchaseNum = `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const now = new Date().toISOString();
+    const purchaseDate = toDateOnly(header.purchase_date);
+    if (!purchaseDate) return { data: null, error: 'Enter the invoice date as YYYY-MM-DD.' };
 
-    const supabaseHeader = {
-      ...header,
-      tenant_id,
-      branch_id,
-      purchase_number: purchaseNum,
-      status: 'Completed' as const,
-      created_at: now,
-    };
-
-    const { data, error } = await supabase
-      .from('inventory_purchase_headers')
-      .insert(supabaseHeader)
-      .select('*')
-      .single();
+    const { data, error } = await supabase.rpc('record_purchase', {
+      p_branch_id: branch_id,
+      p_supplier_id: header.supplier_id,
+      p_purchase_date: purchaseDate,
+      p_invoice_number: header.invoice_number,
+      p_invoice_date: toDateOnly(header.invoice_date) ?? purchaseDate,
+      p_payment_mode: header.payment_mode,
+      p_paid: paid,
+      p_items: items.map((itm) => ({
+        material_id: itm.material_id,
+        quantity: itm.quantity,
+        unit_price: itm.unit_price,
+        line_total: itm.line_total,
+      })),
+      p_subtotal: header.subtotal,
+      p_discount: header.discount_amount,
+      p_tax: header.tax_amount,
+      p_transport: header.transport_charges,
+      p_other: header.other_charges,
+      p_grand_total: header.grand_total,
+      p_remarks: header.remarks,
+      p_location_id: location_id,
+      p_created_by: header.created_by,
+    });
 
     if (error) {
-      return { data: null, error: reportError('createPurchase', error, 'Unable to save purchase.') };
+      return { data: null, error: mapPurchaseRpcError(error) };
     }
 
-    const savedHeader = data as InventoryPurchaseHeader;
-
-    const finalItems = items.map((itm) => ({
-      ...itm,
-      tenant_id,
-      branch_id,
-      purchase_header_id: savedHeader.id,
-      created_at: now,
-    }));
-
-    const { error: itemsErr } = await supabase.from('inventory_purchase_items').insert(finalItems);
-    if (itemsErr) {
-      return { data: null, error: reportError('createPurchase', itemsErr, 'Unable to save purchase items.') };
+    const result = data as { header?: InventoryPurchaseHeader | null; finance_entry_id?: string | null } | null;
+    if (!result || !result.header) {
+      console.error('[inventory-service] createPurchase:', 'EMPTY_RESULT', 'RPC returned no header');
+      return { data: null, error: 'Unable to save purchase.' };
     }
 
-    for (const itm of items) {
-      const { data: matRaw, error: matErr } = await supabase
-        .from('inventory_materials')
-        .select('id, current_stock, average_cost')
-        .eq('id', itm.material_id)
-        .eq('tenant_id', tenant_id)
-        .maybeSingle();
-
-      if (matErr) {
-        return { data: null, error: reportError('createPurchase', matErr, 'Unable to update material stock.') };
-      }
-
-      const matData = matRaw as MaterialStockRow | null;
-      if (!matData) continue;
-
-      // Average Cost Formula: ((Current Stock * Avg Cost) + (Qty * Cost)) / (Current Stock + Qty)
-      const currentStock = toNumber(matData.current_stock);
-      const currentAvgCost = toNumber(matData.average_cost);
-      const purchasedQty = toNumber(itm.quantity);
-      const unitPrice = toNumber(itm.unit_price);
-
-      const totalStock = currentStock + purchasedQty;
-      const nextAvgCost =
-        totalStock > 0 ? (currentStock * currentAvgCost + purchasedQty * unitPrice) / totalStock : unitPrice;
-
-      const { error: matUpdErr } = await supabase
-        .from('inventory_materials')
-        .update({
-          current_stock: totalStock,
-          average_cost: nextAvgCost,
-          last_purchase_price: unitPrice,
-          inventory_value: totalStock * nextAvgCost,
-          updated_at: now,
-        })
-        .eq('id', itm.material_id)
-        .eq('tenant_id', tenant_id);
-
-      if (matUpdErr) {
-        return { data: null, error: reportError('createPurchase', matUpdErr, 'Unable to update material stock.') };
-      }
-
-      const { data: lvlRows, error: lvlErr } = await supabase
-        .from('inventory_material_stock_levels')
-        .select('*')
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id)
-        .eq('material_id', itm.material_id)
-        .eq('location_id', location_id)
-        .limit(1);
-
-      if (lvlErr) {
-        return { data: null, error: reportError('createPurchase', lvlErr, 'Unable to update stock levels.') };
-      }
-
-      const stockLvl = ((lvlRows ?? []) as InventoryStockLevel[])[0] ?? null;
-
-      if (stockLvl) {
-        const { error: lvlUpdErr } = await supabase
-          .from('inventory_material_stock_levels')
-          .update({
-            current_stock: toNumber(stockLvl.current_stock) + purchasedQty,
-            available_stock: toNumber(stockLvl.available_stock) + purchasedQty,
-            updated_at: now,
-          })
-          .eq('id', stockLvl.id)
-          .eq('tenant_id', tenant_id)
-          .eq('branch_id', branch_id);
-        if (lvlUpdErr) {
-          return { data: null, error: reportError('createPurchase', lvlUpdErr, 'Unable to update stock levels.') };
-        }
-      } else {
-        const { error: lvlInsErr } = await supabase.from('inventory_material_stock_levels').insert({
-          tenant_id,
-          branch_id,
-          material_id: itm.material_id,
-          location_id,
-          current_stock: purchasedQty,
-          available_stock: purchasedQty,
-          reserved_stock: 0,
-        });
-        if (lvlInsErr) {
-          return { data: null, error: reportError('createPurchase', lvlInsErr, 'Unable to update stock levels.') };
-        }
-      }
-
-      const { error: priceErr } = await supabase.from('inventory_material_vendor_prices').insert({
+    return {
+      data: {
+        ...result.header,
         tenant_id,
         branch_id,
-        material_id: itm.material_id,
-        supplier_id: header.supplier_id,
-        purchase_price: unitPrice,
-        effective_date: now,
-      });
-      if (priceErr) {
-        console.error('[inventory-service] createPurchase (vendor price):', priceErr.code, priceErr.message);
-      }
-
-      const { error: ledgerErr } = await supabase.from('inventory_stock_ledger').insert({
-        tenant_id,
-        branch_id,
-        material_id: itm.material_id,
-        transaction_date: now,
-        transaction_type: 'Purchase',
-        reference_type: 'Purchase Invoice',
-        reference_id: savedHeader.id,
-        qty_in: purchasedQty,
-        qty_out: 0,
-        balance_stock: totalStock,
-        unit_cost: unitPrice,
-        total_value: purchasedQty * unitPrice,
-        remarks: `Purchased from supplier via PO ${purchaseNum}`,
-        created_by: header.created_by,
-      });
-      if (ledgerErr) {
-        return { data: null, error: reportError('createPurchase', ledgerErr, 'Unable to write stock ledger.') };
-      }
-    }
-
-    return { data: savedHeader, error: null };
+        finance_entry_id: result.finance_entry_id ?? result.header.finance_entry_id ?? null,
+        finance_entry: result.finance_entry_id ? { kind: paid ? 'expense' : 'payable', status: paid ? 'recorded' : 'open' } : null,
+      },
+      error: null,
+    };
   } catch (err: unknown) {
-    return { data: null, error: reportError('createPurchase', err, 'Unable to save purchase.') };
+    return { data: null, error: mapPurchaseRpcError(err) };
   }
 }
 

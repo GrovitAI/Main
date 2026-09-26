@@ -13,13 +13,14 @@ import type {
   EntryFieldChange,
   EntryFormErrors,
   EntryFormValues,
+  EntryMode,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
   LedgerFilters,
   LedgerKind,
-  LedgerMode,
+  LedgerSourceType,
   SettleEntryInput,
   SettleFormErrors,
   SettleFormValues,
@@ -35,9 +36,16 @@ export const LEDGER_KIND_LABELS: Record<LedgerKind, string> = {
   transfer: 'Transfer',
 };
 
-export const LEDGER_MODE_LABELS: Record<LedgerMode, string> = {
+export const LEDGER_MODE_LABELS: Record<EntryMode, string> = {
   cash: 'Cash',
   bank: 'Bank',
+  offset: 'Offset',
+};
+
+/** Where an entry the inventory module posted came from. */
+export const LEDGER_SOURCE_LABELS: Record<LedgerSourceType, string> = {
+  purchase: 'Posted from a purchase in Inventory',
+  dispatch: 'Posted from a dispatch in Inventory',
 };
 
 /** Money in for income and receivables, out for expenses and payables. */
@@ -135,6 +143,29 @@ export function canSettleEntry(entry: Pick<FinanceEntry, 'kind' | 'status'>, rol
   if (entry.status !== 'open') return false;
   if (entry.kind !== 'payable' && entry.kind !== 'receivable') return false;
   return isFinanceOwner(role) || isFinanceClerk(role);
+}
+
+/**
+ * A receivable from one of our own accounts (a branch owing the kitchen for
+ * goods) can be cleared against what this account owes that account, with
+ * no cash moving. The database caps the amount at what is actually owed.
+ */
+export function canOffsetEntry(entry: Pick<FinanceEntry, 'kind' | 'status' | 'counterparty_account_id'>): boolean {
+  return entry.status === 'open' && entry.kind === 'receivable' && entry.counterparty_account_id !== null;
+}
+
+/**
+ * "Owed by Kolathur" on a receivable and "Owed to Kolathur" on a payable
+ * when the other side is one of our own accounts; null otherwise.
+ */
+export function counterpartyCaption(
+  entry: Pick<FinanceEntry, 'kind' | 'counterparty_account_id'>,
+  accountName: (id: string) => string,
+): string | null {
+  if (!entry.counterparty_account_id) return null;
+  if (entry.kind === 'receivable') return `Owed by ${accountName(entry.counterparty_account_id)}`;
+  if (entry.kind === 'payable') return `Owed to ${accountName(entry.counterparty_account_id)}`;
+  return null;
 }
 
 /** A payable or receivable moves no money until it is settled, so it has no paying account. */
@@ -320,7 +351,8 @@ export function entryToFormValues(entry: FinanceEntry): EntryFormValues {
     paid_from_account_id: entry.paid_from_account_id ?? '',
     kind: entry.kind,
     amount: entry.amount.toString(),
-    mode: entry.mode ?? 'cash',
+    // An offset settlement is never edited by hand; the form only knows cash and bank.
+    mode: entry.mode && entry.mode !== 'offset' ? entry.mode : 'cash',
     transfer_from: entry.transfer_from ?? 'cash',
     transfer_to: entry.transfer_to ?? 'bank',
     transaction_date: entry.transaction_date,
@@ -406,20 +438,28 @@ export function emptySettleForm(entry: FinanceEntry, defaultDate: string): Settl
 
 export type SettleValidation = { ok: true; value: SettleEntryInput } | { ok: false; errors: SettleFormErrors };
 
-export function validateSettleForm(values: SettleFormValues, entry: FinanceEntry): SettleValidation {
+/**
+ * `owed` is what the entry's account owes the counterparty account right
+ * now, the most an offset can clear; pass it when the mode is 'offset'.
+ */
+export function validateSettleForm(values: SettleFormValues, entry: FinanceEntry, owed?: number): SettleValidation {
   const errors: SettleFormErrors = {};
   const remaining = remainingAmount(entry);
   const amount = parseAmountInput(values.amount);
+  const offset = values.mode === 'offset';
+  if (offset && !canOffsetEntry(entry)) errors.mode = 'Only a receivable from one of our own accounts can be offset.';
   if (amount === null) errors.amount = 'Enter an amount like 1250 or 1250.50.';
   else if (amount <= 0) errors.amount = 'The amount must be more than zero.';
   else if (amount > remaining + 0.004) errors.amount = `Only ${remaining.toFixed(2)} remains on this entry.`;
+  else if (offset && owed !== undefined && amount > owed + 0.004) errors.amount = `Only ${owed.toFixed(2)} is owed to that account to offset against.`;
   if (!ISO_DATE.test(values.transaction_date) || Number.isNaN(Date.parse(values.transaction_date))) {
     errors.transaction_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
   }
   if (values.reference_no.length > 60) errors.reference_no = 'Keep the reference under 60 characters.';
   if (values.notes.length > 500) errors.notes = 'Keep notes under 500 characters.';
   if (Object.keys(errors).length > 0 || amount === null) return { ok: false, errors };
-  const payer = emptyToNull(values.paid_from_account_id);
+  // An offset is always "paid from" the counterparty; the database sets that itself.
+  const payer = offset ? null : emptyToNull(values.paid_from_account_id);
   return {
     ok: true,
     value: {

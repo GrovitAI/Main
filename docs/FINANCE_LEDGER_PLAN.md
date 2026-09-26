@@ -1,7 +1,9 @@
 # Finance Ledger — Plan
 
 > **Status**: steps 1 to 3 of §10 are built and live (2026-09-15 and 2026-09-16).
-> Steps 4 and 5 (partners, month-end Excel) are still to do.
+> Steps 4 and 5 (partners, month-end Excel) are still to do. §12, the
+> Central Kitchen's flows with Inventory, was built on 2026-09-27 (task 110)
+> and waits for its migration to be applied.
 > **Written**: 2026-09-15, from the owner's requirements of the same day.
 > **Scope for now**: the central kitchen's books, with branches and the
 > partnership able to use the same ledger later.
@@ -255,3 +257,63 @@ Each step ships on its own; nothing waits for the last.
 Receipt photos (no storage decided), budgets, recurring entries, approvals,
 multi-currency, and the POS-sales income feed. All can be added without
 changing what is above.
+
+## 12. The Central Kitchen's flows with Inventory (2026-09-27, task 110)
+
+> From the owner's requirement of 2026-09-26: the finance module is the
+> Central Kitchen's books first. The branches are acting hands: they receive
+> goods from the kitchen, they sometimes pay a vendor on the kitchen's behalf,
+> and the owner of all controls every account. What matters is what the
+> kitchen has outstanding, what it spent, what it owes and what it is owed.
+> Built in `supabase/migrations/20260927000100_finance_inventory_links.sql`.
+
+Every figure below comes from one inventory document, so the ledger and the
+inventory module can never disagree about a purchase or a dispatch. The
+entry remembers its document (`source_type`, `source_id`; one live entry per
+document), is posted only by the database functions, and shows "Posted from a
+purchase / dispatch in Inventory" on the Ledger tab.
+
+**Purchases (vendor → kitchen).** `record_purchase()` writes the header, the
+lines, the material averages, the stock level, the stock ledger and the
+finance entry in one transaction, numbered `PO-CK-0001` from the branch
+counter. Paid at once (cash, UPI, bank, card) it is an **expense** in the
+kitchen's account under Raw Materials, mode cash or bank. "Pay later" makes
+it a **payable** to the supplier; settling it in the Ledger (in full or in
+parts) records the payment and marks the purchase paid in Inventory. The
+purchases list reads paid / pending / overdue from that entry. A branch that
+pays the kitchen's supplier settles the payable *paid from* its own account,
+exactly as before: the cost stays with the kitchen and a position "Central
+Kitchen owes Velachery" builds up.
+
+**Dispatches (kitchen → branch).** `create_dispatch()` snapshots each line's
+unit cost (the kitchen's average cost) and posts a **receivable** in the
+kitchen's account with the branch as `counterparty_account_id`, under Branch
+Supplies, for the goods at cost. `receive_dispatch()` brings it down to what
+actually arrived, or voids it when nothing did. When the branch pays, the
+receivable is settled and becomes **income** for the kitchen. Nothing is
+written in the branch's own books; the branch admin can read the entry
+(`finance_can_read` covers the counterparty) and sees "Owed by Kolathur" on it.
+
+**Between accounts.** `finance_interaccount_positions()` now nets two things
+per pair: what one account paid for another (as before) and what one account
+still owes another on open payables and receivables. So "Velachery owes
+Central Kitchen ₹7,000" already reflects the ₹12,000 of goods sent minus the
+₹5,000 vendor bill Velachery paid for the kitchen.
+
+**Offset.** A receivable from a branch can be settled with mode **offset**
+instead of cash or bank: the income row is "paid from" the branch with no
+cash moving, which cancels the paid-for position, and the database caps it
+at what the kitchen actually owes that branch (`finance_pair_position`).
+Settle → Offset appears only for the owner (positions are the owner's) and
+only when something is owed. Offsets count as income in the kitchen's books,
+like any other settlement of the receivable.
+
+**Categories the system posts into** carry a `system_key` ('purchases' →
+Raw Materials, 'branch_supplies' → Branch Supplies) so renaming them never
+breaks posting. Neither is a built-in category: both count in profit.
+
+**Still to do** (in order): the Overview P&L reads expenses and purchases
+from the ledger instead of the old `expenses` table and the purchase
+headers; the old Expenses tab retires; ledger filters by category, sub-
+category and particular reach the screen; wastage and adjustments post
+through database functions like purchases do; then steps 4 and 5 above.

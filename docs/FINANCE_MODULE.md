@@ -186,8 +186,12 @@ assert the loading, error, empty and data states.
 
 - **Refunds are read-only.** The module reports them; nothing creates one yet.
   Issuing a refund belongs with the bill in the orders flow.
-- **Purchases are read-only.** Supplier spend is pulled from
-  `inventory_purchase_headers` for the P&L; purchase entry stays in Inventory.
+- **Purchases post to the ledger** (since 2026-09-27, task 110): recording a
+  purchase in Inventory writes the kitchen's expense, or a payable to the
+  supplier, in the same database transaction; settling the payable in the
+  Ledger marks the purchase paid. The Overview P&L still sums
+  `inventory_purchase_headers` for its purchases line until it is moved onto
+  the ledger. See docs/FINANCE_LEDGER_PLAN.md §12.
 - **No accrual accounting.** The P&L is cash basis. There are no payables,
   receivables or a chart of accounts.
 - **CSV export is web only**, matching the existing analytics export. Native

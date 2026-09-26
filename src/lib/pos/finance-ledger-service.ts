@@ -89,9 +89,13 @@ function explain(error: PgError, fallback: string): string {
 // ─── Mapping ──────────────────────────────────────────────────────────────────
 
 const ENTRY_COLUMNS =
-  'id, account_id, paid_from_account_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, entered_at, entered_by, ' +
+  'id, account_id, paid_from_account_id, counterparty_account_id, source_type, source_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, entered_at, entered_by, ' +
   'category_id, subcategory_id, particular_id, particulars, counterparty, reference_no, notes, settles_entry_id, settled_paise, ' +
   'settled_at, void_reason, voided_at, updated_at, version, entered_staff:staff!finance_entries_entered_by_fkey(name)';
+
+function toSourceType(value: unknown): FinanceEntry['source_type'] {
+  return value === 'purchase' || value === 'dispatch' ? value : null;
+}
 
 function mapEntry(row: Record<string, unknown>): FinanceEntry {
   const paise = toNumber(row.amount_paise);
@@ -101,6 +105,9 @@ function mapEntry(row: Record<string, unknown>): FinanceEntry {
     id: toText(row.id),
     account_id: toText(row.account_id),
     paid_from_account_id: toStringOrNull(row.paid_from_account_id),
+    counterparty_account_id: toStringOrNull(row.counterparty_account_id),
+    source_type: toSourceType(row.source_type),
+    source_id: toStringOrNull(row.source_id),
     kind,
     status: toText(row.status, 'recorded') as FinanceEntry['status'],
     amount: fromPaise(paise),

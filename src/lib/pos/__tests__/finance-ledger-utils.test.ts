@@ -1,6 +1,8 @@
 import type { FinanceEntry } from '../finance-types';
 import {
+  canOffsetEntry,
   canSettleEntry,
+  counterpartyCaption,
   emptyEntryForm,
   emptySettleForm,
   payerCaption,
@@ -17,6 +19,9 @@ function entry(over: Partial<FinanceEntry> = {}): FinanceEntry {
     id: 'entry-1',
     account_id: CK,
     paid_from_account_id: null,
+    counterparty_account_id: null,
+    source_type: null,
+    source_id: null,
     kind: 'payable',
     status: 'open',
     amount: 12000,
@@ -121,5 +126,41 @@ describe('settlement', () => {
     const result = validateSettleForm({ ...emptySettleForm(e, '2026-09-16'), paid_from_account_id: CK }, e);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.paid_from_account_id).toBeNull();
+  });
+});
+
+describe('offset against what the kitchen owes a branch', () => {
+  const dispatch = entry({ kind: 'receivable', counterparty_account_id: VL, source_type: 'dispatch', source_id: 'dsp-1', particulars: 'Dispatch DSP-2026-000001 to Velachery' });
+
+  test('only an open receivable from one of our own accounts can be offset', () => {
+    expect(canOffsetEntry(dispatch)).toBe(true);
+    expect(canOffsetEntry(entry({ kind: 'receivable' }))).toBe(false);
+    expect(canOffsetEntry(entry({ kind: 'payable', counterparty_account_id: VL }))).toBe(false);
+    expect(canOffsetEntry({ ...dispatch, status: 'settled' })).toBe(false);
+  });
+
+  test('says who owes whom when the other side is our own account', () => {
+    expect(counterpartyCaption(dispatch, nameOf)).toBe('Owed by Velachery');
+    expect(counterpartyCaption(entry({ kind: 'payable', counterparty_account_id: VL }), nameOf)).toBe('Owed to Velachery');
+    expect(counterpartyCaption(entry({ kind: 'income', counterparty_account_id: VL }), nameOf)).toBeNull();
+    expect(counterpartyCaption(entry(), nameOf)).toBeNull();
+  });
+
+  test('an offset is capped at what is owed and is never paid from a chosen account', () => {
+    const form = { ...emptySettleForm(dispatch, '2026-09-26'), mode: 'offset' as const, amount: '5000', paid_from_account_id: CK };
+    const tooMuch = validateSettleForm(form, dispatch, 4000);
+    expect(tooMuch.ok).toBe(false);
+    if (!tooMuch.ok) expect(tooMuch.errors.amount).toContain('4000.00');
+
+    const ok = validateSettleForm(form, dispatch, 5000);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.value).toMatchObject({ mode: 'offset', amount: 5000, paid_from_account_id: null });
+  });
+
+  test('refuses an offset on an ordinary payable', () => {
+    const gas = entry();
+    const result = validateSettleForm({ ...emptySettleForm(gas, '2026-09-26'), mode: 'offset' }, gas, 10000);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.mode).toBeDefined();
   });
 });

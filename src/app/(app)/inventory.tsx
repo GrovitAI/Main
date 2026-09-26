@@ -86,7 +86,6 @@ import {
   fetchPurchases,
   fetchPurchaseItems,
   createPurchase,
-  updatePurchaseStatus,
   fetchAdjustments,
   createAdjustment,
   fetchWastage,
@@ -337,6 +336,10 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 
 /** One row of the recipe margin report. */
+/** Choosing this on a purchase leaves the supplier as a payable in Finance instead of an expense paid today. */
+const PAY_LATER_MODE = 'Pay later (credit)';
+const PURCHASE_PAYMENT_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', PAY_LATER_MODE] as const;
+
 type RecipeMarginRow = {
   name: string;
   price: number;
@@ -1595,12 +1598,15 @@ export default function InventoryScreen() {
       const freight = Number(purchaseTransportCharges) || 0;
       const grand_total = subtotal + tax_amount + freight;
 
+      // "Pay later" leaves the supplier as a payable in Finance; every other
+      // mode records the purchase as an expense paid today.
+      const paidNow = purchasePaymentMode !== PAY_LATER_MODE;
       const headerPayload = {
-        purchase_date: new Date(purchaseInvoiceDate).toISOString(),
+        purchase_date: purchaseInvoiceDate,
         supplier_id: purchaseSupplierId,
         invoice_number: purchaseInvoiceNum || null,
-        invoice_date: new Date(purchaseInvoiceDate).toISOString(),
-        payment_mode: purchasePaymentMode,
+        invoice_date: purchaseInvoiceDate,
+        payment_mode: paidNow ? purchasePaymentMode : 'Credit',
         subtotal: subtotal,
         discount_amount: 0,
         tax_amount: tax_amount,
@@ -1626,7 +1632,7 @@ export default function InventoryScreen() {
           };
         });
 
-      const res = await createPurchase(headerPayload, finalItems, purchaseLocation);
+      const res = await createPurchase(headerPayload, finalItems, purchaseLocation, paidNow);
       if (res.error) throw new Error(res.error);
       setActiveTab('purchases');
       setPurchaseSupplierId('');
@@ -2699,10 +2705,17 @@ export default function InventoryScreen() {
   };
 
   const renderPurchases = () => {
-    // ── derive a display-status from status field ──────────────────────────
-    // Only 'Completed' = Paid. Draft invoices are Pending (< 30d) or Overdue (≥ 30d).
+    // ── derive a display-status from the finance entry ─────────────────────
+    // Paid = the ledger holds an expense, or a payable that has been settled.
+    // An open payable is Pending (< 30d) or Overdue (≥ 30d). Purchases from
+    // before the ledger link fall back to the old status field.
     const getPayStatus = (p: InventoryPurchaseHeader): 'Paid' | 'Pending' | 'Overdue' => {
-      if (p.status === 'Completed') return 'Paid';
+      const entry = p.finance_entry;
+      if (entry) {
+        if (entry.kind === 'expense' || entry.status === 'settled') return 'Paid';
+      } else if (p.status === 'Completed') {
+        return 'Paid';
+      }
       const invoiceDate = new Date(p.purchase_date);
       const diffDays = (Date.now() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24);
       return diffDays >= 30 ? 'Overdue' : 'Pending';
@@ -3128,34 +3141,11 @@ export default function InventoryScreen() {
 
 
 
-              {/* Mark as Paid / Unpaid */}
-              {(() => {
-                const item = purchases.find((p) => p.id === purOpenActionIdx);
-                if (!item) return null;
-                const isPaid = item.status === 'Completed';
-                return (
-                  <Pressable
-                    onPress={async () => {
-                      const newStatus = isPaid ? 'Draft' : 'Completed';
-                      setPurOpenActionIdx(null);
-                      // Optimistic update
-                      setPurchases((prev) =>
-                        prev.map((p) => p.id === item.id ? { ...p, status: newStatus } : p)
-                      );
-                      await updatePurchaseStatus(item.id, newStatus);
-                    }}
-                    className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-emerald-50"
-                  >
-                    <Check size={13} color={isPaid ? '#64748b' : '#059669'} />
-                    <Text
-                      className="text-[12px] font-bold"
-                      style={{ color: isPaid ? '#64748b' : '#059669' }}
-                    >
-                      {isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}
-                    </Text>
-                  </Pressable>
-                );
-              })()}
+              {/* Payment lives in the ledger: settling the supplier's payable marks it paid here. */}
+              <View className="flex-row items-center gap-2 px-3 py-2.5">
+                <Check size={13} color="#64748b" />
+                <Text className="text-[12px] font-bold text-slate-500">Paid via Finance › Ledger</Text>
+              </View>
 
               <View style={{ height: 1, backgroundColor: '#f1f5f9', marginVertical: 2 }} />
 
@@ -3577,7 +3567,7 @@ export default function InventoryScreen() {
 
                 {isPayDropdownOpen && (
                   <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
-                    {['Cash', 'UPI', 'Bank Transfer', 'Credit Card'].map((mode) => (
+                    {PURCHASE_PAYMENT_MODES.map((mode) => (
                       <Pressable
                         key={mode}
                         onPress={() => {

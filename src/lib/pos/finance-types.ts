@@ -248,6 +248,18 @@ export type CatalogKind = Exclude<LedgerKind, 'transfer'>;
 export const LEDGER_MODES = ['cash', 'bank'] as const;
 export type LedgerMode = (typeof LEDGER_MODES)[number];
 
+/**
+ * How a payable or receivable is settled. 'offset' clears a receivable from
+ * one of our own accounts against what this account owes that account: no
+ * cash moves, so it is never a mode for a hand-recorded entry.
+ */
+export const SETTLE_MODES = ['cash', 'bank', 'offset'] as const;
+export type SettleMode = (typeof SETTLE_MODES)[number];
+/** What a stored entry can carry: a settlement payment may be an offset. */
+export type EntryMode = SettleMode;
+/** The inventory document that posted an entry. */
+export type LedgerSourceType = 'purchase' | 'dispatch';
+
 /** income/expense/transfer: recorded → void. payable/receivable: open → settled or void. */
 export type LedgerStatus = 'recorded' | 'open' | 'settled' | 'void';
 
@@ -313,11 +325,16 @@ export type FinanceEntry = {
   account_id: string;
   /** Whose cash or bank moved ("Paid from"), when that is another account; null means account_id. */
   paid_from_account_id: string | null;
+  /** The other one of our own accounts a payable or receivable is with: a branch that owes the kitchen for goods. */
+  counterparty_account_id: string | null;
+  /** The purchase or dispatch that posted this entry; null for a hand-recorded one. */
+  source_type: LedgerSourceType | null;
+  source_id: string | null;
   kind: LedgerKind;
   status: LedgerStatus;
   amount: number;
   amount_paise: number;
-  mode: LedgerMode | null;
+  mode: EntryMode | null;
   transfer_from: LedgerMode | null;
   transfer_to: LedgerMode | null;
   /** YYYY-MM-DD, the day the money moved. */
@@ -436,7 +453,7 @@ export type AccountBalance = {
 export type SettleEntryInput = {
   entry_id: string;
   amount: number;
-  mode: LedgerMode;
+  mode: SettleMode;
   transaction_date: string;
   paid_from_account_id: string | null;
   reference_no: string | null;
@@ -445,7 +462,7 @@ export type SettleEntryInput = {
 
 export type SettleFormValues = {
   amount: string;
-  mode: LedgerMode;
+  mode: SettleMode;
   transaction_date: string;
   paid_from_account_id: string;
   reference_no: string;

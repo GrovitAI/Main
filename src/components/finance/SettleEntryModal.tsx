@@ -10,15 +10,21 @@ import { centerFieldOnFocus } from '@/lib/pos/web-style';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { SearchSelect, type SearchSelectOption } from '@/components/ui/SearchSelect';
-import type { FinanceAccount, FinanceEntry, LedgerMode, SettleEntryInput, SettleFormErrors, SettleFormValues } from '@/lib/pos/finance-types';
+import type { FinanceAccount, FinanceEntry, SettleEntryInput, SettleFormErrors, SettleFormValues, SettleMode } from '@/lib/pos/finance-types';
 import { LEDGER_MODES } from '@/lib/pos/finance-types';
 import { addDays, formatDateLabel, formatDateLong, formatINR, getCurrentBusinessDate } from '@/lib/pos/finance-utils';
-import { LEDGER_MODE_LABELS, emptySettleForm, remainingAmount, validateSettleForm } from '@/lib/pos/finance-ledger-utils';
+import { LEDGER_MODE_LABELS, canOffsetEntry, emptySettleForm, remainingAmount, validateSettleForm } from '@/lib/pos/finance-ledger-utils';
 
 export type SettleEntryModalProps = {
   /** The open payable or receivable being paid; null hides the sheet. */
   entry: FinanceEntry | null;
   accounts: FinanceAccount[];
+  /**
+   * What the entry's account owes the counterparty account right now, in
+   * rupees. When it is more than zero, a receivable from that account can be
+   * offset against it instead of collected in cash. Undefined when unknown.
+   */
+  owedToCounterparty?: number;
   submitting: boolean;
   serverError: string | null;
   onSubmit: (input: SettleEntryInput) => void;
@@ -32,7 +38,7 @@ const FIELD_CLASS = 'min-h-[44px] rounded-xl border border-border bg-white px-3 
  * amount starts at what remains, so the common case is one tap on Settle; a
  * smaller amount leaves the entry open with the rest.
  */
-export function SettleEntryModal({ entry, accounts, submitting, serverError, onSubmit, onClose }: SettleEntryModalProps) {
+export function SettleEntryModal({ entry, accounts, owedToCounterparty, submitting, serverError, onSubmit, onClose }: SettleEntryModalProps) {
   const { height: windowHeight } = useWindowDimensions();
   const { height: visibleHeight } = useVisualViewport();
   const sheetMaxHeight = Math.min(windowHeight, visibleHeight) * 0.92;
@@ -62,6 +68,12 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
   const isPayable = entry.kind === 'payable';
   const remaining = remainingAmount(entry);
   const ownerName = accounts.find((a) => a.id === entry.account_id)?.name ?? 'this account';
+  // A branch's dues for goods can be set against what the kitchen owes that branch.
+  const owed = owedToCounterparty ?? 0;
+  const offsetAvailable = canOffsetEntry(entry) && owed > 0;
+  const otherName = entry.counterparty_account_id ? accounts.find((a) => a.id === entry.counterparty_account_id)?.name ?? 'that account' : null;
+  const modes: SettleMode[] = offsetAvailable ? [...LEDGER_MODES, 'offset'] : [...LEDGER_MODES];
+  const isOffset = values.mode === 'offset';
   // On a phone the payer is one line that opens a searchable list.
   const payerOptions: SearchSelectOption[] = [
     { id: '', label: ownerName, hint: 'Same account' },
@@ -74,7 +86,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
   };
 
   const handleSubmit = () => {
-    const result = validateSettleForm(values, entry);
+    const result = validateSettleForm(values, entry, isOffset ? owed : undefined);
     if (!result.ok) {
       setErrors(result.errors);
       return;
@@ -129,13 +141,19 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
                 />
               </Field>
 
-              <Field label={isPayable ? 'Paid via' : 'Received via'}>
-                <View className="flex-row gap-2">
-                  {LEDGER_MODES.map((m: LedgerMode) => (
+              <Field label={isPayable ? 'Paid via' : 'Received via'} error={errors.mode}>
+                <View className="flex-row flex-wrap gap-2">
+                  {modes.map((m) => (
                     <SelectChip key={m} label={LEDGER_MODE_LABELS[m]} active={values.mode === m} onPress={() => setField('mode', m)} />
                   ))}
                 </View>
-                <Text className="mt-1.5 text-[11px] text-text-secondary">UPI and card count as bank.</Text>
+                <Text className="mt-1.5 text-[11px] text-text-secondary">
+                  {isOffset
+                    ? `No cash moves. Up to ${formatINR(owed)} that ${ownerName} owes ${otherName ?? 'that account'} is set against this.`
+                    : offsetAvailable
+                      ? `UPI and card count as bank. Offset clears it against the ${formatINR(owed)} ${ownerName} owes ${otherName ?? 'that account'}.`
+                      : 'UPI and card count as bank.'}
+                </Text>
               </Field>
 
               <Field label="Transaction date" error={errors.transaction_date} hint={formatDateLong(values.transaction_date)}>
@@ -168,7 +186,7 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
               </Field>
 
               {/* Who actually paid, when it was not the account whose books carry the entry */}
-              {otherAccounts.length > 0 ? (
+              {otherAccounts.length > 0 && !isOffset ? (
                 <Field label={isPayable ? 'Paid from' : 'Received by'} hint={payerOpen ? `The money leaves that account; the cost stays with ${ownerName}.` : undefined}>
                   {payerOpen && isPhone ? (
                     <SearchSelect
@@ -258,10 +276,10 @@ export function SettleEntryModal({ entry, accounts, submitting, serverError, onS
                 className="min-h-[44px] min-w-[150px] flex-row items-center justify-center rounded-xl bg-primary px-5"
                 style={({ pressed }) => [{ opacity: pressed || submitting ? 0.7 : 1 }]}
                 accessibilityRole="button"
-                accessibilityLabel={isPayable ? 'Record payment' : 'Record receipt'}
+                accessibilityLabel={isOffset ? 'Record offset' : isPayable ? 'Record payment' : 'Record receipt'}
               >
                 {submitting ? <ActivityIndicator size="small" color={colors.textOnPrimary} /> : <CheckCircle2 size={16} color={colors.textOnPrimary} />}
-                <Text className="ml-1.5 text-sm font-bold text-text-on-primary">{isPayable ? 'Record payment' : 'Record receipt'}</Text>
+                <Text className="ml-1.5 text-sm font-bold text-text-on-primary">{isOffset ? 'Record offset' : isPayable ? 'Record payment' : 'Record receipt'}</Text>
               </Pressable>
             </View>
           </Pressable>

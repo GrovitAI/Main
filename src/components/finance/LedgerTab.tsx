@@ -30,11 +30,13 @@ import {
   accountsInScope,
   LEDGER_KIND_LABELS,
   LEDGER_MODE_LABELS,
+  LEDGER_SOURCE_LABELS,
   canEditEntry,
   canSeeBalances,
   canSettleEntry,
   canVoidEntry,
   catalogById,
+  counterpartyCaption,
   describeChanges,
   emptyEntryForm,
   entryDirection,
@@ -214,6 +216,13 @@ export function LedgerTab({ compact = false }: Props) {
     setSettleTarget(entry);
   };
 
+  // What the entry's account owes the branch it is collecting from: the most
+  // a receivable can be offset by. Only the owner sees positions, so for a
+  // clerk this stays undefined and the offset option never appears.
+  const settleOwed = settleTarget?.counterparty_account_id
+    ? positions.find((p) => p.owed_by === settleTarget.account_id && p.owed_to === settleTarget.counterparty_account_id)?.amount ?? 0
+    : undefined;
+
   const handleSettle = async (input: SettleEntryInput) => {
     setSettleError(null);
     const result = await settleEntry(input);
@@ -251,6 +260,7 @@ export function LedgerTab({ compact = false }: Props) {
         compact={compact}
         accountName={accountName(item.account_id)}
         payer={payerCaption(item, accountName)}
+        other={counterpartyCaption(item, accountName)}
         categoryPath={[catalogById(catalog, item.category_id)?.name, catalogById(catalog, item.subcategory_id)?.name].filter(Boolean).join(' › ')}
         onPress={() => void openEntry(item)}
         onSettle={canSettleEntry(item, role) ? () => openSettle(item) : undefined}
@@ -582,6 +592,7 @@ export function LedgerTab({ compact = false }: Props) {
         compact={compact}
         accountName={selected ? accountName(selected.account_id) : ''}
         payerName={selected?.paid_from_account_id ? accountName(selected.paid_from_account_id) : null}
+        otherName={selected?.counterparty_account_id ? accountName(selected.counterparty_account_id) : null}
         canSettle={selected ? canSettleEntry(selected, role) : false}
         onSettle={() => {
           if (!selected) return;
@@ -616,6 +627,7 @@ export function LedgerTab({ compact = false }: Props) {
       <SettleEntryModal
         entry={settleTarget}
         accounts={accounts}
+        owedToCounterparty={settleOwed}
         submitting={mutating}
         serverError={settleError}
         onSubmit={(input) => void handleSettle(input)}
@@ -738,16 +750,18 @@ type EntryRowProps = {
   accountName: string;
   /** "Paid by X · for Y" when another account paid; null otherwise. */
   payer: string | null;
+  /** "Owed by X" or "Owed to X" when the other side is one of our own accounts. */
+  other: string | null;
   categoryPath: string;
   onPress: () => void;
   /** Present when the user may settle this open payable or receivable. */
   onSettle?: () => void;
 };
 
-function EntryRow({ item, compact, accountName, payer, categoryPath, onPress, onSettle }: EntryRowProps) {
+function EntryRow({ item, compact, accountName, payer, other, categoryPath, onPress, onSettle }: EntryRowProps) {
   const voided = item.status === 'void';
   const tone = kindTone(item.kind);
-  const meta = [payer ?? accountName, categoryPath || LEDGER_KIND_LABELS[item.kind], item.counterparty].filter(Boolean).join(' · ');
+  const meta = [payer ?? accountName, categoryPath || LEDGER_KIND_LABELS[item.kind], other ?? item.counterparty].filter(Boolean).join(' · ');
   const progress =
     (item.kind === 'payable' || item.kind === 'receivable') && item.status !== 'void' && item.settled > 0
       ? `${formatINR(item.settled)} of ${formatINR(item.amount)} settled`
@@ -772,6 +786,7 @@ function EntryRow({ item, compact, accountName, payer, categoryPath, onPress, on
         <Text className="text-[11px] text-text-secondary" numberOfLines={1}>{meta}</Text>
         <Text className="text-[11px] text-text-secondary" numberOfLines={1}>{who}</Text>
         {progress ? <Text className="text-[11px] font-semibold text-text-secondary" numberOfLines={1}>{progress}</Text> : null}
+        {item.source_type ? <Text className="text-[11px] font-semibold text-primary" numberOfLines={1}>{LEDGER_SOURCE_LABELS[item.source_type]}</Text> : null}
       </View>
       <View className="items-end">
         <Text className="text-sm font-extrabold" style={{ color: tone.color, textDecorationLine: voided ? 'line-through' : 'none' }}>
@@ -803,6 +818,8 @@ type EntryDetailSheetProps = {
   accountName: string;
   /** The account whose cash or bank moved, when not accountName's. */
   payerName: string | null;
+  /** The other one of our own accounts this payable or receivable is with. */
+  otherName: string | null;
   canSettle: boolean;
   onSettle: () => void;
   /** Opens the payable or receivable this payment settles. */
@@ -818,7 +835,7 @@ type EntryDetailSheetProps = {
   describe: (changes: Record<string, { from: unknown; to: unknown }>) => { field: string; label: string; from: string; to: string }[];
 };
 
-function EntryDetailSheet({ entry, compact, accountName, payerName, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
+function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
   const insets = useSafeAreaInsets();
   if (!entry) return null;
   const tone = kindTone(entry.kind);
@@ -826,7 +843,9 @@ function EntryDetailSheet({ entry, compact, accountName, payerName, canSettle, o
   const rows: { label: string; value: string }[] = [
     { label: entry.kind === 'transfer' ? 'To account' : 'For', value: accountName },
     ...(payerName ? [{ label: entry.kind === 'income' ? 'Received by' : entry.kind === 'transfer' ? 'From account' : 'Paid from', value: payerName }] : []),
+    ...(otherName ? [{ label: entry.kind === 'receivable' ? 'Owed by' : entry.kind === 'payable' ? 'Owed to' : 'Other account', value: otherName }] : []),
     { label: 'Kind', value: LEDGER_KIND_LABELS[entry.kind] },
+    ...(entry.source_type ? [{ label: 'Source', value: LEDGER_SOURCE_LABELS[entry.source_type] }] : []),
     ...(isOutstandingKind && entry.status !== 'void'
       ? [{ label: 'Settled', value: `${formatINR(entry.settled)} of ${formatINR(entry.amount)} · ${formatINR(remainingAmount(entry))} remaining${entry.settled_at ? ` · closed ${formatDateTime(entry.settled_at)}` : ''}` }]
       : []),
