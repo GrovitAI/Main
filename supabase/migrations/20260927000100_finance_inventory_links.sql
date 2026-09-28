@@ -385,17 +385,41 @@ BEGIN
 END;
 $$;
 
--- What p_debtor owes p_creditor right now, netted over everything between the
--- two (positive), 0 when nothing or when the debt runs the other way.
+-- What p_debtor owes p_creditor from money that has actually moved between
+-- the two (an expense paid by one for the other, a transfer, income collected
+-- by one for the other, an earlier offset), netted; positive, or 0 when
+-- nothing or when the debt runs the other way. Open receivables and payables
+-- are deliberately left out: this is the most an offset may clear, and the
+-- receivable being offset must not reduce its own cap.
 CREATE OR REPLACE FUNCTION public.finance_pair_position(p_debtor uuid, p_creditor uuid)
 RETURNS bigint
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
 AS $$
-  SELECT coalesce((
-    SELECT p.amount_paise
-      FROM public.finance_interaccount_positions() p
-     WHERE p.owed_by = p_debtor AND p.owed_to = p_creditor
-  ), 0)::bigint;
+DECLARE
+  v_tenant uuid := public.auth_tenant_id();
+  v_net bigint;
+BEGIN
+  IF p_debtor IS NULL OR p_creditor IS NULL OR p_debtor = p_creditor THEN
+    RETURN 0;
+  END IF;
+  IF NOT (public.finance_account_in_scope(p_debtor) OR public.finance_account_in_scope(p_creditor)) THEN
+    RETURN 0;
+  END IF;
+  SELECT coalesce(sum(
+           CASE
+             WHEN (CASE WHEN e.kind = 'income' THEN e.paid_from_account_id ELSE e.account_id END) = p_debtor THEN e.amount_paise
+             ELSE -e.amount_paise
+           END), 0)::bigint
+    INTO v_net
+    FROM public.finance_entries e
+   WHERE e.tenant_id = v_tenant
+     AND e.status = 'recorded'
+     AND e.paid_from_account_id IS NOT NULL
+     AND e.kind IN ('income', 'expense', 'transfer')
+     AND ((e.account_id = p_debtor AND e.paid_from_account_id = p_creditor)
+       OR (e.account_id = p_creditor AND e.paid_from_account_id = p_debtor));
+  RETURN greatest(v_net, 0)::bigint;
+END;
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -405,7 +429,8 @@ $$;
 -- against what this account owes that account (a vendor bill the branch paid
 -- for the kitchen, for example). No cash moves: the income row carries mode
 -- 'offset' and is paid from the counterparty, which cancels the paid-for
--- position in the positions above. Only up to what is actually owed.
+-- position in the positions above. Only up to what is actually owed from
+-- money already moved (finance_pair_position), never more.
 CREATE OR REPLACE FUNCTION public.finance_settle_entry(
   p_entry_id             uuid,
   p_amount_paise         bigint,

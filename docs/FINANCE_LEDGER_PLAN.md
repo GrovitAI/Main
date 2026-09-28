@@ -303,7 +303,9 @@ Central Kitchen ₹7,000" already reflects the ₹12,000 of goods sent minus the
 **Offset.** A receivable from a branch can be settled with mode **offset**
 instead of cash or bank: the income row is "paid from" the branch with no
 cash moving, which cancels the paid-for position, and the database caps it
-at what the kitchen actually owes that branch (`finance_pair_position`).
+at what the kitchen owes that branch from money already moved between the
+two (`finance_pair_position`: vendor bills the branch paid, transfers,
+earlier offsets), never counting the open receivable itself.
 Settle → Offset appears only for the owner (positions are the owner's) and
 only when something is owed. Offsets count as income in the kitchen's books,
 like any other settlement of the receivable.

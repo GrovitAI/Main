@@ -32,6 +32,7 @@ import {
   LEDGER_MODE_LABELS,
   LEDGER_SOURCE_LABELS,
   canEditEntry,
+  canOffsetEntry,
   canSeeBalances,
   canSettleEntry,
   canVoidEntry,
@@ -45,6 +46,7 @@ import {
   remainingAmount,
   LEDGER_MAX_ROWS,
 } from '@/lib/pos/finance-ledger-utils';
+import { fetchPairPosition } from '@/lib/pos/finance-ledger-service';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -120,6 +122,7 @@ export function LedgerTab({ compact = false }: Props) {
   const [voidError, setVoidError] = useState<string | null>(null);
   const [settleTarget, setSettleTarget] = useState<FinanceEntry | null>(null);
   const [settleError, setSettleError] = useState<string | null>(null);
+  const [settleOwed, setSettleOwed] = useState<number | undefined>(undefined);
   const [searchDraft, setSearchDraft] = useState(filters.search);
   // The filter rows fold away: the start page shows the search, the active
   // filters as removable chips, and the entries. Open the panel to change them.
@@ -216,12 +219,25 @@ export function LedgerTab({ compact = false }: Props) {
     setSettleTarget(entry);
   };
 
-  // What the entry's account owes the branch it is collecting from: the most
-  // a receivable can be offset by. Only the owner sees positions, so for a
-  // clerk this stays undefined and the offset option never appears.
-  const settleOwed = settleTarget?.counterparty_account_id
-    ? positions.find((p) => p.owed_by === settleTarget.account_id && p.owed_to === settleTarget.counterparty_account_id)?.amount ?? 0
-    : undefined;
+  // What the entry's account owes the branch it is collecting from, from money
+  // already moved between them: the most a receivable can be offset by. The
+  // database answers 0 for anyone who may not see the accounts, so for a
+  // clerk the offset option never appears.
+  useEffect(() => {
+    const other = settleTarget?.counterparty_account_id;
+    if (!settleTarget || !other || !canOffsetEntry(settleTarget)) {
+      setSettleOwed(undefined);
+      return;
+    }
+    let cancelled = false;
+    setSettleOwed(undefined);
+    void fetchPairPosition(settleTarget.account_id, other).then(({ data }) => {
+      if (!cancelled) setSettleOwed(data ?? 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [settleTarget]);
 
   const handleSettle = async (input: SettleEntryInput) => {
     setSettleError(null);

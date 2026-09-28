@@ -619,6 +619,25 @@ export async function fetchInterAccountPositions(): Promise<ServiceResult<InterA
 }
 
 /**
+ * What one account owes another from money already moved between them, in
+ * rupees: the most a receivable from that account can be offset by. Zero when
+ * nothing is owed, when the debt runs the other way, or when the caller may
+ * not see the accounts.
+ */
+export async function fetchPairPosition(debtorAccountId: string, creditorAccountId: string): Promise<ServiceResult<number>> {
+  try {
+    const { data, error } = await supabase.rpc('finance_pair_position', { p_debtor: debtorAccountId, p_creditor: creditorAccountId });
+    if (error) {
+      if (isForbidden(error)) return { data: 0, error: null };
+      return { data: null, error: 'Unable to load what is owed between the accounts.' };
+    }
+    return { data: fromPaise(toNumber(data)), error: null };
+  } catch {
+    return { data: null, error: 'Unable to load what is owed between the accounts.' };
+  }
+}
+
+/**
  * Ledger income, expenses and what is still open, per account, for the Books
  * card. Refused for a clerk who may not see balances; that is an empty list.
  */
