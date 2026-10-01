@@ -10,9 +10,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileText,
   History,
   Pencil,
   Plus,
+  Scale,
   ChevronDown,
   ChevronUp,
   Search,
@@ -23,7 +25,17 @@ import {
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import type { EntryFormValues, FinanceEntry, FinanceEntryInput, LedgerKind, LedgerSort, LedgerStatusFilter, SettleEntryInput } from '@/lib/pos/finance-types';
+import type {
+  CashCountInput,
+  EntryFormValues,
+  FinanceEntry,
+  FinanceEntryInput,
+  LedgerKind,
+  LedgerSort,
+  LedgerStatusFilter,
+  SettleEntryInput,
+  StatementSubject,
+} from '@/lib/pos/finance-types';
 import { LEDGER_KINDS, LEDGER_MODES } from '@/lib/pos/finance-types';
 import { formatDateLabel, formatDateLong, formatDateTime, formatINR, formatTime, getCurrentBusinessDate } from '@/lib/pos/finance-utils';
 import {
@@ -58,8 +70,10 @@ import { fetchCounterpartyNames, fetchPairPosition } from '@/lib/pos/finance-led
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
+import { CashCountModal } from './CashCountModal';
 import { EntryFormModal } from './EntryFormModal';
 import { SettleEntryModal } from './SettleEntryModal';
+import { StatementModal } from './StatementModal';
 import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, financeContentPadding } from './FinanceStateViews';
 
 type Props = { compact?: boolean };
@@ -130,6 +144,7 @@ export function LedgerTab({ compact = false }: Props) {
   const editEntry = useLedgerStore((s) => s.editEntry);
   const voidEntry = useLedgerStore((s) => s.voidEntry);
   const settleEntry = useLedgerStore((s) => s.settleEntry);
+  const countCash = useLedgerStore((s) => s.countCash);
   const openEntry = useLedgerStore((s) => s.openEntry);
   const openEntryById = useLedgerStore((s) => s.openEntryById);
   const clearNewEntryRequest = useLedgerStore((s) => s.clearNewEntryRequest);
@@ -144,6 +159,9 @@ export function LedgerTab({ compact = false }: Props) {
   const [settleTarget, setSettleTarget] = useState<FinanceEntry | null>(null);
   const [settleError, setSettleError] = useState<string | null>(null);
   const [settleOwed, setSettleOwed] = useState<number | undefined>(undefined);
+  const [statement, setStatement] = useState<{ visible: boolean; subject: StatementSubject | null }>({ visible: false, subject: null });
+  const [countTarget, setCountTarget] = useState<string | null>(null);
+  const [countError, setCountError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(filters.search);
   // The filter rows fold away: the start page shows the search, the active
   // filters as removable chips, and the entries. Open the panel to change them.
@@ -283,6 +301,22 @@ export function LedgerTab({ compact = false }: Props) {
     setSavedNotice(`Recorded ${formatINR(input.amount)} ${settleTarget?.kind === 'receivable' ? 'received' : 'paid'} · ${settleTarget?.particulars ?? ''}`);
   };
 
+  const openCount = (accountId: string) => {
+    setCountError(null);
+    setCountTarget(accountId);
+  };
+
+  const handleCount = async (input: CashCountInput) => {
+    setCountError(null);
+    const result = await countCash(input);
+    if (!result.ok) {
+      setCountError(result.error);
+      return;
+    }
+    setCountTarget(null);
+    setSavedNotice(`Count saved · ${input.mode === 'cash' ? 'cash box' : 'bank'} ${formatINR(input.counted)}`);
+  };
+
   const accountName = useCallback((id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account', [accounts]);
   const today = getCurrentBusinessDate();
   const showBalances = canSeeBalances(role, rules) && balances.length > 0;
@@ -344,7 +378,21 @@ export function LedgerTab({ compact = false }: Props) {
 
   const balanceCards = balances.map((b) => (
     <View key={b.account_id} className={`rounded-2xl border border-border/60 bg-white p-3 shadow-sm ${compact ? 'min-w-[200px]' : 'min-w-[220px] flex-1'}`}>
-      <Text className="text-[11px] font-bold uppercase tracking-wide text-text-secondary" numberOfLines={1}>{accountName(b.account_id)}</Text>
+      <View className="flex-row items-center justify-between">
+        <Text className="flex-1 text-[11px] font-bold uppercase tracking-wide text-text-secondary" numberOfLines={1}>{accountName(b.account_id)}</Text>
+        {/* Check the cash box or the bank statement against these figures. */}
+        <Pressable
+          onPress={() => openCount(b.account_id)}
+          className="ml-2 min-h-[28px] flex-row items-center rounded-full border border-border bg-white px-2"
+          hitSlop={8}
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Count ${accountName(b.account_id)}`}
+        >
+          <Scale size={11} color={colors.primary} />
+          <Text className="ml-1 text-[10px] font-bold text-primary">Count</Text>
+        </Pressable>
+      </View>
       <View className="mt-1 flex-row items-end justify-between">
         <View>
           <Text className="text-[10px] text-text-secondary">Cash</Text>
@@ -393,11 +441,27 @@ export function LedgerTab({ compact = false }: Props) {
     </Pressable>
   ) : null;
 
-  const positionLines = positions.map((p) => (
-    <Text key={`${p.owed_by}-${p.owed_to}`} className="text-xs text-text-primary">
-      <Text className="font-bold">{accountName(p.owed_by)}</Text> owes <Text className="font-bold">{accountName(p.owed_to)}</Text> {formatINR(p.amount, { compact: compactMoney })}
-    </Text>
-  ));
+  // Each line opens the statement between the two: what built the figure up.
+  const positionLines = positions.map((p) => {
+    const home = p.owed_by === defaultAccountId || p.owed_to === defaultAccountId ? defaultAccountId : p.owed_to;
+    const other = home === p.owed_by ? p.owed_to : p.owed_by;
+    return (
+      <Pressable
+        key={`${p.owed_by}-${p.owed_to}`}
+        onPress={() => setStatement({ visible: true, subject: { type: 'account', accountId: other, homeAccountId: home } })}
+        className="min-h-[32px] flex-row items-center justify-between"
+        hitSlop={6}
+        style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+        accessibilityRole="button"
+        accessibilityLabel={`Statement between ${accountName(p.owed_by)} and ${accountName(p.owed_to)}`}
+      >
+        <Text className="flex-1 text-xs text-text-primary">
+          <Text className="font-bold">{accountName(p.owed_by)}</Text> owes <Text className="font-bold">{accountName(p.owed_to)}</Text> {formatINR(p.amount, { compact: compactMoney })}
+        </Text>
+        <Text className="ml-2 text-[11px] font-bold text-primary">Statement</Text>
+      </Pressable>
+    );
+  });
 
   const header = (
     <View className="mb-3">
@@ -455,6 +519,17 @@ export function LedgerTab({ compact = false }: Props) {
               Filters{activeFilterChips.length > 0 ? ` · ${activeFilterChips.length}` : ''}
             </Text>
             <View className="ml-1">{filtersOpen ? <ChevronUp size={14} color={colors.primary} /> : <ChevronDown size={14} color={colors.primary} />}</View>
+          </Pressable>
+          <Pressable
+            onPress={() => setStatement({ visible: true, subject: null })}
+            disabled={!initialized}
+            className="min-h-[44px] flex-row items-center justify-center rounded-xl border border-border bg-white px-3"
+            style={({ pressed }) => [{ opacity: pressed || !initialized ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open a statement"
+          >
+            <FileText size={15} color={colors.primary} />
+            {compact ? null : <Text className="ml-1.5 text-xs font-bold text-primary">Statement</Text>}
           </Pressable>
           <Pressable
             onPress={openCreate}
@@ -694,6 +769,20 @@ export function LedgerTab({ compact = false }: Props) {
           // Everything with this vendor or person, whenever it was recorded in the range.
           setFilters({ counterparty: name, status: 'active' });
         }}
+        onShowStatement={() => {
+          if (!selected) return;
+          const other = selected.counterparty_account_id;
+          const name = selected.counterparty?.trim();
+          // Between two of our accounts when the other side is one; by name otherwise.
+          const subject: StatementSubject | null = other
+            ? { type: 'account', accountId: other, homeAccountId: selected.account_id }
+            : name
+              ? { type: 'name', name }
+              : null;
+          if (!subject) return;
+          void openEntry(null);
+          setStatement({ visible: true, subject });
+        }}
         canSettle={selected ? canSettleEntry(selected, role) : false}
         onSettle={() => {
           if (!selected) return;
@@ -723,6 +812,29 @@ export function LedgerTab({ compact = false }: Props) {
         }}
         onClose={() => void openEntry(null)}
         describe={(changes) => describeChanges(changes, { catalog, accounts }, (r) => formatINR(r))}
+      />
+
+      <StatementModal
+        visible={statement.visible}
+        initialSubject={statement.subject}
+        accounts={accounts}
+        homeAccountId={defaultAccountId}
+        otherAccounts={accounts.filter((a) => a.is_active && a.id !== defaultAccountId)}
+        compact={compact}
+        onOpenEntry={(entry) => {
+          setStatement({ visible: false, subject: null });
+          void openEntry(entry);
+        }}
+        onClose={() => setStatement({ visible: false, subject: null })}
+      />
+
+      <CashCountModal
+        account={countTarget ? accounts.find((a) => a.id === countTarget) ?? null : null}
+        balance={countTarget ? balances.find((b) => b.account_id === countTarget) ?? null : null}
+        submitting={mutating}
+        serverError={countError}
+        onSubmit={(input) => void handleCount(input)}
+        onClose={() => setCountTarget(null)}
       />
 
       <SettleEntryModal
@@ -961,6 +1073,8 @@ type EntryDetailSheetProps = {
   due: DueStatus | null;
   /** Filters the ledger to everything with this entry's vendor or person. */
   onShowCounterparty: () => void;
+  /** Opens the statement with this entry's vendor, person or other account. */
+  onShowStatement: () => void;
   canSettle: boolean;
   onSettle: () => void;
   /** Opens the payable or receivable this payment settles. */
@@ -976,7 +1090,7 @@ type EntryDetailSheetProps = {
   describe: (changes: Record<string, { from: unknown; to: unknown }>) => { field: string; label: string; from: string; to: string }[];
 };
 
-function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
+function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, onShowStatement, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
   const insets = useSafeAreaInsets();
   if (!entry) return null;
   const tone = kindTone(entry.kind);
@@ -1043,6 +1157,19 @@ function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, d
                 </Text>
                 <Text className="flex-1 text-right text-sm text-text-primary">
                   {entry.counterparty} · <Text className="font-bold text-primary">All entries</Text>
+                </Text>
+              </Pressable>
+            ) : null}
+            {entry.counterparty || entry.counterparty_account_id ? (
+              <Pressable
+                onPress={onShowStatement}
+                className="min-h-[44px] flex-row items-center justify-between border-b border-border-soft py-2"
+                accessibilityRole="button"
+                accessibilityLabel="Open the statement"
+              >
+                <Text className="w-[130px] text-[11px] font-bold uppercase tracking-wide text-text-secondary">Statement</Text>
+                <Text className="flex-1 text-right text-sm text-text-primary">
+                  Bills, payments and the balance with {otherName ?? entry.counterparty} · <Text className="font-bold text-primary">Open</Text>
                 </Text>
               </Pressable>
             ) : null}

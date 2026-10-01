@@ -48,6 +48,7 @@ export const LEDGER_MODE_LABELS: Record<EntryMode, string> = {
 export const LEDGER_SOURCE_LABELS: Record<LedgerSourceType, string> = {
   purchase: 'Posted from a purchase in Inventory',
   dispatch: 'Posted from a dispatch in Inventory',
+  cash_count: 'Posted from a cash count',
 };
 
 /** Money in for income and receivables, out for expenses and payables. */

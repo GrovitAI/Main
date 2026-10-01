@@ -12,6 +12,8 @@ import { getTenantContext } from './tenant-context';
 import { useSessionStore } from './use-session-store';
 import type {
   AccountBalance,
+  CashCount,
+  CashCountInput,
   CatalogItem,
   CatalogItemInput,
   CatalogItemPatch,
@@ -30,6 +32,7 @@ import type {
   LedgerPage,
   ServiceResult,
   SettleEntryInput,
+  StatementSubject,
 } from './finance-types';
 import { fromPaise, toPaise } from './finance-utils';
 
@@ -96,7 +99,7 @@ const ENTRY_COLUMNS =
   'settled_at, void_reason, voided_at, updated_at, version, entered_staff:staff!finance_entries_entered_by_fkey(name)';
 
 function toSourceType(value: unknown): FinanceEntry['source_type'] {
-  return value === 'purchase' || value === 'dispatch' ? value : null;
+  return value === 'purchase' || value === 'dispatch' || value === 'cash_count' ? value : null;
 }
 
 function mapEntry(row: Record<string, unknown>): FinanceEntry {
@@ -573,6 +576,130 @@ export async function settleLedgerEntry(input: SettleEntryInput): Promise<Servic
     return fetchLedgerEntry(paymentId);
   } catch {
     return { data: null, error: 'Unable to settle the entry.' };
+  }
+}
+
+// ─── Statements ───────────────────────────────────────────────────────────────
+
+/** How many entries a statement reads at most; older ones are reported as cut off. */
+export const STATEMENT_MAX_ROWS = 500;
+
+/**
+ * The entries a statement is built from, oldest first: everything with one
+ * vendor or customer by name, or everything between two of our own accounts.
+ * Row level security decides what the caller may read; buildStatement() in
+ * finance-statement-utils.ts does the arithmetic.
+ */
+export async function fetchStatementEntries(subject: StatementSubject): Promise<ServiceResult<{ entries: FinanceEntry[]; truncated: boolean }>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    let q = supabase.from('finance_entries').select(ENTRY_COLUMNS).eq('tenant_id', tenant_id).neq('status', 'void');
+    if (subject.type === 'name') {
+      const name = subject.name.trim();
+      if (name.length === 0) return { data: { entries: [], truncated: false }, error: null };
+      q = q.ilike('counterparty', escapeLike(name)).is('counterparty_account_id', null);
+    } else {
+      const { accountId: other, homeAccountId: home } = subject;
+      q = q.or(
+        [
+          `and(account_id.eq.${home},counterparty_account_id.eq.${other})`,
+          `and(account_id.eq.${other},counterparty_account_id.eq.${home})`,
+          `and(account_id.eq.${home},paid_from_account_id.eq.${other})`,
+          `and(account_id.eq.${other},paid_from_account_id.eq.${home})`,
+        ].join(','),
+      );
+    }
+    // The newest rows are kept when there are more than the limit.
+    const { data, error } = await q
+      .order('transaction_date', { ascending: false })
+      .order('entered_at', { ascending: false })
+      .range(0, STATEMENT_MAX_ROWS);
+    if (error) return { data: null, error: 'Unable to load the statement.' };
+    const rows = asRecords(data).map(mapEntry);
+    const truncated = rows.length > STATEMENT_MAX_ROWS;
+    return { data: { entries: truncated ? rows.slice(0, STATEMENT_MAX_ROWS) : rows, truncated }, error: null };
+  } catch {
+    return { data: null, error: 'Unable to load the statement.' };
+  }
+}
+
+// ─── Cash counts ──────────────────────────────────────────────────────────────
+
+function mapCashCount(row: Record<string, unknown>): CashCount {
+  return {
+    id: toText(row.id),
+    account_id: toText(row.account_id),
+    mode: toText(row.mode) === 'bank' ? 'bank' : 'cash',
+    counted_on: toText(row.counted_on).slice(0, 10),
+    expected: fromPaise(toNumber(row.expected_paise)),
+    counted: fromPaise(toNumber(row.counted_paise)),
+    difference: fromPaise(toNumber(row.difference_paise)),
+    adjustment_entry_id: toStringOrNull(row.adjustment_entry_id),
+    note: toStringOrNull(row.note),
+    counted_by_name: embeddedName(row.counted_staff),
+    created_at: toText(row.created_at),
+  };
+}
+
+/** The latest counts of an account's cash box and bank balance, newest first. */
+export async function fetchCashCounts(accountId: string, limit = 10): Promise<ServiceResult<CashCount[]>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('finance_cash_counts')
+      .select('id, account_id, mode, counted_on, expected_paise, counted_paise, difference_paise, adjustment_entry_id, note, created_at, counted_staff:staff!finance_cash_counts_counted_by_fkey(name)')
+      .eq('tenant_id', tenant_id)
+      .eq('account_id', accountId)
+      .order('counted_on', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(Math.max(1, Math.min(50, limit)));
+    if (error) return { data: null, error: 'Unable to load the earlier counts.' };
+    return { data: asRecords(data).map(mapCashCount), error: null };
+  } catch {
+    return { data: null, error: 'Unable to load the earlier counts.' };
+  }
+}
+
+export type CashCountResult = {
+  count_id: string;
+  expected: number;
+  counted: number;
+  /** counted − expected. */
+  difference: number;
+  /** The ledger entry that carried the difference, when one was posted. */
+  entry_id: string | null;
+};
+
+/**
+ * Records a count of an account's cash box or bank balance. The database
+ * reads what the ledger expects, stores both, and posts the difference when
+ * asked, all in one transaction (finance_record_cash_count).
+ */
+export async function recordCashCount(input: CashCountInput): Promise<ServiceResult<CashCountResult>> {
+  try {
+    if (!currentStaffId()) return { data: null, error: 'Sign in again to record a count.' };
+    const { data, error } = await supabase.rpc('finance_record_cash_count', {
+      p_account_id: input.account_id,
+      p_mode: input.mode,
+      p_counted_paise: toPaise(input.counted),
+      p_counted_on: input.counted_on,
+      p_note: input.note,
+      p_adjust: input.adjust,
+    });
+    if (error) return { data: null, error: explain(error, 'Unable to record the count.') };
+    if (!isRecord(data)) return { data: null, error: 'Unable to record the count.' };
+    return {
+      data: {
+        count_id: toText(data.count_id),
+        expected: fromPaise(toNumber(data.expected_paise)),
+        counted: fromPaise(toNumber(data.counted_paise)),
+        difference: fromPaise(toNumber(data.difference_paise)),
+        entry_id: toStringOrNull(data.entry_id),
+      },
+      error: null,
+    };
+  } catch {
+    return { data: null, error: 'Unable to record the count.' };
   }
 }
 

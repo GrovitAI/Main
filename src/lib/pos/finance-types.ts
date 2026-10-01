@@ -269,8 +269,8 @@ export const SETTLE_MODES = ['cash', 'bank', 'offset'] as const;
 export type SettleMode = (typeof SETTLE_MODES)[number];
 /** What a stored entry can carry: a settlement payment may be an offset. */
 export type EntryMode = SettleMode;
-/** The inventory document that posted an entry. */
-export type LedgerSourceType = 'purchase' | 'dispatch';
+/** The document that posted an entry: an inventory purchase or dispatch, or a cash count. */
+export type LedgerSourceType = 'purchase' | 'dispatch' | 'cash_count';
 
 /** income/expense/transfer: recorded → void. payable/receivable: open → settled or void. */
 export type LedgerStatus = 'recorded' | 'open' | 'settled' | 'void';
@@ -516,6 +516,67 @@ export type CounterpartySuggestion = {
   source: 'used' | 'supplier' | 'staff';
   /** How many ledger entries already carry the name. */
   uses: number;
+};
+
+// ─── Statements ──────────────────────────────────────────────────────────────
+
+/** Whose statement: a vendor or customer by name, or one of our own accounts against the books in view. */
+export type StatementSubject =
+  | { type: 'name'; name: string }
+  | { type: 'account'; accountId: string; homeAccountId: string };
+
+export type StatementRow = {
+  entry: FinanceEntry;
+  /** What this row added to what is owed. */
+  billed: number;
+  /** What this row paid off. */
+  paid: number;
+  /** Running balance after this row. */
+  balance: number;
+};
+
+export type Statement = {
+  rows: StatementRow[];
+  billed: number;
+  paid: number;
+  /** The closing balance; its meaning is in `direction`. */
+  balance: number;
+  /**
+   * Who owes whom when the balance is not zero. For a name: 'they_owe' (a
+   * customer still to pay us) or 'we_owe' (a vendor still to be paid). For an
+   * account: 'they_owe' when that account owes the home account.
+   */
+  direction: 'they_owe' | 'we_owe' | 'settled';
+  /** The list stopped at the fetch limit; older rows may be missing. */
+  truncated: boolean;
+};
+
+// ─── Cash counts ─────────────────────────────────────────────────────────────
+
+export type CashCount = {
+  id: string;
+  account_id: string;
+  mode: LedgerMode;
+  /** YYYY-MM-DD */
+  counted_on: string;
+  expected: number;
+  counted: number;
+  /** counted − expected. Positive is a surplus, negative a shortage. */
+  difference: number;
+  adjustment_entry_id: string | null;
+  note: string | null;
+  counted_by_name: string | null;
+  created_at: string;
+};
+
+export type CashCountInput = {
+  account_id: string;
+  mode: LedgerMode;
+  counted: number;
+  counted_on: string;
+  note: string | null;
+  /** Post the difference into the ledger so the books match the count. */
+  adjust: boolean;
 };
 
 /** The Books card: ledger income and expenses in range, and what is still open. */

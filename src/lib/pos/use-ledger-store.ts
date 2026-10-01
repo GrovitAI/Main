@@ -22,6 +22,7 @@ import {
   fetchLedgerEntries,
   fetchLedgerEntry,
   fetchLedgerSummary,
+  recordCashCount,
   reorderCatalogItems,
   settleLedgerEntry,
   updateCatalogItem,
@@ -31,6 +32,7 @@ import {
 } from './finance-ledger-service';
 import type {
   AccountBalance,
+  CashCountInput,
   CatalogItem,
   CatalogItemInput,
   CatalogItemPatch,
@@ -101,6 +103,8 @@ type LedgerState = {
   voidEntry: (id: string, reason: string) => Promise<MutationResult>;
   /** Records a payment against an open payable or receivable. */
   settleEntry: (input: SettleEntryInput) => Promise<MutationResult>;
+  /** Records a count of an account's cash box or bank balance, posting the difference when asked. */
+  countCash: (input: CashCountInput) => Promise<MutationResult>;
   openEntry: (entry: FinanceEntry | null) => Promise<void>;
   /** Opens an entry that may not be on the current page, such as the one a payment settles. */
   openEntryById: (id: string) => Promise<void>;
@@ -251,6 +255,16 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
       await Promise.all([get().loadEntries(0), get().loadBalances()]);
       const refreshed = get().entries.find((e) => e.id === input.entry_id) ?? null;
       if (get().selected?.id === input.entry_id) await get().openEntry(refreshed);
+      return { ok: true };
+    },
+
+    countCash: async (input) => {
+      set({ mutating: true });
+      const { data, error } = await recordCashCount(input);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to record the count.' };
+      // A posted difference is a new entry and a changed balance.
+      await Promise.all([get().loadEntries(0), get().loadBalances()]);
       return { ok: true };
     },
 
