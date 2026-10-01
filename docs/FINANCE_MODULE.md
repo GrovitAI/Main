@@ -189,11 +189,14 @@ assert the loading, error, empty and data states.
 - **Purchases post to the ledger** (since 2026-09-27, task 110): recording a
   purchase in Inventory writes the kitchen's expense, or a payable to the
   supplier, in the same database transaction; settling the payable in the
-  Ledger marks the purchase paid. The Overview P&L still sums
-  `inventory_purchase_headers` for its purchases line until it is moved onto
-  the ledger. See docs/FINANCE_LEDGER_PLAN.md §12.
-- **No accrual accounting.** The P&L is cash basis. There are no payables,
-  receivables or a chart of accounts.
+  Ledger marks the purchase paid. See docs/FINANCE_LEDGER_PLAN.md §12.
+- **The Overview, Cash Book and Day Close read the ledger** (task 111): their
+  expense and cash figures come from `finance_entries`, not from the old
+  `expenses` table, which is empty and no longer read for any total. The
+  Expenses tab described in §1 is unreachable and is to be deleted. See
+  docs/FINANCE_LEDGER_PLAN.md §13.
+- **The P&L is cash basis.** Payables and receivables live in the Ledger tab
+  and count when they are paid.
 - **CSV export is web only**, matching the existing analytics export. Native
   sharing needs `expo-file-system` and `expo-sharing`.
 - **Day close does not lock anything.** Closing a day records the count; it does
