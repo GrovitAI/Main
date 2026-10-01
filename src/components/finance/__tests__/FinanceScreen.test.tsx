@@ -44,11 +44,10 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { emptyFinanceSummary } from '@/lib/pos/finance-utils';
-import type { Expense, FinanceSchemaStatus } from '@/lib/pos/finance-types';
+import type { FinanceSchemaStatus } from '@/lib/pos/finance-types';
 import { FinanceScreen } from '../FinanceScreen';
 import { PhoneFinanceScreen } from '../PhoneFinanceScreen';
 import { FinanceOverviewTab } from '../FinanceOverviewTab';
-import { ExpensesTab } from '../ExpensesTab';
 import { CashBookTab } from '../CashBookTab';
 import { DayCloseTab } from '../DayCloseTab';
 
@@ -116,8 +115,6 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
 }
 
 const FULL_SCHEMA: FinanceSchemaStatus = {
-  expensesExtended: true,
-  categoriesTable: true,
   dayClosuresTable: true,
   refundsExtended: true,
   summaryRpc: true,
@@ -159,31 +156,6 @@ const SESSION = {
   jwtExpiresAt: '',
   lastActivityAt: '',
 };
-
-function makeExpense(over: Partial<Expense> = {}): Expense {
-  return {
-    id: 'e1',
-    tenant_id: 'tenant-1',
-    branch_id: 'branch-1',
-    amount: 1500,
-    amount_paise: 150000,
-    category: 'Rent',
-    description: 'September rent',
-    expense_date: '2026-09-05',
-    payment_method: 'cash',
-    payee: 'Landlord',
-    reference_no: 'REF-1',
-    notes: null,
-    receipt_url: null,
-    status: 'recorded',
-    void_reason: null,
-    voided_at: null,
-    created_by: null,
-    created_at: '2026-09-05T10:00:00.000Z',
-    updated_at: null,
-    ...over,
-  };
-}
 
 /** Every visible string in the rendered tree, flattened into one haystack. */
 function textOf(tree: ReactTestRenderer): string {
@@ -253,10 +225,6 @@ beforeEach(() => {
   Object.assign(useSessionStore, { getState: () => ({ session: SESSION }) });
 
   mocked.detectFinanceSchema.mockResolvedValue(FULL_SCHEMA);
-  mocked.fetchExpenseCategories.mockResolvedValue({
-    data: [{ id: 'c1', tenant_id: 'tenant-1', name: 'Rent', sort_order: 10, is_active: true }],
-    error: null,
-  });
   mocked.fetchFinanceOverview.mockResolvedValue({
     data: {
       summary: {
@@ -274,10 +242,6 @@ beforeEach(() => {
       series: [{ date: '2026-09-05', revenue: 120000, orders: 42, expenses: 30000, net: 90000 }],
       degraded: false,
     },
-    error: null,
-  });
-  mocked.fetchExpenses.mockResolvedValue({
-    data: { rows: [makeExpense()], total: 1, page: 0, pageSize: 50 },
     error: null,
   });
   mocked.fetchLedger.mockResolvedValue({
@@ -435,33 +399,6 @@ describe('Overview tab', () => {
     const text = textOf(tree);
     expect(text).toContain('Unable to load the finance overview.');
     expect(text).toContain('Retry');
-    unmountTree(tree);
-  });
-});
-
-describe('Expenses tab', () => {
-  test('lists expenses returned by the service', async () => {
-    useFinanceStore.setState({ schema: FULL_SCHEMA });
-    await act(async () => {
-      await useFinanceStore.getState().loadExpenses(0);
-    });
-    const tree = renderTree(<ExpensesTab />);
-    const text = textOf(tree);
-    expect(text).toContain('Rent');
-    expect(text).toContain('September rent');
-    expect(text).toContain('₹1,500');
-    unmountTree(tree);
-  });
-
-  test('shows an empty state with a call to action', async () => {
-    mocked.fetchExpenses.mockResolvedValue({ data: { rows: [], total: 0, page: 0, pageSize: 50 }, error: null });
-    await act(async () => {
-      await useFinanceStore.getState().loadExpenses(0);
-    });
-    const tree = renderTree(<ExpensesTab />);
-    const text = textOf(tree);
-    expect(text).toContain('No expenses in this range');
-    expect(text).toContain('Add first expense');
     unmountTree(tree);
   });
 });

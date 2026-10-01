@@ -13,88 +13,10 @@ export type ServiceResult<T> = {
 
 export type FinancePreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
 
-export type FinanceTab = 'overview' | 'ledger' | 'expenses' | 'cashbook' | 'dayclose' | 'catalog';
+export type FinanceTab = 'overview' | 'ledger' | 'cashbook' | 'dayclose' | 'catalog';
 
 export const EXPENSE_PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'] as const;
 export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];
-
-export type ExpenseStatus = 'recorded' | 'void';
-
-export type Expense = {
-  id: string;
-  tenant_id: string;
-  branch_id: string;
-  amount: number;
-  amount_paise: number;
-  category: string;
-  description: string | null;
-  /** Calendar date the expense belongs to — YYYY-MM-DD (DB column `date`). */
-  expense_date: string;
-  payment_method: ExpensePaymentMethod;
-  payee: string | null;
-  reference_no: string | null;
-  notes: string | null;
-  receipt_url: string | null;
-  status: ExpenseStatus;
-  void_reason: string | null;
-  voided_at: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string | null;
-};
-
-export type ExpenseInput = {
-  amount: number;
-  category: string;
-  description: string | null;
-  expense_date: string;
-  payment_method: ExpensePaymentMethod;
-  payee: string | null;
-  reference_no: string | null;
-  notes: string | null;
-};
-
-/** Raw form values before validation (everything is a string from TextInput). */
-export type ExpenseFormValues = {
-  amount: string;
-  category: string;
-  description: string;
-  expense_date: string;
-  payment_method: ExpensePaymentMethod;
-  payee: string;
-  reference_no: string;
-  notes: string;
-};
-
-export type ExpenseFormErrors = Partial<Record<keyof ExpenseFormValues, string>>;
-
-export type ExpenseCategory = {
-  id: string;
-  tenant_id: string;
-  name: string;
-  sort_order: number;
-  is_active: boolean;
-};
-
-export type ExpenseListFilters = {
-  startDate: string;
-  endDate: string;
-  /** null/undefined = all accessible branches (owner/admin only). */
-  branchId: string | null;
-  category: string | null;
-  paymentMethod: ExpensePaymentMethod | null;
-  search: string;
-  includeVoid: boolean;
-  page: number;
-  pageSize: number;
-};
-
-export type ExpensePage = {
-  rows: Expense[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
 
 export type FinanceFilters = {
   preset: FinancePreset;
@@ -243,8 +165,6 @@ export type DayClosureInput = {
  * The UI uses this to degrade gracefully instead of failing.
  */
 export type FinanceSchemaStatus = {
-  expensesExtended: boolean;
-  categoriesTable: boolean;
   dayClosuresTable: boolean;
   refundsExtended: boolean;
   summaryRpc: boolean;

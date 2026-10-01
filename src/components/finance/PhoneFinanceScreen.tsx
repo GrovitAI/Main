@@ -113,7 +113,7 @@ export function PhoneFinanceScreen({
       </View>
       ) : null}
 
-      {/* Day close and the expense forms carry text inputs, so the body lifts
+      {/* Day close and the ledger filters carry text inputs, so the body lifts
           clear of the iOS keyboard. */}
       <KeyboardAvoider>
         <View className="flex-1 px-3 pt-3">

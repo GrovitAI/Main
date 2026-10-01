@@ -80,13 +80,11 @@ type SchemaNoticeProps = { schema: FinanceSchemaStatus | null };
  */
 export function FinanceSchemaNotice({ schema }: SchemaNoticeProps) {
   if (!schema) return null;
-  const complete = schema.expensesExtended && schema.categoriesTable && schema.dayClosuresTable && schema.summaryRpc;
+  const complete = schema.dayClosuresTable && schema.summaryRpc;
   if (complete) return null;
 
   const missing: string[] = [];
   if (!schema.summaryRpc) missing.push('server-side totals');
-  if (!schema.expensesExtended) missing.push('payment method, payee and void on expenses');
-  if (!schema.categoriesTable) missing.push('custom categories');
   if (!schema.dayClosuresTable) missing.push('day close records');
 
   return (

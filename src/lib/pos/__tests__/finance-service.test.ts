@@ -87,24 +87,22 @@ describe('detectFinanceSchema', () => {
 
     const { detectFinanceSchema } = loadService();
     expect(await detectFinanceSchema()).toEqual({
-      expensesExtended: true,
-      categoriesTable: true,
       dayClosuresTable: true,
       refundsExtended: true,
       summaryRpc: true,
     });
+    // The retired expenses tables are no longer probed.
+    expect(queries.filter((q) => q.table === 'expenses' || q.table === 'expense_categories')).toHaveLength(0);
   });
 
   test('reports missing parts when the migration is pending', async () => {
     mockFrom.mockImplementation((t: string) =>
-      makeQuery(t, t === 'expenses' ? { data: [], error: MISSING_COLUMN } : { data: null, error: MISSING_TABLE }),
+      makeQuery(t, t === 'refunds' ? { data: [], error: MISSING_COLUMN } : { data: null, error: MISSING_TABLE }),
     );
     mockRpc.mockResolvedValue({ data: null, error: MISSING_FUNCTION });
 
     const { detectFinanceSchema } = loadService();
     expect(await detectFinanceSchema()).toEqual({
-      expensesExtended: false,
-      categoriesTable: false,
       dayClosuresTable: false,
       refundsExtended: false,
       summaryRpc: false,
@@ -132,20 +130,10 @@ describe('branch scoping', () => {
     mockFrom.mockImplementation((t: string) => makeQuery(t, { data: [], error: null, count: 0 }));
     mockRpc.mockResolvedValue({ data: {}, error: null });
 
-    const { fetchExpenses } = loadService();
-    await fetchExpenses({
-      startDate: '2026-09-01',
-      endDate: '2026-09-07',
-      branchId: 'someone-elses-branch',
-      category: null,
-      paymentMethod: null,
-      search: '',
-      includeVoid: false,
-      page: 0,
-      pageSize: 50,
-    });
+    const { fetchRecentDayClosures } = loadService();
+    await fetchRecentDayClosures('someone-elses-branch');
 
-    const filters = filtersFor('expenses');
+    const filters = filtersFor('finance_day_closures');
     expect(filters.tenant_id).toBe('tenant-1');
     expect(filters.branch_id).toBe('branch-1');
   });
@@ -155,21 +143,12 @@ describe('branch scoping', () => {
     mockFrom.mockImplementation((t: string) => makeQuery(t, { data: [], error: null, count: 0 }));
     mockRpc.mockResolvedValue({ data: {}, error: null });
 
-    const { fetchExpenses } = loadService();
+    const { fetchRecentDayClosures } = loadService();
     for (const branchId of [null, 'someone-elses-branch']) {
-      await fetchExpenses({
-        startDate: '2026-09-01',
-        endDate: '2026-09-07',
-        branchId,
-        category: null,
-        paymentMethod: null,
-        search: '',
-        includeVoid: false,
-        page: 0,
-        pageSize: 50,
-      });
+      queries.length = 0;
+      await fetchRecentDayClosures(branchId);
 
-      const filters = filtersFor('expenses');
+      const filters = filtersFor('finance_day_closures');
       expect(filters.tenant_id).toBe('tenant-1');
       expect(filters.branch_id).toBe('branch-1');
     }
@@ -179,93 +158,42 @@ describe('branch scoping', () => {
     mockFrom.mockImplementation((t: string) => makeQuery(t, { data: [], error: null, count: 0 }));
     mockRpc.mockResolvedValue({ data: {}, error: null });
 
-    const { fetchExpenses } = loadService();
-    await fetchExpenses({
-      startDate: '2026-09-01',
-      endDate: '2026-09-07',
-      branchId: null,
-      category: null,
-      paymentMethod: null,
-      search: '',
-      includeVoid: false,
-      page: 0,
-      pageSize: 50,
-    });
+    const { fetchRecentDayClosures } = loadService();
+    await fetchRecentDayClosures(null);
 
-    const filters = filtersFor('expenses');
+    const filters = filtersFor('finance_day_closures');
     expect(filters.tenant_id).toBe('tenant-1');
     expect(filters.branch_id).toBeUndefined();
   });
 
-  test('every expense insert carries tenant_id and branch_id', async () => {
-    const inserts: Record<string, unknown>[] = [];
+  test('every day close write carries tenant_id and branch_id', async () => {
+    const upserts: Record<string, unknown>[] = [];
     mockFrom.mockImplementation((t: string) => {
-      const q = makeQuery(t, { data: { id: 'e1', amount: 100, category: 'Rent', date: '2026-09-05' }, error: null });
-      q.insert = (payload: Record<string, unknown>) => {
-        inserts.push(payload);
+      const q = makeQuery(t, { data: { id: 'c1', business_date: '2026-09-05', status: 'closed' }, error: null });
+      q.upsert = (payload: Record<string, unknown>) => {
+        upserts.push(payload);
         return q;
       };
       return q;
     });
     mockRpc.mockResolvedValue({ data: {}, error: null });
 
-    const { createExpense } = loadService();
-    await createExpense(
-      {
-        amount: 100,
-        category: 'Rent',
-        description: null,
-        expense_date: '2026-09-05',
-        payment_method: 'cash',
-        payee: null,
-        reference_no: null,
-        notes: null,
-      },
+    const { saveDayClosure } = loadService();
+    await saveDayClosure(
+      { business_date: '2026-09-05', opening_cash: 0, counted_cash: 100, notes: null },
+      { business_date: '2026-09-05', cashSales: 100, cashRefunds: 0, cashExpenses: 0, cashSettlementCount: 1, cashExpenseCount: 0 },
+      'close',
       null,
     );
 
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0].tenant_id).toBe('tenant-1');
-    expect(inserts[0].branch_id).toBe('branch-1');
-    expect(inserts[0].created_by).toBe('staff-1');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].tenant_id).toBe('tenant-1');
+    expect(upserts[0].branch_id).toBe('branch-1');
+    expect(upserts[0].closed_by).toBe('staff-1');
   });
 });
 
 describe('graceful degradation', () => {
-  test('categories fall back to the built-in list when the table is absent', async () => {
-    mockFrom.mockImplementation((t: string) =>
-      makeQuery(t, t === 'expense_categories' ? { data: null, error: MISSING_TABLE } : { data: [], error: null }),
-    );
-    mockRpc.mockResolvedValue({ data: {}, error: null });
-
-    const { fetchExpenseCategories } = loadService();
-    const { data, error } = await fetchExpenseCategories();
-    expect(error).toBeNull();
-    expect(data?.length).toBeGreaterThan(10);
-    expect(data?.map((c) => c.name)).toContain('Rent');
-  });
-
-  test('voiding is refused with a clear message before the migration', async () => {
-    mockFrom.mockImplementation((t: string) => makeQuery(t, { data: null, error: MISSING_COLUMN }));
-    mockRpc.mockResolvedValue({ data: null, error: MISSING_FUNCTION });
-
-    const { voidExpense } = loadService();
-    const { data, error } = await voidExpense('e1', 'duplicate entry');
-    expect(data).toBeNull();
-    expect(error).toContain('migration');
-  });
-
-  test('a void with no reason is rejected without touching the database', async () => {
-    mockFrom.mockImplementation((t: string) => makeQuery(t, { data: [], error: null }));
-    mockRpc.mockResolvedValue({ data: {}, error: null });
-
-    const { voidExpense } = loadService();
-    queries.length = 0;
-    const { error } = await voidExpense('e1', '   ');
-    expect(error).toContain('reason is required');
-    expect(queries.filter((q) => q.table === 'expenses' && q.calls.some(([n]) => n === 'update'))).toHaveLength(0);
-  });
-
   test('day close cannot be saved before the migration', async () => {
     mockFrom.mockImplementation((t: string) => makeQuery(t, { data: null, error: MISSING_TABLE }));
     mockRpc.mockResolvedValue({ data: null, error: MISSING_FUNCTION });
@@ -395,8 +323,8 @@ describe('overview', () => {
     expect(data?.summary.cashOut).toBe(120);
     expect(data?.summary.otherIncome).toBe(0);
     expect(data?.series[0]).toMatchObject({ date: '2026-09-05', revenue: 500, orders: 1, expenses: 120, net: 380 });
-    // The old expenses table is no longer read for the totals.
-    expect(queries.filter((q) => q.table === 'expenses' && q.calls.some(([n]) => n === 'gte'))).toHaveLength(0);
+    // The old expenses table is no longer read at all.
+    expect(queries.filter((q) => q.table === 'expenses')).toHaveLength(0);
   });
 
   test('with one branch in view, what the kitchen was paid by a branch is its income', async () => {

@@ -317,8 +317,11 @@ Raw Materials, 'branch_supplies' → Branch Supplies) so renaming them never
 breaks posting. Neither is a built-in category: both count in profit.
 
 **Still to do** after §13: wastage and adjustments post through database
-functions like purchases do; the unreachable Expenses tab, its form and its
-store area are deleted; step 4 above (partners) when the owner is ready.
+functions like purchases do; step 4 above (partners) when the owner is ready.
+
+The unreachable Expenses tab, its form, its store area and its service
+functions were deleted in task 118. The `expenses` and `expense_categories`
+tables stay in the database, empty and unread.
 
 ## 13. Everyday use and a clear picture (2026-10-01, tasks 111 to 116)
 

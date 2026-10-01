@@ -20,11 +20,6 @@ import type {
   DayCloseComputation,
   DayClosure,
   DayClosureInput,
-  Expense,
-  ExpenseCategory,
-  ExpenseInput,
-  ExpenseListFilters,
-  ExpensePage,
   FinanceDailyPoint,
   FinanceFilters,
   FinanceSchemaStatus,
@@ -34,14 +29,12 @@ import type {
   ServiceResult,
 } from './finance-types';
 import {
-  DEFAULT_EXPENSE_CATEGORIES,
   addDays,
   buildDailySeries,
   computeCashVariance,
   computeExpectedCash,
   emptyFinanceSummary,
   fromPaise,
-  isExpensePaymentMethod,
   toPaise,
 } from './finance-utils';
 
@@ -49,10 +42,8 @@ import {
 
 type PgError = { code?: string; message?: string } | null;
 
-const isMissingColumn = (e: PgError): boolean => e?.code === '42703' || e?.code === 'PGRST204';
 const isMissingTable = (e: PgError): boolean => e?.code === 'PGRST205' || e?.code === '42P01';
 const isMissingFunction = (e: PgError): boolean => e?.code === 'PGRST202' || e?.code === '42883';
-const isUniqueViolation = (e: PgError): boolean => e?.code === '23505';
 
 function toNumber(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -87,11 +78,6 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
-}
-
-/** Escapes a free-text search term for use inside a PostgREST `or()` filter. */
-function sanitizeSearch(term: string): string {
-  return term.replace(/[%,()"'\\]/g, ' ').trim();
 }
 
 type Scope = {
@@ -161,9 +147,7 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
   try {
     const { tenant_id } = getTenantContext();
     const probeTs = new Date(0).toISOString();
-    const [expensesExtended, categoriesTable, dayClosuresTable, refundsExtended, rpcProbe] = await Promise.all([
-      probeColumn('expenses', 'status'),
-      probeColumn('expense_categories', 'id'),
+    const [dayClosuresTable, refundsExtended, rpcProbe] = await Promise.all([
       probeColumn('finance_day_closures', 'id'),
       probeColumn('refunds', 'amount'),
       supabase.rpc('get_finance_summary', {
@@ -176,8 +160,6 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
       }),
     ]);
     schemaCache = {
-      expensesExtended,
-      categoriesTable,
       dayClosuresTable,
       refundsExtended,
       summaryRpc: !rpcProbe.error,
@@ -186,8 +168,6 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
     // A probe that failed (no session yet, network down) must NOT be cached:
     // caching it would pin the module in degraded mode for the whole app run.
     return {
-      expensesExtended: false,
-      categoriesTable: false,
       dayClosuresTable: false,
       refundsExtended: false,
       summaryRpc: false,
@@ -198,38 +178,6 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
 
 export function getCachedFinanceSchema(): FinanceSchemaStatus | null {
   return schemaCache;
-}
-
-// ─── Expense mapping ──────────────────────────────────────────────────────────
-
-const EXPENSE_BASE_COLUMNS = 'id, tenant_id, branch_id, amount, category, description, date, created_by, created_at';
-const EXPENSE_EXT_COLUMNS = `${EXPENSE_BASE_COLUMNS}, amount_paise, payment_method, payee, reference_no, notes, receipt_url, status, void_reason, voided_at, updated_at`;
-
-function mapExpense(row: Record<string, unknown>): Expense {
-  const amount = toNumber(row.amount);
-  const paymentRaw = toText(row.payment_method, 'cash').toLowerCase();
-  const statusRaw = toText(row.status, 'recorded');
-  return {
-    id: toText(row.id),
-    tenant_id: toText(row.tenant_id),
-    branch_id: toText(row.branch_id),
-    amount,
-    amount_paise: row.amount_paise === undefined || row.amount_paise === null ? toPaise(amount) : toNumber(row.amount_paise),
-    category: toText(row.category, 'Uncategorised') || 'Uncategorised',
-    description: toStringOrNull(row.description),
-    expense_date: toText(row.date).slice(0, 10),
-    payment_method: isExpensePaymentMethod(paymentRaw) ? paymentRaw : 'other',
-    payee: toStringOrNull(row.payee),
-    reference_no: toStringOrNull(row.reference_no),
-    notes: toStringOrNull(row.notes),
-    receipt_url: toStringOrNull(row.receipt_url),
-    status: statusRaw === 'void' ? 'void' : 'recorded',
-    void_reason: toStringOrNull(row.void_reason),
-    voided_at: toStringOrNull(row.voided_at),
-    created_by: toStringOrNull(row.created_by),
-    created_at: toText(row.created_at),
-    updated_at: toStringOrNull(row.updated_at),
-  };
 }
 
 // ─── Overview (summary + daily series) ────────────────────────────────────────
@@ -713,249 +661,6 @@ export async function fetchFinanceOverview(filters: FinanceFilters): Promise<Ser
     return await fetchOverviewFallback(scope, filters, startTimestamp, endTimestamp, schemaCache ?? schema);
   } catch {
     return { data: null, error: 'Unable to load the finance overview.' };
-  }
-}
-
-// ─── Expenses ─────────────────────────────────────────────────────────────────
-
-export async function fetchExpenses(filters: ExpenseListFilters): Promise<ServiceResult<ExpensePage>> {
-  try {
-    const scope = resolveScope(filters.branchId);
-    const schema = await detectFinanceSchema();
-    const pageSize = Math.max(1, Math.min(200, filters.pageSize));
-    const page = Math.max(0, filters.page);
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-
-    const run = async (extended: boolean) => {
-      let q = supabase
-        .from('expenses')
-        .select(extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS, { count: 'exact' })
-        .eq('tenant_id', scope.tenant_id)
-        .gte('date', filters.startDate)
-        .lte('date', filters.endDate)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(from, to);
-      if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-      if (filters.category) q = q.eq('category', filters.category);
-      if (extended) {
-        if (!filters.includeVoid) q = q.eq('status', 'recorded');
-        if (filters.paymentMethod) q = q.eq('payment_method', filters.paymentMethod);
-      }
-      const term = sanitizeSearch(filters.search);
-      if (term.length > 0) {
-        const like = `%${term}%`;
-        const clauses = [`description.ilike.${like}`, `category.ilike.${like}`];
-        if (extended) clauses.push(`payee.ilike.${like}`, `reference_no.ilike.${like}`);
-        q = q.or(clauses.join(','));
-      }
-      return q;
-    };
-
-    let res = await run(schema.expensesExtended);
-    if (res.error && schema.expensesExtended && isMissingColumn(res.error)) {
-      schemaCache = { ...schema, expensesExtended: false };
-      res = await run(false);
-    }
-    if (res.error) return { data: null, error: 'Unable to load expenses.' };
-
-    return {
-      data: { rows: asRecords(res.data).map(mapExpense), total: res.count ?? 0, page, pageSize },
-      error: null,
-    };
-  } catch {
-    return { data: null, error: 'Unable to load expenses.' };
-  }
-}
-
-function buildExpensePayload(input: ExpenseInput, extended: boolean): Record<string, unknown> {
-  const base: Record<string, unknown> = {
-    amount: input.amount,
-    category: input.category,
-    description: input.description,
-    date: input.expense_date,
-  };
-  if (!extended) return base;
-  return {
-    ...base,
-    amount_paise: toPaise(input.amount),
-    payment_method: input.payment_method,
-    payee: input.payee,
-    reference_no: input.reference_no,
-    notes: input.notes,
-  };
-}
-
-/** Creates an expense for the caller's branch (owners/admins may pass a branch). */
-export async function createExpense(input: ExpenseInput, branchId?: string | null): Promise<ServiceResult<Expense>> {
-  try {
-    const scope = resolveScope(branchId);
-    const schema = await detectFinanceSchema();
-    const identity = {
-      tenant_id: scope.tenant_id,
-      branch_id: scope.writeBranchId,
-      created_by: currentStaffId(),
-    };
-
-    const run = async (extended: boolean) =>
-      supabase
-        .from('expenses')
-        .insert({ ...identity, ...buildExpensePayload(input, extended), ...(extended ? { status: 'recorded' } : {}) })
-        .select(extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS)
-        .single();
-
-    let res = await run(schema.expensesExtended);
-    if (res.error && schema.expensesExtended && isMissingColumn(res.error)) {
-      schemaCache = { ...schema, expensesExtended: false };
-      res = await run(false);
-    }
-    if (res.error || !isRecord(res.data)) return { data: null, error: 'Unable to save the expense.' };
-    return { data: mapExpense(res.data), error: null };
-  } catch {
-    return { data: null, error: 'Unable to save the expense.' };
-  }
-}
-
-export async function updateExpense(id: string, input: ExpenseInput): Promise<ServiceResult<Expense>> {
-  try {
-    const scope = resolveScope(null);
-    const schema = await detectFinanceSchema();
-
-    const run = async (extended: boolean) => {
-      let q = supabase
-        .from('expenses')
-        .update(buildExpensePayload(input, extended))
-        .eq('id', id)
-        .eq('tenant_id', scope.tenant_id);
-      if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-      if (extended) q = q.eq('status', 'recorded');
-      return q.select(extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS).maybeSingle();
-    };
-
-    let res = await run(schema.expensesExtended);
-    if (res.error && schema.expensesExtended && isMissingColumn(res.error)) {
-      schemaCache = { ...schema, expensesExtended: false };
-      res = await run(false);
-    }
-    if (res.error) return { data: null, error: 'Unable to update the expense.' };
-    if (!isRecord(res.data)) return { data: null, error: 'This expense can no longer be edited.' };
-    return { data: mapExpense(res.data), error: null };
-  } catch {
-    return { data: null, error: 'Unable to update the expense.' };
-  }
-}
-
-/** Soft-void: expenses are never deleted so the audit trail survives. */
-export async function voidExpense(id: string, reason: string): Promise<ServiceResult<Expense>> {
-  try {
-    const scope = resolveScope(null);
-    const schema = await detectFinanceSchema();
-    if (!schema.expensesExtended) {
-      return { data: null, error: 'Voiding expenses needs the finance schema migration to be applied first.' };
-    }
-    const trimmed = reason.trim();
-    if (trimmed.length === 0) return { data: null, error: 'A reason is required to void an expense.' };
-
-    let q = supabase
-      .from('expenses')
-      .update({
-        status: 'void',
-        void_reason: trimmed,
-        voided_at: new Date().toISOString(),
-        voided_by: currentStaffId(),
-      })
-      .eq('id', id)
-      .eq('tenant_id', scope.tenant_id)
-      .eq('status', 'recorded');
-    if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-    const { data, error } = await q.select(EXPENSE_EXT_COLUMNS).maybeSingle();
-    if (error) return { data: null, error: 'Unable to void the expense.' };
-    if (!isRecord(data)) return { data: null, error: 'This expense was already voided.' };
-    return { data: mapExpense(data), error: null };
-  } catch {
-    return { data: null, error: 'Unable to void the expense.' };
-  }
-}
-
-// ─── Expense categories ───────────────────────────────────────────────────────
-
-function defaultCategories(tenantId: string): ExpenseCategory[] {
-  return DEFAULT_EXPENSE_CATEGORIES.map((name, index) => ({
-    id: `default:${name}`,
-    tenant_id: tenantId,
-    name,
-    sort_order: (index + 1) * 10,
-    is_active: true,
-  }));
-}
-
-export async function fetchExpenseCategories(): Promise<ServiceResult<ExpenseCategory[]>> {
-  try {
-    const { tenant_id } = getTenantContext();
-    const schema = await detectFinanceSchema();
-    if (!schema.categoriesTable) return { data: defaultCategories(tenant_id), error: null };
-
-    const { data, error } = await supabase
-      .from('expense_categories')
-      .select('id, tenant_id, name, sort_order, is_active')
-      .eq('tenant_id', tenant_id)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
-    if (error) {
-      if (isMissingTable(error)) {
-        schemaCache = { ...schema, categoriesTable: false };
-        return { data: defaultCategories(tenant_id), error: null };
-      }
-      return { data: null, error: 'Unable to load expense categories.' };
-    }
-    const rows = asRecords(data).map((r) => ({
-      id: toText(r.id),
-      tenant_id: toText(r.tenant_id),
-      name: toText(r.name),
-      sort_order: toNumber(r.sort_order),
-      is_active: r.is_active !== false,
-    }));
-    return { data: rows.length > 0 ? rows : defaultCategories(tenant_id), error: null };
-  } catch {
-    return { data: null, error: 'Unable to load expense categories.' };
-  }
-}
-
-export async function createExpenseCategory(name: string): Promise<ServiceResult<ExpenseCategory>> {
-  try {
-    const { tenant_id } = getTenantContext();
-    const schema = await detectFinanceSchema();
-    const trimmed = name.trim();
-    if (trimmed.length === 0 || trimmed.length > 60) {
-      return { data: null, error: 'Enter a category name up to 60 characters.' };
-    }
-    if (!schema.categoriesTable) {
-      return { data: null, error: 'Custom categories need the finance schema migration to be applied first.' };
-    }
-    const { data, error } = await supabase
-      .from('expense_categories')
-      .insert({ tenant_id, name: trimmed, sort_order: 1000 })
-      .select('id, tenant_id, name, sort_order, is_active')
-      .single();
-    if (error) {
-      if (isUniqueViolation(error)) return { data: null, error: 'A category with this name already exists.' };
-      return { data: null, error: 'Unable to create the category.' };
-    }
-    if (!isRecord(data)) return { data: null, error: 'Unable to create the category.' };
-    return {
-      data: {
-        id: toText(data.id),
-        tenant_id: toText(data.tenant_id),
-        name: toText(data.name),
-        sort_order: toNumber(data.sort_order),
-        is_active: data.is_active !== false,
-      },
-      error: null,
-    };
-  } catch {
-    return { data: null, error: 'Unable to create the category.' };
   }
 }
 

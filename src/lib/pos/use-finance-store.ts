@@ -2,36 +2,26 @@
  * Finance module — Zustand store.
  *
  * Owns filters, per-area loading/error state and all service calls so the
- * screen components stay declarative. Each area (overview, expenses, ledger,
- * day close) tracks its own request id so a slow response can never overwrite
- * a newer one.
+ * screen components stay declarative. Each area (overview, cash book, day
+ * close) tracks its own request id so a slow response can never overwrite a
+ * newer one. The Ledger tab has its own store, use-ledger-store.ts.
  */
 import { create } from 'zustand';
 
 import {
   computeDayClose,
-  createExpense,
-  createExpenseCategory,
   detectFinanceSchema,
   fetchDayClosure,
-  fetchExpenseCategories,
-  fetchExpenses,
   fetchFinanceOverview,
   fetchLedger,
   fetchRecentDayClosures,
   saveDayClosure,
-  updateExpense,
-  voidExpense,
   type DayCloseAction,
 } from './finance-service';
 import type {
   DayCloseComputation,
   DayClosure,
   DayClosureInput,
-  Expense,
-  ExpenseCategory,
-  ExpenseInput,
-  ExpensePaymentMethod,
   FinanceDailyPoint,
   FinanceFilters,
   FinancePreset,
@@ -42,14 +32,7 @@ import type {
 } from './finance-types';
 import { getCurrentBusinessDate, getPresetDateRange } from './finance-utils';
 
-type Area = 'overview' | 'expenses' | 'ledger' | 'dayclose';
-
-export type ExpenseListState = {
-  category: string | null;
-  paymentMethod: ExpensePaymentMethod | null;
-  search: string;
-  includeVoid: boolean;
-};
+type Area = 'overview' | 'ledger' | 'dayclose';
 
 type MutationResult = { ok: true } | { ok: false; error: string };
 
@@ -68,20 +51,6 @@ type FinanceState = {
   overviewDegraded: boolean;
   overviewLoading: boolean;
   overviewError: string | null;
-
-  // ── Expenses ──
-  expenses: Expense[];
-  expensesTotal: number;
-  expensesPage: number;
-  expensesPageSize: number;
-  expenseList: ExpenseListState;
-  expensesLoading: boolean;
-  expensesError: string | null;
-  expenseMutating: boolean;
-  /** Set by the phone's quick-add button; the Expenses tab opens its form and clears this. */
-  newExpenseRequested: boolean;
-  categories: ExpenseCategory[];
-  categoriesLoading: boolean;
 
   // ── Cash book ──
   ledger: LedgerEntry[];
@@ -107,16 +76,6 @@ type FinanceState = {
 
   loadOverview: () => Promise<void>;
 
-  loadExpenses: (page?: number) => Promise<void>;
-  setExpenseList: (patch: Partial<ExpenseListState>) => void;
-  requestNewExpense: () => void;
-  clearNewExpenseRequest: () => void;
-  addExpense: (input: ExpenseInput) => Promise<MutationResult>;
-  editExpense: (id: string, input: ExpenseInput) => Promise<MutationResult>;
-  removeExpense: (id: string, reason: string) => Promise<MutationResult>;
-  loadCategories: () => Promise<void>;
-  addCategory: (name: string) => Promise<MutationResult>;
-
   loadLedger: () => Promise<void>;
 
   setDayCloseDate: (date: string) => void;
@@ -124,7 +83,7 @@ type FinanceState = {
   saveDayClose: (input: DayClosureInput, action: DayCloseAction) => Promise<MutationResult>;
 };
 
-const requestIds: Record<Area, number> = { overview: 0, expenses: 0, ledger: 0, dayclose: 0 };
+const requestIds: Record<Area, number> = { overview: 0, ledger: 0, dayclose: 0 };
 
 function nextRequest(area: Area): number {
   requestIds[area] += 1;
@@ -135,7 +94,7 @@ function isCurrent(area: Area, id: number): boolean {
   return requestIds[area] === id;
 }
 
-const ALL_STALE: Record<Area, boolean> = { overview: true, expenses: true, ledger: true, dayclose: true };
+const ALL_STALE: Record<Area, boolean> = { overview: true, ledger: true, dayclose: true };
 
 function initialFilters(): FinanceFilters {
   const range = getPresetDateRange('7days');
@@ -148,9 +107,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     switch (tab) {
       case 'overview':
         if (stale.overview) await get().loadOverview();
-        return;
-      case 'expenses':
-        if (stale.expenses) await get().loadExpenses(0);
         return;
       case 'cashbook':
         if (stale.ledger) await get().loadLedger();
@@ -181,18 +137,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     overviewLoading: false,
     overviewError: null,
 
-    expenses: [],
-    expensesTotal: 0,
-    expensesPage: 0,
-    expensesPageSize: 50,
-    expenseList: { category: null, paymentMethod: null, search: '', includeVoid: false },
-    expensesLoading: false,
-    expensesError: null,
-    expenseMutating: false,
-    newExpenseRequested: false,
-    categories: [],
-    categoriesLoading: false,
-
     ledger: [],
     ledgerLoading: false,
     ledgerError: null,
@@ -209,7 +153,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
     initialize: async () => {
       const schema = await detectFinanceSchema();
       set({ schema, initialized: true });
-      await Promise.all([get().loadCategories(), loadForTab(get().activeTab)]);
+      await loadForTab(get().activeTab);
     },
 
     setTab: (tab) => {
@@ -238,8 +182,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
       switch (activeTab) {
         case 'overview':
           return get().loadOverview();
-        case 'expenses':
-          return get().loadExpenses(get().expensesPage);
         case 'cashbook':
           return get().loadLedger();
         case 'dayclose':
@@ -267,102 +209,6 @@ export const useFinanceStore = create<FinanceState>((set, get) => {
         overviewError: null,
         stale: { ...get().stale, overview: false },
       });
-    },
-
-    // ── Expenses ────────────────────────────────────────────────────────────
-    loadExpenses: async (page = 0) => {
-      const id = nextRequest('expenses');
-      const { filters, expenseList, expensesPageSize } = get();
-      set({ expensesLoading: true, expensesError: null });
-      const { data, error } = await fetchExpenses({
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        branchId: filters.branchId,
-        category: expenseList.category,
-        paymentMethod: expenseList.paymentMethod,
-        search: expenseList.search,
-        includeVoid: expenseList.includeVoid,
-        page,
-        pageSize: expensesPageSize,
-      });
-      if (!isCurrent('expenses', id)) return;
-      if (error || !data) {
-        set({ expensesLoading: false, expensesError: error ?? 'Unable to load expenses.' });
-        return;
-      }
-      set({
-        expenses: data.rows,
-        expensesTotal: data.total,
-        expensesPage: data.page,
-        expensesLoading: false,
-        expensesError: null,
-        stale: { ...get().stale, expenses: false },
-      });
-    },
-
-    setExpenseList: (patch) => {
-      set({ expenseList: { ...get().expenseList, ...patch } });
-      void get().loadExpenses(0);
-    },
-
-    requestNewExpense: () => {
-      set({ newExpenseRequested: true });
-      get().setTab('expenses');
-    },
-
-    clearNewExpenseRequest: () => set({ newExpenseRequested: false }),
-
-    addExpense: async (input) => {
-      set({ expenseMutating: true });
-      const { data, error } = await createExpense(input, get().filters.branchId);
-      set({ expenseMutating: false });
-      if (error || !data) return { ok: false, error: error ?? 'Unable to save the expense.' };
-      // Money moved: every derived view is now out of date.
-      set({ stale: { overview: true, expenses: true, ledger: true, dayclose: true } });
-      await get().loadExpenses(0);
-      return { ok: true };
-    },
-
-    editExpense: async (id, input) => {
-      set({ expenseMutating: true });
-      const { data, error } = await updateExpense(id, input);
-      set({ expenseMutating: false });
-      if (error || !data) return { ok: false, error: error ?? 'Unable to update the expense.' };
-      set({
-        expenses: get().expenses.map((e) => (e.id === id ? data : e)),
-        stale: { ...get().stale, overview: true, ledger: true, dayclose: true },
-      });
-      return { ok: true };
-    },
-
-    removeExpense: async (id, reason) => {
-      set({ expenseMutating: true });
-      const { data, error } = await voidExpense(id, reason);
-      set({ expenseMutating: false });
-      if (error || !data) return { ok: false, error: error ?? 'Unable to void the expense.' };
-      const { expenseList, expenses } = get();
-      set({
-        expenses: expenseList.includeVoid ? expenses.map((e) => (e.id === id ? data : e)) : expenses.filter((e) => e.id !== id),
-        expensesTotal: expenseList.includeVoid ? get().expensesTotal : Math.max(0, get().expensesTotal - 1),
-        stale: { ...get().stale, overview: true, ledger: true, dayclose: true },
-      });
-      return { ok: true };
-    },
-
-    loadCategories: async () => {
-      set({ categoriesLoading: true });
-      const { data } = await fetchExpenseCategories();
-      set({ categories: data ?? [], categoriesLoading: false });
-    },
-
-    addCategory: async (name) => {
-      const { data, error } = await createExpenseCategory(name);
-      if (error || !data) return { ok: false, error: error ?? 'Unable to create the category.' };
-      const merged = [...get().categories.filter((c) => c.id !== data.id), data].sort(
-        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
-      );
-      set({ categories: merged });
-      return { ok: true };
     },
 
     // ── Cash book ───────────────────────────────────────────────────────────

@@ -48,7 +48,6 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
   const loading = useFinanceStore(
     (s) =>
       (s.activeTab === 'overview' && s.overviewLoading) ||
-      (s.activeTab === 'expenses' && s.expensesLoading) ||
       (s.activeTab === 'cashbook' && s.ledgerLoading) ||
       (s.activeTab === 'dayclose' && s.dayCloseLoading),
   );
