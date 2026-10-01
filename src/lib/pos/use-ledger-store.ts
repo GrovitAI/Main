@@ -91,6 +91,8 @@ type LedgerState = {
 
   /** Set by the phone's quick-add button; the ledger opens a blank form and clears it. */
   newEntryRequested: boolean;
+  /** Set by "Pay now" on a purchase: the ledger opens Settle on this entry and clears it. */
+  settleRequestId: string | null;
 
   initialize: () => Promise<void>;
   refreshReference: () => Promise<void>;
@@ -117,6 +119,8 @@ type LedgerState = {
   loadFreeText: (categoryId: string | null, subcategoryId: string | null) => Promise<void>;
   requestNewEntry: () => void;
   clearNewEntryRequest: () => void;
+  requestSettle: (entryId: string) => void;
+  clearSettleRequest: () => void;
 };
 
 export const useLedgerStore = create<LedgerState>((set, get) => {
@@ -154,6 +158,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     freeTextLoading: false,
 
     newEntryRequested: false,
+    settleRequestId: null,
 
     initialize: async () => {
       if (get().initialized || get().initializing) return;
@@ -361,5 +366,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
 
     requestNewEntry: () => set({ newEntryRequested: true }),
     clearNewEntryRequest: () => set({ newEntryRequested: false }),
+    requestSettle: (entryId) => set({ settleRequestId: entryId }),
+    clearSettleRequest: () => set({ settleRequestId: null }),
   };
 });

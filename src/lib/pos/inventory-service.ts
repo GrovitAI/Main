@@ -1231,7 +1231,8 @@ function mapPurchaseRpcError(err: unknown): string {
   if (message.includes('PURCHASE_NO_ACCOUNT')) return 'This branch has no finance account yet. Add it under Finance before recording purchases.';
   if (message.includes('PURCHASE_SUPPLIER_NOT_FOUND')) return 'Choose a supplier.';
   if (message.includes('PURCHASE_MATERIAL_NOT_FOUND')) return 'One of the materials no longer exists. Remove it and try again.';
-  if (message.includes('PURCHASE_INVALID')) return 'Check the quantities, prices and the invoice date.';
+  if (message.includes('LEDGER_NO_ACCOUNT')) return 'The account chosen under "Paid by" is not available. Pick another.';
+  if (message.includes('PURCHASE_INVALID')) return 'Check the quantities, prices, the invoice date and the pay-by date.';
   if (message.includes('_FORBIDDEN')) return 'You cannot record purchases for that branch.';
   return 'Unable to save purchase.';
 }
@@ -1242,12 +1243,17 @@ function mapPurchaseRpcError(err: unknown): string {
  * and the finance entry in ONE transaction: an expense in the branch's books
  * when `paid`, otherwise a payable to the supplier that Finance settles later.
  * Numbered PO-<branch>-0001 from the branch counter.
+ *
+ * `payment.paidFromAccountId`: the finance account whose cash or bank paid,
+ * when it was not this branch's own (a branch paying the kitchen's vendor).
+ * `payment.dueDate`: when a purchase on credit is to be paid, 'YYYY-MM-DD'.
  */
 export async function createPurchase(
   header: Omit<InventoryPurchaseHeader, 'id' | 'tenant_id' | 'branch_id' | 'purchase_number' | 'created_at' | 'status' | 'finance_entry_id' | 'finance_entry'>,
   items: Omit<InventoryPurchaseItem, 'id' | 'tenant_id' | 'branch_id' | 'purchase_header_id' | 'created_at'>[],
   location_id = 'Dry Storage',
-  paid = true
+  paid = true,
+  payment: { paidFromAccountId?: string | null; dueDate?: string | null } = {}
 ): Promise<ServiceResult<InventoryPurchaseHeader>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
@@ -1277,6 +1283,8 @@ export async function createPurchase(
       p_remarks: header.remarks,
       p_location_id: location_id,
       p_created_by: header.created_by,
+      p_paid_from_account_id: paid ? payment.paidFromAccountId ?? null : null,
+      p_due_date: paid ? null : toDateOnly(payment.dueDate),
     });
 
     if (error) {

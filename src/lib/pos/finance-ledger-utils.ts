@@ -115,6 +115,9 @@ export function canEditEntry(
   now: Date = new Date(),
 ): boolean {
   if (entry.status === 'void') return false;
+  // A purchase, a dispatch or a count posted this: its figures follow that
+  // document, so it is changed there (or voided by the owner), not edited here.
+  if (entry.source_type) return false;
   if (isFinanceOwner(role)) return true;
   if (!isFinanceClerk(role) || !staffId || entry.entered_by !== staffId) return false;
   if (!rules) return false;
@@ -225,6 +228,26 @@ export function summarizeDues(rows: readonly DuesSummaryRow[], accountIds?: read
     target.entries += row.entries;
   }
   return { payables, receivables };
+}
+
+export type OwedToAccount = { account_id: string; total: number; overdue: number };
+
+/**
+ * What the user's own branch owes other accounts of ours: open receivables in
+ * books that are not theirs, which they can read only because their branch is
+ * the other side. Empty for the owner, whose books are all of them.
+ */
+export function summarizeOwedToOthers(rows: readonly DuesSummaryRow[], myAccountIds: readonly string[]): OwedToAccount[] {
+  const mine = new Set(myAccountIds);
+  const byAccount = new Map<string, OwedToAccount>();
+  for (const row of rows) {
+    if (row.kind !== 'receivable' || mine.has(row.account_id)) continue;
+    const current = byAccount.get(row.account_id) ?? { account_id: row.account_id, total: 0, overdue: 0 };
+    current.total = Math.round((current.total + row.amount) * 100) / 100;
+    if (row.bucket === 'overdue') current.overdue = Math.round((current.overdue + row.amount) * 100) / 100;
+    byAccount.set(row.account_id, current);
+  }
+  return [...byAccount.values()].sort((a, b) => b.total - a.total);
 }
 
 // ─── Quick actions ───────────────────────────────────────────────────────────

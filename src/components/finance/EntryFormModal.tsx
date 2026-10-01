@@ -63,6 +63,12 @@ export type EntryFormModalProps = {
   title?: string;
   /** Names to offer under "Paid to / Received from" as the user types. */
   suggestCounterparties?: (query: string) => Promise<CounterpartySuggestion[]>;
+  /**
+   * Takes the user to Inventory to record a purchase instead. Offered when
+   * the category is the one purchases post into, because an entry typed here
+   * never reaches stock.
+   */
+  onRecordPurchase?: () => void;
 };
 
 const FIELD_CLASS = 'min-h-[44px] rounded-xl border border-border bg-white px-3 text-sm text-text-primary';
@@ -93,6 +99,7 @@ export function EntryFormModal({
   quick = false,
   title,
   suggestCounterparties,
+  onRecordPurchase,
 }: EntryFormModalProps) {
   const { height: windowHeight } = useWindowDimensions();
   // On a phone browser the sheet must fit above the keyboard, not the page.
@@ -567,6 +574,29 @@ export function EntryFormModal({
     </>
   );
 
+  // Raw materials belong in Inventory: a purchase there raises stock and
+  // writes this entry itself. Typed here, the money is recorded but the stock
+  // and the costing never hear of it.
+  const isPurchaseCategory = catalogById(catalog, values.category_id)?.system_key === 'purchases';
+  const purchaseNudge =
+    onRecordPurchase && mode === 'create' && isPurchaseCategory && (values.kind === 'expense' || values.kind === 'payable') ? (
+      <View className="mb-4 rounded-xl px-3 py-2" style={{ backgroundColor: semantic.warningSoft }}>
+        <Text className="text-xs font-semibold" style={{ color: semantic.warning }}>
+          Raw materials are recorded as a purchase in Inventory: stock goes up and this entry is written for you. Typed here, it never reaches stock.
+        </Text>
+        <Pressable
+          onPress={onRecordPurchase}
+          className="mt-2 min-h-[40px] items-center justify-center self-start rounded-xl border border-primary bg-white px-3"
+          hitSlop={2}
+          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Record as a purchase in Inventory"
+        >
+          <Text className="text-xs font-bold text-primary">Record as a purchase instead</Text>
+        </Pressable>
+      </View>
+    ) : null;
+
   // Who was paid or who paid, with the names already known offered as you type
   // so one vendor stays one name.
   const counterpartyField = isTransfer ? null : (
@@ -679,6 +709,7 @@ export function EntryFormModal({
                 {amountField}
                 {modeField}
                 {particularsField}
+                {purchaseNudge}
                 {counterpartyField}
                 {dueField}
                 <Pressable
@@ -716,6 +747,7 @@ export function EntryFormModal({
                 {dueField}
                 {particularsField}
                 {categoryFields}
+                {purchaseNudge}
                 {counterpartyField}
                 {referenceField}
                 {notesField}

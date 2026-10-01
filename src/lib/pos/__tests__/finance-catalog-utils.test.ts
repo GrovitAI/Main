@@ -9,7 +9,7 @@ import {
 } from '../finance-ledger-utils';
 
 function item(over: Partial<CatalogItem> & Pick<CatalogItem, 'id' | 'level' | 'name'>): CatalogItem {
-  return { parent_id: null, default_kind: null, sort_order: 0, is_system: false, is_active: true, ...over };
+  return { parent_id: null, default_kind: null, sort_order: 0, is_system: false, system_key: null, is_active: true, ...over };
 }
 
 const CATALOG: CatalogItem[] = [

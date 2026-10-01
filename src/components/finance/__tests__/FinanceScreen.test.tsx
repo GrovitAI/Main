@@ -71,9 +71,9 @@ const ACCOUNTS = [
 ];
 
 const CATALOG = [
-  { id: 'cat-util', level: 'category' as const, parent_id: null, name: 'Utilities', default_kind: 'expense' as const, sort_order: 1, is_system: false, is_active: true },
-  { id: 'sub-elec', level: 'subcategory' as const, parent_id: 'cat-util', name: 'Electricity', default_kind: null, sort_order: 1, is_system: false, is_active: true },
-  { id: 'par-eb', level: 'particular' as const, parent_id: 'sub-elec', name: 'EB bill', default_kind: null, sort_order: 1, is_system: false, is_active: true },
+  { id: 'cat-util', level: 'category' as const, parent_id: null, name: 'Utilities', default_kind: 'expense' as const, sort_order: 1, is_system: false, system_key: null, is_active: true },
+  { id: 'sub-elec', level: 'subcategory' as const, parent_id: 'cat-util', name: 'Electricity', default_kind: null, sort_order: 1, is_system: false, system_key: null, is_active: true },
+  { id: 'par-eb', level: 'particular' as const, parent_id: 'sub-elec', name: 'EB bill', default_kind: null, sort_order: 1, is_system: false, system_key: null, is_active: true },
 ];
 
 function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry> = {}): import('@/lib/pos/finance-types').FinanceEntry {

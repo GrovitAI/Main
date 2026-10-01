@@ -61,7 +61,7 @@ import {
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
@@ -143,6 +143,10 @@ import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { getProducts, type Product } from '@/lib/pos/products-service';
 import * as DocumentPicker from 'expo-document-picker';
 import { getErrorMessage } from '../../lib/pos/error-utils';
+import { fetchFinanceAccounts } from '@/lib/pos/finance-ledger-service';
+import type { FinanceAccount } from '@/lib/pos/finance-types';
+import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import {
   validateImportRows,
   importRawMaterials,
@@ -514,6 +518,46 @@ export default function InventoryScreen() {
   ]);
   const [purchaseLocation, setPurchaseLocation] = useState('Dry Storage');
   const [purchaseInvoiceDate, setPurchaseInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  // Whose cash or bank paid, when it was not this branch's own ('' = this branch),
+  // and when a purchase on credit is to be paid ('' = no date).
+  const [purchasePaidBy, setPurchasePaidBy] = useState('');
+  const [purchaseDueDate, setPurchaseDueDate] = useState('');
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccount[]>([]);
+
+  // Finance sends the user here to record raw materials as a purchase.
+  const routeParams = useLocalSearchParams<{ tab?: string }>();
+  useEffect(() => {
+    if (routeParams.tab === 'record_purchase') setActiveTab('record_purchase');
+  }, [routeParams.tab]);
+
+  // The finance accounts, for "Paid by" on a purchase. Loaded when the form first opens.
+  useEffect(() => {
+    if (activeTab !== 'record_purchase' || financeAccounts.length > 0) return;
+    let cancelled = false;
+    void fetchFinanceAccounts().then(({ data }) => {
+      if (!cancelled && data) setFinanceAccounts(data.filter((a) => a.is_active));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, financeAccounts.length]);
+
+  // This branch's own account first (the everyday case), then every other
+  // account that may have paid for it. Empty until the accounts have loaded.
+  const purchasePayerOptions = useMemo(() => {
+    let ownBranchId: string | null = null;
+    try {
+      ownBranchId = getTenantContext().branch_id;
+    } catch {
+      return [];
+    }
+    const own = financeAccounts.find((a) => a.kind === 'branch' && a.branch_id === ownBranchId);
+    if (!own) return [];
+    return [
+      { id: '', label: `${own.name} (this branch)` },
+      ...financeAccounts.filter((a) => a.id !== own.id).map((a) => ({ id: a.id, label: a.kind === 'partner' ? `${a.name} (partner)` : a.name })),
+    ];
+  }, [financeAccounts]);
 
   // Redesigned Purchase Modal Dropdown state controls
   const [isSupDropdownOpen, setIsSupDropdownOpen] = useState(false);
@@ -1632,9 +1676,17 @@ export default function InventoryScreen() {
           };
         });
 
-      const res = await createPurchase(headerPayload, finalItems, purchaseLocation, paidNow);
+      if (!paidNow && purchaseDueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDueDate) || purchaseDueDate < purchaseInvoiceDate)) {
+        throw new Error('Enter the pay-by date as YYYY-MM-DD, on or after the invoice date.');
+      }
+      const res = await createPurchase(headerPayload, finalItems, purchaseLocation, paidNow, {
+        paidFromAccountId: purchasePaidBy || null,
+        dueDate: purchaseDueDate || null,
+      });
       if (res.error) throw new Error(res.error);
       setActiveTab('purchases');
+      setPurchasePaidBy('');
+      setPurchaseDueDate('');
       setPurchaseSupplierId('');
       setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
       setPurchaseRemarks('');
@@ -3141,11 +3193,37 @@ export default function InventoryScreen() {
 
 
 
-              {/* Payment lives in the ledger: settling the supplier's payable marks it paid here. */}
-              <View className="flex-row items-center gap-2 px-3 py-2.5">
-                <Check size={13} color="#64748b" />
-                <Text className="text-[12px] font-bold text-slate-500">Paid via Finance › Ledger</Text>
-              </View>
+              {/* Payment lives in the ledger: settling the supplier's payable marks it paid here.
+                  A purchase still on credit goes straight to that payable in Finance. */}
+              {(() => {
+                const item = purchases.find((p) => p.id === purOpenActionIdx);
+                const entryId = item?.finance_entry_id ?? null;
+                const unpaid = item?.finance_entry?.kind === 'payable' && item.finance_entry.status === 'open';
+                if (!entryId || !unpaid) {
+                  return (
+                    <View className="flex-row items-center gap-2 px-3 py-2.5">
+                      <Check size={13} color="#64748b" />
+                      <Text className="text-[12px] font-bold text-slate-500">Paid via Finance › Ledger</Text>
+                    </View>
+                  );
+                }
+                return (
+                  <Pressable
+                    onPress={() => {
+                      setPurOpenActionIdx(null);
+                      useLedgerStore.getState().requestSettle(entryId);
+                      useFinanceStore.getState().setTab('ledger');
+                      router.push('/finance');
+                    }}
+                    className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-slate-100"
+                    accessibilityRole="button"
+                    accessibilityLabel="Pay this purchase in Finance"
+                  >
+                    <CreditCard size={13} color="#0066b2" />
+                    <Text className="text-[12px] font-bold text-slate-700">Pay now</Text>
+                  </Pressable>
+                );
+              })()}
 
               <View style={{ height: 1, backgroundColor: '#f1f5f9', marginVertical: 2 }} />
 
@@ -3584,6 +3662,53 @@ export default function InventoryScreen() {
                   </View>
                 )}
               </View>
+
+              {/* Paid by: another account's money, for a branch paying the kitchen's vendor */}
+              {purchasePaymentMode !== PAY_LATER_MODE && purchasePayerOptions.length > 1 ? (
+                <View className="w-full gap-1.5 mb-2">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Paid by</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+                    {purchasePayerOptions.map((option) => {
+                      const selected = purchasePaidBy === option.id;
+                      return (
+                        <Pressable
+                          key={option.id || 'own'}
+                          onPress={() => setPurchasePaidBy(option.id)}
+                          className={`min-h-[40px] items-center justify-center rounded-full border px-3.5 ${selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`Paid by ${option.label}`}
+                        >
+                          <Text className={`text-xs font-bold ${selected ? 'text-blue-700' : 'text-slate-700'}`}>{option.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  {purchasePaidBy ? (
+                    <Text className="text-[11px] text-slate-500">
+                      The cost stays in this branch&apos;s books; the money leaves the account chosen, and Finance shows what this branch owes it.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Pay by: when a purchase on credit falls due */}
+              {purchasePaymentMode === PAY_LATER_MODE ? (
+                <View className={`gap-1.5 ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`}>
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Pay by</Text>
+                  <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
+                    <Calendar size={14} color="#64748b" className="mr-2" />
+                    <TextInput
+                      value={purchaseDueDate}
+                      onChangeText={setPurchaseDueDate}
+                      placeholder="YYYY-MM-DD (optional)"
+                      autoCapitalize="none"
+                      className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                      accessibilityLabel="Pay by date"
+                    />
+                  </View>
+                </View>
+              ) : null}
 
               {/* Freight Charge */}
               <View className={`gap-1.5 ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`}>

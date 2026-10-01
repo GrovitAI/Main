@@ -167,6 +167,7 @@ function mapCatalog(row: Record<string, unknown>): CatalogItem {
     default_kind: toStringOrNull(row.default_kind) as CatalogItem['default_kind'],
     sort_order: toNumber(row.sort_order),
     is_system: row.is_system === true,
+    system_key: toStringOrNull(row.system_key),
     is_active: row.is_active !== false,
   };
 }
@@ -403,9 +404,10 @@ export async function fetchLedgerEntries(filters: LedgerFilters, options: FetchL
     let q = supabase
       .from('finance_entries')
       .select(ENTRY_COLUMNS, options.withCount ? { count: 'exact' } : undefined)
-      .eq('tenant_id', tenant_id)
-      .gte('transaction_date', filters.startDate)
-      .lte('transaction_date', filters.endDate);
+      .eq('tenant_id', tenant_id);
+    // What is still owed is owed whatever period the screen is looking at, so
+    // the list of open dues is not cut to the date range.
+    if (filters.status !== 'open') q = q.gte('transaction_date', filters.startDate).lte('transaction_date', filters.endDate);
 
     if (filters.accountId) q = q.eq('account_id', filters.accountId);
     if (filters.kind) q = q.eq('kind', filters.kind);

@@ -302,6 +302,12 @@ export type CatalogItem = {
   default_kind: CatalogKind | null;
   sort_order: number;
   is_system: boolean;
+  /**
+   * A stable key for the categories the system posts into or treats
+   * specially: 'purchases', 'branch_supplies', 'cash_difference',
+   * 'opening_balance', 'partners'. null for the owner's own categories.
+   */
+  system_key: string | null;
   is_active: boolean;
 };
 

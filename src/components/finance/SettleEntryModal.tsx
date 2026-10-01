@@ -25,6 +25,11 @@ export type SettleEntryModalProps = {
    * offset against it instead of collected in cash. Undefined when unknown.
    */
   owedToCounterparty?: number;
+  /**
+   * The user is the other side of the due: a branch recording that it paid the
+   * kitchen. The sheet then reads as a payment, and cannot name another payer.
+   */
+  payingSide?: boolean;
   submitting: boolean;
   serverError: string | null;
   onSubmit: (input: SettleEntryInput) => void;
@@ -38,7 +43,7 @@ const FIELD_CLASS = 'min-h-[44px] rounded-xl border border-border bg-white px-3 
  * amount starts at what remains, so the common case is one tap on Settle; a
  * smaller amount leaves the entry open with the rest.
  */
-export function SettleEntryModal({ entry, accounts, owedToCounterparty, submitting, serverError, onSubmit, onClose }: SettleEntryModalProps) {
+export function SettleEntryModal({ entry, accounts, owedToCounterparty, payingSide = false, submitting, serverError, onSubmit, onClose }: SettleEntryModalProps) {
   const { height: windowHeight } = useWindowDimensions();
   const { height: visibleHeight } = useVisualViewport();
   const sheetMaxHeight = Math.min(windowHeight, visibleHeight) * 0.92;
@@ -65,12 +70,13 @@ export function SettleEntryModal({ entry, accounts, owedToCounterparty, submitti
 
   if (!entry) return null;
 
-  const isPayable = entry.kind === 'payable';
+  // Money going out: our own payable, or a due the user's branch owes another account.
+  const isPayable = entry.kind === 'payable' || payingSide;
   const remaining = remainingAmount(entry);
   const ownerName = accounts.find((a) => a.id === entry.account_id)?.name ?? 'this account';
   // A branch's dues for goods can be set against what the kitchen owes that branch.
   const owed = owedToCounterparty ?? 0;
-  const offsetAvailable = canOffsetEntry(entry) && owed > 0;
+  const offsetAvailable = !payingSide && canOffsetEntry(entry) && owed > 0;
   const otherName = entry.counterparty_account_id ? accounts.find((a) => a.id === entry.counterparty_account_id)?.name ?? 'that account' : null;
   const modes: SettleMode[] = offsetAvailable ? [...LEDGER_MODES, 'offset'] : [...LEDGER_MODES];
   const isOffset = values.mode === 'offset';
@@ -110,7 +116,7 @@ export function SettleEntryModal({ entry, accounts, owedToCounterparty, submitti
           >
             <View className="flex-row items-center justify-between border-b border-border-soft px-5 py-4">
               <View className="flex-1 pr-2">
-                <Text className="text-base font-bold text-text-primary">{isPayable ? 'Settle payable' : 'Collect receivable'}</Text>
+                <Text className="text-base font-bold text-text-primary">{payingSide ? `Pay ${ownerName}` : isPayable ? 'Settle payable' : 'Collect receivable'}</Text>
                 <Text className="text-xs text-text-secondary" numberOfLines={2}>
                   {entry.particulars} · {formatDateLabel(entry.transaction_date, true)} · {formatINR(remaining)} of {formatINR(entry.amount)} remaining
                 </Text>
@@ -186,7 +192,7 @@ export function SettleEntryModal({ entry, accounts, owedToCounterparty, submitti
               </Field>
 
               {/* Who actually paid, when it was not the account whose books carry the entry */}
-              {otherAccounts.length > 0 && !isOffset ? (
+              {otherAccounts.length > 0 && !isOffset && !payingSide ? (
                 <Field label={isPayable ? 'Paid from' : 'Received by'} hint={payerOpen ? `The money leaves that account; the cost stays with ${ownerName}.` : undefined}>
                   {payerOpen && isPhone ? (
                     <SearchSelect

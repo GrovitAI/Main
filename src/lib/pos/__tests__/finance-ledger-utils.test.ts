@@ -1,6 +1,7 @@
 import type { DuesSummaryRow, FinanceEntry } from '../finance-types';
 import {
   QUICK_ENTRY_PRESETS,
+  canEditEntry,
   canOffsetEntry,
   canSettleEntry,
   counterpartyCaption,
@@ -10,6 +11,7 @@ import {
   payerCaption,
   remainingAmount,
   summarizeDues,
+  summarizeOwedToOthers,
   validateEntryForm,
   validateSettleForm,
 } from '../finance-ledger-utils';
@@ -211,6 +213,28 @@ describe('due dates', () => {
     expect(mine.payables).toMatchObject({ total: 47000, overdue: 12000, week: 35000, later: 0, entries: 2 });
     expect(mine.receivables).toMatchObject({ total: 5100.5, undated: 5100.5, entries: 2 });
     expect(summarizeDues(rows).payables.total).toBe(47999);
+  });
+});
+
+describe('the branch side of a due', () => {
+  test('a branch sees what it owes other accounts, not what its own books are owed', () => {
+    const rows: DuesSummaryRow[] = [
+      // The kitchen's receivables with this branch on the other side.
+      { account_id: CK, kind: 'receivable', bucket: 'overdue', amount: 5100, entries: 1 },
+      { account_id: CK, kind: 'receivable', bucket: 'week', amount: 9775, entries: 1 },
+      // The branch's own dues are not "owed to others".
+      { account_id: VL, kind: 'receivable', bucket: 'undated', amount: 400, entries: 1 },
+      { account_id: VL, kind: 'payable', bucket: 'week', amount: 900, entries: 1 },
+    ];
+    expect(summarizeOwedToOthers(rows, [VL])).toEqual([{ account_id: CK, total: 14875, overdue: 5100 }]);
+    // The owner keeps every account's books, so nothing is "another account's".
+    expect(summarizeOwedToOthers(rows, [CK, VL])).toEqual([]);
+  });
+
+  test('an entry a document posted is not edited by hand, even by the owner', () => {
+    const posted = entry({ kind: 'expense', status: 'recorded', source_type: 'purchase', source_id: 'po-1' });
+    expect(canEditEntry(posted, 'owner', 'staff-9', null)).toBe(false);
+    expect(canEditEntry(entry({ kind: 'expense', status: 'recorded' }), 'owner', 'staff-9', null)).toBe(true);
   });
 });
 

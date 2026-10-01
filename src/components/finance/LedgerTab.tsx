@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import {
   ArrowDownLeft,
   ArrowLeftRight,
@@ -61,12 +62,13 @@ import {
   payerCaption,
   remainingAmount,
   summarizeDues,
+  summarizeOwedToOthers,
   LEDGER_MAX_ROWS,
   QUICK_ENTRY_PRESETS,
   type DueStatus,
   type QuickEntryKey,
 } from '@/lib/pos/finance-ledger-utils';
-import { fetchCounterpartyNames, fetchPairPosition } from '@/lib/pos/finance-ledger-service';
+import { fetchCounterpartyNames, fetchLedgerEntry, fetchPairPosition } from '@/lib/pos/finance-ledger-service';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -148,6 +150,8 @@ export function LedgerTab({ compact = false }: Props) {
   const openEntry = useLedgerStore((s) => s.openEntry);
   const openEntryById = useLedgerStore((s) => s.openEntryById);
   const clearNewEntryRequest = useLedgerStore((s) => s.clearNewEntryRequest);
+  const settleRequestId = useLedgerStore((s) => s.settleRequestId);
+  const clearSettleRequest = useLedgerStore((s) => s.clearSettleRequest);
 
   const [form, setForm] = useState<FormState>({ visible: false, mode: 'create', entry: null, quickTitle: null });
   const [formError, setFormError] = useState<string | null>(null);
@@ -230,6 +234,27 @@ export function LedgerTab({ compact = false }: Props) {
     openCreate();
   }, [newEntryRequested, initialized, clearNewEntryRequest, openCreate]);
 
+  // "Pay now" on a purchase in Inventory lands here with its payable to settle.
+  useEffect(() => {
+    if (!settleRequestId || !initialized) return;
+    const id = settleRequestId;
+    clearSettleRequest();
+    let cancelled = false;
+    void fetchLedgerEntry(id).then(({ data }) => {
+      if (cancelled || !data) return;
+      if (canSettleEntry(data, role)) {
+        setSettleError(null);
+        setSettleTarget(data);
+      } else {
+        // Already paid, or not this user's to settle: show it instead.
+        void openEntry(data);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [settleRequestId, initialized, clearSettleRequest, role, openEntry]);
+
   const openEdit = (entry: FinanceEntry) => {
     setFormError(null);
     setInitialValues(entryToFormValues(entry));
@@ -276,7 +301,9 @@ export function LedgerTab({ compact = false }: Props) {
   // clerk the offset option never appears.
   useEffect(() => {
     const other = settleTarget?.counterparty_account_id;
-    if (!settleTarget || !other || !canOffsetEntry(settleTarget)) {
+    // An offset is the owner's, in the books that hold the receivable.
+    const mayOffset = isFinanceOwner(role) && settleTarget !== null && myAccounts.some((a) => a.id === settleTarget.account_id);
+    if (!settleTarget || !other || !canOffsetEntry(settleTarget) || !mayOffset) {
       setSettleOwed(undefined);
       return;
     }
@@ -288,7 +315,7 @@ export function LedgerTab({ compact = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [settleTarget]);
+  }, [settleTarget, role, myAccounts]);
 
   const handleSettle = async (input: SettleEntryInput) => {
     setSettleError(null);
@@ -318,6 +345,16 @@ export function LedgerTab({ compact = false }: Props) {
   };
 
   const accountName = useCallback((id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account', [accounts]);
+  // A due in another account's books with the user's own branch on the other
+  // side: goods the kitchen sent this branch. They read it as "you owe".
+  const isOwedByMe = useCallback(
+    (entry: FinanceEntry) =>
+      entry.kind === 'receivable' &&
+      entry.counterparty_account_id !== null &&
+      !myAccounts.some((a) => a.id === entry.account_id) &&
+      myAccounts.some((a) => a.id === entry.counterparty_account_id),
+    [myAccounts],
+  );
   const today = getCurrentBusinessDate();
   const showBalances = canSeeBalances(role, rules) && balances.length > 0;
   const pageCount = Math.max(1, Math.ceil(total / filters.pageSize));
@@ -344,14 +381,15 @@ export function LedgerTab({ compact = false }: Props) {
         compact={compact}
         accountName={accountName(item.account_id)}
         payer={payerCaption(item, accountName)}
-        other={counterpartyCaption(item, accountName)}
+        other={isOwedByMe(item) ? `You owe ${accountName(item.account_id)}` : counterpartyCaption(item, accountName)}
+        payingSide={isOwedByMe(item)}
         due={dueStatus(item, today)}
         categoryPath={[catalogById(catalog, item.category_id)?.name, catalogById(catalog, item.subcategory_id)?.name].filter(Boolean).join(' › ')}
         onPress={() => void openEntry(item)}
         onSettle={canSettleEntry(item, role) ? () => openSettle(item) : undefined}
       />
     ),
-    [compact, accountName, catalog, openEntry, role, today],
+    [compact, accountName, catalog, openEntry, role, today, isOwedByMe],
   );
 
   const activeFilterChips: { key: string; label: string; clear: () => void }[] = [];
@@ -409,6 +447,8 @@ export function LedgerTab({ compact = false }: Props) {
   // Outstanding: what is still to be paid and collected as of today, across
   // the accounts this user keeps books for, with what is already late.
   const outstanding = useMemo(() => summarizeDues(dues, myAccounts.map((a) => a.id)), [dues, myAccounts]);
+  // For a branch: what it owes the kitchen (and any other account) for goods received.
+  const owedToOthers = useMemo(() => summarizeOwedToOthers(dues, myAccounts.map((a) => a.id)), [dues, myAccounts]);
   const showOutstanding = outstanding.payables.total > 0 || outstanding.receivables.total > 0;
   const outstandingActive = filters.status === 'open';
   // The list of dues opens with the soonest due first; undated ones follow.
@@ -477,6 +517,29 @@ export function LedgerTab({ compact = false }: Props) {
             {outstandingCard}
           </View>
         )
+      ) : null}
+
+      {/* A branch's own dues: what it owes the kitchen for goods received */}
+      {owedToOthers.length > 0 ? (
+        <View className="mb-3 rounded-2xl border bg-white px-3 py-2 shadow-sm" style={{ borderColor: semantic.warning }}>
+          <Text className="mb-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: semantic.warning }}>You owe</Text>
+          {owedToOthers.map((o) => (
+            <Pressable
+              key={o.account_id}
+              onPress={() => setFilters({ status: 'open', kind: 'receivable', accountId: o.account_id, sort: 'due_date', sortDir: 'asc' })}
+              className="min-h-[44px] flex-row items-center justify-between"
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`See what is owed to ${accountName(o.account_id)}`}
+            >
+              <Text className="flex-1 text-xs text-text-primary">
+                <Text className="font-bold">{accountName(o.account_id)}</Text> {formatINR(o.total, { compact: compactMoney })}
+                {o.overdue > 0 ? <Text style={{ color: semantic.danger }}> · overdue {formatINR(o.overdue, { compact: compactMoney })}</Text> : null}
+              </Text>
+              <Text className="ml-2 text-[11px] font-bold text-primary">See and pay</Text>
+            </Pressable>
+          ))}
+        </View>
       ) : null}
 
       {/* Between accounts: built up from every entry one account paid for another */}
@@ -651,8 +714,9 @@ export function LedgerTab({ compact = false }: Props) {
 
       {/* Summary strip */}
       <View className="mt-3 flex-row items-center justify-between rounded-xl bg-surface-tint px-3 py-2">
-        <Text className="text-xs font-semibold text-text-secondary">
+        <Text className="flex-1 text-xs font-semibold text-text-secondary" numberOfLines={1}>
           {total === 0 ? 'No entries' : `Showing ${firstIndex}–${lastIndex} of ${total}`} · {sortLabel}
+          {outstandingActive ? ' · all open dues, whatever the date range' : ''}
         </Text>
         <Text className="text-xs font-bold text-text-primary">
           <Text style={{ color: semantic.success }}>{formatINR(pageTotals.inSum, { signed: true, compact: compactMoney })}</Text>
@@ -753,6 +817,10 @@ export function LedgerTab({ compact = false }: Props) {
         quick={form.quickTitle !== null}
         title={form.quickTitle ?? undefined}
         suggestCounterparties={suggestCounterparties}
+        onRecordPurchase={() => {
+          closeForm();
+          router.push({ pathname: '/inventory', params: { tab: 'record_purchase' } });
+        }}
       />
 
       <EntryDetailSheet
@@ -841,6 +909,7 @@ export function LedgerTab({ compact = false }: Props) {
         entry={settleTarget}
         accounts={accounts}
         owedToCounterparty={settleOwed}
+        payingSide={settleTarget ? isOwedByMe(settleTarget) : false}
         submitting={mutating}
         serverError={settleError}
         onSubmit={(input) => void handleSettle(input)}
@@ -998,13 +1067,15 @@ type EntryRowProps = {
   other: string | null;
   /** How soon an open payable or receivable is due; null for anything else. */
   due: DueStatus | null;
+  /** The user's branch is the one that owes this due: they pay it, not collect it. */
+  payingSide: boolean;
   categoryPath: string;
   onPress: () => void;
   /** Present when the user may settle this open payable or receivable. */
   onSettle?: () => void;
 };
 
-function EntryRow({ item, compact, accountName, payer, other, due, categoryPath, onPress, onSettle }: EntryRowProps) {
+function EntryRow({ item, compact, accountName, payer, other, due, payingSide, categoryPath, onPress, onSettle }: EntryRowProps) {
   const voided = item.status === 'void';
   const tone = kindTone(item.kind);
   const meta = [payer ?? accountName, categoryPath || LEDGER_KIND_LABELS[item.kind], other ?? item.counterparty].filter(Boolean).join(' · ');
@@ -1048,10 +1119,10 @@ function EntryRow({ item, compact, accountName, payer, other, due, categoryPath,
             hitSlop={4}
             style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
             accessibilityRole="button"
-            accessibilityLabel={item.kind === 'receivable' ? `Collect ${item.particulars}` : `Settle ${item.particulars}`}
+            accessibilityLabel={payingSide ? `Pay ${item.particulars}` : item.kind === 'receivable' ? `Collect ${item.particulars}` : `Settle ${item.particulars}`}
           >
             <CheckCircle2 size={13} color={colors.primary} />
-            <Text className="ml-1 text-[11px] font-bold text-primary">{item.kind === 'receivable' ? 'Collect' : 'Settle'}</Text>
+            <Text className="ml-1 text-[11px] font-bold text-primary">{payingSide ? 'Pay' : item.kind === 'receivable' ? 'Collect' : 'Settle'}</Text>
           </Pressable>
         ) : (
           <StatusPill status={item.status} />
