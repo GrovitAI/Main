@@ -116,6 +116,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   const isEmpty =
     summary !== null &&
     summary.collectedRevenue === 0 &&
+    summary.otherIncome === 0 &&
     summary.expensesTotal === 0 &&
     summary.purchasesTotal === 0 &&
     summary.pendingCollections === 0;
@@ -166,7 +167,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             <FinanceKpiCard
               label="Purchases"
               value={formatINR(summary.purchasesTotal, { compact: compactMoney })}
-              hint={`${summary.purchasesCount} supplier invoices`}
+              hint={`${summary.purchasesCount} supplier invoices · in expenses once paid`}
               icon={ShoppingBag}
               compact={compact}
             />
@@ -213,12 +214,13 @@ export function FinanceOverviewTab({ compact = false }: Props) {
               <PnlRow label="Collected revenue" value={pnl.collectedRevenue} />
               <PnlRow label="Refunds" value={-pnl.refundsTotal} muted />
               <PnlRow label="Net revenue" value={pnl.netRevenue} strong />
-              <PnlRow label="Expenses" value={-pnl.expensesTotal} muted />
-              <PnlRow label="Purchases" value={-pnl.purchasesTotal} muted />
+              {pnl.otherIncome !== 0 ? <PnlRow label="Other income (ledger)" value={pnl.otherIncome} /> : null}
+              <PnlRow label="Expenses (ledger)" value={-pnl.expensesTotal} muted />
+              {pnl.suppliesFromKitchen !== 0 ? <PnlRow label="Supplies from the kitchen" value={-pnl.suppliesFromKitchen} muted /> : null}
               <View className="my-2 h-px bg-border-soft" />
               <PnlRow label="Net cash flow" value={pnl.netCashFlow} strong tone={netTone} />
               <Text className="mt-2 text-[11px] text-text-secondary">
-                Margin {formatPercent(pnl.margin)} of net revenue. Purchases come from inventory supplier invoices.
+                Margin {formatPercent(pnl.margin)} of income. Expenses are the entries on the Ledger tab, so a purchase counts once it is paid; an unpaid one sits in To pay.
               </Text>
             </FinanceSectionCard>
 
@@ -341,7 +343,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             className="mb-4"
           >
             <View className="flex-row flex-wrap gap-3">
-              <FinanceKpiCard label="Cash in" value={formatINR(summary.cashIn, { compact: compactMoney })} hint="Cash settlements" icon={ArrowDownToLine} tone="positive" compact />
+              <FinanceKpiCard label="Cash in" value={formatINR(summary.cashIn, { compact: compactMoney })} hint="Cash settlements & ledger income" icon={ArrowDownToLine} tone="positive" compact />
               <FinanceKpiCard label="Cash out" value={formatINR(summary.cashOut, { compact: compactMoney })} hint="Cash expenses & refunds" icon={ArrowUpFromLine} tone="negative" compact />
               <FinanceKpiCard
                 label="Net cash"

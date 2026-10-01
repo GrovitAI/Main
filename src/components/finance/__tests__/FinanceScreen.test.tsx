@@ -415,8 +415,10 @@ describe('Overview tab', () => {
     expect(text).toContain('Collected revenue');
     expect(text).toContain('₹1,20,000');
     expect(text).toContain('Net cash flow');
-    // 120000 − 30000 expenses − 20000 purchases
-    expect(text).toContain('+₹70,000');
+    // 120000 − 30000 ledger expenses. The 20000 of purchase invoices is
+    // information: a purchase is inside the ledger's expenses once it is paid.
+    expect(text).toContain('+₹90,000');
+    expect(text).toContain('Expenses (ledger)');
     unmountTree(tree);
   });
 

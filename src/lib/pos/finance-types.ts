@@ -129,13 +129,20 @@ export type FinanceSummary = {
   complimentaryValue: number;
   refundsTotal: number;
   refundsCount: number;
+  /** Recorded ledger expenses of the branch accounts in view; built-in categories left out. */
   expensesTotal: number;
   expensesCount: number;
+  /** Recorded ledger income of those accounts; income from our own accounts is left out when every branch is in view. */
+  otherIncome: number;
+  otherIncomeCount: number;
+  /** With one branch in view: goods billed to it by another of our accounts in the range. */
+  suppliesFromKitchen: number;
+  /** Supplier invoices dated in the range. Information only: a purchase is in expenses once paid. */
   purchasesTotal: number;
   purchasesCount: number;
-  /** Cash received via settlements. */
+  /** Cash received via settlements and cash-mode ledger income. */
   cashIn: number;
-  /** Cash paid out via expenses and cash refunds. */
+  /** Cash paid out via ledger expenses and cash refunds. */
   cashOut: number;
   paymentSplit: PaymentSplitEntry[];
   expensesByCategory: CategorySpend[];
@@ -146,11 +153,16 @@ export type ProfitAndLoss = {
   collectedRevenue: number;
   refundsTotal: number;
   netRevenue: number;
+  /** Ledger income on top of the tills' revenue. */
+  otherIncome: number;
   expensesTotal: number;
+  /** Goods billed to the branch in view by the kitchen. */
+  suppliesFromKitchen: number;
+  /** Information only; purchases are inside expensesTotal once paid. */
   purchasesTotal: number;
   totalOutflow: number;
   netCashFlow: number;
-  /** netCashFlow / netRevenue, 0..1 range (may be negative). 0 when no revenue. */
+  /** netCashFlow / (netRevenue + otherIncome), 0..1 range (may be negative). 0 when no income. */
   margin: number;
 };
 
@@ -163,7 +175,7 @@ export type FinanceDailyPoint = {
   net: number;
 };
 
-export type LedgerEntryKind = 'sale' | 'expense' | 'refund';
+export type LedgerEntryKind = 'sale' | 'income' | 'expense' | 'refund';
 
 export type LedgerEntry = {
   id: string;

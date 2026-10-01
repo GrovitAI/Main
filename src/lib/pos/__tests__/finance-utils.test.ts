@@ -200,18 +200,32 @@ describe('aggregation', () => {
     ]);
   });
 
-  test('computeProfitAndLoss subtracts refunds, expenses and purchases', () => {
+  test('computeProfitAndLoss subtracts refunds and ledger expenses; purchases are information', () => {
     const pnl = computeProfitAndLoss({
       ...emptyFinanceSummary(),
       collectedRevenue: 10000,
       refundsTotal: 500,
       expensesTotal: 2000,
+      // A paid purchase is already inside expensesTotal, so this is not subtracted again.
       purchasesTotal: 1500,
     });
     expect(pnl.netRevenue).toBe(9500);
-    expect(pnl.totalOutflow).toBe(3500);
-    expect(pnl.netCashFlow).toBe(6000);
-    expect(pnl.margin).toBeCloseTo(0.6316, 4);
+    expect(pnl.totalOutflow).toBe(2000);
+    expect(pnl.netCashFlow).toBe(7500);
+    expect(pnl.margin).toBeCloseTo(0.7895, 4);
+  });
+
+  test('computeProfitAndLoss adds ledger income and charges a branch for the kitchen supplies', () => {
+    const pnl = computeProfitAndLoss({
+      ...emptyFinanceSummary(),
+      collectedRevenue: 10000,
+      otherIncome: 2000,
+      expensesTotal: 3000,
+      suppliesFromKitchen: 4000,
+    });
+    expect(pnl.totalOutflow).toBe(7000);
+    expect(pnl.netCashFlow).toBe(5000);
+    expect(pnl.margin).toBeCloseTo(5000 / 12000, 4);
   });
 
   test('margin is zero rather than infinite when there is no revenue', () => {

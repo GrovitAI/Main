@@ -386,14 +386,19 @@ export function groupExpensesByCategory(expenses: readonly Expense[]): CategoryS
 
 export function computeProfitAndLoss(summary: FinanceSummary): ProfitAndLoss {
   const netRevenue = roundRupees(summary.collectedRevenue - summary.refundsTotal);
-  const totalOutflow = roundRupees(summary.expensesTotal + summary.purchasesTotal);
-  const netCashFlow = roundRupees(netRevenue - totalOutflow);
-  const margin = netRevenue > 0 ? netCashFlow / netRevenue : 0;
+  // A purchase is a ledger expense once it is paid, so purchase invoices are
+  // not subtracted a second time here.
+  const totalIncome = roundRupees(netRevenue + summary.otherIncome);
+  const totalOutflow = roundRupees(summary.expensesTotal + summary.suppliesFromKitchen);
+  const netCashFlow = roundRupees(totalIncome - totalOutflow);
+  const margin = totalIncome > 0 ? netCashFlow / totalIncome : 0;
   return {
     collectedRevenue: summary.collectedRevenue,
     refundsTotal: summary.refundsTotal,
     netRevenue,
+    otherIncome: summary.otherIncome,
     expensesTotal: summary.expensesTotal,
+    suppliesFromKitchen: summary.suppliesFromKitchen,
     purchasesTotal: summary.purchasesTotal,
     totalOutflow,
     netCashFlow,
@@ -414,6 +419,9 @@ export function emptyFinanceSummary(): FinanceSummary {
     refundsCount: 0,
     expensesTotal: 0,
     expensesCount: 0,
+    otherIncome: 0,
+    otherIncomeCount: 0,
+    suppliesFromKitchen: 0,
     purchasesTotal: 0,
     purchasesCount: 0,
     cashIn: 0,
@@ -434,6 +442,9 @@ export type SettlementLike = {
 
 export type ExpenseLike = { expense_date: string; amount: number; status: string };
 
+/** Ledger income on a calendar date, added to that day's revenue. */
+export type IncomeLike = { income_date: string; amount: number };
+
 /**
  * Client-side equivalent of the get_finance_daily_series RPC. Used before the
  * migration is applied. Groups settlements by business date (02:30 cut-off).
@@ -443,6 +454,7 @@ export function buildDailySeries(
   expenses: readonly ExpenseLike[],
   startDate: string,
   endDate: string,
+  otherIncome: readonly IncomeLike[] = [],
 ): FinanceDailyPoint[] {
   const revenueByDate = new Map<string, { paise: number; bills: Set<string> }>();
   for (const s of settlements) {
@@ -460,9 +472,14 @@ export function buildDailySeries(
     expenseByDate.set(e.expense_date, (expenseByDate.get(e.expense_date) ?? 0) + toPaise(e.amount));
   }
 
+  const incomeByDate = new Map<string, number>();
+  for (const i of otherIncome) {
+    incomeByDate.set(i.income_date, (incomeByDate.get(i.income_date) ?? 0) + toPaise(i.amount));
+  }
+
   return enumerateDates(startDate, endDate).map((date) => {
     const rev = revenueByDate.get(date);
-    const revenue = fromPaise(rev?.paise ?? 0);
+    const revenue = fromPaise((rev?.paise ?? 0) + (incomeByDate.get(date) ?? 0));
     const exp = fromPaise(expenseByDate.get(date) ?? 0);
     return {
       date,

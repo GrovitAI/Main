@@ -351,9 +351,27 @@ describe('overview', () => {
           error: null,
         });
       }
-      if (t === 'expenses') {
+      // Expenses come from the ledger: the same rows the Ledger tab shows.
+      if (t === 'finance_accounts') return makeQuery(t, { data: [{ id: 'acct-1' }, { id: 'acct-2' }], error: null });
+      if (t === 'finance_catalog') {
         return makeQuery(t, {
-          data: [{ id: 'e1', amount: 120, category: 'Rent', date: '2026-09-05', created_at: '2026-09-05T10:00:00.000Z' }],
+          data: [
+            { id: 'cat-rent', name: 'Rent', is_system: false, system_key: null },
+            { id: 'cat-supplies', name: 'Branch Supplies', is_system: false, system_key: 'branch_supplies' },
+            { id: 'cat-open', name: 'Opening Balance', is_system: true, system_key: 'opening_balance' },
+          ],
+          error: null,
+        });
+      }
+      if (t === 'finance_entries') {
+        return makeQuery(t, {
+          data: [
+            { id: 'e1', account_id: 'acct-1', paid_from_account_id: null, counterparty_account_id: null, kind: 'expense', mode: 'cash', amount_paise: 12000, transaction_date: '2026-09-05', particulars: 'Rent', counterparty: null, reference_no: null, entered_at: '2026-09-05T10:00:00.000Z', category_id: 'cat-rent' },
+            // An opening balance seeds a balance: never income, never cash in.
+            { id: 'e2', account_id: 'acct-1', paid_from_account_id: null, counterparty_account_id: null, kind: 'income', mode: 'cash', amount_paise: 900000, transaction_date: '2026-09-05', particulars: 'Opening cash', counterparty: null, reference_no: null, entered_at: '2026-09-05T09:00:00.000Z', category_id: 'cat-open' },
+            // One branch paying the kitchen is internal with every branch in view.
+            { id: 'e3', account_id: 'acct-1', paid_from_account_id: null, counterparty_account_id: 'acct-2', kind: 'income', mode: 'cash', amount_paise: 50000, transaction_date: '2026-09-05', particulars: 'Dispatch', counterparty: 'Kolathur', reference_no: null, entered_at: '2026-09-05T11:00:00.000Z', category_id: 'cat-supplies' },
+          ],
           error: null,
         });
       }
@@ -373,7 +391,40 @@ describe('overview', () => {
     expect(data?.summary.collectedRevenue).toBe(500);
     expect(data?.summary.cashIn).toBe(500);
     expect(data?.summary.expensesTotal).toBe(120);
+    expect(data?.summary.expensesByCategory).toEqual([{ category: 'Rent', total: 120, count: 1 }]);
+    expect(data?.summary.cashOut).toBe(120);
+    expect(data?.summary.otherIncome).toBe(0);
     expect(data?.series[0]).toMatchObject({ date: '2026-09-05', revenue: 500, orders: 1, expenses: 120, net: 380 });
+    // The old expenses table is no longer read for the totals.
+    expect(queries.filter((q) => q.table === 'expenses' && q.calls.some(([n]) => n === 'gte'))).toHaveLength(0);
+  });
+
+  test('with one branch in view, what the kitchen was paid by a branch is its income', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: MISSING_FUNCTION });
+    mockFrom.mockImplementation((t: string) => {
+      if (t === 'finance_accounts') return makeQuery(t, { data: [{ id: 'acct-1' }], error: null });
+      if (t === 'finance_catalog') return makeQuery(t, { data: [{ id: 'cat-supplies', name: 'Branch Supplies', is_system: false, system_key: 'branch_supplies' }], error: null });
+      if (t === 'finance_entries') {
+        return makeQuery(t, {
+          data: [
+            { id: 'e3', account_id: 'acct-1', paid_from_account_id: null, counterparty_account_id: 'acct-2', kind: 'income', mode: 'bank', amount_paise: 50000, transaction_date: '2026-09-05', particulars: 'Dispatch', counterparty: 'Kolathur', reference_no: null, entered_at: '2026-09-05T11:00:00.000Z', category_id: 'cat-supplies' },
+          ],
+          error: null,
+        });
+      }
+      return makeQuery(t, { data: [], error: null });
+    });
+
+    const { fetchFinanceOverview } = loadService();
+    const { data, error } = await fetchFinanceOverview({ preset: 'custom', startDate: '2026-09-05', endDate: '2026-09-05', branchId: 'branch-ck' });
+
+    expect(error).toBeNull();
+    expect(data?.summary.otherIncome).toBe(500);
+    expect(data?.summary.otherIncomeCount).toBe(1);
+    // Paid through the bank, so the cash position does not move.
+    expect(data?.summary.cashIn).toBe(0);
+    expect(data?.series[0]).toMatchObject({ revenue: 500, expenses: 0, net: 500 });
+    expect(filtersFor('finance_accounts')).toMatchObject({ tenant_id: 'tenant-1', kind: 'branch', branch_id: 'branch-ck' });
   });
 
   test('a database failure returns a friendly message, never the raw error', async () => {
