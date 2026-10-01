@@ -1,12 +1,15 @@
-import type { FinanceEntry } from '../finance-types';
+import type { DuesSummaryRow, FinanceEntry } from '../finance-types';
 import {
+  QUICK_ENTRY_PRESETS,
   canOffsetEntry,
   canSettleEntry,
   counterpartyCaption,
+  dueStatus,
   emptyEntryForm,
   emptySettleForm,
   payerCaption,
   remainingAmount,
+  summarizeDues,
   validateEntryForm,
   validateSettleForm,
 } from '../finance-ledger-utils';
@@ -30,6 +33,7 @@ function entry(over: Partial<FinanceEntry> = {}): FinanceEntry {
     transfer_from: null,
     transfer_to: null,
     transaction_date: '2026-09-03',
+    due_date: null,
     entered_at: '2026-09-03T05:00:00.000Z',
     entered_by: 'staff-1',
     entered_by_name: 'Clerk',
@@ -162,5 +166,56 @@ describe('offset against what the kitchen owes a branch', () => {
     const result = validateSettleForm({ ...emptySettleForm(gas, '2026-09-26'), mode: 'offset' }, gas, 10000);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.mode).toBeDefined();
+  });
+});
+
+describe('due dates', () => {
+  const today = '2026-10-10';
+
+  test('says how soon an open due falls due', () => {
+    expect(dueStatus(entry({ due_date: '2026-10-07' }), today)).toMatchObject({ bucket: 'overdue', days: -3, label: 'Overdue 3 days' });
+    expect(dueStatus(entry({ due_date: '2026-10-09' }), today)?.label).toBe('Overdue 1 day');
+    expect(dueStatus(entry({ due_date: '2026-10-10' }), today)).toMatchObject({ bucket: 'week', label: 'Due today' });
+    expect(dueStatus(entry({ due_date: '2026-10-17' }), today)).toMatchObject({ bucket: 'week', label: 'Due in 7 days' });
+    expect(dueStatus(entry({ due_date: '2026-10-28' }), today)).toMatchObject({ bucket: 'later', label: 'Due 28 Oct' });
+    expect(dueStatus(entry({ due_date: null }), today)).toMatchObject({ bucket: 'undated', days: null });
+  });
+
+  test('only an open payable or receivable has a due status', () => {
+    expect(dueStatus(entry({ status: 'settled', due_date: '2026-10-01' }), today)).toBeNull();
+    expect(dueStatus(entry({ kind: 'expense', status: 'recorded', due_date: null }), today)).toBeNull();
+  });
+
+  test('the form keeps a due date on a payable and drops it on an expense', () => {
+    const base = { ...emptyEntryForm(CK, '2026-10-04'), amount: '35000', particulars: 'Rent', due_date: '2026-10-07' };
+    const payable = validateEntryForm({ ...base, kind: 'payable' });
+    expect(payable.ok && payable.value.due_date).toBe('2026-10-07');
+    const expense = validateEntryForm({ ...base, kind: 'expense' });
+    expect(expense.ok && expense.value.due_date).toBeNull();
+  });
+
+  test('a due date before the transaction date is refused', () => {
+    const result = validateEntryForm({ ...emptyEntryForm(CK, '2026-10-04'), kind: 'payable', amount: '100', particulars: 'Rent', due_date: '2026-10-01' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.due_date).toBeDefined();
+  });
+
+  test('summarizeDues totals what is to pay and collect for the accounts in view', () => {
+    const rows: DuesSummaryRow[] = [
+      { account_id: CK, kind: 'payable', bucket: 'overdue', amount: 12000, entries: 1 },
+      { account_id: CK, kind: 'payable', bucket: 'week', amount: 35000, entries: 1 },
+      { account_id: CK, kind: 'receivable', bucket: 'undated', amount: 5100.5, entries: 2 },
+      { account_id: VL, kind: 'payable', bucket: 'later', amount: 999, entries: 1 },
+    ];
+    const mine = summarizeDues(rows, [CK]);
+    expect(mine.payables).toMatchObject({ total: 47000, overdue: 12000, week: 35000, later: 0, entries: 2 });
+    expect(mine.receivables).toMatchObject({ total: 5100.5, undated: 5100.5, entries: 2 });
+    expect(summarizeDues(rows).payables.total).toBe(47999);
+  });
+});
+
+describe('quick actions', () => {
+  test('there is one short form per kind', () => {
+    expect(QUICK_ENTRY_PRESETS.map((p) => p.kind)).toEqual(['expense', 'income', 'payable', 'receivable', 'transfer']);
   });
 });

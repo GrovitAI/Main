@@ -10,6 +10,8 @@ import type {
   CatalogItem,
   CatalogKind,
   CatalogLevel,
+  DueBucket,
+  DuesSummaryRow,
   EntryFieldChange,
   EntryFormErrors,
   EntryFormValues,
@@ -167,6 +169,75 @@ export function counterpartyCaption(
   if (entry.kind === 'payable') return `Owed to ${accountName(entry.counterparty_account_id)}`;
   return null;
 }
+
+// ─── Due dates ───────────────────────────────────────────────────────────────
+
+function daysBetween(fromIso: string, toIso: string): number | null {
+  const from = Date.parse(`${fromIso}T00:00:00Z`);
+  const to = Date.parse(`${toIso}T00:00:00Z`);
+  if (Number.isNaN(from) || Number.isNaN(to)) return null;
+  return Math.round((to - from) / 86_400_000);
+}
+
+export type DueStatus = {
+  bucket: DueBucket;
+  /** Days until the due date; negative when it has passed. null without a due date. */
+  days: number | null;
+  /** "Overdue 3 days", "Due today", "Due in 5 days", "Due 28 Oct" or "No due date". */
+  label: string;
+};
+
+/**
+ * How soon an open payable or receivable is due, as of `today` (YYYY-MM-DD).
+ * null for anything that is not an open due. Mirrors the buckets of
+ * finance_dues_summary() in the database.
+ */
+export function dueStatus(entry: Pick<FinanceEntry, 'kind' | 'status' | 'due_date'>, today: string): DueStatus | null {
+  if (entry.status !== 'open' || (entry.kind !== 'payable' && entry.kind !== 'receivable')) return null;
+  if (!entry.due_date) return { bucket: 'undated', days: null, label: 'No due date' };
+  const days = daysBetween(today, entry.due_date);
+  if (days === null) return { bucket: 'undated', days: null, label: 'No due date' };
+  if (days < 0) return { bucket: 'overdue', days, label: `Overdue ${-days} ${days === -1 ? 'day' : 'days'}` };
+  if (days === 0) return { bucket: 'week', days, label: 'Due today' };
+  if (days <= 7) return { bucket: 'week', days, label: `Due in ${days} ${days === 1 ? 'day' : 'days'}` };
+  const [, month, day] = entry.due_date.split('-');
+  const monthName = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(month) - 1] ?? '';
+  return { bucket: 'later', days, label: `Due ${Number(day)} ${monthName}`.trim() };
+}
+
+export type DuesTotals = { total: number; overdue: number; week: number; later: number; undated: number; entries: number };
+
+function emptyDuesTotals(): DuesTotals {
+  return { total: 0, overdue: 0, week: 0, later: 0, undated: 0, entries: 0 };
+}
+
+/** What is to pay and to collect across the given accounts, by how soon it is due. */
+export function summarizeDues(rows: readonly DuesSummaryRow[], accountIds?: readonly string[]): { payables: DuesTotals; receivables: DuesTotals } {
+  const payables = emptyDuesTotals();
+  const receivables = emptyDuesTotals();
+  const scope = accountIds ? new Set(accountIds) : null;
+  for (const row of rows) {
+    if (scope && !scope.has(row.account_id)) continue;
+    const target = row.kind === 'payable' ? payables : receivables;
+    target[row.bucket] = Math.round((target[row.bucket] + row.amount) * 100) / 100;
+    target.total = Math.round((target.total + row.amount) * 100) / 100;
+    target.entries += row.entries;
+  }
+  return { payables, receivables };
+}
+
+// ─── Quick actions ───────────────────────────────────────────────────────────
+
+export type QuickEntryKey = 'paid' | 'received' | 'owe' | 'owed' | 'moved';
+
+/** The five everyday entries, each a short form of the full sheet with the kind already chosen. */
+export const QUICK_ENTRY_PRESETS: readonly { key: QuickEntryKey; kind: LedgerKind; label: string; title: string }[] = [
+  { key: 'paid', kind: 'expense', label: 'Paid a bill', title: 'Paid a bill' },
+  { key: 'received', kind: 'income', label: 'Received money', title: 'Received money' },
+  { key: 'owe', kind: 'payable', label: 'We owe', title: 'We owe someone' },
+  { key: 'owed', kind: 'receivable', label: 'Owed to us', title: 'Someone owes us' },
+  { key: 'moved', kind: 'transfer', label: 'Moved money', title: 'Moved money' },
+];
 
 /** A payable or receivable moves no money until it is settled, so it has no paying account. */
 export function kindCanHavePayer(kind: LedgerKind): boolean {
@@ -335,6 +406,7 @@ export function emptyEntryForm(accountId: string, defaultDate: string): EntryFor
     transfer_from: 'cash',
     transfer_to: 'bank',
     transaction_date: defaultDate,
+    due_date: '',
     category_id: '',
     subcategory_id: '',
     particular_id: '',
@@ -356,6 +428,7 @@ export function entryToFormValues(entry: FinanceEntry): EntryFormValues {
     transfer_from: entry.transfer_from ?? 'cash',
     transfer_to: entry.transfer_to ?? 'bank',
     transaction_date: entry.transaction_date,
+    due_date: entry.due_date ?? '',
     category_id: entry.category_id ?? '',
     subcategory_id: entry.subcategory_id ?? '',
     particular_id: entry.particular_id ?? '',
@@ -386,6 +459,13 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
   if (!ISO_DATE.test(values.transaction_date) || Number.isNaN(Date.parse(values.transaction_date))) {
     errors.transaction_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
   }
+  const isDue = values.kind === 'payable' || values.kind === 'receivable';
+  const dueDate = isDue ? values.due_date.trim() : '';
+  if (dueDate.length > 0 && (!ISO_DATE.test(dueDate) || Number.isNaN(Date.parse(dueDate)))) {
+    errors.due_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
+  } else if (dueDate.length > 0 && ISO_DATE.test(values.transaction_date) && dueDate < values.transaction_date) {
+    errors.due_date = 'The due date cannot be before the transaction date.';
+  }
   const particulars = values.particulars.trim();
   if (particulars.length === 0) errors.particulars = 'Say what this was for.';
   else if (particulars.length > 120) errors.particulars = 'Keep the particulars under 120 characters.';
@@ -412,6 +492,7 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
       transfer_from: isTransfer ? values.transfer_from : null,
       transfer_to: isTransfer ? values.transfer_to : null,
       transaction_date: values.transaction_date,
+      due_date: dueDate.length > 0 ? dueDate : null,
       category_id: isTransfer ? null : emptyToNull(values.category_id),
       subcategory_id: isTransfer ? null : emptyToNull(values.subcategory_id),
       particular_id: isTransfer ? null : emptyToNull(values.particular_id),
@@ -493,6 +574,7 @@ export function initialLedgerFilters(now: Date = new Date()): LedgerFilters {
     categoryId: null,
     subcategoryId: null,
     particularId: null,
+    counterparty: null,
     enteredBy: null,
     status: 'active',
     search: '',
@@ -515,6 +597,7 @@ const FIELD_LABELS: Record<string, string> = {
   transfer_from: 'From',
   transfer_to: 'To',
   transaction_date: 'Transaction date',
+  due_date: 'Due date',
   category_id: 'Category',
   subcategory_id: 'Sub-category',
   particular_id: 'Particular',

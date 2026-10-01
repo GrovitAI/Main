@@ -15,6 +15,8 @@ import type {
   CatalogItem,
   CatalogItemInput,
   CatalogItemPatch,
+  CounterpartySuggestion,
+  DuesSummaryRow,
   EntryFieldChange,
   EntryRevision,
   FinanceAccount,
@@ -89,7 +91,7 @@ function explain(error: PgError, fallback: string): string {
 // ─── Mapping ──────────────────────────────────────────────────────────────────
 
 const ENTRY_COLUMNS =
-  'id, account_id, paid_from_account_id, counterparty_account_id, source_type, source_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, entered_at, entered_by, ' +
+  'id, account_id, paid_from_account_id, counterparty_account_id, source_type, source_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, due_date, entered_at, entered_by, ' +
   'category_id, subcategory_id, particular_id, particulars, counterparty, reference_no, notes, settles_entry_id, settled_paise, ' +
   'settled_at, void_reason, voided_at, updated_at, version, entered_staff:staff!finance_entries_entered_by_fkey(name)';
 
@@ -116,6 +118,7 @@ function mapEntry(row: Record<string, unknown>): FinanceEntry {
     transfer_from: toStringOrNull(row.transfer_from) as FinanceEntry['transfer_from'],
     transfer_to: toStringOrNull(row.transfer_to) as FinanceEntry['transfer_to'],
     transaction_date: toText(row.transaction_date),
+    due_date: toStringOrNull(row.due_date),
     entered_at: toText(row.entered_at),
     entered_by: toText(row.entered_by),
     entered_by_name: embeddedName(row.entered_staff),
@@ -374,6 +377,11 @@ function sanitizeSearch(raw: string): string {
   return raw.replace(/[%,()\\]/g, ' ').trim().slice(0, 80);
 }
 
+/** Makes a value match literally in an ILIKE pattern: no wildcards of its own. */
+function escapeLike(raw: string): string {
+  return raw.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 export type FetchLedgerOptions = {
   /**
    * Count the matching rows. An exact count costs a scan of every match, so
@@ -402,6 +410,8 @@ export async function fetchLedgerEntries(filters: LedgerFilters, options: FetchL
     if (filters.categoryId) q = q.eq('category_id', filters.categoryId);
     if (filters.subcategoryId) q = q.eq('subcategory_id', filters.subcategoryId);
     if (filters.particularId) q = q.eq('particular_id', filters.particularId);
+    // The whole name, any case: "tangedco" finds "TANGEDCO" but not "TANGEDCO Chennai".
+    if (filters.counterparty) q = q.ilike('counterparty', escapeLike(filters.counterparty.trim()));
     if (filters.enteredBy) q = q.eq('entered_by', filters.enteredBy);
     switch (filters.status) {
       case 'active':
@@ -420,7 +430,8 @@ export async function fetchLedgerEntries(filters: LedgerFilters, options: FetchL
 
     const ascending = filters.sortDir === 'asc';
     const sortColumn = filters.sort === 'amount' ? 'amount_paise' : filters.sort;
-    q = q.order(sortColumn, { ascending });
+    // Entries without a due date go last whichever way the dates run.
+    q = filters.sort === 'due_date' ? q.order(sortColumn, { ascending, nullsFirst: false }) : q.order(sortColumn, { ascending });
     if (filters.sort !== 'entered_at') q = q.order('entered_at', { ascending: false });
     q = q.range(from, from + pageSize - 1);
 
@@ -454,6 +465,7 @@ function entryPayload(input: FinanceEntryInput): Record<string, unknown> {
     transfer_from: input.transfer_from,
     transfer_to: input.transfer_to,
     transaction_date: input.transaction_date,
+    due_date: input.kind === 'payable' || input.kind === 'receivable' ? input.due_date : null,
     category_id: input.category_id,
     subcategory_id: input.subcategory_id,
     particular_id: input.particular_id,
@@ -634,6 +646,53 @@ export async function fetchPairPosition(debtorAccountId: string, creditorAccount
     return { data: fromPaise(toNumber(data)), error: null };
   } catch {
     return { data: null, error: 'Unable to load what is owed between the accounts.' };
+  }
+}
+
+/**
+ * What is open, per account and kind, split by how soon it is due. Adds up
+ * only the entries the caller may read, so a clerk sees their own dues.
+ */
+export async function fetchDuesSummary(today: string): Promise<ServiceResult<DuesSummaryRow[]>> {
+  try {
+    const { data, error } = await supabase.rpc('finance_dues_summary', { p_today: today });
+    if (error) {
+      if (isForbidden(error)) return { data: [], error: null };
+      return { data: null, error: 'Unable to load what is due.' };
+    }
+    const rows: DuesSummaryRow[] = [];
+    for (const row of asRecords(data)) {
+      const kind = toText(row.kind);
+      const bucket = toText(row.bucket);
+      if (kind !== 'payable' && kind !== 'receivable') continue;
+      if (bucket !== 'overdue' && bucket !== 'week' && bucket !== 'later' && bucket !== 'undated') continue;
+      rows.push({ account_id: toText(row.account_id), kind, bucket, amount: fromPaise(toNumber(row.amount_paise)), entries: toNumber(row.entries) });
+    }
+    return { data: rows, error: null };
+  } catch {
+    return { data: null, error: 'Unable to load what is due.' };
+  }
+}
+
+/**
+ * Names to offer in "Paid to / Received from": the ones already in the
+ * ledger, the suppliers and the staff, merged so one vendor is one name.
+ * A failure is an empty list: the field stays free text.
+ */
+export async function fetchCounterpartyNames(query: string, limit = 8): Promise<ServiceResult<CounterpartySuggestion[]>> {
+  try {
+    const { data, error } = await supabase.rpc('finance_counterparty_names', { p_query: query.trim().slice(0, 80), p_limit: limit });
+    if (error) return { data: [], error: null };
+    const names: CounterpartySuggestion[] = [];
+    for (const row of asRecords(data)) {
+      const name = toText(row.name).trim();
+      if (!name) continue;
+      const source = toText(row.source);
+      names.push({ name, source: source === 'supplier' || source === 'staff' ? source : 'used', uses: toNumber(row.uses) });
+    }
+    return { data: names, error: null };
+  } catch {
+    return { data: [], error: null };
   }
 }
 

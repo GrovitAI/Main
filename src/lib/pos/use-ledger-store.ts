@@ -12,6 +12,7 @@ import {
   createCatalogItem,
   createLedgerEntry,
   fetchAccountBalances,
+  fetchDuesSummary,
   fetchEntryRevisions,
   fetchFinanceAccounts,
   fetchFinanceCatalog,
@@ -33,6 +34,7 @@ import type {
   CatalogItem,
   CatalogItemInput,
   CatalogItemPatch,
+  DuesSummaryRow,
   EntryRevision,
   FinanceAccount,
   FinanceEntry,
@@ -45,6 +47,7 @@ import type {
   SettleEntryInput,
 } from './finance-types';
 import { LEDGER_MAX_ROWS, catalogSiblings, initialLedgerFilters, moveCatalogSibling } from './finance-ledger-utils';
+import { getCurrentBusinessDate } from './finance-utils';
 
 type MutationResult = { ok: true } | { ok: false; error: string };
 
@@ -77,6 +80,8 @@ type LedgerState = {
   positions: InterAccountPosition[];
   /** Per-account ledger income, expenses and open amounts for the current range. */
   summary: LedgerAccountSummary[];
+  /** What is open as of today, by how soon it is due. A clerk gets their own dues. */
+  dues: DuesSummaryRow[];
 
   /** Free-text particulars under the category the Catalog screen is looking at. */
   freeText: FreeTextParticular[];
@@ -139,6 +144,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     balancesLoading: false,
     positions: [],
     summary: [],
+    dues: [],
 
     freeText: [],
     freeTextLoading: false,
@@ -270,20 +276,22 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     loadBalances: async () => {
       const ids = get().accounts.filter((a) => a.is_active).map((a) => a.id);
       if (ids.length === 0) {
-        set({ balances: [], positions: [], summary: [] });
+        set({ balances: [], positions: [], summary: [], dues: [] });
         return;
       }
       set({ balancesLoading: true });
       const { startDate, endDate } = get().filters;
-      const [balances, positions, summary] = await Promise.all([
+      const [balances, positions, summary, dues] = await Promise.all([
         fetchAccountBalances(ids),
         fetchInterAccountPositions(),
         fetchLedgerSummary(startDate, endDate),
+        fetchDuesSummary(getCurrentBusinessDate()),
       ]);
       set({
         balances: balances.data ?? [],
         positions: positions.data ?? [],
         summary: summary.data ?? [],
+        dues: dues.data ?? [],
         balancesLoading: false,
       });
     },

@@ -351,6 +351,8 @@ export type FinanceEntry = {
   transfer_to: LedgerMode | null;
   /** YYYY-MM-DD, the day the money moved. */
   transaction_date: string;
+  /** YYYY-MM-DD, when a payable is to be paid or a receivable collected; null when not set or not a due. */
+  due_date: string | null;
   entered_at: string;
   entered_by: string;
   entered_by_name: string | null;
@@ -379,6 +381,8 @@ export type FinanceEntryInput = {
   transfer_from: LedgerMode | null;
   transfer_to: LedgerMode | null;
   transaction_date: string;
+  /** Only kept on a payable or receivable. */
+  due_date: string | null;
   category_id: string | null;
   subcategory_id: string | null;
   particular_id: string | null;
@@ -399,6 +403,8 @@ export type EntryFormValues = {
   transfer_from: LedgerMode;
   transfer_to: LedgerMode;
   transaction_date: string;
+  /** '' when no due date. */
+  due_date: string;
   category_id: string;
   subcategory_id: string;
   particular_id: string;
@@ -410,7 +416,7 @@ export type EntryFormValues = {
 
 export type EntryFormErrors = Partial<Record<keyof EntryFormValues, string>>;
 
-export type LedgerSort = 'transaction_date' | 'entered_at' | 'amount' | 'particulars';
+export type LedgerSort = 'transaction_date' | 'due_date' | 'entered_at' | 'amount' | 'particulars';
 /** 'active' = everything that is not void. */
 export type LedgerStatusFilter = 'active' | 'open' | 'settled' | 'void' | 'all';
 
@@ -423,6 +429,8 @@ export type LedgerFilters = {
   categoryId: string | null;
   subcategoryId: string | null;
   particularId: string | null;
+  /** The exact name in "Paid to / Received from", matched without regard to case. */
+  counterparty: string | null;
   /** staff id */
   enteredBy: string | null;
   status: LedgerStatusFilter;
@@ -488,6 +496,26 @@ export type InterAccountPosition = {
   owed_by: string;
   owed_to: string;
   amount: number;
+};
+
+/** How soon an open payable or receivable is due. */
+export type DueBucket = 'overdue' | 'week' | 'later' | 'undated';
+
+/** What is open in one account, by kind and by how soon it is due. */
+export type DuesSummaryRow = {
+  account_id: string;
+  kind: 'payable' | 'receivable';
+  bucket: DueBucket;
+  amount: number;
+  entries: number;
+};
+
+/** A name offered in "Paid to / Received from". */
+export type CounterpartySuggestion = {
+  name: string;
+  source: 'used' | 'supplier' | 'staff';
+  /** How many ledger entries already carry the name. */
+  uses: number;
 };
 
 /** The Books card: ledger income and expenses in range, and what is still open. */

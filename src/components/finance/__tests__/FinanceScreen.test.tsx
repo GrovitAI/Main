@@ -89,6 +89,7 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
     transfer_from: null,
     transfer_to: null,
     transaction_date: '2026-09-15',
+    due_date: null,
     entered_at: '2026-09-15T04:30:00.000Z',
     entered_by: 'staff-1',
     entered_by_name: 'Owner',
@@ -243,6 +244,8 @@ beforeEach(() => {
   mockedLedger.fetchEntryRevisions.mockResolvedValue({ data: [], error: null });
   mockedLedger.fetchInterAccountPositions.mockResolvedValue({ data: [], error: null });
   mockedLedger.fetchLedgerSummary.mockResolvedValue({ data: [], error: null });
+  mockedLedger.fetchDuesSummary.mockResolvedValue({ data: [], error: null });
+  mockedLedger.fetchCounterpartyNames.mockResolvedValue({ data: [], error: null });
   (useSessionStore as unknown as jest.Mock).mockImplementation(
     (selector: (s: { session: typeof SESSION }) => unknown) => selector({ session: SESSION }),
   );

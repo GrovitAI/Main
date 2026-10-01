@@ -35,18 +35,26 @@ import {
   canOffsetEntry,
   canSeeBalances,
   canSettleEntry,
+  canTransfer,
   canVoidEntry,
   catalogById,
+  catalogChildren,
   counterpartyCaption,
   describeChanges,
+  dueStatus,
   emptyEntryForm,
   entryDirection,
   entryToFormValues,
+  isFinanceOwner,
   payerCaption,
   remainingAmount,
+  summarizeDues,
   LEDGER_MAX_ROWS,
+  QUICK_ENTRY_PRESETS,
+  type DueStatus,
+  type QuickEntryKey,
 } from '@/lib/pos/finance-ledger-utils';
-import { fetchPairPosition } from '@/lib/pos/finance-ledger-service';
+import { fetchCounterpartyNames, fetchPairPosition } from '@/lib/pos/finance-ledger-service';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -56,7 +64,19 @@ import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, financeContentP
 
 type Props = { compact?: boolean };
 
-type FormState = { visible: boolean; mode: 'create' | 'edit'; entry: FinanceEntry | null };
+type FormState = {
+  visible: boolean;
+  mode: 'create' | 'edit';
+  entry: FinanceEntry | null;
+  /** Set when a quick action opened the short form; its heading. */
+  quickTitle: string | null;
+};
+
+/** Names for "Paid to / Received from"; a failure is simply no suggestions. */
+async function suggestCounterparties(query: string) {
+  const { data } = await fetchCounterpartyNames(query);
+  return data ?? [];
+}
 
 const STATUS_FILTERS: { key: LedgerStatusFilter; label: string }[] = [
   { key: 'active', label: 'Active' },
@@ -68,6 +88,7 @@ const STATUS_FILTERS: { key: LedgerStatusFilter; label: string }[] = [
 
 const SORTS: { key: LedgerSort; label: string }[] = [
   { key: 'transaction_date', label: 'Date' },
+  { key: 'due_date', label: 'Due' },
   { key: 'entered_at', label: 'Entered' },
   { key: 'amount', label: 'Amount' },
   { key: 'particulars', label: 'A–Z' },
@@ -100,7 +121,7 @@ export function LedgerTab({ compact = false }: Props) {
   const revisionsLoading = useLedgerStore((s) => s.revisionsLoading);
   const balances = useLedgerStore((s) => s.balances);
   const positions = useLedgerStore((s) => s.positions);
-  const summary = useLedgerStore((s) => s.summary);
+  const dues = useLedgerStore((s) => s.dues);
   const newEntryRequested = useLedgerStore((s) => s.newEntryRequested);
   const loadEntries = useLedgerStore((s) => s.loadEntries);
   const loadMore = useLedgerStore((s) => s.loadMore);
@@ -113,7 +134,7 @@ export function LedgerTab({ compact = false }: Props) {
   const openEntryById = useLedgerStore((s) => s.openEntryById);
   const clearNewEntryRequest = useLedgerStore((s) => s.clearNewEntryRequest);
 
-  const [form, setForm] = useState<FormState>({ visible: false, mode: 'create', entry: null });
+  const [form, setForm] = useState<FormState>({ visible: false, mode: 'create', entry: null, quickTitle: null });
   const [formError, setFormError] = useState<string | null>(null);
   const [initialValues, setInitialValues] = useState<EntryFormValues>(() => emptyEntryForm('', getCurrentBusinessDate()));
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
@@ -169,8 +190,20 @@ export function LedgerTab({ compact = false }: Props) {
   const openCreate = useCallback(() => {
     setFormError(null);
     setInitialValues(emptyEntryForm(defaultAccountId, getCurrentBusinessDate()));
-    setForm({ visible: true, mode: 'create', entry: null });
+    setForm({ visible: true, mode: 'create', entry: null, quickTitle: null });
   }, [defaultAccountId]);
+
+  // A quick action: the same sheet with the kind chosen and four fields showing.
+  const openQuick = useCallback(
+    (key: QuickEntryKey) => {
+      const preset = QUICK_ENTRY_PRESETS.find((p) => p.key === key);
+      if (!preset) return;
+      setFormError(null);
+      setInitialValues({ ...emptyEntryForm(defaultAccountId, getCurrentBusinessDate()), kind: preset.kind });
+      setForm({ visible: true, mode: 'create', entry: null, quickTitle: preset.title });
+    },
+    [defaultAccountId],
+  );
 
   // The phone shell's quick-add button lands here with the form already open.
   useEffect(() => {
@@ -182,7 +215,7 @@ export function LedgerTab({ compact = false }: Props) {
   const openEdit = (entry: FinanceEntry) => {
     setFormError(null);
     setInitialValues(entryToFormValues(entry));
-    setForm({ visible: true, mode: 'edit', entry });
+    setForm({ visible: true, mode: 'edit', entry, quickTitle: null });
   };
   const closeForm = () => setForm((prev) => ({ ...prev, visible: false }));
 
@@ -251,6 +284,7 @@ export function LedgerTab({ compact = false }: Props) {
   };
 
   const accountName = useCallback((id: string) => accounts.find((a) => a.id === id)?.name ?? 'Account', [accounts]);
+  const today = getCurrentBusinessDate();
   const showBalances = canSeeBalances(role, rules) && balances.length > 0;
   const pageCount = Math.max(1, Math.ceil(total / filters.pageSize));
   // The phone appends pages, so its "showing" runs from the first row.
@@ -277,18 +311,23 @@ export function LedgerTab({ compact = false }: Props) {
         accountName={accountName(item.account_id)}
         payer={payerCaption(item, accountName)}
         other={counterpartyCaption(item, accountName)}
+        due={dueStatus(item, today)}
         categoryPath={[catalogById(catalog, item.category_id)?.name, catalogById(catalog, item.subcategory_id)?.name].filter(Boolean).join(' › ')}
         onPress={() => void openEntry(item)}
         onSettle={canSettleEntry(item, role) ? () => openSettle(item) : undefined}
       />
     ),
-    [compact, accountName, catalog, openEntry, role],
+    [compact, accountName, catalog, openEntry, role, today],
   );
 
   const activeFilterChips: { key: string; label: string; clear: () => void }[] = [];
   if (filters.accountId) activeFilterChips.push({ key: 'account', label: accountName(filters.accountId), clear: () => setFilters({ accountId: null }) });
   if (filters.kind) activeFilterChips.push({ key: 'kind', label: LEDGER_KIND_LABELS[filters.kind], clear: () => setFilters({ kind: null }) });
   if (filters.mode) activeFilterChips.push({ key: 'mode', label: LEDGER_MODE_LABELS[filters.mode], clear: () => setFilters({ mode: null }) });
+  if (filters.categoryId) {
+    activeFilterChips.push({ key: 'category', label: catalogById(catalog, filters.categoryId)?.name ?? 'Category', clear: () => setFilters({ categoryId: null }) });
+  }
+  if (filters.counterparty) activeFilterChips.push({ key: 'counterparty', label: filters.counterparty, clear: () => setFilters({ counterparty: null }) });
   if (filters.enteredBy) activeFilterChips.push({ key: 'mine', label: 'Mine', clear: () => setFilters({ enteredBy: null }) });
   if (filters.status !== 'active') {
     activeFilterChips.push({
@@ -298,7 +337,10 @@ export function LedgerTab({ compact = false }: Props) {
     });
   }
   const sortLabel = `${SORTS.find((s) => s.key === filters.sort)?.label ?? 'Date'} ${filters.sortDir === 'desc' ? '↓' : '↑'}`;
-  const clearAllFilters = () => setFilters({ accountId: null, kind: null, mode: null, enteredBy: null, status: 'active' });
+  const clearAllFilters = () => setFilters({ accountId: null, kind: null, mode: null, categoryId: null, counterparty: null, enteredBy: null, status: 'active' });
+  // Built-in categories (Opening Balance, Partners) are the owner's business.
+  const filterCategories = catalogChildren(catalog, null).filter((c) => isFinanceOwner(role) || !c.is_system);
+  const quickActions = QUICK_ENTRY_PRESETS.filter((p) => p.kind !== 'transfer' || canTransfer(role, rules));
 
   const balanceCards = balances.map((b) => (
     <View key={b.account_id} className={`rounded-2xl border border-border/60 bg-white p-3 shadow-sm ${compact ? 'min-w-[200px]' : 'min-w-[220px] flex-1'}`}>
@@ -316,15 +358,14 @@ export function LedgerTab({ compact = false }: Props) {
     </View>
   ));
 
-  // Outstanding: what is still to be paid and collected, across accounts.
-  const outstanding = summary.reduce(
-    (acc, row) => ({ payables: acc.payables + row.openPayables, receivables: acc.receivables + row.openReceivables }),
-    { payables: 0, receivables: 0 },
-  );
-  const showOutstanding = summary.length > 0 && (outstanding.payables > 0 || outstanding.receivables > 0);
+  // Outstanding: what is still to be paid and collected as of today, across
+  // the accounts this user keeps books for, with what is already late.
+  const outstanding = useMemo(() => summarizeDues(dues, myAccounts.map((a) => a.id)), [dues, myAccounts]);
+  const showOutstanding = outstanding.payables.total > 0 || outstanding.receivables.total > 0;
   const outstandingActive = filters.status === 'open';
+  // The list of dues opens with the soonest due first; undated ones follow.
   const showOutstandingList = () =>
-    setFilters(outstandingActive ? { status: 'active', sort: 'transaction_date', sortDir: 'desc' } : { status: 'open', kind: null, sort: 'transaction_date', sortDir: 'asc' });
+    setFilters(outstandingActive ? { status: 'active', sort: 'transaction_date', sortDir: 'desc' } : { status: 'open', kind: null, sort: 'due_date', sortDir: 'asc' });
 
   const outstandingCard = showOutstanding ? (
     <Pressable
@@ -340,11 +381,13 @@ export function LedgerTab({ compact = false }: Props) {
       <View className="mt-1 flex-row items-end justify-between">
         <View>
           <Text className="text-[10px] text-text-secondary">To pay</Text>
-          <Text className="text-base font-extrabold" style={{ color: semantic.danger }}>{formatINR(outstanding.payables, { compact: compactMoney })}</Text>
+          <Text className="text-base font-extrabold" style={{ color: semantic.danger }}>{formatINR(outstanding.payables.total, { compact: compactMoney })}</Text>
+          <DueLine totals={outstanding.payables} compactMoney={compactMoney} />
         </View>
         <View className="items-end">
           <Text className="text-[10px] text-text-secondary">To collect</Text>
-          <Text className="text-base font-extrabold" style={{ color: semantic.success }}>{formatINR(outstanding.receivables, { compact: compactMoney })}</Text>
+          <Text className="text-base font-extrabold" style={{ color: semantic.success }}>{formatINR(outstanding.receivables.total, { compact: compactMoney })}</Text>
+          <DueLine totals={outstanding.receivables} compactMoney={compactMoney} />
         </View>
       </View>
     </Pressable>
@@ -427,6 +470,25 @@ export function LedgerTab({ compact = false }: Props) {
         </View>
       </View>
 
+      {/* The everyday entries, one tap each: the short form with the kind chosen */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2" contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+        {quickActions.map((action) => (
+          <Pressable
+            key={action.key}
+            onPress={() => openQuick(action.key)}
+            disabled={!initialized}
+            className="min-h-[40px] flex-row items-center justify-center rounded-full border border-border bg-white px-3.5"
+            hitSlop={2}
+            style={({ pressed }) => [{ opacity: pressed || !initialized ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel={action.title}
+          >
+            <QuickIcon kind={action.kind} />
+            <Text className="ml-1.5 text-xs font-bold text-text-primary">{action.label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
       {/* What is filtering the list right now, each removable with a tap */}
       {activeFilterChips.length > 0 && !filtersOpen ? (
         <View className="mt-2 flex-row flex-wrap items-center gap-2">
@@ -472,6 +534,18 @@ export function LedgerTab({ compact = false }: Props) {
               <FilterChip key={m} label={LEDGER_MODE_LABELS[m]} active={filters.mode === m} onPress={() => setFilters({ mode: filters.mode === m ? null : m })} />
             ))}
           </FilterRow>
+          <FilterRow label="Category" compact={compact}>
+            <FilterChip label="Any category" active={filters.categoryId === null} onPress={() => setFilters({ categoryId: null })} />
+            {filterCategories.map((c) => (
+              <FilterChip key={c.id} label={c.name} active={filters.categoryId === c.id} onPress={() => setFilters({ categoryId: filters.categoryId === c.id ? null : c.id })} />
+            ))}
+          </FilterRow>
+          {filters.counterparty ? (
+            <FilterRow label="Paid to / from" compact={compact}>
+              <FilterChip label="Anyone" active={false} onPress={() => setFilters({ counterparty: null })} />
+              <FilterChip label={filters.counterparty} active onPress={() => setFilters({ counterparty: null })} />
+            </FilterRow>
+          ) : null}
           <FilterRow label="Entered by" compact={compact}>
             <FilterChip label="Anyone" active={filters.enteredBy === null} onPress={() => setFilters({ enteredBy: null })} />
             <FilterChip label="Me" active={filters.enteredBy !== null} onPress={() => setFilters({ enteredBy: staffId })} />
@@ -601,6 +675,9 @@ export function LedgerTab({ compact = false }: Props) {
         onSubmit={(input) => void handleSubmit(input, false)}
         onSubmitAndNext={(input) => void handleSubmit(input, true)}
         onClose={closeForm}
+        quick={form.quickTitle !== null}
+        title={form.quickTitle ?? undefined}
+        suggestCounterparties={suggestCounterparties}
       />
 
       <EntryDetailSheet
@@ -609,6 +686,14 @@ export function LedgerTab({ compact = false }: Props) {
         accountName={selected ? accountName(selected.account_id) : ''}
         payerName={selected?.paid_from_account_id ? accountName(selected.paid_from_account_id) : null}
         otherName={selected?.counterparty_account_id ? accountName(selected.counterparty_account_id) : null}
+        due={selected ? dueStatus(selected, today) : null}
+        onShowCounterparty={() => {
+          const name = selected?.counterparty?.trim();
+          if (!name) return;
+          void openEntry(null);
+          // Everything with this vendor or person, whenever it was recorded in the range.
+          setFilters({ counterparty: name, status: 'active' });
+        }}
         canSettle={selected ? canSettleEntry(selected, role) : false}
         onSettle={() => {
           if (!selected) return;
@@ -732,6 +817,37 @@ function FilterChip({ label, active, onPress }: FilterChipProps) {
   );
 }
 
+/** "Overdue ₹12,000" or "₹5,000 due this week" under a figure on the Outstanding card. */
+function DueLine({ totals, compactMoney }: { totals: { overdue: number; week: number }; compactMoney: boolean }) {
+  if (totals.overdue > 0) {
+    return (
+      <Text className="text-[10px] font-bold" style={{ color: semantic.danger }} numberOfLines={1}>
+        Overdue {formatINR(totals.overdue, { compact: compactMoney })}
+      </Text>
+    );
+  }
+  if (totals.week > 0) {
+    return (
+      <Text className="text-[10px] font-bold" style={{ color: semantic.warning }} numberOfLines={1}>
+        {formatINR(totals.week, { compact: compactMoney })} this week
+      </Text>
+    );
+  }
+  return null;
+}
+
+function dueColor(due: DueStatus): string {
+  if (due.bucket === 'overdue') return semantic.danger;
+  if (due.bucket === 'week') return semantic.warning;
+  return colors.textSecondary;
+}
+
+function QuickIcon({ kind }: { kind: LedgerKind }) {
+  const tone = kindTone(kind);
+  const Icon = kind === 'payable' || kind === 'receivable' ? Clock : tone.Icon;
+  return <Icon size={14} color={tone.color} />;
+}
+
 function kindTone(kind: LedgerKind): { color: string; soft: string; Icon: typeof ArrowDownLeft } {
   const direction = entryDirection(kind);
   if (direction === 'in') return { color: semantic.success, soft: semantic.successSoft, Icon: ArrowDownLeft };
@@ -768,13 +884,15 @@ type EntryRowProps = {
   payer: string | null;
   /** "Owed by X" or "Owed to X" when the other side is one of our own accounts. */
   other: string | null;
+  /** How soon an open payable or receivable is due; null for anything else. */
+  due: DueStatus | null;
   categoryPath: string;
   onPress: () => void;
   /** Present when the user may settle this open payable or receivable. */
   onSettle?: () => void;
 };
 
-function EntryRow({ item, compact, accountName, payer, other, categoryPath, onPress, onSettle }: EntryRowProps) {
+function EntryRow({ item, compact, accountName, payer, other, due, categoryPath, onPress, onSettle }: EntryRowProps) {
   const voided = item.status === 'void';
   const tone = kindTone(item.kind);
   const meta = [payer ?? accountName, categoryPath || LEDGER_KIND_LABELS[item.kind], other ?? item.counterparty].filter(Boolean).join(' · ');
@@ -802,7 +920,10 @@ function EntryRow({ item, compact, accountName, payer, other, categoryPath, onPr
         <Text className="text-[11px] text-text-secondary" numberOfLines={1}>{meta}</Text>
         <Text className="text-[11px] text-text-secondary" numberOfLines={1}>{who}</Text>
         {progress ? <Text className="text-[11px] font-semibold text-text-secondary" numberOfLines={1}>{progress}</Text> : null}
-        {item.source_type ? <Text className="text-[11px] font-semibold text-primary" numberOfLines={1}>{LEDGER_SOURCE_LABELS[item.source_type]}</Text> : null}
+        {due && due.bucket !== 'undated' ? (
+          <Text className="text-[11px] font-bold" style={{ color: dueColor(due) }} numberOfLines={1}>{due.label}</Text>
+        ) : null}
+        {item.source_type ?<Text className="text-[11px] font-semibold text-primary" numberOfLines={1}>{LEDGER_SOURCE_LABELS[item.source_type]}</Text> : null}
       </View>
       <View className="items-end">
         <Text className="text-sm font-extrabold" style={{ color: tone.color, textDecorationLine: voided ? 'line-through' : 'none' }}>
@@ -836,6 +957,10 @@ type EntryDetailSheetProps = {
   payerName: string | null;
   /** The other one of our own accounts this payable or receivable is with. */
   otherName: string | null;
+  /** How soon an open payable or receivable is due. */
+  due: DueStatus | null;
+  /** Filters the ledger to everything with this entry's vendor or person. */
+  onShowCounterparty: () => void;
   canSettle: boolean;
   onSettle: () => void;
   /** Opens the payable or receivable this payment settles. */
@@ -851,7 +976,7 @@ type EntryDetailSheetProps = {
   describe: (changes: Record<string, { from: unknown; to: unknown }>) => { field: string; label: string; from: string; to: string }[];
 };
 
-function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
+function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
   const insets = useSafeAreaInsets();
   if (!entry) return null;
   const tone = kindTone(entry.kind);
@@ -867,8 +992,11 @@ function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, c
       : []),
     { label: entry.kind === 'transfer' ? 'Moved' : entryDirection(entry.kind) === 'in' ? 'Received via' : 'Paid via', value: entry.mode ? LEDGER_MODE_LABELS[entry.mode] : `${entry.transfer_from} → ${entry.transfer_to}` },
     { label: 'Transaction date', value: formatDateLong(entry.transaction_date) },
+    ...(isOutstandingKind && entry.due_date
+      ? [{ label: entry.kind === 'payable' ? 'Pay by' : 'Collect by', value: `${formatDateLong(entry.due_date)}${due && due.bucket !== 'later' && due.bucket !== 'undated' ? ` · ${due.label}` : ''}` }]
+      : []),
     { label: 'Category', value: categoryPath || '—' },
-    { label: entryDirection(entry.kind) === 'in' ? 'Received from' : 'Paid to', value: entry.counterparty ?? '—' },
+    ...(entry.counterparty ? [] : [{ label: entryDirection(entry.kind) === 'in' ? 'Received from' : 'Paid to', value: '—' }]),
     { label: 'Reference', value: entry.reference_no ?? '—' },
     { label: 'Notes', value: entry.notes ?? '—' },
     { label: 'Entered', value: `${entry.entered_by_name ?? 'Staff'} · ${formatDateTime(entry.entered_at)}` },
@@ -903,6 +1031,21 @@ function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, c
                 <Text className="flex-1 text-right text-sm text-text-primary">{row.value}</Text>
               </View>
             ))}
+            {entry.counterparty ? (
+              <Pressable
+                onPress={onShowCounterparty}
+                className="min-h-[44px] flex-row items-center justify-between border-b border-border-soft py-2"
+                accessibilityRole="button"
+                accessibilityLabel={`Show every entry with ${entry.counterparty}`}
+              >
+                <Text className="w-[130px] text-[11px] font-bold uppercase tracking-wide text-text-secondary">
+                  {entryDirection(entry.kind) === 'in' ? 'Received from' : 'Paid to'}
+                </Text>
+                <Text className="flex-1 text-right text-sm text-text-primary">
+                  {entry.counterparty} · <Text className="font-bold text-primary">All entries</Text>
+                </Text>
+              </Pressable>
+            ) : null}
             {entry.settles_entry_id ? (
               <Pressable
                 onPress={onViewSettled}
