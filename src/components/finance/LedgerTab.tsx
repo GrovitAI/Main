@@ -11,10 +11,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileSpreadsheet,
   FileText,
   History,
   Pencil,
   Plus,
+  Repeat,
   Scale,
   ChevronDown,
   ChevronUp,
@@ -29,6 +31,7 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import type {
   CashCountInput,
   EntryFormValues,
+  EntryTemplate,
   FinanceEntry,
   FinanceEntryInput,
   LedgerKind,
@@ -58,6 +61,7 @@ import {
   emptyEntryForm,
   entryDirection,
   entryToFormValues,
+  entryToTemplateInput,
   isFinanceOwner,
   payerCaption,
   remainingAmount,
@@ -74,6 +78,8 @@ import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { CashCountModal } from './CashCountModal';
 import { EntryFormModal } from './EntryFormModal';
+import { ExportMonthModal } from './ExportMonthModal';
+import { RegularsModal } from './RegularsModal';
 import { SettleEntryModal } from './SettleEntryModal';
 import { StatementModal } from './StatementModal';
 import { FinanceEmptyView, FinanceErrorView, FinanceLoadingView, financeContentPadding } from './FinanceStateViews';
@@ -147,6 +153,12 @@ export function LedgerTab({ compact = false }: Props) {
   const voidEntry = useLedgerStore((s) => s.voidEntry);
   const settleEntry = useLedgerStore((s) => s.settleEntry);
   const countCash = useLedgerStore((s) => s.countCash);
+  const templates = useLedgerStore((s) => s.templates);
+  const templatesLoading = useLedgerStore((s) => s.templatesLoading);
+  const loadTemplates = useLedgerStore((s) => s.loadTemplates);
+  const saveTemplate = useLedgerStore((s) => s.saveTemplate);
+  const removeTemplate = useLedgerStore((s) => s.removeTemplate);
+  const recordTemplates = useLedgerStore((s) => s.recordTemplates);
   const openEntry = useLedgerStore((s) => s.openEntry);
   const openEntryById = useLedgerStore((s) => s.openEntryById);
   const clearNewEntryRequest = useLedgerStore((s) => s.clearNewEntryRequest);
@@ -166,6 +178,9 @@ export function LedgerTab({ compact = false }: Props) {
   const [statement, setStatement] = useState<{ visible: boolean; subject: StatementSubject | null }>({ visible: false, subject: null });
   const [countTarget, setCountTarget] = useState<string | null>(null);
   const [countError, setCountError] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [regularsOpen, setRegularsOpen] = useState(false);
+  const [regularsError, setRegularsError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(filters.search);
   // The filter rows fold away: the start page shows the search, the active
   // filters as removable chips, and the entries. Open the panel to change them.
@@ -326,6 +341,31 @@ export function LedgerTab({ compact = false }: Props) {
     }
     setSettleTarget(null);
     setSavedNotice(`Recorded ${formatINR(input.amount)} ${settleTarget?.kind === 'receivable' ? 'received' : 'paid'} · ${settleTarget?.particulars ?? ''}`);
+  };
+
+  const openRegulars = () => {
+    setRegularsError(null);
+    setRegularsOpen(true);
+    void loadTemplates();
+  };
+
+  const handleRecordRegulars = async (picks: { template: EntryTemplate; amount: number }[], date: string) => {
+    setRegularsError(null);
+    const result = await recordTemplates(picks, date);
+    if (!result.ok) {
+      setRegularsError(result.error);
+      return;
+    }
+    setRegularsOpen(false);
+    setSavedNotice(`Recorded ${result.recorded} ${result.recorded === 1 ? 'regular' : 'regulars'}`);
+  };
+
+  const handleSaveRegular = async (entry: FinanceEntry) => {
+    const input = entryToTemplateInput(entry);
+    if (!input) return;
+    const result = await saveTemplate(input);
+    void openEntry(null);
+    setSavedNotice(result.ok ? `Saved to the regulars · ${entry.particulars}` : result.error);
   };
 
   const openCount = (accountId: string) => {
@@ -595,6 +635,17 @@ export function LedgerTab({ compact = false }: Props) {
             {compact ? null : <Text className="ml-1.5 text-xs font-bold text-primary">Statement</Text>}
           </Pressable>
           <Pressable
+            onPress={() => setExportOpen(true)}
+            disabled={!initialized || myAccounts.length === 0}
+            className="min-h-[44px] flex-row items-center justify-center rounded-xl border border-border bg-white px-3"
+            style={({ pressed }) => [{ opacity: pressed || !initialized ? 0.7 : 1 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Month-end workbook"
+          >
+            <FileSpreadsheet size={15} color={colors.primary} />
+            {compact ? null : <Text className="ml-1.5 text-xs font-bold text-primary">Month end</Text>}
+          </Pressable>
+          <Pressable
             onPress={openCreate}
             disabled={!initialized}
             className={`min-h-[44px] flex-row items-center justify-center rounded-xl bg-primary px-4 ${compact ? 'flex-1' : ''}`}
@@ -610,6 +661,19 @@ export function LedgerTab({ compact = false }: Props) {
 
       {/* The everyday entries, one tap each: the short form with the kind chosen */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2" contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+        {/* Rent, salaries and the like: saved once, recorded each month with a tick */}
+        <Pressable
+          onPress={openRegulars}
+          disabled={!initialized}
+          className="min-h-[40px] flex-row items-center justify-center rounded-full border border-primary bg-accent-soft px-3.5"
+          hitSlop={2}
+          style={({ pressed }) => [{ opacity: pressed || !initialized ? 0.7 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Open the regulars"
+        >
+          <Repeat size={14} color={colors.primary} />
+          <Text className="ml-1.5 text-xs font-bold text-primary">Regulars</Text>
+        </Pressable>
         {quickActions.map((action) => (
           <Pressable
             key={action.key}
@@ -851,6 +915,11 @@ export function LedgerTab({ compact = false }: Props) {
           void openEntry(null);
           setStatement({ visible: true, subject });
         }}
+        onSaveRegular={
+          selected && entryToTemplateInput(selected) && myAccounts.some((a) => a.id === selected.account_id)
+            ? () => void handleSaveRegular(selected)
+            : undefined
+        }
         canSettle={selected ? canSettleEntry(selected, role) : false}
         onSettle={() => {
           if (!selected) return;
@@ -894,6 +963,33 @@ export function LedgerTab({ compact = false }: Props) {
           void openEntry(entry);
         }}
         onClose={() => setStatement({ visible: false, subject: null })}
+      />
+
+      <ExportMonthModal
+        visible={exportOpen}
+        accounts={accounts}
+        scopeAccounts={myAccounts}
+        defaultAccountId={defaultAccountId}
+        catalog={catalog}
+        compact={compact}
+        onClose={() => setExportOpen(false)}
+      />
+
+      <RegularsModal
+        visible={regularsOpen}
+        templates={templates}
+        loading={templatesLoading}
+        accounts={accounts}
+        submitting={mutating}
+        serverError={regularsError}
+        compact={compact}
+        onRecord={(picks, date) => void handleRecordRegulars(picks, date)}
+        onRemove={(template) => {
+          void removeTemplate(template.id).then((result) => {
+            if (!result.ok) setRegularsError(result.error);
+          });
+        }}
+        onClose={() => setRegularsOpen(false)}
       />
 
       <CashCountModal
@@ -1146,6 +1242,8 @@ type EntryDetailSheetProps = {
   onShowCounterparty: () => void;
   /** Opens the statement with this entry's vendor, person or other account. */
   onShowStatement: () => void;
+  /** Saves this entry as a regular; absent when it cannot be one. */
+  onSaveRegular?: () => void;
   canSettle: boolean;
   onSettle: () => void;
   /** Opens the payable or receivable this payment settles. */
@@ -1161,7 +1259,7 @@ type EntryDetailSheetProps = {
   describe: (changes: Record<string, { from: unknown; to: unknown }>) => { field: string; label: string; from: string; to: string }[];
 };
 
-function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, onShowStatement, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
+function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, onShowStatement, onSaveRegular, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
   const insets = useSafeAreaInsets();
   if (!entry) return null;
   const tone = kindTone(entry.kind);
@@ -1241,6 +1339,19 @@ function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, d
                 <Text className="w-[130px] text-[11px] font-bold uppercase tracking-wide text-text-secondary">Statement</Text>
                 <Text className="flex-1 text-right text-sm text-text-primary">
                   Bills, payments and the balance with {otherName ?? entry.counterparty} · <Text className="font-bold text-primary">Open</Text>
+                </Text>
+              </Pressable>
+            ) : null}
+            {onSaveRegular ? (
+              <Pressable
+                onPress={onSaveRegular}
+                className="min-h-[44px] flex-row items-center justify-between border-b border-border-soft py-2"
+                accessibilityRole="button"
+                accessibilityLabel="Save as a regular"
+              >
+                <Text className="w-[130px] text-[11px] font-bold uppercase tracking-wide text-text-secondary">Every month?</Text>
+                <Text className="flex-1 text-right text-sm text-text-primary">
+                  Record it again with one tick · <Text className="font-bold text-primary">Save as a regular</Text>
                 </Text>
               </Pressable>
             ) : null}

@@ -5,6 +5,7 @@ import { colors, brand } from '@/lib/pos/brand';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
+import { FinanceAccountsCard } from '@/components/finance/FinanceAccountsCard';
 import { FinanceRulesCard } from '@/components/finance/FinanceRulesCard';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -622,6 +623,7 @@ export default function SettingsScreen() {
           </ScrollView>
         ) : activeTab === 'finance' ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+            <FinanceAccountsCard />
             <FinanceRulesCard />
           </ScrollView>
         ) : (

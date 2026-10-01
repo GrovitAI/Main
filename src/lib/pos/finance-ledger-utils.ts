@@ -16,6 +16,8 @@ import type {
   EntryFormErrors,
   EntryFormValues,
   EntryMode,
+  EntryTemplate,
+  EntryTemplateInput,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
@@ -248,6 +250,83 @@ export function summarizeOwedToOthers(rows: readonly DuesSummaryRow[], myAccount
     byAccount.set(row.account_id, current);
   }
   return [...byAccount.values()].sort((a, b) => b.total - a.total);
+}
+
+// ─── Regulars (entry templates) ──────────────────────────────────────────────
+
+/**
+ * The date a due made from a template falls on: its day of the month in the
+ * month of `date`, or in the next month when that day has already passed.
+ * A day the month does not have (the 31st in April) becomes its last day.
+ */
+export function templateDueDate(dueDay: number | null, date: string): string | null {
+  if (!dueDay || !ISO_DATE.test(date)) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let dueYear = year;
+  let dueMonth = month;
+  let due = Math.min(dueDay, lastDay(dueYear, dueMonth));
+  if (due < day) {
+    dueMonth += 1;
+    if (dueMonth > 12) {
+      dueMonth = 1;
+      dueYear += 1;
+    }
+    due = Math.min(dueDay, lastDay(dueYear, dueMonth));
+  }
+  return `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(due).padStart(2, '0')}`;
+}
+
+/** The ledger entry a template records on `date` for `amount` rupees. */
+export function templateToEntryInput(template: EntryTemplate, amount: number, date: string): FinanceEntryInput {
+  const isDue = template.kind === 'payable' || template.kind === 'receivable';
+  return {
+    account_id: template.account_id,
+    paid_from_account_id: isDue ? null : template.paid_from_account_id,
+    kind: template.kind,
+    amount,
+    mode: template.mode ?? 'cash',
+    transfer_from: null,
+    transfer_to: null,
+    transaction_date: date,
+    due_date: isDue ? templateDueDate(template.due_day, date) : null,
+    category_id: template.category_id,
+    subcategory_id: template.subcategory_id,
+    particular_id: template.particular_id,
+    particulars: template.particulars,
+    counterparty: template.counterparty,
+    reference_no: null,
+    notes: null,
+  };
+}
+
+/**
+ * What to save of an entry so it can be recorded again: everything but its
+ * date. null for what is never a regular: a transfer, the payment of a due, or
+ * an entry a document posted.
+ */
+export function entryToTemplateInput(entry: FinanceEntry): EntryTemplateInput | null {
+  if (entry.kind === 'transfer' || entry.settles_entry_id || entry.source_type || entry.status === 'void') return null;
+  const isDue = entry.kind === 'payable' || entry.kind === 'receivable';
+  const dueDay = isDue && entry.due_date ? Number(entry.due_date.slice(8, 10)) : null;
+  return {
+    account_id: entry.account_id,
+    paid_from_account_id: isDue ? null : entry.paid_from_account_id,
+    kind: entry.kind,
+    amount: entry.amount,
+    mode: entry.mode === 'cash' || entry.mode === 'bank' ? entry.mode : null,
+    category_id: entry.category_id,
+    subcategory_id: entry.subcategory_id,
+    particular_id: entry.particular_id,
+    particulars: entry.particulars,
+    counterparty: entry.counterparty,
+    due_day: dueDay !== null && dueDay >= 1 && dueDay <= 31 ? dueDay : null,
+  };
+}
+
+/** Whether a template has already been recorded in the month `date` is in. */
+export function templateRecordedInMonth(template: Pick<EntryTemplate, 'last_recorded_on'>, date: string): boolean {
+  return template.last_recorded_on !== null && template.last_recorded_on.slice(0, 7) === date.slice(0, 7);
 }
 
 // ─── Quick actions ───────────────────────────────────────────────────────────

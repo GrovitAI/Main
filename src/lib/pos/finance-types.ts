@@ -557,6 +557,32 @@ export type Statement = {
   truncated: boolean;
 };
 
+// ─── Regulars (entry templates) ──────────────────────────────────────────────
+
+/** A saved entry recorded again each month: rent, a salary, a subscription. */
+export type EntryTemplate = {
+  id: string;
+  account_id: string;
+  paid_from_account_id: string | null;
+  kind: CatalogKind;
+  /** The usual amount in rupees; 0 asks for it each time. */
+  amount: number;
+  mode: LedgerMode | null;
+  category_id: string | null;
+  subcategory_id: string | null;
+  particular_id: string | null;
+  particulars: string;
+  counterparty: string | null;
+  /** Day of the month a payable or receivable made from this falls due. */
+  due_day: number | null;
+  sort_order: number;
+  is_active: boolean;
+  /** YYYY-MM-DD, the transaction date it was last recorded with. */
+  last_recorded_on: string | null;
+};
+
+export type EntryTemplateInput = Omit<EntryTemplate, 'id' | 'sort_order' | 'is_active' | 'last_recorded_on'>;
+
 // ─── Cash counts ─────────────────────────────────────────────────────────────
 
 export type CashCount = {

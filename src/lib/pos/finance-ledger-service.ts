@@ -21,6 +21,8 @@ import type {
   DuesSummaryRow,
   EntryFieldChange,
   EntryRevision,
+  EntryTemplate,
+  EntryTemplateInput,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
@@ -34,7 +36,7 @@ import type {
   SettleEntryInput,
   StatementSubject,
 } from './finance-types';
-import { fromPaise, toPaise } from './finance-utils';
+import { addDays, fromPaise, toPaise } from './finance-utils';
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -581,6 +583,135 @@ export async function settleLedgerEntry(input: SettleEntryInput): Promise<Servic
   }
 }
 
+// ─── Regulars (entry templates) ───────────────────────────────────────────────
+
+const TEMPLATE_COLUMNS =
+  'id, account_id, paid_from_account_id, kind, amount_paise, mode, category_id, subcategory_id, particular_id, particulars, counterparty, due_day, sort_order, is_active, last_recorded_on';
+
+function mapTemplate(row: Record<string, unknown>): EntryTemplate {
+  const kind = toText(row.kind, 'expense');
+  const mode = toStringOrNull(row.mode);
+  const dueDay = row.due_day === null || row.due_day === undefined ? null : toNumber(row.due_day);
+  return {
+    id: toText(row.id),
+    account_id: toText(row.account_id),
+    paid_from_account_id: toStringOrNull(row.paid_from_account_id),
+    kind: kind === 'income' || kind === 'payable' || kind === 'receivable' ? kind : 'expense',
+    amount: fromPaise(toNumber(row.amount_paise)),
+    mode: mode === 'cash' || mode === 'bank' ? mode : null,
+    category_id: toStringOrNull(row.category_id),
+    subcategory_id: toStringOrNull(row.subcategory_id),
+    particular_id: toStringOrNull(row.particular_id),
+    particulars: toText(row.particulars),
+    counterparty: toStringOrNull(row.counterparty),
+    due_day: dueDay !== null && dueDay >= 1 && dueDay <= 31 ? dueDay : null,
+    sort_order: toNumber(row.sort_order),
+    is_active: row.is_active !== false,
+    last_recorded_on: toStringOrNull(row.last_recorded_on),
+  };
+}
+
+/** The saved entries the caller may record from, in the owner's order. */
+export async function fetchEntryTemplates(): Promise<ServiceResult<EntryTemplate[]>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('finance_entry_templates')
+      .select(TEMPLATE_COLUMNS)
+      .eq('tenant_id', tenant_id)
+      .eq('is_active', true)
+      .order('sort_order')
+      .order('particulars');
+    if (error) return { data: null, error: 'Unable to load the regulars.' };
+    return { data: asRecords(data).map(mapTemplate), error: null };
+  } catch {
+    return { data: null, error: 'Unable to load the regulars.' };
+  }
+}
+
+export async function createEntryTemplate(input: EntryTemplateInput): Promise<ServiceResult<EntryTemplate>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const staffId = currentStaffId();
+    if (!staffId) return { data: null, error: 'Sign in again to save a regular.' };
+    const isDue = input.kind === 'payable' || input.kind === 'receivable';
+    const { data, error } = await supabase
+      .from('finance_entry_templates')
+      .insert({
+        tenant_id,
+        created_by: staffId,
+        account_id: input.account_id,
+        paid_from_account_id: isDue ? null : input.paid_from_account_id,
+        kind: input.kind,
+        amount_paise: toPaise(input.amount),
+        mode: input.mode,
+        category_id: input.category_id,
+        subcategory_id: input.subcategory_id,
+        particular_id: input.particular_id,
+        particulars: input.particulars.trim(),
+        counterparty: input.counterparty,
+        due_day: isDue ? input.due_day : null,
+      })
+      .select(TEMPLATE_COLUMNS)
+      .single();
+    if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the regular.') };
+    return { data: mapTemplate(data), error: null };
+  } catch {
+    return { data: null, error: 'Unable to save the regular.' };
+  }
+}
+
+/** Changes the usual amount, switches a template off, or notes when it was last recorded. */
+export async function updateEntryTemplate(
+  id: string,
+  patch: Partial<Pick<EntryTemplate, 'amount' | 'is_active' | 'last_recorded_on'>>,
+): Promise<ServiceResult<EntryTemplate>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const payload: Record<string, unknown> = {};
+    if (patch.amount !== undefined) payload.amount_paise = toPaise(patch.amount);
+    if (patch.is_active !== undefined) payload.is_active = patch.is_active;
+    if (patch.last_recorded_on !== undefined) payload.last_recorded_on = patch.last_recorded_on;
+    const { data, error } = await supabase
+      .from('finance_entry_templates')
+      .update(payload)
+      .eq('id', id)
+      .eq('tenant_id', tenant_id)
+      .select(TEMPLATE_COLUMNS)
+      .maybeSingle();
+    if (error) return { data: null, error: explain(error, 'Unable to update the regular.') };
+    if (!isRecord(data)) return { data: null, error: 'This regular cannot be changed by you.' };
+    return { data: mapTemplate(data), error: null };
+  } catch {
+    return { data: null, error: 'Unable to update the regular.' };
+  }
+}
+
+// ─── Accounts: opening balances ───────────────────────────────────────────────
+
+/**
+ * Sets what an account held in cash and at the bank on the day the ledger
+ * starts. The balances are these plus everything recorded since. The owner's
+ * alone: the database refuses anyone else.
+ */
+export async function updateAccountOpening(id: string, openingCash: number, openingBank: number): Promise<ServiceResult<FinanceAccount>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('finance_accounts')
+      .update({ opening_cash_paise: toPaise(openingCash), opening_bank_paise: toPaise(openingBank) })
+      .eq('id', id)
+      .eq('tenant_id', tenant_id)
+      .select('*')
+      .maybeSingle();
+    if (error) return { data: null, error: explain(error, 'Unable to save the opening balance.') };
+    if (!isRecord(data)) return { data: null, error: 'Only the owner can set an opening balance.' };
+    return { data: mapAccount(data), error: null };
+  } catch {
+    return { data: null, error: 'Unable to save the opening balance.' };
+  }
+}
+
 // ─── Statements ───────────────────────────────────────────────────────────────
 
 /** How many entries a statement reads at most; older ones are reported as cut off. */
@@ -622,6 +753,75 @@ export async function fetchStatementEntries(subject: StatementSubject): Promise<
     return { data: { entries: truncated ? rows.slice(0, STATEMENT_MAX_ROWS) : rows, truncated }, error: null };
   } catch {
     return { data: null, error: 'Unable to load the statement.' };
+  }
+}
+
+// ─── Month-end book ───────────────────────────────────────────────────────────
+
+export type MonthBook = {
+  entries: FinanceEntry[];
+  openDues: FinanceEntry[];
+  /** Cash and bank on the day before the month; null when the caller may not see balances. */
+  opening: { cash: number; bank: number } | null;
+  closing: { cash: number; bank: number } | null;
+};
+
+const MONTH_BOOK_PAGE = 1000;
+const MONTH_BOOK_MAX = 10000;
+
+/**
+ * Everything the month-end workbook of one account needs: its entries dated
+ * in the range (any status, and those it only paid for), what is still open
+ * up to the range's end, and the cash and bank balances either side of it.
+ */
+export async function fetchMonthBook(accountId: string, startDate: string, endDate: string): Promise<ServiceResult<MonthBook>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    const entries: FinanceEntry[] = [];
+    for (let from = 0; from < MONTH_BOOK_MAX; from += MONTH_BOOK_PAGE) {
+      const { data, error } = await supabase
+        .from('finance_entries')
+        .select(ENTRY_COLUMNS)
+        .eq('tenant_id', tenant_id)
+        .gte('transaction_date', startDate)
+        .lte('transaction_date', endDate)
+        .or(`account_id.eq.${accountId},paid_from_account_id.eq.${accountId}`)
+        .order('transaction_date', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + MONTH_BOOK_PAGE - 1);
+      if (error) return { data: null, error: 'Unable to load the entries of the month.' };
+      const batch = asRecords(data).map(mapEntry);
+      entries.push(...batch);
+      if (batch.length < MONTH_BOOK_PAGE) break;
+    }
+
+    const duesRes = await supabase
+      .from('finance_entries')
+      .select(ENTRY_COLUMNS)
+      .eq('tenant_id', tenant_id)
+      .eq('account_id', accountId)
+      .eq('status', 'open')
+      .in('kind', ['payable', 'receivable'])
+      .lte('transaction_date', endDate)
+      .order('transaction_date', { ascending: true })
+      .limit(MONTH_BOOK_PAGE);
+    if (duesRes.error) return { data: null, error: 'Unable to load what is outstanding.' };
+
+    const [openingRes, closingRes] = await Promise.all([
+      fetchAccountBalances([accountId], addDays(startDate, -1)),
+      fetchAccountBalances([accountId], endDate),
+    ]);
+    const balanceOf = (res: ServiceResult<AccountBalance[]>) => {
+      const row = res.data?.find((b) => b.account_id === accountId);
+      return row ? { cash: row.cash, bank: row.bank } : null;
+    };
+
+    return {
+      data: { entries, openDues: asRecords(duesRes.data).map(mapEntry), opening: balanceOf(openingRes), closing: balanceOf(closingRes) },
+      error: null,
+    };
+  } catch {
+    return { data: null, error: 'Unable to load the month.' };
   }
 }
 
