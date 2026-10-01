@@ -708,6 +708,7 @@ const FIELD_LABELS: Record<string, string> = {
   counterparty: 'Paid to / received from',
   reference_no: 'Reference',
   notes: 'Notes',
+  receipt_path: 'Bill',
   settles_entry_id: 'Settles',
   settled_paise: 'Settled',
   void_reason: 'Void reason',
@@ -726,6 +727,8 @@ export function describeChanges(
 ): ChangeLine[] {
   const render = (field: string, value: unknown): string => {
     if (value === null || value === undefined) return '—';
+    // The storage path means nothing to a reader; that a bill is there does.
+    if (field === 'receipt_path') return 'attached';
     if (field === 'amount_paise' || field === 'settled_paise') {
       return typeof value === 'number' ? formatMoney(value / 100) : String(value);
     }

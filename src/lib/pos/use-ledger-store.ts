@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 
 import {
+  attachEntryReceipt,
   createCatalogItem,
   createEntryTemplate,
   createLedgerEntry,
@@ -52,6 +53,7 @@ import type {
   InterAccountPosition,
   LedgerAccountSummary,
   LedgerFilters,
+  ReceiptFile,
   SettleEntryInput,
 } from './finance-types';
 import { LEDGER_MAX_ROWS, catalogSiblings, initialLedgerFilters, moveCatalogSibling, templateToEntryInput } from './finance-ledger-utils';
@@ -127,6 +129,8 @@ type LedgerState = {
    * and says how many were saved before it.
    */
   recordTemplates: (picks: readonly { template: EntryTemplate; amount: number }[], date: string) => Promise<MutationResult & { recorded: number }>;
+  /** Uploads a photo or PDF of the bill and ties it to the entry. */
+  attachReceipt: (entryId: string, file: ReceiptFile) => Promise<MutationResult>;
   /** The owner sets what an account held when the ledger started. */
   saveAccountOpening: (id: string, openingCash: number, openingBank: number) => Promise<MutationResult>;
   openEntry: (entry: FinanceEntry | null) => Promise<void>;
@@ -344,6 +348,20 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
         return { ok: false, error: recorded > 0 ? `${recorded} saved, then: ${failure}` : failure, recorded };
       }
       return { ok: true, recorded };
+    },
+
+    attachReceipt: async (entryId, file) => {
+      set({ mutating: true });
+      const { data, error } = await attachEntryReceipt(entryId, file);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to attach the bill.' };
+      set({
+        entries: get().entries.map((e) => (e.id === entryId ? data : e)),
+        selected: get().selected?.id === entryId ? data : get().selected,
+      });
+      // The history gains a line for the attachment.
+      if (get().selected?.id === entryId) await get().openEntry(data);
+      return { ok: true };
     },
 
     saveAccountOpening: async (id, openingCash, openingBank) => {

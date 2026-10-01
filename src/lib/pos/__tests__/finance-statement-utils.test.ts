@@ -35,6 +35,7 @@ function entry(over: Partial<FinanceEntry>): FinanceEntry {
     counterparty: null,
     reference_no: null,
     notes: null,
+    receipt_path: null,
     settles_entry_id: null,
     settled: 0,
     settled_at: null,

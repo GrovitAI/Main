@@ -100,6 +100,7 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
     counterparty: 'TANGEDCO',
     reference_no: null,
     notes: null,
+    receipt_path: null,
     counterparty_account_id: null,
     source_type: null,
     source_id: null,

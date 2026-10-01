@@ -1819,7 +1819,37 @@ export default function InventoryScreen() {
   // ─── TAB RENDER VIEWS ──────────────────────────────────────────────────────
 
   const renderDashboard = () => {
-    const activeHealth = kpis ? Math.round(100 - (kpis.lowStockCount / (kpis.totalMaterials || 1)) * 100) : 82;
+    const activeHealth = kpis ? Math.round(100 - (kpis.lowStockCount / (kpis.totalMaterials || 1)) * 100) : 0;
+    const rupees = (value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+    // Every figure below comes from the data: nothing is shown until it has loaded.
+    const wastageShare =
+      kpis && kpis.monthlyPurchasesThisMonth > 0 ? (kpis.wastageCostImpactThisMonth / kpis.monthlyPurchasesThisMonth) * 100 : null;
+
+    // Purchases still on credit: the supplier's payable is open in Finance.
+    const unpaidPurchases = purchases.filter((p) => p.finance_entry?.kind === 'payable' && p.finance_entry.status === 'open');
+    const unpaidPurchasesTotal = unpaidPurchases.reduce((sum, p) => sum + p.grand_total, 0);
+
+    const lastPurchaseTime = purchases.reduce((latest, p) => Math.max(latest, new Date(p.purchase_date).getTime() || 0), 0);
+    const daysSincePurchase = lastPurchaseTime > 0 ? Math.max(0, Math.floor((Date.now() - lastPurchaseTime) / 86_400_000)) : null;
+    const lastPurchaseCaption =
+      daysSincePurchase === null ? 'No purchases yet' : daysSincePurchase === 0 ? 'Last purchase: today' : `Last purchase: ${daysSincePurchase} ${daysSincePurchase === 1 ? 'day' : 'days'} ago`;
+
+    // Purchase value per month for the last five months, oldest first.
+    const procurementTrend = (() => {
+      const now = new Date();
+      const months = [4, 3, 2, 1, 0].map((back) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
+      const totals = new Map(months.map((m) => [m, 0]));
+      for (const p of purchases) {
+        const key = (p.purchase_date || '').slice(0, 7);
+        if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + p.grand_total);
+      }
+      return months.map((m) => totals.get(m) ?? 0);
+    })();
+    const hasProcurementTrend = procurementTrend.filter((v) => v > 0).length >= 2;
 
     return (
       <View className="flex-col gap-6">
@@ -1833,11 +1863,12 @@ export default function InventoryScreen() {
                 <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inventory Value</Text>
               </View>
               <Text className="text-2xl font-black text-slate-800 leading-none">
-                ₹{kpis ? kpis.inventoryValuation.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '21,285'}
+                {kpis ? rupees(kpis.inventoryValuation) : '—'}
               </Text>
-              <Text className="text-[9.5px] text-emerald-600 font-bold mt-2">↑ 12.4% vs last month</Text>
+              <Text className="text-[9.5px] text-slate-400 font-bold mt-2">
+                {kpis ? `${kpis.totalMaterials} ${kpis.totalMaterials === 1 ? 'material' : 'materials'} at average cost` : 'Loading…'}
+              </Text>
             </View>
-            <Sparkline data={[18000, 19500, 17200, 20500, 21285]} strokeColor="#0066b2" />
           </View>
 
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
@@ -1848,8 +1879,10 @@ export default function InventoryScreen() {
                 </View>
                 <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inventory Health</Text>
               </View>
-              <Text className="text-2xl font-black text-slate-800 leading-none">{activeHealth}% Good</Text>
-              <Text className="text-[9.5px] text-emerald-600 font-bold mt-2">Good</Text>
+              <Text className="text-2xl font-black text-slate-800 leading-none">{kpis ? `${activeHealth}%` : '—'}</Text>
+              <Text className={`text-[9.5px] font-bold mt-2 ${kpis && kpis.lowStockCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {kpis ? (kpis.lowStockCount > 0 ? `${kpis.lowStockCount} at or below reorder level` : 'Nothing below reorder level') : 'Loading…'}
+              </Text>
             </View>
             <CircularProgress percentage={activeHealth} />
           </View>
@@ -1863,11 +1896,12 @@ export default function InventoryScreen() {
                 <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Wastage</Text>
               </View>
               <Text className="text-2xl font-black text-slate-800 leading-none">
-                ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '1,440'}
+                {kpis ? rupees(kpis.wastageCostImpactThisMonth) : '—'}
               </Text>
-              <Text className="text-[9.5px] text-rose-500 font-bold mt-2">6.7% of purchases</Text>
+              <Text className="text-[9.5px] text-rose-500 font-bold mt-2">
+                {wastageShare === null ? 'This month' : `${wastageShare.toFixed(1)}% of this month's purchases`}
+              </Text>
             </View>
-            <Sparkline data={[1200, 1500, 950, 1600, 1440]} strokeColor="#f97316" fillColor="rgba(249, 115, 22, 0.1)" />
           </View>
 
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
@@ -1879,11 +1913,18 @@ export default function InventoryScreen() {
                 <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Procurement</Text>
               </View>
               <Text className="text-2xl font-black text-slate-800 leading-none">
-                ₹{kpis ? kpis.monthlyPurchasesThisMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '22,950'}
+                {kpis ? rupees(kpis.monthlyPurchasesThisMonth) : '—'}
               </Text>
-              <Text className="text-[9.5px] text-slate-400 font-bold mt-2">Last purchase: 3 days ago</Text>
+              <Text className="text-[9.5px] text-slate-400 font-bold mt-2">{lastPurchaseCaption}</Text>
+              {unpaidPurchases.length > 0 ? (
+                <Text className="text-[9.5px] text-amber-600 font-bold mt-1">
+                  {unpaidPurchases.length} unpaid · {rupees(unpaidPurchasesTotal)} to pay
+                </Text>
+              ) : null}
             </View>
-            <Sparkline data={[19000, 25000, 18500, 24000, 22950]} strokeColor="#8b5cf6" fillColor="rgba(139, 92, 246, 0.1)" />
+            {hasProcurementTrend ? (
+              <Sparkline data={procurementTrend} strokeColor="#8b5cf6" fillColor="rgba(139, 92, 246, 0.1)" />
+            ) : null}
           </View>
         </View>
 
@@ -2189,8 +2230,6 @@ export default function InventoryScreen() {
     const totalStockValue = materials.reduce((sum, m) => sum + (m.current_stock * m.average_cost), 0);
     const lowStockCount = materials.filter(m => m.current_stock <= m.reorder_level && m.current_stock > 0).length;
     const outOfStockCount = materials.filter(m => m.current_stock === 0).length;
-    const pendingPurchasesCount = 8;
-    const pendingPurchasesValuation = 48250;
 
     // ─── CLIENT-SIDE PAGINATION ─────────────────────────────────────────────
     const totalFiltered = filteredMaterials.length;

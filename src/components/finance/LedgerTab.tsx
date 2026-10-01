@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   ArrowDownLeft,
   ArrowLeftRight,
@@ -14,6 +15,7 @@ import {
   FileSpreadsheet,
   FileText,
   History,
+  Paperclip,
   Pencil,
   Plus,
   Repeat,
@@ -72,7 +74,7 @@ import {
   type DueStatus,
   type QuickEntryKey,
 } from '@/lib/pos/finance-ledger-utils';
-import { fetchCounterpartyNames, fetchLedgerEntry, fetchPairPosition } from '@/lib/pos/finance-ledger-service';
+import { fetchCounterpartyNames, fetchLedgerEntry, fetchPairPosition, fetchReceiptUrl } from '@/lib/pos/finance-ledger-service';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -159,6 +161,7 @@ export function LedgerTab({ compact = false }: Props) {
   const saveTemplate = useLedgerStore((s) => s.saveTemplate);
   const removeTemplate = useLedgerStore((s) => s.removeTemplate);
   const recordTemplates = useLedgerStore((s) => s.recordTemplates);
+  const attachReceipt = useLedgerStore((s) => s.attachReceipt);
   const openEntry = useLedgerStore((s) => s.openEntry);
   const openEntryById = useLedgerStore((s) => s.openEntryById);
   const clearNewEntryRequest = useLedgerStore((s) => s.clearNewEntryRequest);
@@ -179,6 +182,7 @@ export function LedgerTab({ compact = false }: Props) {
   const [countTarget, setCountTarget] = useState<string | null>(null);
   const [countError, setCountError] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [receiptNotice, setReceiptNotice] = useState<string | null>(null);
   const [regularsOpen, setRegularsOpen] = useState(false);
   const [regularsError, setRegularsError] = useState<string | null>(null);
   const [searchDraft, setSearchDraft] = useState(filters.search);
@@ -366,6 +370,37 @@ export function LedgerTab({ compact = false }: Props) {
     const result = await saveTemplate(input);
     void openEntry(null);
     setSavedNotice(result.ok ? `Saved to the regulars · ${entry.particulars}` : result.error);
+  };
+
+  // A photo or PDF of the bill, picked from the device and tied to the entry.
+  const handleAttachReceipt = async (entry: FinanceEntry) => {
+    setReceiptNotice(null);
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'], copyToCacheDirectory: true, multiple: false });
+      if (picked.canceled || picked.assets.length === 0) return;
+      const asset = picked.assets[0];
+      const result = await attachReceipt(entry.id, {
+        uri: asset.uri,
+        name: asset.name,
+        mimeType: asset.mimeType ?? null,
+        size: asset.size ?? null,
+        file: asset.file ?? null,
+      });
+      setReceiptNotice(result.ok ? 'Bill attached.' : result.error);
+    } catch {
+      setReceiptNotice('Unable to open the file picker.');
+    }
+  };
+
+  const handleViewReceipt = async (entry: FinanceEntry) => {
+    if (!entry.receipt_path) return;
+    setReceiptNotice(null);
+    const { data, error: failure } = await fetchReceiptUrl(entry.receipt_path);
+    if (failure || !data) {
+      setReceiptNotice(failure ?? 'Unable to open the bill.');
+      return;
+    }
+    void Linking.openURL(data).catch(() => setReceiptNotice('Unable to open the bill.'));
   };
 
   const openCount = (accountId: string) => {
@@ -920,6 +955,14 @@ export function LedgerTab({ compact = false }: Props) {
             ? () => void handleSaveRegular(selected)
             : undefined
         }
+        onViewReceipt={selected?.receipt_path ? () => void handleViewReceipt(selected) : undefined}
+        onAttachReceipt={
+          selected && selected.status !== 'void' && myAccounts.some((a) => a.id === selected.account_id)
+            ? () => void handleAttachReceipt(selected)
+            : undefined
+        }
+        receiptBusy={mutating}
+        receiptNotice={receiptNotice}
         canSettle={selected ? canSettleEntry(selected, role) : false}
         onSettle={() => {
           if (!selected) return;
@@ -1244,6 +1287,13 @@ type EntryDetailSheetProps = {
   onShowStatement: () => void;
   /** Saves this entry as a regular; absent when it cannot be one. */
   onSaveRegular?: () => void;
+  /** Opens the attached bill; absent when there is none. */
+  onViewReceipt?: () => void;
+  /** Picks a photo or PDF of the bill; absent when the user may not attach one. */
+  onAttachReceipt?: () => void;
+  receiptBusy: boolean;
+  /** What the last attach or open came to. */
+  receiptNotice: string | null;
   canSettle: boolean;
   onSettle: () => void;
   /** Opens the payable or receivable this payment settles. */
@@ -1259,7 +1309,7 @@ type EntryDetailSheetProps = {
   describe: (changes: Record<string, { from: unknown; to: unknown }>) => { field: string; label: string; from: string; to: string }[];
 };
 
-function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, onShowStatement, onSaveRegular, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
+function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, due, onShowCounterparty, onShowStatement, onSaveRegular, onViewReceipt, onAttachReceipt, receiptBusy, receiptNotice, canSettle, onSettle, onViewSettled, categoryPath, revisions, revisionsLoading, canEdit, canVoid, onEdit, onVoid, onClose, describe }: EntryDetailSheetProps) {
   const insets = useSafeAreaInsets();
   if (!entry) return null;
   const tone = kindTone(entry.kind);
@@ -1342,6 +1392,42 @@ function EntryDetailSheet({ entry, compact, accountName, payerName, otherName, d
                 </Text>
               </Pressable>
             ) : null}
+            {onViewReceipt || onAttachReceipt ? (
+              <View className="min-h-[44px] flex-row items-center justify-between border-b border-border-soft py-2">
+                <Text className="w-[130px] text-[11px] font-bold uppercase tracking-wide text-text-secondary">Bill</Text>
+                <View className="flex-1 flex-row items-center justify-end gap-2">
+                  {receiptBusy ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+                  {!onViewReceipt && !receiptBusy ? <Text className="text-sm text-text-secondary">None attached</Text> : null}
+                  {onViewReceipt ? (
+                    <Pressable
+                      onPress={onViewReceipt}
+                      className="min-h-[36px] flex-row items-center rounded-full border border-primary bg-accent-soft px-3"
+                      hitSlop={4}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open the attached bill"
+                    >
+                      <Paperclip size={13} color={colors.primary} />
+                      <Text className="ml-1 text-xs font-bold text-primary">View</Text>
+                    </Pressable>
+                  ) : null}
+                  {onAttachReceipt ? (
+                    <Pressable
+                      onPress={onAttachReceipt}
+                      disabled={receiptBusy}
+                      className="min-h-[36px] flex-row items-center rounded-full border border-border bg-white px-3"
+                      hitSlop={4}
+                      style={({ pressed }) => [{ opacity: pressed || receiptBusy ? 0.6 : 1 }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={onViewReceipt ? 'Replace the bill' : 'Attach a photo or PDF of the bill'}
+                    >
+                      <Text className="text-xs font-bold text-text-primary">{onViewReceipt ? 'Replace' : 'Attach photo or PDF'}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            {receiptNotice ? <Text className="py-1 text-right text-[11px] font-semibold text-text-secondary">{receiptNotice}</Text> : null}
             {onSaveRegular ? (
               <Pressable
                 onPress={onSaveRegular}

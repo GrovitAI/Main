@@ -32,6 +32,7 @@ import type {
   LedgerAccountSummary,
   LedgerFilters,
   LedgerPage,
+  ReceiptFile,
   ServiceResult,
   SettleEntryInput,
   StatementSubject,
@@ -97,7 +98,7 @@ function explain(error: PgError, fallback: string): string {
 
 const ENTRY_COLUMNS =
   'id, account_id, paid_from_account_id, counterparty_account_id, source_type, source_id, kind, status, amount_paise, mode, transfer_from, transfer_to, transaction_date, due_date, entered_at, entered_by, ' +
-  'category_id, subcategory_id, particular_id, particulars, counterparty, reference_no, notes, settles_entry_id, settled_paise, ' +
+  'category_id, subcategory_id, particular_id, particulars, counterparty, reference_no, notes, receipt_path, settles_entry_id, settled_paise, ' +
   'settled_at, void_reason, voided_at, updated_at, version, entered_staff:staff!finance_entries_entered_by_fkey(name)';
 
 function toSourceType(value: unknown): FinanceEntry['source_type'] {
@@ -134,6 +135,7 @@ function mapEntry(row: Record<string, unknown>): FinanceEntry {
     counterparty: toStringOrNull(row.counterparty),
     reference_no: toStringOrNull(row.reference_no),
     notes: toStringOrNull(row.notes),
+    receipt_path: toStringOrNull(row.receipt_path),
     settles_entry_id: toStringOrNull(row.settles_entry_id),
     settled: fromPaise(toNumber(row.settled_paise)),
     settled_at: toStringOrNull(row.settled_at),
@@ -552,6 +554,48 @@ export async function fetchEntryRevisions(entryId: string): Promise<ServiceResul
     return { data: asRecords(data).map(mapRevision), error: null };
   } catch {
     return { data: null, error: 'Unable to load the edit history.' };
+  }
+}
+
+// ─── The bill behind an entry ─────────────────────────────────────────────────
+
+const RECEIPT_BUCKET = 'finance-receipts';
+export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Uploads a photo or PDF of a bill and ties it to the entry. The file goes to
+ * a private bucket under <tenant>/<entry>/; the database checks that the
+ * caller keeps the entry's books before the entry points at it.
+ */
+export async function attachEntryReceipt(entryId: string, picked: ReceiptFile): Promise<ServiceResult<FinanceEntry>> {
+  try {
+    const { tenant_id } = getTenantContext();
+    if (!currentStaffId()) return { data: null, error: 'Sign in again to attach a bill.' };
+    if (picked.size !== null && picked.size > RECEIPT_MAX_BYTES) return { data: null, error: 'Keep the file under 5 MB.' };
+    const safeName = picked.name.replace(/[^A-Za-z0-9._-]+/g, '-').slice(-60) || 'bill';
+    const path = `${tenant_id}/${entryId}/${Date.now()}-${safeName}`;
+    // A browser hands over the file itself; the app reads its copy of the pick.
+    const body: Blob | ArrayBuffer = picked.file ? picked.file : await fetch(picked.uri).then((res) => res.arrayBuffer());
+    const upload = await supabase.storage
+      .from(RECEIPT_BUCKET)
+      .upload(path, body, { contentType: picked.mimeType ?? 'application/octet-stream', upsert: false });
+    if (upload.error) return { data: null, error: 'Unable to upload the bill. Use a photo or a PDF under 5 MB.' };
+    const { error } = await supabase.rpc('finance_set_entry_receipt', { p_entry_id: entryId, p_receipt_path: path });
+    if (error) return { data: null, error: explain(error, 'Unable to attach the bill.') };
+    return fetchLedgerEntry(entryId);
+  } catch {
+    return { data: null, error: 'Unable to attach the bill.' };
+  }
+}
+
+/** A link to an attached bill that works for five minutes. */
+export async function fetchReceiptUrl(path: string): Promise<ServiceResult<string>> {
+  try {
+    const { data, error } = await supabase.storage.from(RECEIPT_BUCKET).createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) return { data: null, error: 'Unable to open the bill.' };
+    return { data: data.signedUrl, error: null };
+  } catch {
+    return { data: null, error: 'Unable to open the bill.' };
   }
 }
 

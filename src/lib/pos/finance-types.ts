@@ -369,6 +369,8 @@ export type FinanceEntry = {
   counterparty: string | null;
   reference_no: string | null;
   notes: string | null;
+  /** Where the photo or PDF of the bill sits in storage; null when none is attached. */
+  receipt_path: string | null;
   settles_entry_id: string | null;
   settled: number;
   settled_at: string | null;
@@ -555,6 +557,16 @@ export type Statement = {
   direction: 'they_owe' | 'we_owe' | 'settled';
   /** The list stopped at the fetch limit; older rows may be missing. */
   truncated: boolean;
+};
+
+/** A photo or PDF of a bill picked on the device, ready to upload. */
+export type ReceiptFile = {
+  uri: string;
+  name: string;
+  mimeType: string | null;
+  size: number | null;
+  /** In a browser the picker hands over the file itself. */
+  file?: Blob | null;
 };
 
 // ─── Regulars (entry templates) ──────────────────────────────────────────────
