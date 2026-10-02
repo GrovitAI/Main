@@ -82,12 +82,29 @@ Analytics talk to the database directly and work in full.
 ## 3. Refresh the copy
 
 Run the script again with `-Refresh` to replace staging with production as it
-is today. Migrations not yet on production then need applying to staging
-again.
+is today.
 
 ```bash
 powershell -ExecutionPolicy Bypass -File scripts\staging-clone.ps1 -Refresh
 ```
+
+After the copy the script applies, in order, every migration named in
+`supabase/staging-pending.txt`: the ones staging has and production does not
+have yet. A line is removed from that file once its migration is on
+production.
+
+Two things the first copy (2026-10-02) taught, both now in the script:
+
+- **Permissions.** A new Supabase project hands every new table and function
+  to the API roles by default, and a dump says only what to grant, so the
+  first copy left staging more open than production (`anon` could reach every
+  table). The script now switches those defaults off for the load. Rehearsed
+  on a local database: the permissions then match production by checksum.
+- **Extensions.** Production keeps `pg_trgm` in the `public` schema; the
+  ledger's search indexes depend on that.
+
+The scheduled jobs (consumption worker, balance snapshots, demo roll-forward,
+log purge) were created on staging once, by hand, and survive a refresh.
 
 ## 4. From staging to production
 
@@ -99,7 +116,40 @@ approved:
    before the next (AGENTS.md, "Migration rules").
 2. The branch is merged into `main` and pushed; Vercel deploys the web app.
 
-Migrations waiting as of 2026-10-01, in order:
+## 5. A throwaway local database, for trying a migration first
+
+A migration can be run against a copy on this computer before it goes even to
+staging. PostgreSQL's own tools are installed (`C:\Program Files\PostgreSQL\18\bin`);
+the files the clone script leaves in `%TEMP%\grovit-staging-<ref>` are the copy.
+
+```bash
+initdb -D <folder> -U postgres -A trust -E UTF8 --locale=C
+pg_ctl -D <folder> -o "-p 54329 -c listen_addresses=localhost" -l <folder>.log start
+psql -p 54329 -U postgres -v ON_ERROR_STOP=1 -f scripts/local-db/bootstrap.sql
+psql -p 54329 -U postgres -d grovit -f %TEMP%\grovit-staging-<ref>\schema.sql
+psql -p 54329 -U postgres -d grovit -c "SET session_replication_role = replica" -f %TEMP%\grovit-staging-<ref>\data.sql
+psql -p 54329 -U postgres -d grovit -v ON_ERROR_STOP=1 --single-transaction -f supabase/migrations/<file>.sql
+psql -p 54329 -U postgres -d grovit -f scripts/local-db/finance-flows.sql
+```
+
+- `scripts/local-db/bootstrap.sql` stands in for the parts of Supabase the
+  schema leans on: the API roles, `auth.uid()`, a storage bucket table.
+- `scripts/local-db/finance-flows.sql` plays the finance flows as the owner, a
+  branch admin, a branch manager and a visitor who is not signed in, and rolls
+  everything back. Each step prints what it expects.
+- `scripts/local-db/state-hash.sql` prints checksums of every function,
+  policy, column and permission. Run on the local database and on staging,
+  equal checksums mean the two hold the same definitions.
+
+This is how the seven migrations below were first run (2026-10-02). It caught
+one fault before staging saw it: a purchase on credit, and every dispatch,
+would have failed, because a payable or receivable was posted without the
+payment mode the ledger requires (fixed in task 121). Stop the server with
+`pg_ctl -D <folder> stop` and delete the folder afterwards: it holds real data.
+
+## 6. What is waiting
+
+Migrations on staging and not yet on production, as of 2026-10-02, in order:
 
 | File | What it does |
 | :--- | :--- |

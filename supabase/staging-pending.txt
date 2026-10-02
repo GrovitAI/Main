@@ -1,0 +1,11 @@
+# Migrations that staging has and production does not have yet, in order.
+# scripts/staging-clone.ps1 applies these after copying production, so a
+# refreshed staging gets them back. Remove a line once the owner has applied
+# that file to production.
+20260927000100_finance_inventory_links.sql
+20261001000100_finance_overview_from_ledger.sql
+20261001000200_finance_due_dates_counterparties.sql
+20261001000300_finance_cash_counts.sql
+20261001000400_purchase_paid_by_branch_view.sql
+20261001000500_finance_entry_templates.sql
+20261001000600_finance_receipts.sql

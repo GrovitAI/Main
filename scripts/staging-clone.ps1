@@ -220,9 +220,9 @@ DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA public TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
 
 '@
 }
@@ -233,6 +233,16 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- A new Supabase project hands every new table and function to the API roles
+-- by default, and the dump only says what to grant, never what to take away.
+-- Loaded as it stands, staging would be more open than production (found on
+-- the first copy, 2026-10-02). So nothing is handed out by default during the
+-- load; the dump's own grants then reproduce production exactly, and its last
+-- lines put production's default privileges in place.
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon, authenticated, service_role;
 '@
 Set-Content -Path $prepFile -Value $prepare -Encoding ascii
 Invoke-Tool $psql @("--dbname=$stagingUri", '--set', 'ON_ERROR_STOP=1', '--quiet', "--file=$prepFile") 'extensions and a clean public schema' $null
@@ -260,15 +270,37 @@ if (-not $DryRun) {
   # Staging must never print: no printers came across, and none may be left from an earlier copy.
   & $psql "--dbname=$stagingUri" '--quiet' '--command' 'DELETE FROM public.print_jobs; DELETE FROM public.printers; DELETE FROM public.pos_terminals;' | Out-Null
 
+  # --- 4. Migrations production does not have yet ----------------------------
+  # supabase/staging-pending.txt names them, one file per line, in order. Each
+  # runs in its own transaction and the first failure stops the run.
+  $repo = Split-Path -Parent $PSScriptRoot
+  $pendingList = Join-Path $repo 'supabase\staging-pending.txt'
+  $applied = 0
+  if (Test-Path $pendingList) {
+    $pending = @(Get-Content $pendingList | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })
+    if ($pending.Count -gt 0) {
+      Write-Host ''
+      Write-Host '4. Applying the migrations that are waiting for production' -ForegroundColor Green
+      foreach ($name in $pending) {
+        $file = Join-Path $repo "supabase\migrations\$name"
+        if (-not (Test-Path $file)) { throw "supabase/staging-pending.txt names $name, which is not in supabase/migrations." }
+        $migrationLog = Join-Path $work "migration-$name.log"
+        Invoke-Tool $psql @("--dbname=$stagingUri", '--set', 'ON_ERROR_STOP=1', '--single-transaction', '--quiet', "--file=$file") $name $migrationLog
+        $applied++
+      }
+    }
+  }
+
   Write-Host ''
   Write-Host 'Done.' -ForegroundColor Green
   Write-Host "  Staging $stagingRef now has $tables tables, $bills bills and $users sign-ins."
   Write-Host "  $($errors.Count) messages in the load log: $loadLog"
+  Write-Host "  $applied migrations that production does not have yet were applied on top."
   Write-Host ''
   Write-Host 'Sign in to staging with the same email and password as production.'
   Write-Host 'Next: tell Claude that staging is cloned, with this project ref:' -NoNewline
   Write-Host " $stagingRef" -ForegroundColor Yellow
-  Write-Host 'Claude then checks the copy, applies the new migrations to staging only, and points the local app at it.'
+  Write-Host 'Claude then checks the copy against production before you test.'
   Write-Host ''
   Write-Host "The dump files hold real data. They are in $work ; delete that folder when you are done." -ForegroundColor Yellow
 } else {
