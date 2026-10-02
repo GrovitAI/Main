@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Easing,
   FlatList,
@@ -65,7 +64,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
-import { getTenantContext } from '@/lib/pos/tenant-context';
+import { getActorName, getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { canRaiseTransferRequest } from '@/lib/pos/transfer-access';
@@ -143,6 +142,7 @@ import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { getProducts, type Product } from '@/lib/pos/products-service';
 import * as DocumentPicker from 'expo-document-picker';
 import { getErrorMessage } from '../../lib/pos/error-utils';
+import { confirmAction, notify } from '@/lib/pos/dialogs';
 import { fetchFinanceAccounts } from '@/lib/pos/finance-ledger-service';
 import type { FinanceAccount } from '@/lib/pos/finance-types';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
@@ -420,13 +420,10 @@ export default function InventoryScreen() {
   // ─── FILTER STATES ─────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'healthy' | 'low' | 'out' | 'expiring'>('all');
-  const [locationFilter, setLocationFilter] = useState<string>('all');
-  const [showOnlyMyItems, setShowOnlyMyItems] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'healthy' | 'low' | 'out'>('all');
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 
   // ─── MODAL STATES ──────────────────────────────────────────────────────────
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -580,7 +577,7 @@ export default function InventoryScreen() {
   const [wastageQty, setWastageQty] = useState('');
   const [wastageReason, setWastageReason] = useState<'Expired' | 'Spoiled' | 'Kitchen Waste' | 'Damage' | 'Theft' | 'Other'>('Spoiled');
   const [wastageLocation, setWastageLocation] = useState('Dry Storage');
-  const [wastageRecorder, setWastageRecorder] = useState('Chef Amit');
+  const [wastageRecorder, setWastageRecorder] = useState('');
 
   // New Adjustment states
   const [adjMaterialId, setAdjMaterialId] = useState('');
@@ -766,28 +763,19 @@ export default function InventoryScreen() {
         (m.barcode && m.barcode.includes(searchQuery));
       const matchCat = selectedCategoryFilter === 'all' || m.category_id === selectedCategoryFilter;
       
-      // Status Filter
-      const isOut = m.current_stock === 0;
+      // Status Filter. Stock at or below zero is out of stock.
+      const isOut = m.current_stock <= 0;
       const isLow = m.current_stock > 0 && m.current_stock <= m.reorder_level;
-      const isHealthy = m.current_stock > m.reorder_level;
-      const isExpiringSoon = m.current_stock > 0 && m.current_stock <= m.reorder_level * 0.6;
-      
+      const isHealthy = m.current_stock > 0 && m.current_stock > m.reorder_level;
+
       let matchStatus = true;
       if (statusFilter === 'healthy') matchStatus = isHealthy;
       else if (statusFilter === 'low') matchStatus = isLow;
       else if (statusFilter === 'out') matchStatus = isOut;
-      else if (statusFilter === 'expiring') matchStatus = isExpiringSoon;
 
-      // Location Filter
-      const itemLocation = m.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage';
-      const matchLocation = locationFilter === 'all' || itemLocation === locationFilter;
-
-      // My Items Filter (mocked using preferred supplier ID or code check)
-      const matchMyItems = !showOnlyMyItems || (m.preferred_supplier_id === 'sup-00000000-0000-0000-0000-000000000001');
-
-      return matchSearch && matchCat && matchStatus && matchLocation && matchMyItems;
+      return matchSearch && matchCat && matchStatus;
     });
-  }, [materials, searchQuery, selectedCategoryFilter, statusFilter, locationFilter, showOnlyMyItems]);
+  }, [materials, searchQuery, selectedCategoryFilter, statusFilter]);
 
   const lowStockMaterials = useMemo(() => {
     return materials.filter((m) => m.current_stock <= m.reorder_level && m.current_stock > 0);
@@ -824,10 +812,10 @@ export default function InventoryScreen() {
       if (Platform.OS === 'web') {
         XLSX.writeFile(wb, 'grovit_raw_materials_template.xlsx');
       } else {
-        Alert.alert('Info', 'Excel template download is supported on the web version.');
+        notify('Info', 'Excel template download is supported on the web version.');
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to generate template: ' + (getErrorMessage(err) || err));
+      notify('Error', 'Failed to generate template: ' + (getErrorMessage(err) || err));
     }
   };
 
@@ -851,7 +839,7 @@ export default function InventoryScreen() {
       if (Platform.OS === 'web') {
         const file = asset.file;
         if (!file) {
-          Alert.alert('Error', 'Unable to access the selected file.');
+          notify('Error', 'Unable to access the selected file.');
           return;
         }
 
@@ -860,7 +848,7 @@ export default function InventoryScreen() {
           try {
             const data = e.target?.result;
             if (!data) {
-              Alert.alert('Error', 'File content is empty.');
+              notify('Error', 'File content is empty.');
               return;
             }
 
@@ -871,7 +859,7 @@ export default function InventoryScreen() {
             const json = XLSX.utils.sheet_to_json<ImportRow>(worksheet);
 
             if (json.length === 0) {
-              Alert.alert('Error', 'The uploaded Excel file contains no data rows.');
+              notify('Error', 'The uploaded Excel file contains no data rows.');
               return;
             }
 
@@ -879,15 +867,15 @@ export default function InventoryScreen() {
             setImportSummary(summary);
             setIsImportModalOpen(true);
           } catch (err) {
-            Alert.alert('Error', 'Failed to parse Excel file: ' + (getErrorMessage(err) || err));
+            notify('Error', 'Failed to parse Excel file: ' + (getErrorMessage(err) || err));
           }
         };
         reader.readAsArrayBuffer(file);
       } else {
-        Alert.alert('Info', 'Excel import is currently supported on the web version.');
+        notify('Info', 'Excel import is currently supported on the web version.');
       }
     } catch (err) {
-      Alert.alert('Error', 'File picker error: ' + (getErrorMessage(err) || err));
+      notify('Error', 'File picker error: ' + (getErrorMessage(err) || err));
     }
   };
 
@@ -901,19 +889,19 @@ export default function InventoryScreen() {
       console.log('[Import] Execution result:', result);
 
       if (result.error) {
-        Alert.alert('Import Failed', String(result.error));
+        notify('Import Failed', String(result.error));
       } else if (result.data) {
-        Alert.alert('Import Success', `Successfully imported ${result.data.count} raw materials.`);
+        notify('Import Success', `Successfully imported ${result.data.count} raw materials.`);
         setIsImportModalOpen(false);
         setImportSummary(null);
         invalidateEntities(['materials', 'kpis']);
         await loadAllData(false, viewedBranchId);
       } else {
-        Alert.alert('Import Error', 'Import process finished without data or error.');
+        notify('Import Error', 'Import process finished without data or error.');
       }
     } catch (err) {
       console.error('[Import] Execution threw error:', err);
-      Alert.alert('Error', 'An unexpected error occurred: ' + (getErrorMessage(err) || err));
+      notify('Error', 'An unexpected error occurred: ' + (getErrorMessage(err) || err));
     } finally {
       setIsImporting(false);
     }
@@ -1038,18 +1026,42 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteMaterialItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteMaterial(id);
-      invalidateEntities(['materials', 'kpis']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  // Removing a catalogue record: ask first, and say so when it did not happen.
+  const removeCatalogueRecord = useCallback(
+    (
+      what: string,
+      name: string,
+      remove: () => Promise<{ error: string | null }>,
+      entities: string[]
+    ) => {
+      confirmAction(
+        `Remove ${what}`,
+        `Remove "${name}"? Records that already use it keep their history.`,
+        'Remove',
+        () => {
+          void (async () => {
+            setIsLoading(true);
+            try {
+              const res = await remove();
+              if (res.error) {
+                notify(`Could not remove the ${what}`, res.error);
+                return;
+              }
+              invalidateEntities(entities);
+              await loadAllData(true);
+            } finally {
+              setIsLoading(false);
+            }
+          })();
+        }
+      );
+    },
+    [invalidateEntities, loadAllData]
+  );
+
+  const handleDeleteMaterialItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('material', name, () => deleteMaterial(id), ['materials', 'kpis']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenSupplierModal = useCallback((supplier?: InventorySupplier) => {
     setModalError(null);
@@ -1129,18 +1141,9 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteSupplierItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteSupplier(id);
-      invalidateEntities(['suppliers']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  const handleDeleteSupplierItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('supplier', name, () => deleteSupplier(id), ['suppliers']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenCategoryModal = useCallback((category?: InventoryCategory) => {
     setModalError(null);
@@ -1196,18 +1199,9 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteCategoryItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteCategory(id);
-      invalidateEntities(['categories']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  const handleDeleteCategoryItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('category', name, () => deleteCategory(id), ['categories']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenUnitModal = useCallback((unit?: InventoryUnit) => {
     setModalError(null);
@@ -1268,18 +1262,9 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteUnitItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteUnit(id);
-      invalidateEntities(['units']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  const handleDeleteUnitItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('unit', name, () => deleteUnit(id), ['units']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenPurchaseModal = () => {
     setModalError(null);
@@ -1304,6 +1289,7 @@ export default function InventoryScreen() {
     setModalError(null);
     setWastageMaterialId('');
     setWastageQty('');
+    setWastageRecorder(getActorName());
     setIsWastageModalOpen(true);
   };
 
@@ -1378,12 +1364,12 @@ export default function InventoryScreen() {
 
   const handleSaveTransferRequest = useCallback(async () => {
     if (!newReqFromBranchId) {
-      Alert.alert('Error', 'Please select supplying branch.');
+      notify('Error', 'Please select supplying branch.');
       return;
     }
     const validItems = newReqItems.filter(itm => itm.material_id && Number(itm.requested_quantity) > 0);
     if (validItems.length === 0) {
-      Alert.alert('Error', 'Please add at least one material with quantity > 0.');
+      notify('Error', 'Please add at least one material with quantity > 0.');
       return;
     }
 
@@ -1404,11 +1390,11 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setIsNewRequestModalOpen(false);
       setIsCreatingRequest(false);
-      Alert.alert('Success', 'Transfer request created successfully.');
+      notify('Success', 'Transfer request created successfully.');
       invalidateEntities(['transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to create request.');
+      notify('Error', getErrorMessage(err) || 'Failed to create request.');
     } finally {
       setIsLoading(false);
     }
@@ -1437,7 +1423,7 @@ export default function InventoryScreen() {
       setDispatchQuantities(initialDispatch);
       setIsApprovalModalOpen(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to load request items.');
+      notify('Error', getErrorMessage(err) || 'Failed to load request items.');
     } finally {
       setIsLoading(false);
     }
@@ -1452,14 +1438,14 @@ export default function InventoryScreen() {
 
     setIsLoading(true);
     try {
-      const res = await approveTransferRequest(selectedRequest.id, itemsPayload, 'Central Kitchen Staff');
+      const res = await approveTransferRequest(selectedRequest.id, itemsPayload, getActorName());
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
-      Alert.alert('Success', 'Transfer request approved.');
+      notify('Success', 'Transfer request approved.');
       invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to approve request.');
+      notify('Error', getErrorMessage(err) || 'Failed to approve request.');
     } finally {
       setIsLoading(false);
     }
@@ -1469,44 +1455,39 @@ export default function InventoryScreen() {
     if (!selectedRequest) return;
     setIsLoading(true);
     try {
-      const res = await rejectTransferRequest(selectedRequest.id, 'Central Kitchen Staff', approveRemarks);
+      const res = await rejectTransferRequest(selectedRequest.id, getActorName(), approveRemarks);
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
-      Alert.alert('Success', 'Transfer request rejected.');
+      notify('Success', 'Transfer request rejected.');
       invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to reject request.');
+      notify('Error', getErrorMessage(err) || 'Failed to reject request.');
     } finally {
       setIsLoading(false);
     }
   }, [selectedRequest, approveRemarks, invalidateEntities, loadAllData]);
 
   const handleProcessCancelRequest = useCallback(async (requestId: string) => {
-    Alert.alert(
+    confirmAction(
       'Cancel Request',
       'Are you sure you want to cancel this transfer request? Any stock reservations will be released.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              const res = await cancelTransferRequest(requestId, 'Branch Staff', 'Cancelled by requesting branch.');
-              if (res.error) throw new Error(res.error);
-              Alert.alert('Success', 'Transfer request cancelled successfully.');
-              invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
-              await loadAllData(true);
-            } catch (err) {
-              Alert.alert('Error', getErrorMessage(err) || 'Failed to cancel request.');
-            } finally {
-              setIsLoading(false);
-            }
+      'Yes, Cancel',
+      () => {
+        void (async () => {
+          setIsLoading(true);
+          try {
+            const res = await cancelTransferRequest(requestId, getActorName(), 'Cancelled by requesting branch.');
+            if (res.error) throw new Error(res.error);
+            invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
+            await loadAllData(true);
+          } catch (err) {
+            notify('Error', getErrorMessage(err) || 'Failed to cancel request.');
+          } finally {
+            setIsLoading(false);
           }
-        }
-      ]
+        })();
+      }
     );
   }, [invalidateEntities, loadAllData]);
 
@@ -1518,20 +1499,20 @@ export default function InventoryScreen() {
     })).filter(itm => itm.dispatched_quantity > 0);
 
     if (itemsPayload.length === 0) {
-      Alert.alert('Error', 'Please dispatch at least one item with quantity > 0.');
+      notify('Error', 'Please dispatch at least one item with quantity > 0.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await createDispatch(selectedRequest.id, itemsPayload, approveRemarks, 'Central Kitchen Staff');
+      const res = await createDispatch(selectedRequest.id, itemsPayload, approveRemarks, getActorName());
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
-      Alert.alert('Success', 'Stock dispatch shipment created.');
+      notify('Success', 'Stock dispatch shipment created.');
       invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to dispatch shipment.');
+      notify('Error', getErrorMessage(err) || 'Failed to dispatch shipment.');
     } finally {
       setIsLoading(false);
     }
@@ -1555,7 +1536,7 @@ export default function InventoryScreen() {
       setReceivedQuantities(initialReceived);
       setIsReceiveModalOpen(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to load dispatch items.');
+      notify('Error', getErrorMessage(err) || 'Failed to load dispatch items.');
     } finally {
       setIsLoading(false);
     }
@@ -1572,14 +1553,14 @@ export default function InventoryScreen() {
 
     setIsLoading(true);
     try {
-      const res = await receiveDispatch(selectedDispatch.id, itemsPayload, receiveRemarks, 'Branch Staff');
+      const res = await receiveDispatch(selectedDispatch.id, itemsPayload, receiveRemarks, getActorName());
       if (res.error) throw new Error(res.error);
       setIsReceiveModalOpen(false);
-      Alert.alert('Success', 'Shipment receipt recorded and ledger updated.');
+      notify('Success', 'Shipment receipt recorded and ledger updated.');
       invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to record shipment receipt.');
+      notify('Error', getErrorMessage(err) || 'Failed to record shipment receipt.');
     } finally {
       setIsLoading(false);
     }
@@ -1659,7 +1640,7 @@ export default function InventoryScreen() {
         grand_total: grand_total,
         invoice_file_url: purchaseInvoiceNum ? `https://supabase.storage/invoice/${purchaseInvoiceNum}.pdf` : null,
         remarks: purchaseRemarks || null,
-        created_by: 'Owner Staff',
+        created_by: getActorName(),
       };
 
       const finalItems = purchaseItems
@@ -1724,7 +1705,7 @@ export default function InventoryScreen() {
         quantity: Number(wastageQty),
         reason: wastageReason,
         location_id: wastageLocation,
-        recorded_by: wastageRecorder,
+        recorded_by: wastageRecorder.trim() || getActorName(),
       };
       const res = await createWastage(payload);
       if (res.error) throw new Error(res.error);
@@ -1768,7 +1749,7 @@ export default function InventoryScreen() {
         reason: adjReason,
         location_id: adjLocation,
         remarks: adjRemarks || null,
-        created_by: 'Owner Staff',
+        created_by: getActorName(),
         adjustment_date: new Date().toISOString(),
       };
       const res = await createAdjustment(payload);
@@ -1962,14 +1943,6 @@ export default function InventoryScreen() {
               <User size={14} color="#7c3aed" className="mr-1.5" />
               <Text className="text-xs font-bold text-purple-700">Add Supplier</Text>
             </Pressable>
-
-            <Pressable
-              onPress={() => alert('Exported successfully!')}
-              className="flex-row items-center px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 active:scale-95 transition-all"
-            >
-              <FileText size={14} color="#475569" className="mr-1.5" />
-              <Text className="text-xs font-bold text-slate-700">Export Report</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -2030,163 +2003,33 @@ export default function InventoryScreen() {
 
           <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Procurement Trend</Text>
+              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Most Purchased</Text>
               <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
-                <Text className="text-[10px] font-bold text-slate-500">This Month</Text>
+                <Text className="text-[10px] font-bold text-slate-500">By spend</Text>
               </View>
             </View>
-            <ProcurementLineChart />
-          </View>
-
-          <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Wastage Breakdown</Text>
-              <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
-                <Text className="text-[10px] font-bold text-slate-500">This Month</Text>
+            {!kpis || kpis.topPurchasedMaterials.length === 0 ? (
+              <View className="py-8 items-center justify-center">
+                <Text className="text-xs font-bold text-slate-500">No purchases recorded yet</Text>
               </View>
-            </View>
-
-            <View className="flex-row items-center justify-between pt-2">
-              <WastageDonutChart
-                totalLoss={kpis ? kpis.wastageCostImpactThisMonth : 1440}
-                spoilage={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.625) : 900}
-                expiry={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.243) : 350}
-                theft={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.132) : 190}
-              />
-              <View className="flex-1 pl-6 gap-2">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                    <Text className="text-[11px] font-bold text-slate-500">Spoilage</Text>
+            ) : (
+              <View className="gap-2.5">
+                <View className="flex-row border-b border-slate-100 pb-1.5">
+                  <Text className="flex-1 text-[9.5px] font-black text-slate-400 uppercase">Item</Text>
+                  <Text className="w-20 text-right text-[9.5px] font-black text-slate-400 uppercase">Quantity</Text>
+                  <Text className="w-24 text-right text-[9.5px] font-black text-slate-400 uppercase">Spend</Text>
+                </View>
+                {kpis.topPurchasedMaterials.map((row) => (
+                  <View key={row.material_id} className="flex-row items-center py-1">
+                    <Text className="flex-1 text-xs font-black text-slate-700">{row.material_name}</Text>
+                    <Text className="w-20 text-right text-xs font-bold text-slate-500">
+                      {row.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </Text>
+                    <Text className="w-24 text-right text-xs font-bold text-slate-800">{rupees(row.total_spend)}</Text>
                   </View>
-                  <Text className="text-[11px] font-black text-slate-700">
-                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.625) : 900} (62.5%)
-                  </Text>
-                </View>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-                    <Text className="text-[11px] font-bold text-slate-500">Expiry</Text>
-                  </View>
-                  <Text className="text-[11px] font-black text-slate-700">
-                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.243) : 350} (24.3%)
-                  </Text>
-                </View>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                    <Text className="text-[11px] font-bold text-slate-500">Theft</Text>
-                  </View>
-                  <Text className="text-[11px] font-black text-slate-700">
-                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.132) : 190} (13.2%)
-                  </Text>
-                </View>
+                ))}
               </View>
-            </View>
-          </View>
-        </View>
-
-        <View className="flex-row flex-wrap justify-between gap-6 mb-6">
-          <View className="flex-1 min-w-[280px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Inventory Activity (Today)</Text>
-            <View className="flex-row justify-between">
-              <View className="items-center flex-1">
-                <View className="w-9 h-9 rounded-full bg-emerald-50 items-center justify-center mb-2">
-                  <ArrowUp size={16} color="#10b981" />
-                </View>
-                <Text className="text-[9.5px] font-bold text-slate-400 uppercase">Purchased</Text>
-                <Text className="text-sm font-black text-slate-800 mt-1">₹4,200</Text>
-                <Text className="text-[10px] text-slate-400">3 Bills</Text>
-              </View>
-              <View className="items-center flex-1 border-x border-slate-100">
-                <View className="w-9 h-9 rounded-full bg-blue-50 items-center justify-center mb-2">
-                  <ArrowDown size={16} color="#3b82f6" />
-                </View>
-                <Text className="text-[9.5px] font-bold text-slate-400 uppercase">Consumed</Text>
-                <Text className="text-sm font-black text-slate-800 mt-1">₹3,100</Text>
-                <Text className="text-[10px] text-slate-400">12 Items</Text>
-              </View>
-              <View className="items-center flex-1">
-                <View className="w-9 h-9 rounded-full bg-rose-50 items-center justify-center mb-2">
-                  <AlertTriangle size={16} color="#ef4444" />
-                </View>
-                <Text className="text-[9.5px] font-bold text-slate-400 uppercase">Wastage</Text>
-                <Text className="text-sm font-black text-slate-800 mt-1">₹250</Text>
-                <Text className="text-[10px] text-slate-400">2 Entries</Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-1 min-w-[280px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Recent Activity</Text>
-              <Pressable onPress={() => setActiveTab('alerts')}>
-                <Text className="text-xs font-bold text-blue-600">View all</Text>
-              </Pressable>
-            </View>
-            <View className="gap-3">
-              <View className="flex-row items-start gap-3">
-                <View className="w-7 h-7 rounded-full bg-emerald-50 items-center justify-center mt-0.5">
-                  <Truck size={13} color="#10b981" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-slate-700 leading-tight">Purchase received from Al Wadi Foods</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">20 kg Chicken, 10 L Oil, 5 kg Rice</Text>
-                </View>
-                <Text className="text-[9px] text-slate-400 font-bold">10:42 AM</Text>
-              </View>
-
-              <View className="flex-row items-start gap-3">
-                <View className="w-7 h-7 rounded-full bg-rose-50 items-center justify-center mt-0.5">
-                  <Trash2 size={13} color="#ef4444" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-slate-700 leading-tight">Wastage recorded</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">2 L Milk spoiled</Text>
-                </View>
-                <Text className="text-[9px] text-slate-400 font-bold">09:30 AM</Text>
-              </View>
-
-              <View className="flex-row items-start gap-3">
-                <View className="w-7 h-7 rounded-full bg-purple-50 items-center justify-center mt-0.5">
-                  <User size={13} color="#8b5cf6" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-slate-700 leading-tight">New supplier added</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">Fresh Valley Supplies</Text>
-                </View>
-                <Text className="text-[9px] text-slate-400 font-bold">Yesterday</Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-1 min-w-[280px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Top Consumed Items</Text>
-              <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5">
-                <Text className="text-[10px] font-bold text-slate-500">This Month</Text>
-              </View>
-            </View>
-            <View className="gap-2.5">
-              <View className="flex-row border-b border-slate-100 pb-1">
-                <Text className="flex-1 text-[9.5px] font-black text-slate-400 uppercase">Item</Text>
-                <Text className="w-20 text-right text-[9.5px] font-black text-slate-400 uppercase">Consumed</Text>
-                <Text className="w-12 text-center text-[9.5px] font-black text-slate-400 uppercase">Unit</Text>
-              </View>
-              {[
-                { name: 'Chicken', qty: 120, unit: 'kg' },
-                { name: 'Vegetable Oil', qty: 60, unit: 'L' },
-                { name: 'Rice', qty: 45, unit: 'kg' },
-                { name: 'Flour', qty: 40, unit: 'kg' },
-                { name: 'Sugar', qty: 25, unit: 'kg' },
-              ].map((x, i) => (
-                <View key={i} className="flex-row items-center py-0.5">
-                  <Text className="flex-1 text-xs font-black text-slate-700">{x.name}</Text>
-                  <Text className="w-20 text-right text-xs font-bold text-slate-800">{x.qty}</Text>
-                  <Text className="w-12 text-center text-xs font-semibold text-slate-400">{x.unit}</Text>
-                </View>
-              ))}
-            </View>
+            )}
           </View>
         </View>
 
@@ -2246,7 +2089,7 @@ export default function InventoryScreen() {
         {/* ─── 3. ADVANCED FILTERS CONSOLE ───────────────────────────────────── */}
         <View 
           className="bg-white border border-slate-200 rounded-2xl p-4 gap-3 shadow-xs"
-          style={{ zIndex: (isCategoryDropdownOpen || isLocationDropdownOpen) ? 100 : 10, position: 'relative' }}
+          style={{ zIndex: isCategoryDropdownOpen ? 100 : 10, position: 'relative' }}
         >
           
           {/* Row 1: Status pills */}
@@ -2257,7 +2100,6 @@ export default function InventoryScreen() {
                 { key: 'healthy', label: 'Healthy' },
                 { key: 'low', label: 'Low Stock' },
                 { key: 'out', label: 'Out of Stock' },
-                { key: 'expiring', label: 'Expiring Soon' },
               ] as const).map((pill) => {
                 const isActive = statusFilter === pill.key;
                 return (
@@ -2317,7 +2159,6 @@ export default function InventoryScreen() {
                 <Pressable
                   onPress={() => {
                     setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
-                    setIsLocationDropdownOpen(false);
                   }}
                   className="flex-row items-center bg-white border border-slate-200 rounded-lg px-3 py-2 gap-1 active:scale-95 shadow-xs"
                 >
@@ -2356,59 +2197,6 @@ export default function InventoryScreen() {
                   </View>
                 )}
               </View>
-
-              {/* Location Dropdown */}
-              <View className="relative">
-                <Pressable
-                  onPress={() => {
-                    setIsLocationDropdownOpen(!isLocationDropdownOpen);
-                    setIsCategoryDropdownOpen(false);
-                  }}
-                  className="flex-row items-center bg-white border border-slate-200 rounded-lg px-3 py-2 gap-1 active:scale-95 shadow-xs"
-                >
-                  <Text className="text-[11px] font-bold text-slate-600">
-                    {locationFilter === 'all' ? 'All Locations' : locationFilter}
-                  </Text>
-                  <ChevronDown size={10} color="#64748b" />
-                </Pressable>
-                {isLocationDropdownOpen && (
-                  <View className="absolute top-10 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-40 p-1">
-                    {['all', 'Freezer', 'Dry Storage'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => {
-                          setLocationFilter(loc);
-                          setIsLocationDropdownOpen(false);
-                          setCurrentPage(1);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg ${locationFilter === loc ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
-                      >
-                        <Text className={`text-[11px] font-bold ${locationFilter === loc ? 'text-blue-600' : 'text-slate-700'}`}>
-                          {loc === 'all' ? 'All Locations' : loc}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              {/* Checkbox: Show only my items */}
-              <Pressable
-                onPress={() => {
-                  setShowOnlyMyItems(!showOnlyMyItems);
-                  setCurrentPage(1);
-                }}
-                className="flex-row items-center gap-1.5 px-1 py-1.5 active:opacity-85"
-              >
-                <View
-                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
-                    showOnlyMyItems ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
-                  }`}
-                >
-                  {showOnlyMyItems && <Check size={8} color="white" strokeWidth={3} />}
-                </View>
-                <Text className="text-[11px] font-semibold text-slate-500">Show only my items</Text>
-              </Pressable>
 
             </View>
 
@@ -2527,9 +2315,6 @@ export default function InventoryScreen() {
               <View style={{ width: '10%' }}>
                 <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Category</Text>
               </View>
-              <View style={{ width: '10%' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Location</Text>
-              </View>
               <View style={{ width: '15%' }}>
                 <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Current Stock</Text>
               </View>
@@ -2562,7 +2347,9 @@ export default function InventoryScreen() {
               </View>
             ) : (
               paginated.map((item) => {
-                const isOut = item.current_stock === 0;
+                // Sales can take stock below zero when nothing was recorded as
+                // bought; the shelf is empty either way.
+                const isOut = item.current_stock <= 0;
                 const isLow = item.current_stock > 0 && item.current_stock <= item.reorder_level;
 
                 let badgeColor = 'bg-emerald-50 border-emerald-200 text-emerald-700';
@@ -2575,8 +2362,7 @@ export default function InventoryScreen() {
                   badgeText = 'Low Stock';
                 }
 
-                const itemLocation = item.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage';
-                const valuation = item.current_stock * item.average_cost;
+                const valuation = Math.max(0, item.current_stock) * item.average_cost;
 
                 return (
                   <View 
@@ -2585,7 +2371,7 @@ export default function InventoryScreen() {
                   >
                     
                     {/* Item Name (Title + Code) */}
-                    <View style={{ width: '22%' }} className="justify-center pr-3">
+                    <View style={{ width: '32%' }} className="justify-center pr-3">
                       <Text className="text-[11.5px] font-black text-slate-800 leading-tight truncate">{item.material_name}</Text>
                       <Text className="text-[8.5px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                         {item.material_code}
@@ -2595,11 +2381,6 @@ export default function InventoryScreen() {
                     {/* Category */}
                     <View style={{ width: '10%' }}>
                       <Text className="text-[11px] font-semibold text-slate-600">{item.category_name || 'N/A'}</Text>
-                    </View>
-
-                    {/* Location */}
-                    <View style={{ width: '10%' }}>
-                      <Text className="text-[11px] font-semibold text-slate-600">{itemLocation}</Text>
                     </View>
 
                     {/* Current Stock (Val + Level Indicator Bar) */}
@@ -2653,21 +2434,27 @@ export default function InventoryScreen() {
                     <View style={{ width: '8%' }} className="flex-row items-center justify-center gap-1">
                       <Pressable
                         onPress={() => handleOpenMaterialModal(item)}
-                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
-                      >
-                        <Eye size={10} color="#64748b" />
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleOpenMaterialModal(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${item.material_name}`}
                         className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
                         <FileText size={10} color="#64748b" />
                       </Pressable>
                       <Pressable
                         onPress={handleOpenPurchaseModal}
+                        accessibilityRole="button"
+                        accessibilityLabel="Record a purchase"
                         className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
                         <ShoppingCart size={10} color="#64748b" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDeleteMaterialItem(item.id, item.material_name)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${item.material_name}`}
+                        className="w-6 h-6 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                      >
+                        <Trash2 size={10} color="#e11d48" />
                       </Pressable>
                     </View>
 
@@ -2944,11 +2731,6 @@ export default function InventoryScreen() {
             ))}
           </View>
 
-          {/* Export */}
-          <Pressable className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-xs active:scale-95">
-            <Download size={13} color="#64748b" />
-            <Text className="text-[11px] font-bold text-slate-600">Export</Text>
-          </Pressable>
         </View>
 
         {/* ── TABLE ───────────────────────────────────────────────────── */}
@@ -3176,61 +2958,9 @@ export default function InventoryScreen() {
                 <Text className="text-[12px] font-bold text-slate-700">View Details</Text>
               </Pressable>
 
-              {/* Edit Invoice */}
-              <Pressable
-                onPress={async () => {
-                  const item = purchases.find((p) => p.id === purOpenActionIdx);
-                  if (!item) return;
-                  // Set ALL header fields first
-                  setModalError(null);
-                  setPurchaseSupplierId(item.supplier_id);
-                  setPurchaseInvoiceNum(item.invoice_number ?? '');
-                  setPurchasePaymentMode(item.payment_mode);
-                  setPurchaseTransportCharges(String(item.transport_charges ?? 0));
-                  setPurchaseRemarks(item.remarks ?? '');
-                  setPurchaseLocation('Dry Storage');
-                  const dateVal = item.invoice_date
-                    ? item.invoice_date.split('T')[0]
-                    : item.purchase_date.split('T')[0];
-                  setPurchaseInvoiceDate(dateVal);
-                  setCalendarDate(new Date(dateVal));
-                  // Reset dropdown states
-                  setIsSupDropdownOpen(false);
-                  setIsPayDropdownOpen(false);
-                  setIsLocDropdownOpen(false);
-                  setIsCalendarOpen(false);
-                  setOpenLineMatDropdownIdx(null);
-                  setOpenLineUnitDropdownIdx(null);
-                  setOpenLineGstDropdownIdx(null);
-                  // Fetch and pre-fill line items
-                  const linesRes = await fetchPurchaseItems(item.id);
-                  if (linesRes.data && linesRes.data.length > 0) {
-                    const mappedLines = linesRes.data.map((line) => {
-                      const mat = materials.find((m) => m.id === line.material_id);
-                      return {
-                        material_id: line.material_id,
-                        quantity: String(line.quantity),
-                        pack_size: '1',
-                        unit_price: String(line.unit_price),
-                        gst: '0',
-                        unit_short_name: mat?.unit_short_name ?? '',
-                      };
-                    });
-                    setPurchaseItems(mappedLines);
-                  } else {
-                    setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
-                  }
-                  // Navigate then close modal
-                  setActiveTab('record_purchase');
-                  setPurOpenActionIdx(null);
-                }}
-                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-slate-100"
-              >
-                <FileText size={13} color="#0066b2" />
-                <Text className="text-[12px] font-bold text-slate-700">Edit Invoice</Text>
-              </Pressable>
-
-
+              {/* A recorded purchase has already moved stock, the average cost and
+                  the ledger. There is no edit or delete here: both used to be
+                  offered, and "edit" saved the invoice a second time. */}
 
               {/* Payment lives in the ledger: settling the supplier's payable marks it paid here.
                   A purchase still on credit goes straight to that payable in Finance. */}
@@ -3263,17 +2993,6 @@ export default function InventoryScreen() {
                   </Pressable>
                 );
               })()}
-
-              <View style={{ height: 1, backgroundColor: '#f1f5f9', marginVertical: 2 }} />
-
-              {/* Delete */}
-              <Pressable
-                onPress={() => setPurOpenActionIdx(null)}
-                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-rose-100"
-              >
-                <Trash2 size={13} color="#e11d48" />
-                <Text className="text-[12px] font-bold text-rose-600">Delete</Text>
-              </Pressable>
 
             </View>
           </Pressable>
@@ -4733,7 +4452,12 @@ export default function InventoryScreen() {
     // Helper to render Margin Analysis Dashboard
     const renderMarginAnalysis = () => {
       // Find products that have recipes linked
-      const marginProducts = products.filter(p => p.recipe_id);
+      // A recipe reaches a product two ways: the product names the recipe
+      // (Menu), or the recipe names the product (Recipes). Sales consumption
+      // honours both, so the report must too.
+      const recipeForProduct = (p: Product) =>
+        recipes.find(r => r.id === p.recipe_id) ?? recipes.find(r => r.menu_item_id === p.id);
+      const marginProducts = products.filter(p => recipeForProduct(p));
       
       // Calculate average margins
       let totalCost = 0;
@@ -4742,7 +4466,7 @@ export default function InventoryScreen() {
       let lowMarginProductsCount = 0;
 
       const items = marginProducts.map(p => {
-        const recipe = recipes.find(r => r.id === p.recipe_id);
+        const recipe = recipeForProduct(p);
         const recipeCost = recipe ? recipe.cost_snapshot : 0;
         const marginAmt = p.price - recipeCost;
         const marginPct = p.price > 0 ? (marginAmt / p.price) * 100 : 0;
@@ -5148,7 +4872,7 @@ export default function InventoryScreen() {
             <FileText size={14} color="#64748b" />
           </Pressable>
           <Pressable
-            onPress={() => handleDeleteSupplierItem(item.id)}
+            onPress={() => handleDeleteSupplierItem(item.id, item.supplier_name)}
             className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
           >
             <Trash2 size={14} color="#e11d48" />
@@ -5709,7 +5433,7 @@ export default function InventoryScreen() {
           <FileText size={14} color="#64748b" />
         </Pressable>
         <Pressable
-          onPress={() => handleDeleteUnitItem(item.id)}
+          onPress={() => handleDeleteUnitItem(item.id, item.unit_name)}
           className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
         >
           <Trash2 size={14} color="#e11d48" />
@@ -5743,7 +5467,7 @@ export default function InventoryScreen() {
           <FileText size={14} color="#64748b" />
         </Pressable>
         <Pressable
-          onPress={() => handleDeleteCategoryItem(item.id)}
+          onPress={() => handleDeleteCategoryItem(item.id, item.category_name)}
           className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
         >
           <Trash2 size={14} color="#e11d48" />
@@ -7222,7 +6946,7 @@ export default function InventoryScreen() {
                   <TextInput
                     value={wastageRecorder}
                     onChangeText={setWastageRecorder}
-                    placeholder="e.g., Chef Amit"
+                    placeholder="Who is recording this"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>

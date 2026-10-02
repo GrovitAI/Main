@@ -55,6 +55,11 @@ export function getTenantContext(): TenantContext {
   };
 }
 
+/** The signed-in staff member's name, for "recorded by" on stock and transfer records. */
+export function getActorName(): string {
+  return useSessionStore.getState().session?.displayName?.trim() || 'Staff';
+}
+
 /**
  * @deprecated — No longer needed. getTenantContext() always returns a single branch.
  * Kept temporarily to avoid breaking settlement-service.ts imports.
