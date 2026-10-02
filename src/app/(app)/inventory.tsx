@@ -457,6 +457,12 @@ export default function InventoryScreen() {
   const { session } = useSessionStore();
   // The owner may look at any branch's stock, transfers and reports. Everyone
   // else is pinned to their own branch, so the picker is never drawn for them.
+  const signedInName = session?.displayName?.trim() || 'Staff';
+  const signedInInitials = signedInName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
   const canPickBranch = canViewAllBranches(session?.role);
   const accessibleBranches = session?.accessibleBranches ?? [];
   const branchPickerVisible = canPickBranch && accessibleBranches.length > 1;
@@ -468,8 +474,10 @@ export default function InventoryScreen() {
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
   const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
-  // Hide bottom tab bar on mobile when creating a transfer request
-  useTabBarHidden(activeTab === 'transfers' && isCreatingRequest);
+  // The two full-page entry forms have their own Back and Save row at the
+  // bottom; the floating tab bar sat on top of it (it covered Cancel on the
+  // purchase form).
+  useTabBarHidden(activeTab === 'record_purchase' || (activeTab === 'transfers' && isCreatingRequest));
 
   const [newReqSearchQuery, setNewReqSearchQuery] = useState('');
   const [newReqSelectedCategoryId, setNewReqSelectedCategoryId] = useState('all');
@@ -1917,7 +1925,7 @@ export default function InventoryScreen() {
               className="flex-row items-center px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/50 active:scale-95 transition-all"
             >
               <Plus size={14} color="#0066b2" className="mr-1.5" />
-              <Text className="text-xs font-bold text-[#0066b2]">+ Add Purchase</Text>
+              <Text className="text-xs font-bold text-[#0066b2]">Add Purchase</Text>
             </Pressable>
 
             <Pressable
@@ -1925,7 +1933,7 @@ export default function InventoryScreen() {
               className="flex-row items-center px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/50 active:scale-95 transition-all"
             >
               <Plus size={14} color="#16a34a" className="mr-1.5" />
-              <Text className="text-xs font-bold text-emerald-700">+ Add Stock</Text>
+              <Text className="text-xs font-bold text-emerald-700">Adjust Stock</Text>
             </Pressable>
 
             <Pressable
@@ -2121,10 +2129,6 @@ export default function InventoryScreen() {
                   </Pressable>
                 );
               })}
-            </View>
-            <View className="flex-row items-center gap-1.5">
-              <View className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <Text className="text-[10px] text-amber-600 font-bold">Auto-Sync Active</Text>
             </View>
           </View>
 
@@ -2342,8 +2346,14 @@ export default function InventoryScreen() {
             {paginated.length === 0 ? (
               <View className="py-16 items-center justify-center flex-1">
                 <Boxes size={36} color="#94a3b8" className="mb-3" />
-                <Text className="text-sm font-bold text-slate-500">No materials matched your filters</Text>
-                <Text className="text-[10px] text-slate-400 mt-0.5">Try resetting search filters or register a new raw ingredient.</Text>
+                <Text className="text-sm font-bold text-slate-500">
+                  {materials.length === 0 ? 'No raw materials yet' : 'No materials matched your filters'}
+                </Text>
+                <Text className="text-[10px] text-slate-400 mt-0.5">
+                  {materials.length === 0
+                    ? 'Add the first one with "Add Raw Material", or import a spreadsheet.'
+                    : 'Clear the search or the filters to see the rest.'}
+                </Text>
               </View>
             ) : (
               paginated.map((item) => {
@@ -2636,7 +2646,7 @@ export default function InventoryScreen() {
             style={{ gap: 6 }}
           >
             <Plus size={14} color="white" />
-            <Text className="text-xs font-black text-white">+ Record Purchase</Text>
+            <Text className="text-xs font-black text-white">Record Purchase</Text>
           </Pressable>
         </View>
 
@@ -3541,7 +3551,7 @@ export default function InventoryScreen() {
                 className="bg-[#0066b2] hover:bg-blue-700 flex-row items-center gap-1.5 px-4 py-2.5 rounded-lg active:scale-95 shadow-sm"
               >
                 <Plus size={12} color="#ffffff" />
-                <Text className="text-xs font-bold text-white">+ Add Item</Text>
+                <Text className="text-xs font-bold text-white">Add Item</Text>
               </Pressable>
             </View>
 
@@ -4429,22 +4439,48 @@ export default function InventoryScreen() {
         </View>
 
         <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-          <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage Leakage Analysis</Text>
-          <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
-            <View>
-              <Text className="text-[9px] font-black text-rose-800 uppercase">Monthly Leakage</Text>
-              <Text className="text-2xl font-black text-rose-900 mt-1">
-                ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString() : '1,440'}
-              </Text>
-            </View>
-            <View className="bg-rose-100 rounded-xl p-2">
-              <AlertTriangle size={20} color="#dc2626" />
-            </View>
-          </View>
-          <Text className="text-xs text-slate-500 leading-relaxed font-medium">
-            Leakage primarily consists of Spoilage (62.5%) and Expirations (24.3%). We advise adjusting reorder levels
-            to maintain optimal raw meat and dairy stocks.
-          </Text>
+          <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage This Month</Text>
+          {(() => {
+            // This branch's wastage since the first of the month, by reason, at cost.
+            const monthStart = new Date();
+            monthStart.setDate(1);
+            monthStart.setHours(0, 0, 0, 0);
+            const byReason = new Map<string, number>();
+            let total = 0;
+            for (const w of wastages) {
+              if (w.branch_id !== viewedBranchId || new Date(w.recorded_at) < monthStart) continue;
+              total += w.cost_impact;
+              byReason.set(w.reason, (byReason.get(w.reason) ?? 0) + w.cost_impact);
+            }
+            const reasons = [...byReason.entries()].sort((a, b) => b[1] - a[1]);
+            return (
+              <>
+                <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
+                  <View>
+                    <Text className="text-[9px] font-black text-rose-800 uppercase">Lost at cost</Text>
+                    <Text className="text-2xl font-black text-rose-900 mt-1">
+                      ₹{total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </Text>
+                  </View>
+                  <View className="bg-rose-100 rounded-xl p-2">
+                    <AlertTriangle size={20} color="#dc2626" />
+                  </View>
+                </View>
+                {reasons.length === 0 ? (
+                  <Text className="text-xs text-slate-500 font-medium">No wastage recorded this month.</Text>
+                ) : (
+                  reasons.map(([reason, cost]) => (
+                    <View key={reason} className="flex-row justify-between py-1">
+                      <Text className="text-xs font-bold text-slate-700">{reason}</Text>
+                      <Text className="text-xs font-bold text-slate-500">
+                        ₹{cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({total > 0 ? ((cost / total) * 100).toFixed(0) : '0'}%)
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </>
+            );
+          })()}
         </View>
       </View>
     );
@@ -5954,19 +5990,14 @@ export default function InventoryScreen() {
 
               <View className="flex-row items-center gap-2 border-l border-slate-200 pl-4">
                 <View className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center">
-                  <Text className="text-xs font-black text-white">RA</Text>
+                  <Text className="text-xs font-black text-white">{signedInInitials}</Text>
                 </View>
                 {width >= 768 && (
                   <View>
-                    <Text className="text-xs font-black text-slate-800 leading-none">Rami Abou Jaoude</Text>
-                    <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5">Manager</Text>
+                    <Text className="text-xs font-black text-slate-800 leading-none">{signedInName}</Text>
+                    <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5 capitalize">{session?.role ?? ''}</Text>
                   </View>
                 )}
-              </View>
-
-              <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row items-center gap-2">
-                <Calendar size={14} color="#475569" />
-                <Text className="text-[10px] font-black text-slate-600">Jun 1 - Jun 30, 2024</Text>
               </View>
             </View>
           </View>
