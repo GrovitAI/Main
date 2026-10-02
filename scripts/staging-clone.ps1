@@ -173,18 +173,12 @@ if (-not $DryRun) {
   }
 }
 
-$prepare = @'
--- What the application's schema leans on.
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-'@
+$prepare = ''
 if ($Refresh) {
   $prepare += @'
-
 -- A fresh start: the old copy goes, then the public schema is put back the
--- way a new Supabase project has it.
+-- way a new Supabase project has it. Dropping the schema takes pg_trgm with
+-- it, which is why the extensions are created afterwards.
 DELETE FROM auth.identities;
 DELETE FROM auth.users;
 DROP SCHEMA IF EXISTS public CASCADE;
@@ -194,8 +188,17 @@ GRANT ALL ON SCHEMA public TO postgres, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role;
+
 '@
 }
+$prepare += @'
+-- What the application's schema leans on, each in the schema production has
+-- it in: the ledger's search indexes name public.gin_trgm_ops.
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+'@
 Set-Content -Path $prepFile -Value $prepare -Encoding ascii
 Invoke-Tool $psql @("--dbname=$stagingUri", '--set', 'ON_ERROR_STOP=1', '--quiet', "--file=$prepFile") 'extensions and a clean public schema' $null
 

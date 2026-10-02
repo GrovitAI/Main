@@ -6,19 +6,21 @@
 > copy of production, and the app running on this computer pointed at it.
 > Production is only ever read to make the copy.
 
-The live project is `pyikrlqduampooncpzri`. Supabase preview branches need a
-paid plan and Docker is not installed here, so the test environment is a
-second project in the same organisation. A second project is free on the
-current plan. A free project pauses after a week without use; "Restore" in
-the dashboard wakes it.
+The live project is `pyikrlqduampooncpzri`. The staging project is
+`inbxezmtuytpalqvlcsm` ("Grovit Staging", Mumbai), created on 2026-10-02.
+Supabase preview branches need a paid plan and Docker is not installed here,
+so the test environment is a second project in the same organisation. A
+second project is free on the current plan. A free project pauses after a
+week without use; "Restore" in the dashboard wakes it.
 
 ---
 
 ## 1. Set it up (once)
 
-1. **Create the project.** Supabase dashboard → New project → name
-   `Grovit Staging`, region Mumbai (`ap-south-1`), and choose a database
-   password you will remember.
+1. **Give staging a database password.** The project was created through the
+   API, so nobody has seen its password. Supabase dashboard → Grovit Staging →
+   Project Settings → Database → Reset database password, and choose one you
+   will remember.
 2. **Copy production into it.** In a terminal in this folder:
 
    ```bash
@@ -31,24 +33,30 @@ the dashboard wakes it.
    password with `@`, `:` or `/` in it must be URL-encoded (`@` is `%40`).
 
    If the production database password is not to hand, it can be reset under
-   Project Settings → Database. The app does not use it (it talks to the API
-   with its own keys), so a reset does not disturb the tills.
+   Project Settings → Database. Neither the app nor its server functions use
+   it (they talk to the API with their own keys), so a reset does not disturb
+   the tills.
+
+   Staging already has the extensions production has, each in the same
+   schema (`pg_trgm` in `public`, `pg_cron`); the script creates them again
+   after a `-Refresh`.
 
    The script reads production with `pg_dump`, refuses to write to it, and
    loads staging with `psql`. It copies the structure and rows of the `public`
    schema and the sign-ins. It leaves behind printers, POS terminals and print
    jobs, so nothing done on staging can reach a real printer.
-3. **Tell Claude the staging project ref.** Claude then checks the copy
-   against production, re-creates the scheduled jobs, applies the migrations
-   that are waiting (to staging only), and writes `.env.development.local`.
+3. **Tell Claude the copy is done.** Claude then checks the copy against
+   production, re-creates the scheduled jobs and applies the migrations that
+   are waiting (to staging only).
 
 ## 2. Run the app against staging
 
-`.env.development.local` (never committed; `.env.*` is ignored by git):
+`.env.development.local` (never committed; `.env.*` is ignored by git) is
+already in this folder:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=https://<staging-ref>.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=<staging publishable key>
+EXPO_PUBLIC_SUPABASE_URL=https://inbxezmtuytpalqvlcsm.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<staging anon key>
 EXPO_PUBLIC_APP_ENV=staging
 ```
 
