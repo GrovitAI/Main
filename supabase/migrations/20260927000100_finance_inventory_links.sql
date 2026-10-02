@@ -566,7 +566,10 @@ BEGIN
      OR p_source_type NOT IN ('purchase', 'dispatch') OR p_source_id IS NULL OR p_transaction_date IS NULL THEN
     RAISE EXCEPTION 'LEDGER_INVALID_ARGS' USING ERRCODE = '22023';
   END IF;
-  IF (p_kind IN ('income', 'expense')) <> (coalesce(p_mode, '') IN ('cash', 'bank')) THEN
+  -- Money that moved says how it moved. A due carries the way it is expected
+  -- to be settled, as finance_entries_mode requires of every entry but a
+  -- transfer: the bank, unless the document says cash.
+  IF p_kind IN ('income', 'expense') AND coalesce(p_mode, '') NOT IN ('cash', 'bank') THEN
     RAISE EXCEPTION 'LEDGER_INVALID_ARGS' USING ERRCODE = '22023';
   END IF;
 
@@ -594,7 +597,8 @@ BEGIN
     tenant_id, account_id, counterparty_account_id, kind, amount_paise, mode, transaction_date, entered_by,
     category_id, particulars, counterparty, reference_no, notes, source_type, source_id
   ) VALUES (
-    p_tenant_id, p_account_id, p_counterparty_account_id, p_kind, p_amount_paise, p_mode, p_transaction_date, v_staff,
+    p_tenant_id, p_account_id, p_counterparty_account_id, p_kind, p_amount_paise,
+    CASE WHEN p_mode = 'cash' THEN 'cash' ELSE 'bank' END, p_transaction_date, v_staff,
     v_category, p_particulars, nullif(btrim(coalesce(p_counterparty, '')), ''),
     nullif(btrim(coalesce(p_reference_no, '')), ''), nullif(btrim(coalesce(p_notes, '')), ''), p_source_type, p_source_id
   )
@@ -903,7 +907,8 @@ BEGIN
   END LOOP;
 
   -- The kitchen's books: an expense when paid now, a payable to the supplier otherwise.
-  v_mode := CASE WHEN NOT p_paid THEN NULL WHEN lower(btrim(p_payment_mode)) = 'cash' THEN 'cash' ELSE 'bank' END;
+  -- How it was paid, or for a purchase on credit how it is expected to be paid.
+  v_mode := CASE WHEN lower(btrim(p_payment_mode)) = 'cash' THEN 'cash' ELSE 'bank' END;
   v_entry := public.finance_post_source_entry(
     v_tenant, v_account_id, NULL,
     CASE WHEN p_paid THEN 'expense' ELSE 'payable' END,
