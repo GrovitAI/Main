@@ -1685,16 +1685,23 @@ export async function createWastage(
         return { data: null, error: reportError('createWastage', lvlErr, 'Unable to update stock levels.') };
       }
 
-      // The location named on the form, or failing that wherever the branch
-      // holds the most of it: stock filed under another location name must
-      // still come down.
-      const levels = (lvlRows ?? []) as InventoryStockLevel[];
-      const stockLvl =
-        levels.find((l) => l.location_id === record.location_id) ??
-        [...levels].sort((a, b) => toNumber(b.current_stock) - toNumber(a.current_stock))[0] ??
-        null;
-      if (stockLvl) {
-        const newLoc = Math.max(0, toNumber(stockLvl.current_stock) - qty);
+      // The branch's stock is the sum of its location rows. The loss comes off
+      // the location named on the form first, then wherever the rest is held,
+      // so the figure on the screen drops by the whole quantity (a row never
+      // goes below zero; a loss larger than the stock stops at zero).
+      const levels = [...((lvlRows ?? []) as InventoryStockLevel[])].sort((a, b) => {
+        if (a.location_id === record.location_id) return -1;
+        if (b.location_id === record.location_id) return 1;
+        return toNumber(b.current_stock) - toNumber(a.current_stock);
+      });
+      let remaining = qty;
+      for (const stockLvl of levels) {
+        if (remaining <= 0) break;
+        const held = toNumber(stockLvl.current_stock);
+        if (held <= 0) continue;
+        const taken = Math.min(held, remaining);
+        remaining -= taken;
+        const newLoc = held - taken;
         const { error: lvlUpdErr } = await supabase
           .from('inventory_material_stock_levels')
           .update({ current_stock: newLoc, available_stock: newLoc - toNumber(stockLvl.reserved_stock), updated_at: now })
