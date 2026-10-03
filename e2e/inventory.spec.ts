@@ -50,16 +50,14 @@ test.describe.serial('raw materials', () => {
     await openInventory(page);
     await openMaterials(page);
     await page.getByText('Add Raw Material').click();
-    await expect(page.getByText('Register New Raw Material')).toBeVisible();
+    await expect(page.getByText('Add raw material', { exact: true })).toBeVisible();
 
-    const dialog = page.locator('div').filter({ hasText: 'Register New Raw Material' }).last();
-    await dialog.getByPlaceholder('e.g., Premium Tahini Paste').fill(materialName);
+    await page.getByLabel('Material name').fill(materialName);
     // Category and unit come pre-selected with the first of each; opening stock is the point.
-    const opening = dialog.locator('input').nth(5);
-    await opening.fill('12');
-    await dialog.getByText('Save Material').click();
+    await page.getByLabel('Opening stock').fill('12');
+    await page.getByText('Save Material').click();
 
-    await expect(page.getByText('Register New Raw Material')).toHaveCount(0);
+    await expect(page.getByText('Add raw material', { exact: true })).toHaveCount(0);
     const row = page.locator('div').filter({ hasText: materialName }).last();
     await expect(row).toBeVisible();
     await expect(page.getByText(materialName)).toBeVisible();
@@ -71,13 +69,12 @@ test.describe.serial('raw materials', () => {
     await openInventory(page);
     await openMaterials(page);
     await page.getByText('Adjust', { exact: true }).click();
-    await expect(page.getByText('Manual Inventory Stock Adjustment')).toBeVisible();
+    await expect(page.getByText('Adjust stock', { exact: true })).toBeVisible();
 
-    const dialog = page.locator('div').filter({ hasText: 'Manual Inventory Stock Adjustment' }).last();
-    await dialog.getByText(materialName).first().click();
-    await dialog.getByPlaceholder('e.g., 5.0').fill('3');
-    await dialog.getByText('Record Adjust Movement').click();
-    await expect(page.getByText('Manual Inventory Stock Adjustment')).toHaveCount(0);
+    await page.getByText(materialName).last().click();
+    await page.getByLabel('Quantity', { exact: true }).fill('3');
+    await page.getByText('Save adjustment').click();
+    await expect(page.getByText('Adjust stock', { exact: true })).toHaveCount(0);
 
     await expect(page.getByText(/^15 /).first()).toBeVisible();
   });
@@ -86,16 +83,15 @@ test.describe.serial('raw materials', () => {
     await openInventory(page);
     await openSection(page, 'Wastage');
     await page.getByText('Record Wastage').click();
-    await expect(page.getByText('Record Spoils & Wastage')).toBeVisible();
+    await expect(page.getByText('Record wastage', { exact: true })).toBeVisible();
 
-    const dialog = page.locator('div').filter({ hasText: 'Record Spoils & Wastage' }).last();
-    await dialog.getByText(materialName).first().click();
-    await dialog.getByPlaceholder('e.g., 2.5').fill('5');
-    const recordedBy = dialog.getByPlaceholder('Who is recording this');
+    await page.getByText(materialName).last().click();
+    await page.getByLabel('Quantity lost').fill('5');
+    const recordedBy = page.getByLabel('Recorded by');
     await expect(recordedBy).not.toHaveValue('');
     await expect(recordedBy).not.toHaveValue('Chef Amit');
-    await dialog.getByText('Log Wastage Cost Impact').click();
-    await expect(page.getByText('Record Spoils & Wastage')).toHaveCount(0);
+    await page.getByText('Save wastage').click();
+    await expect(page.getByText('Record wastage', { exact: true })).toHaveCount(0);
 
     await expect(page.getByText(materialName)).toBeVisible();
     await openMaterials(page);
