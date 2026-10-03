@@ -79,6 +79,25 @@ under `/api` (approval emails, PrintNode printing, staff invitations). They
 are not part of the Expo dev server. Finance, Inventory, POS billing and
 Analytics talk to the database directly and work in full.
 
+### Browser tests against staging
+
+Playwright drives the web app on this computer, signed in, against the
+staging copy (`playwright.config.ts`, tests in `e2e/`). Once, sign in for it:
+
+```bash
+npm run e2e:login
+```
+
+A browser opens on the sign-in page; sign in as usual and close the window.
+The session is saved in `playwright/.auth/owner.json` (never committed). Then:
+
+```bash
+npm run e2e
+```
+
+The tests create records named `E2E <stamp> …` on staging and remove what the
+screens can remove. Without the saved session they are skipped, not failed.
+
 ## 3. Refresh the copy
 
 Run the script again with `-Refresh` to replace staging with production as it
