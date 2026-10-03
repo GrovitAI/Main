@@ -69,7 +69,7 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { canRaiseTransferRequest } from '@/lib/pos/transfer-access';
 import { webImageStyle, webTextStyle, webViewStyle } from '@/lib/pos/web-style';
-import { Sparkline, CircularProgress } from '@/components/inventory/InventoryCharts';
+import { Sparkline } from '@/components/inventory/InventoryCharts';
 import { SidebarDecoration, SidebarLabel } from '@/components/inventory/InventorySidebar';
 import { InventoryMobileMenu } from '@/components/inventory/InventoryMobileMenu';
 import { InventoryNotificationsModal } from '@/components/inventory/InventoryNotificationsModal';
@@ -785,8 +785,12 @@ export default function InventoryScreen() {
     });
   }, [materials, searchQuery, selectedCategoryFilter, statusFilter]);
 
+  // Everything at or below its reorder level, the empty shelf included: that
+  // is the list to buy from.
   const lowStockMaterials = useMemo(() => {
-    return materials.filter((m) => m.current_stock <= m.reorder_level && m.current_stock > 0);
+    return materials
+      .filter((m) => m.current_stock <= m.reorder_level)
+      .sort((a, b) => a.current_stock - a.reorder_level - (b.current_stock - b.reorder_level));
   }, [materials]);
 
   const handleDownloadTemplate = async () => {
@@ -1808,7 +1812,6 @@ export default function InventoryScreen() {
   // ─── TAB RENDER VIEWS ──────────────────────────────────────────────────────
 
   const renderDashboard = () => {
-    const activeHealth = kpis ? Math.round(100 - (kpis.lowStockCount / (kpis.totalMaterials || 1)) * 100) : 0;
     const rupees = (value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
     // Every figure below comes from the data: nothing is shown until it has loaded.
@@ -1863,17 +1866,20 @@ export default function InventoryScreen() {
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
             <View className="flex-1 pr-3">
               <View className="flex-row items-center gap-2 mb-2">
-                <View className="w-8 h-8 rounded-lg bg-emerald-50 items-center justify-center">
-                  <Heart size={16} color="#16a34a" />
+                <View className={`w-8 h-8 rounded-lg items-center justify-center ${lowStockMaterials.length > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                  {lowStockMaterials.length > 0 ? <AlertTriangle size={16} color="#d97706" /> : <Check size={16} color="#16a34a" />}
                 </View>
-                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Inventory Health</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Needs Reordering</Text>
               </View>
-              <Text className="text-2xl font-black text-slate-800 leading-none">{kpis ? `${activeHealth}%` : '—'}</Text>
-              <Text className={`text-xs font-bold mt-2 ${kpis && kpis.lowStockCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                {kpis ? (kpis.lowStockCount > 0 ? `${kpis.lowStockCount} at or below reorder level` : 'Nothing below reorder level') : 'Loading…'}
+              <Text className="text-2xl font-black text-slate-800 leading-none">{kpis ? lowStockMaterials.length : '—'}</Text>
+              <Text className={`text-xs font-bold mt-2 ${lowStockMaterials.length > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {!kpis
+                  ? 'Loading…'
+                  : lowStockMaterials.length === 0
+                    ? 'Nothing at or below its reorder level'
+                    : `${lowStockMaterials.filter((m) => m.current_stock <= 0).length} out of stock, the rest running low`}
               </Text>
             </View>
-            <CircularProgress percentage={activeHealth} />
           </View>
 
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
@@ -2044,16 +2050,18 @@ export default function InventoryScreen() {
         {lowStockMaterials.length > 0 && (
           <Pressable
             onPress={() => setActiveTab('alerts')}
+            accessibilityRole="button"
+            accessibilityLabel="See everything that needs reordering"
             className="flex-row items-center justify-between bg-rose-50 border border-rose-100 rounded-2xl p-4 shadow-sm active:scale-[98.5%] transition-all"
           >
             <View className="flex-row items-center gap-3">
               <AlertTriangle size={18} color="#dc2626" />
               <Text className="text-xs font-black text-rose-700">
-                {lowStockMaterials.length} item{lowStockMaterials.length > 1 ? 's are' : ' is'} low on stock and require{lowStockMaterials.length > 1 ? '' : 's'} attention
+                {lowStockMaterials.length === 1 ? '1 material needs' : `${lowStockMaterials.length} materials need`} reordering
               </Text>
             </View>
             <View className="bg-rose-100 border border-rose-200 rounded-lg px-3 py-1.5">
-              <Text className="text-xs font-black text-rose-800 uppercase">View Alerts</Text>
+              <Text className="text-xs font-black text-rose-800 uppercase">See them</Text>
             </View>
           </Pressable>
         )}
@@ -2214,20 +2222,6 @@ export default function InventoryScreen() {
                 <Text className="text-xs font-bold text-slate-600">+ Purchase</Text>
               </Pressable>
               
-              <Pressable
-                onPress={handleOpenPurchaseModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
-              >
-                <Text className="text-xs font-bold text-slate-600">+ Receive</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleOpenAdjustmentModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
-              >
-                <Text className="text-xs font-bold text-slate-600">Transfer</Text>
-              </Pressable>
-
               <Pressable
                 onPress={handleOpenAdjustmentModal}
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
@@ -3811,7 +3805,7 @@ export default function InventoryScreen() {
                     <View style={{ width: '6%' }} className="items-center justify-center">
                       <Pressable
                         onPress={() => handleRemovePurchaseLine(idx)}
-                        className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
+                        className="w-10 h-10 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
                       >
                         <Trash2 size={12} color="#dc2626" />
                       </Pressable>
@@ -4756,24 +4750,52 @@ export default function InventoryScreen() {
     return (
       <View className="flex-row justify-between flex-wrap gap-6">
         <View className="flex-1 min-w-[320px] flex-col">
-          <Text className="text-sm font-bold text-slate-800 mb-4">Active Stock Alerts & Thresholds</Text>
-          <FlatList
-            key="alerts-flatlist"
-            data={alerts}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View className="py-20 w-full items-center justify-center">
-                <Check size={48} color="#16a34a" className="mb-4" />
-                <Text className="text-base font-bold text-slate-500">All alerts cleared</Text>
-              </View>
-            }
-            renderItem={renderAlertItem}
-            extraData={alerts}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-          />
+          <Text className="text-sm font-bold text-slate-800 mb-1">Needs reordering</Text>
+          <Text className="text-xs text-slate-500 mb-4">Every material at or below its reorder level, worked out from the stock itself.</Text>
+          {lowStockMaterials.length === 0 ? (
+            <View className="py-20 w-full items-center justify-center">
+              <Check size={48} color="#16a34a" className="mb-4" />
+              <Text className="text-base font-bold text-slate-500">Nothing is low on stock</Text>
+            </View>
+          ) : (
+            <View className="gap-2">
+              {lowStockMaterials.map((m) => {
+                const out = m.current_stock <= 0;
+                return (
+                  <View key={m.id} className="flex-row items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 gap-3">
+                    <View className={`w-2.5 h-2.5 rounded-full ${out ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                    <View className="flex-1">
+                      <Text className="text-sm font-bold text-slate-800">{m.material_name}</Text>
+                      <Text className="text-xs text-slate-500">
+                        {out ? 'Out of stock' : `${m.current_stock} ${m.unit_short_name} left`} · reorder at {m.reorder_level} {m.unit_short_name}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={handleOpenPurchaseModal}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Record a purchase of ${m.material_name}`}
+                      className="min-h-[40px] px-3 rounded-xl border border-amber-200 bg-amber-50 items-center justify-center active:scale-95"
+                    >
+                      <Text className="text-xs font-bold text-amber-800">Record purchase</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          {alerts.length > 0 && (
+            <FlatList
+              key="alerts-flatlist"
+              data={alerts}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              renderItem={renderAlertItem}
+              extraData={alerts}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+            />
+          )}
         </View>
 
         <View className="flex-1 min-w-[320px] flex-col">
@@ -4920,13 +4942,13 @@ export default function InventoryScreen() {
         <View className="flex-row gap-1.5">
           <Pressable
             onPress={() => handleOpenSupplierModal(item)}
-            className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+            className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
           >
             <FileText size={14} color="#64748b" />
           </Pressable>
           <Pressable
             onPress={() => handleDeleteSupplierItem(item.id, item.supplier_name)}
-            className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+            className="w-10 h-10 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
           >
             <Trash2 size={14} color="#e11d48" />
           </Pressable>
@@ -5481,13 +5503,13 @@ export default function InventoryScreen() {
       <View className="flex-row items-center gap-1.5">
         <Pressable
           onPress={() => handleOpenUnitModal(item)}
-          className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+          className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
         >
           <FileText size={14} color="#64748b" />
         </Pressable>
         <Pressable
           onPress={() => handleDeleteUnitItem(item.id, item.unit_name)}
-          className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+          className="w-10 h-10 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
         >
           <Trash2 size={14} color="#e11d48" />
         </Pressable>
@@ -5515,13 +5537,13 @@ export default function InventoryScreen() {
       <View className="flex-row items-center gap-1.5">
         <Pressable
           onPress={() => handleOpenCategoryModal(item)}
-          className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+          className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
         >
           <FileText size={14} color="#64748b" />
         </Pressable>
         <Pressable
           onPress={() => handleDeleteCategoryItem(item.id, item.category_name)}
-          className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+          className="w-10 h-10 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
         >
           <Trash2 size={14} color="#e11d48" />
         </Pressable>
@@ -6906,7 +6928,7 @@ export default function InventoryScreen() {
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">
                   <Text className="text-xs font-black text-slate-500 uppercase">Payment Terms</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                     {['Net 15', 'Net 30', 'Cash on Delivery', 'Advance'].map((term) => (
                       <Pressable
                         key={term}
@@ -6970,7 +6992,7 @@ export default function InventoryScreen() {
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
                 <Text className="text-xs font-black text-slate-500 uppercase">Material*</Text>
-                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                   {materials.map((m) => (
                     <Pressable
                       key={m.id}
@@ -6978,7 +7000,7 @@ export default function InventoryScreen() {
                       className={`p-2 rounded mb-1 ${wastageMaterialId === m.id ? 'bg-blue-100' : ''}`}
                     >
                       <Text className="text-xs font-bold">
-                        {m.material_name} ({m.current_stock} left)
+                        {m.material_name} ({m.current_stock} {m.unit_short_name} left)
                       </Text>
                     </Pressable>
                   ))}
@@ -6999,7 +7021,7 @@ export default function InventoryScreen() {
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">
                   <Text className="text-xs font-black text-slate-500 uppercase">Location</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                     {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
                       <Pressable
                         key={loc}
@@ -7016,7 +7038,7 @@ export default function InventoryScreen() {
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-grow min-w-[140px] gap-1">
                   <Text className="text-xs font-black text-slate-500 uppercase">Reason*</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                     {(['Expired', 'Spoiled', 'Kitchen Waste', 'Damage', 'Theft', 'Other'] as const).map((r) => (
                       <Pressable
                         key={r}
@@ -7077,7 +7099,7 @@ export default function InventoryScreen() {
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
                 <Text className="text-xs font-black text-slate-500 uppercase">Material*</Text>
-                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                   {materials.map((m) => (
                     <Pressable
                       key={m.id}
@@ -7085,7 +7107,7 @@ export default function InventoryScreen() {
                       className={`p-2 rounded mb-1 ${adjMaterialId === m.id ? 'bg-blue-100' : ''}`}
                     >
                       <Text className="text-xs font-bold">
-                        {m.material_name} ({m.current_stock} left)
+                        {m.material_name} ({m.current_stock} {m.unit_short_name} left)
                       </Text>
                     </Pressable>
                   ))}
@@ -7134,7 +7156,7 @@ export default function InventoryScreen() {
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-grow min-w-[140px] gap-1">
                   <Text className="text-xs font-black text-slate-500 uppercase">Location</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                     {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
                       <Pressable
                         key={loc}
