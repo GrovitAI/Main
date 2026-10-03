@@ -48,7 +48,6 @@ import {
   X,
   Hash,
   CreditCard,
-  Home,
   Upload,
   Store,
   MoreVertical,
@@ -85,6 +84,7 @@ import {
   fetchPurchases,
   fetchPurchaseItems,
   createPurchase,
+  DEFAULT_STOCK_LOCATION,
   fetchAdjustments,
   createAdjustment,
   fetchWastage,
@@ -521,7 +521,10 @@ export default function InventoryScreen() {
   const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; pack_size: string; unit_price: string; gst: string; unit_short_name?: string }[]>([
     { material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' },
   ]);
-  const [purchaseLocation, setPurchaseLocation] = useState('Dry Storage');
+  // The branch the goods were bought for. The owner may buy for any branch
+  // they can see; everyone else buys for their own. Follows the viewed branch
+  // each time the form opens.
+  const [purchaseBranchId, setPurchaseBranchId] = useState<string>(viewedBranchId);
   const [purchaseInvoiceDate, setPurchaseInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   // Whose cash or bank paid, when it was not this branch's own ('' = this branch),
   // and when a purchase on credit is to be paid ('' = no date).
@@ -535,6 +538,10 @@ export default function InventoryScreen() {
     if (routeParams.tab === 'record_purchase') setActiveTab('record_purchase');
   }, [routeParams.tab]);
 
+  useEffect(() => {
+    if (activeTab === 'record_purchase') setPurchaseBranchId(viewedBranchId);
+  }, [activeTab, viewedBranchId]);
+
   // The finance accounts, for "Paid by" on a purchase. Loaded when the form first opens.
   useEffect(() => {
     if (activeTab !== 'record_purchase' || financeAccounts.length > 0) return;
@@ -547,27 +554,20 @@ export default function InventoryScreen() {
     };
   }, [activeTab, financeAccounts.length]);
 
-  // This branch's own account first (the everyday case), then every other
-  // account that may have paid for it. Empty until the accounts have loaded.
+  // The buying branch's own account first (the everyday case), then every
+  // other account that may have paid for it. Empty until the accounts have loaded.
   const purchasePayerOptions = useMemo(() => {
-    let ownBranchId: string | null = null;
-    try {
-      ownBranchId = getTenantContext().branch_id;
-    } catch {
-      return [];
-    }
-    const own = financeAccounts.find((a) => a.kind === 'branch' && a.branch_id === ownBranchId);
+    const own = financeAccounts.find((a) => a.kind === 'branch' && a.branch_id === purchaseBranchId);
     if (!own) return [];
     return [
       { id: '', label: `${own.name} (this branch)` },
       ...financeAccounts.filter((a) => a.id !== own.id).map((a) => ({ id: a.id, label: a.kind === 'partner' ? `${a.name} (partner)` : a.name })),
     ];
-  }, [financeAccounts]);
+  }, [financeAccounts, purchaseBranchId]);
 
   // Redesigned Purchase Modal Dropdown state controls
   const [isSupDropdownOpen, setIsSupDropdownOpen] = useState(false);
   const [isPayDropdownOpen, setIsPayDropdownOpen] = useState(false);
-  const [isLocDropdownOpen, setIsLocDropdownOpen] = useState(false);
   const [openLineMatDropdownIdx, setOpenLineMatDropdownIdx] = useState<number | null>(null);
   const [openLineUnitDropdownIdx, setOpenLineUnitDropdownIdx] = useState<number | null>(null);
   const [openLineGstDropdownIdx, setOpenLineGstDropdownIdx] = useState<number | null>(null);
@@ -584,7 +584,6 @@ export default function InventoryScreen() {
   const [wastageMaterialId, setWastageMaterialId] = useState('');
   const [wastageQty, setWastageQty] = useState('');
   const [wastageReason, setWastageReason] = useState<'Expired' | 'Spoiled' | 'Kitchen Waste' | 'Damage' | 'Theft' | 'Other'>('Spoiled');
-  const [wastageLocation, setWastageLocation] = useState('Dry Storage');
   const [wastageRecorder, setWastageRecorder] = useState('');
 
   // New Adjustment states
@@ -592,7 +591,6 @@ export default function InventoryScreen() {
   const [adjQty, setAdjQty] = useState('');
   const [adjType, setAdjType] = useState<'Add' | 'Deduct'>('Add');
   const [adjReason, setAdjReason] = useState('Physical Stock Audit');
-  const [adjLocation, setAdjLocation] = useState('Dry Storage');
   const [adjRemarks, setAdjRemarks] = useState('');
 
   // Material Form states
@@ -1289,7 +1287,6 @@ export default function InventoryScreen() {
     setActiveTab('record_purchase');
     setIsSupDropdownOpen(false);
     setIsPayDropdownOpen(false);
-    setIsLocDropdownOpen(false);
     setOpenLineMatDropdownIdx(null);
     setOpenLineUnitDropdownIdx(null);
     setOpenLineGstDropdownIdx(null);
@@ -1672,11 +1669,14 @@ export default function InventoryScreen() {
       if (!paidNow && purchaseDueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDueDate) || purchaseDueDate < purchaseInvoiceDate)) {
         throw new Error('Enter the pay-by date as YYYY-MM-DD, on or after the invoice date.');
       }
-      const res = await createPurchase(headerPayload, finalItems, purchaseLocation, paidNow, {
+      const res = await createPurchase(headerPayload, finalItems, DEFAULT_STOCK_LOCATION, paidNow, {
         paidFromAccountId: purchasePaidBy || null,
         dueDate: purchaseDueDate || null,
+        branchId: purchaseBranchId,
       });
       if (res.error) throw new Error(res.error);
+      // Show the list the purchase went into.
+      if (purchaseBranchId !== viewedBranchId) setViewedBranchId(purchaseBranchId);
       setActiveTab('purchases');
       setPurchasePaidBy('');
       setPurchaseDueDate('');
@@ -1716,7 +1716,7 @@ export default function InventoryScreen() {
         material_id: wastageMaterialId,
         quantity: Number(wastageQty),
         reason: wastageReason,
-        location_id: wastageLocation,
+        location_id: DEFAULT_STOCK_LOCATION,
         recorded_by: wastageRecorder.trim() || getActorName(),
       };
       const res = await createWastage(payload);
@@ -1759,7 +1759,7 @@ export default function InventoryScreen() {
         quantity: Number(adjQty),
         adjustment_type: adjType,
         reason: adjReason,
-        location_id: adjLocation,
+        location_id: DEFAULT_STOCK_LOCATION,
         remarks: adjRemarks || null,
         created_by: getActorName(),
         adjustment_date: new Date().toISOString(),
@@ -3221,7 +3221,34 @@ export default function InventoryScreen() {
         )}
 
         {/* SECTION A: INVOICE META DETAILS (STATIONARY/FROZEN) */}
-        <View className="flex-col gap-6 mb-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 3000 : 100, position: 'relative' }}>
+        <View className="flex-col gap-6 mb-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen) ? 3000 : 100, position: 'relative' }}>
+            {/* Branch: the owner can buy for any branch they can see */}
+            {branchPickerVisible ? (
+              <View className="gap-1.5">
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Bought for *</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {accessibleBranches.map((b) => {
+                    const selected = b.id === purchaseBranchId;
+                    return (
+                      <Pressable
+                        key={b.id}
+                        onPress={() => {
+                          setPurchaseBranchId(b.id);
+                          setPurchasePaidBy('');
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Bought for ${b.name}`}
+                        className={`min-h-[44px] items-center justify-center rounded-xl border px-4 ${selected ? 'bg-primary border-primary' : 'bg-white border-slate-200'}`}
+                      >
+                        <Text className={`text-xs font-bold ${selected ? 'text-white' : 'text-slate-600'}`}>{b.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
             {/* Row 1: Supplier and Invoice Number */}
             <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: isSupDropdownOpen ? 2000 : 10, position: 'relative' }}>
               
@@ -3232,7 +3259,6 @@ export default function InventoryScreen() {
                   onPress={() => {
                     setIsSupDropdownOpen(!isSupDropdownOpen);
                     setIsPayDropdownOpen(false);
-                    setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
                   className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
@@ -3301,8 +3327,8 @@ export default function InventoryScreen() {
 
             </View>
 
-            {/* Row 2: Date, Payment, Freight, Storage */}
-            <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 2000 : 5, position: 'relative' }}>
+            {/* Row 2: Date, Payment, Freight */}
+            <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen) ? 2000 : 5, position: 'relative' }}>
               
               {/* Date Input with Mini Calendar Popup */}
               <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: 10000 }}>
@@ -3312,7 +3338,6 @@ export default function InventoryScreen() {
                     setIsCalendarOpen(!isCalendarOpen);
                     setIsSupDropdownOpen(false);
                     setIsPayDropdownOpen(false);
-                    setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
                   className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
@@ -3395,7 +3420,6 @@ export default function InventoryScreen() {
                   onPress={() => {
                     setIsPayDropdownOpen(!isPayDropdownOpen);
                     setIsSupDropdownOpen(false);
-                    setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                     setIsCalendarOpen(false);
                   }}
@@ -3490,46 +3514,6 @@ export default function InventoryScreen() {
                 </View>
               </View>
 
-              {/* Storage Destination */}
-              <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
-                <Pressable
-                  onPress={() => {
-                    setIsLocDropdownOpen(!isLocDropdownOpen);
-                    setIsSupDropdownOpen(false);
-                    setIsPayDropdownOpen(false);
-                    setOpenLineMatDropdownIdx(null);
-                    setIsCalendarOpen(false);
-                  }}
-                  className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
-                >
-                  <View className="flex-row items-center gap-2">
-                    <Home size={14} color="#64748b" />
-                    <Text className="text-xs font-bold text-slate-700">{purchaseLocation || 'Select location'}</Text>
-                  </View>
-                  <ChevronDown size={12} color="#64748b" />
-                </Pressable>
-
-                {isLocDropdownOpen && (
-                  <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => {
-                          setPurchaseLocation(loc);
-                          setIsLocDropdownOpen(false);
-                        }}
-                        className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                          purchaseLocation === loc ? 'bg-blue-50/50' : ''
-                        }`}
-                      >
-                        <Text className={`text-xs font-bold ${purchaseLocation === loc ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-
             </View>
           </View>
 
@@ -3620,8 +3604,7 @@ export default function InventoryScreen() {
                           setOpenLineGstDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
-                          setIsLocDropdownOpen(false);
-                          setIsCalendarOpen(false);
+                                setIsCalendarOpen(false);
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
@@ -3677,8 +3660,7 @@ export default function InventoryScreen() {
                           setOpenLineGstDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
-                          setIsLocDropdownOpen(false);
-                          setIsCalendarOpen(false);
+                                setIsCalendarOpen(false);
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
@@ -3754,8 +3736,7 @@ export default function InventoryScreen() {
                           setOpenLineUnitDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
-                          setIsLocDropdownOpen(false);
-                          setIsCalendarOpen(false);
+                                setIsCalendarOpen(false);
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
@@ -7019,20 +7000,6 @@ export default function InventoryScreen() {
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-xs font-black text-slate-500 uppercase">Location</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => setWastageLocation(loc)}
-                        className={`p-2 rounded mb-1 ${wastageLocation === loc ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-xs font-bold">{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
               </View>
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
@@ -7154,20 +7121,6 @@ export default function InventoryScreen() {
               </View>
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
-                <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-xs font-black text-slate-500 uppercase">Location</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => setAdjLocation(loc)}
-                        className={`p-2 rounded mb-1 ${adjLocation === loc ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-xs font-bold">{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
                 <View className="flex-grow min-w-[140px] gap-1">
                   <Text className="text-xs font-black text-slate-500 uppercase">Reason*</Text>
                   <TextInput

@@ -582,7 +582,12 @@ const TABLES_UNAVAILABLE_MESSAGE = 'Inventory tables are not available. Contact 
 const CATALOGUE_REFUSED_MESSAGE = 'This record was created by another branch. Ask the owner or an admin to change it.';
 
 /** Where stock is filed when the caller names no storage location. */
-const DEFAULT_STOCK_LOCATION = 'Main Storage';
+/**
+ * Where a branch's stock is counted. Purchases, counts, wastage and opening
+ * stock all land here, so each material has one figure per branch; the
+ * storage pickers were taken off the screens on the owner's ask (2026-10-03).
+ */
+export const DEFAULT_STOCK_LOCATION = 'Main Storage';
 
 type CatalogueTable ='inventory_categories' | 'inventory_units' | 'inventory_suppliers' | 'inventory_materials';
 
@@ -1315,13 +1320,16 @@ function mapPurchaseRpcError(err: unknown): string {
  * `payment.paidFromAccountId`: the finance account whose cash or bank paid,
  * when it was not this branch's own (a branch paying the kitchen's vendor).
  * `payment.dueDate`: when a purchase on credit is to be paid, 'YYYY-MM-DD'.
+ * `payment.branchId`: the branch that bought the goods, when the owner records
+ * a purchase for a branch other than their own; the database refuses a branch
+ * the signed-in user cannot access.
  */
 export async function createPurchase(
   header: Omit<InventoryPurchaseHeader, 'id' | 'tenant_id' | 'branch_id' | 'purchase_number' | 'created_at' | 'status' | 'finance_entry_id' | 'finance_entry'>,
   items: Omit<InventoryPurchaseItem, 'id' | 'tenant_id' | 'branch_id' | 'purchase_header_id' | 'created_at'>[],
-  location_id = 'Dry Storage',
+  location_id: string = DEFAULT_STOCK_LOCATION,
   paid = true,
-  payment: { paidFromAccountId?: string | null; dueDate?: string | null } = {}
+  payment: { paidFromAccountId?: string | null; dueDate?: string | null; branchId?: string | null } = {}
 ): Promise<ServiceResult<InventoryPurchaseHeader>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
@@ -1329,7 +1337,7 @@ export async function createPurchase(
     if (!purchaseDate) return { data: null, error: 'Enter the invoice date as YYYY-MM-DD.' };
 
     const { data, error } = await supabase.rpc('record_purchase', {
-      p_branch_id: branch_id,
+      p_branch_id: payment.branchId || branch_id,
       p_supplier_id: header.supplier_id,
       p_purchase_date: purchaseDate,
       p_invoice_number: header.invoice_number,
