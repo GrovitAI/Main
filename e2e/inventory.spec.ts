@@ -14,7 +14,7 @@ const materialName = `E2E ${stamp} Test material`;
 
 async function openInventory(page: Page): Promise<void> {
   await page.goto('/inventory');
-  await expect(page.getByText('Overview of your inventory performance')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('Stock value, what needs buying, and the waste this month')).toBeVisible({ timeout: 60_000 });
 }
 
 /**

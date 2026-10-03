@@ -880,14 +880,14 @@ export default function RecipeManagement() {
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
         {/* Product link card */}
         <View className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3">
-          <Text className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">
+          <Text className="text-xs font-black text-text-secondary uppercase tracking-widest mb-2">
             Linked Menu Product
           </Text>
           {prod ? (
             <View className="flex-row items-center justify-between">
               <View>
                 <Text className="text-sm font-black text-text-primary">{prod.name}</Text>
-                <Text className="text-[10px] text-text-secondary font-semibold mt-0.5">
+                <Text className="text-xs text-text-secondary font-semibold mt-0.5">
                   Selling Price: ₹{prod.price.toFixed(2)}
                 </Text>
               </View>
@@ -902,7 +902,7 @@ export default function RecipeManagement() {
                 >
                   {completenessStatus.icon}
                   <Text
-                    className="text-[9px] font-black uppercase"
+                    className="text-xs font-black uppercase"
                     style={{ color: completenessStatus.color }}
                   >
                     {completenessStatus.label}
@@ -927,7 +927,7 @@ export default function RecipeManagement() {
                 >
                   {completenessStatus.icon}
                   <Text
-                    className="text-[9px] font-black uppercase"
+                    className="text-xs font-black uppercase"
                     style={{ color: completenessStatus.color }}
                   >
                     {completenessStatus.label}
@@ -939,7 +939,7 @@ export default function RecipeManagement() {
         </View>
 
         {/* Ingredient Breakdown Table */}
-        <Text className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">
+        <Text className="text-xs font-black text-text-secondary uppercase tracking-widest mb-2">
           Ingredient Breakdown
         </Text>
         {loadingItems ? (
@@ -955,19 +955,19 @@ export default function RecipeManagement() {
           <View className="border border-slate-200 rounded-xl overflow-hidden mb-3">
             {/* Table Header */}
             <View className="flex-row bg-slate-100 border-b border-slate-200 px-3 py-2">
-              <Text className="flex-[2] text-[9px] font-black text-text-secondary uppercase">
+              <Text className="flex-[2] text-xs font-black text-text-secondary uppercase">
                 Ingredient
               </Text>
-              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">
+              <Text className="w-16 text-xs font-black text-text-secondary uppercase text-right">
                 Stock
               </Text>
-              <Text className="w-20 text-[9px] font-black text-text-secondary uppercase text-right">
+              <Text className="w-20 text-xs font-black text-text-secondary uppercase text-right">
                 Qty
               </Text>
-              <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-right">
+              <Text className="w-14 text-xs font-black text-text-secondary uppercase text-right">
                 Unit ₹
               </Text>
-              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">
+              <Text className="w-16 text-xs font-black text-text-secondary uppercase text-right">
                 Total ₹
               </Text>
             </View>
@@ -991,20 +991,20 @@ export default function RecipeManagement() {
                         {mat ? mat.material_name : 'Unknown'}
                       </Text>
                     </View>
-                    <Text className="text-[9px] text-text-secondary mt-0.5">
+                    <Text className="text-xs text-text-secondary mt-0.5">
                       {mat?.unit_short_name ?? ''}
                     </Text>
                   </View>
                   <View className="w-16 items-end">
                     <Text
-                      className={`text-[10px] font-bold font-mono ${
+                      className={`text-xs font-bold font-mono ${
                         stockLow ? 'text-rose-600' : 'text-emerald-600'
                       }`}
                     >
                       {stock.toFixed(2)}
                     </Text>
                     {stockLow && (
-                      <Text className="text-[8px] text-rose-500 font-bold">LOW</Text>
+                      <Text className="text-[11px] text-rose-500 font-bold">LOW</Text>
                     )}
                   </View>
                   <Text className="w-20 text-xs font-bold text-text-secondary text-right font-mono">
@@ -1021,7 +1021,7 @@ export default function RecipeManagement() {
             })}
             {/* Total row */}
             <View className="flex-row px-3 py-2.5 bg-slate-50 items-center">
-              <Text className="flex-[2] text-[10px] font-black text-text-secondary uppercase">
+              <Text className="flex-[2] text-xs font-black text-text-secondary uppercase">
                 Total ({selectedRecipe.yield_quantity} {selectedRecipe.yield_unit})
               </Text>
               <Text className="w-16" />
@@ -1057,13 +1057,13 @@ export default function RecipeManagement() {
               <Flame size={16} color="#d97706" />
             </View>
             <View className="flex-1">
-              <Text className="text-[9px] font-black text-amber-700 uppercase tracking-widest">
+              <Text className="text-xs font-black text-amber-700 uppercase tracking-widest">
                 Highest Cost Driver
               </Text>
               <Text className="text-sm font-black text-amber-900 mt-0.5">
                 {topLine.mat?.material_name ?? 'Unknown'}
               </Text>
-              <Text className="text-[10px] text-amber-700 font-semibold mt-0.5">
+              <Text className="text-xs text-amber-700 font-semibold mt-0.5">
                 ₹{topLine.lineCost.toFixed(2)} · {((topLine.lineCost / viewCostInfo.total) * 100).toFixed(1)}% of total cost
               </Text>
             </View>
@@ -1071,7 +1071,7 @@ export default function RecipeManagement() {
         )}
 
         {/* Cost breakdown bar chart */}
-        <Text className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">
+        <Text className="text-xs font-black text-text-secondary uppercase tracking-widest mb-2">
           Cost Distribution
         </Text>
         <View className="border border-slate-200 rounded-xl overflow-hidden mb-3">
@@ -1089,7 +1089,7 @@ export default function RecipeManagement() {
                   </View>
                   <Text className="text-xs font-black font-mono text-text-primary">
                     ₹{line.lineCost.toFixed(2)}
-                    <Text className="text-[9px] font-semibold text-text-secondary"> ({pct.toFixed(1)}%)</Text>
+                    <Text className="text-xs font-semibold text-text-secondary"> ({pct.toFixed(1)}%)</Text>
                   </Text>
                 </View>
                 <View className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -1124,7 +1124,7 @@ export default function RecipeManagement() {
                 }}
               >
                 <Text
-                  className="text-[10px] font-bold"
+                  className="text-xs font-bold"
                   style={{ color: costBasis === b ? '#fff' : colors.textSecondary }}
                 >
                   {b === 'average' ? 'Avg Cost' : 'Last Price'}
@@ -1139,7 +1139,7 @@ export default function RecipeManagement() {
 
   const renderConsumptionTab = () => (
     <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-      <Text className="text-[10px] font-black text-text-secondary uppercase tracking-widest mb-2">
+      <Text className="text-xs font-black text-text-secondary uppercase tracking-widest mb-2">
         Recent Consumption Events
       </Text>
       {consumptionHistory.length === 0 ? (
@@ -1148,23 +1148,23 @@ export default function RecipeManagement() {
           <Text className="text-xs text-slate-400 font-semibold mt-2">
             No consumption records yet
           </Text>
-          <Text className="text-[10px] text-slate-400 text-center mt-1 px-4">
+          <Text className="text-xs text-slate-400 text-center mt-1 px-4">
             Consumption events appear after orders with this recipe are settled.
           </Text>
         </View>
       ) : (
         <View className="border border-slate-200 rounded-xl overflow-hidden">
           <View className="flex-row bg-slate-100 border-b border-slate-200 px-3 py-2">
-            <Text className="flex-[2] text-[9px] font-black text-text-secondary uppercase">Material</Text>
-            <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">Date</Text>
-            <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">Deducted</Text>
+            <Text className="flex-[2] text-xs font-black text-text-secondary uppercase">Material</Text>
+            <Text className="w-16 text-xs font-black text-text-secondary uppercase text-right">Date</Text>
+            <Text className="w-16 text-xs font-black text-text-secondary uppercase text-right">Deducted</Text>
           </View>
           {consumptionHistory.map((l) => (
             <View key={l.id} className="flex-row px-3 py-2.5 border-b border-slate-100 items-center">
               <Text className="flex-[2] text-xs font-bold text-text-primary" numberOfLines={1}>
                 {l.material_name ?? 'Material'}
               </Text>
-              <Text className="w-16 text-[10px] text-text-secondary text-right font-mono">
+              <Text className="w-16 text-xs text-text-secondary text-right font-mono">
                 {new Date(l.transaction_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
               </Text>
               <Text className="w-16 text-xs font-black text-rose-600 text-right font-mono">
@@ -1202,7 +1202,7 @@ export default function RecipeManagement() {
           </View>
           <Pressable
             onPress={cancelEditor}
-            className="w-8 h-8 bg-slate-100 rounded-full items-center justify-center active:bg-slate-200"
+            className="w-10 h-10 bg-slate-100 rounded-full items-center justify-center active:bg-slate-200"
           >
             <X size={14} color="#475569" />
           </Pressable>
@@ -1220,10 +1220,10 @@ export default function RecipeManagement() {
           <View className="mb-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
             <View className="flex-row items-center gap-1 mb-2">
               <View className="w-5 h-5 bg-primary rounded-full items-center justify-center">
-                <Text className="text-white text-[9px] font-black">1</Text>
+                <Text className="text-white text-xs font-black">1</Text>
               </View>
               <Text className="text-xs font-black text-text-primary">Select Menu Product *</Text>
-              <Text className="text-[9px] text-rose-500 font-bold">(Required)</Text>
+              <Text className="text-xs text-rose-500 font-bold">(Required)</Text>
             </View>
             <Autocomplete<Product>
               value={editLinkedProductId}
@@ -1239,13 +1239,13 @@ export default function RecipeManagement() {
           <View className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
             <View className="flex-row items-center gap-1 mb-2">
               <View className="w-5 h-5 bg-slate-400 rounded-full items-center justify-center">
-                <Text className="text-white text-[9px] font-black">2</Text>
+                <Text className="text-white text-xs font-black">2</Text>
               </View>
               <Text className="text-xs font-black text-text-primary">Recipe Identity</Text>
             </View>
             <View className="flex-row gap-2 mb-2">
               <View className="flex-1">
-                <Text className="text-[10px] font-bold text-text-secondary mb-1">Recipe Name *</Text>
+                <Text className="text-xs font-bold text-text-secondary mb-1">Recipe Name *</Text>
                 <TextInput
                   value={editRecipeName}
                   onChangeText={setEditRecipeName}
@@ -1256,7 +1256,7 @@ export default function RecipeManagement() {
                 />
               </View>
               <View style={{ width: 130 }}>
-                <Text className="text-[10px] font-bold text-text-secondary mb-1">Recipe Code *</Text>
+                <Text className="text-xs font-bold text-text-secondary mb-1">Recipe Code *</Text>
                 <TextInput
                   value={editRecipeCode}
                   onChangeText={setEditRecipeCode}
@@ -1269,7 +1269,7 @@ export default function RecipeManagement() {
             </View>
             <View className="flex-row gap-2">
               <View style={{ width: 90 }}>
-                <Text className="text-[10px] font-bold text-text-secondary mb-1">Yield Qty *</Text>
+                <Text className="text-xs font-bold text-text-secondary mb-1">Yield Qty *</Text>
                 <TextInput
                   value={editYieldQuantity}
                   onChangeText={setEditYieldQuantity}
@@ -1281,7 +1281,7 @@ export default function RecipeManagement() {
                 />
               </View>
               <View className="flex-1">
-                <Text className="text-[10px] font-bold text-text-secondary mb-1">Yield Unit *</Text>
+                <Text className="text-xs font-bold text-text-secondary mb-1">Yield Unit *</Text>
                 <TextInput
                   value={editYieldUnit}
                   onChangeText={setEditYieldUnit}
@@ -1299,7 +1299,7 @@ export default function RecipeManagement() {
             <View className="flex-row items-center justify-between mb-2">
               <View className="flex-row items-center gap-1">
                 <View className="w-5 h-5 bg-slate-400 rounded-full items-center justify-center">
-                  <Text className="text-white text-[9px] font-black">3</Text>
+                  <Text className="text-white text-xs font-black">3</Text>
                 </View>
                 <Text className="text-xs font-black text-text-primary">Ingredients</Text>
               </View>
@@ -1308,7 +1308,7 @@ export default function RecipeManagement() {
                 className="flex-row items-center gap-1 bg-slate-100 border border-slate-200 px-2.5 py-1.5 rounded-lg active:bg-slate-200"
               >
                 <Plus size={10} color="#475569" />
-                <Text className="text-[10px] font-bold text-slate-600">Add Row</Text>
+                <Text className="text-xs font-bold text-slate-600">Add Row</Text>
               </Pressable>
             </View>
 
@@ -1323,18 +1323,18 @@ export default function RecipeManagement() {
                 onChangeText={setEditIngredientSearch}
                 placeholder="Filter materials..."
                 placeholderTextColor="#94a3b8"
-                className="flex-1 ml-2 text-[11px] font-semibold text-text-primary outline-none"
+                className="flex-1 ml-2 text-xs font-semibold text-text-primary outline-none"
                 style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
               />
             </View>
 
             {/* Ingredient table header */}
             <View className="flex-row border-b border-slate-100 pb-1 mb-1">
-              <Text className="flex-[2] text-[9px] font-black text-text-secondary uppercase">Material</Text>
-              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-center">In Stock</Text>
-              <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-right">Qty</Text>
-              <Text className="w-14 text-[9px] font-black text-text-secondary uppercase text-center">Unit</Text>
-              <Text className="w-16 text-[9px] font-black text-text-secondary uppercase text-right">Line ₹</Text>
+              <Text className="flex-[2] text-xs font-black text-text-secondary uppercase">Material</Text>
+              <Text className="w-16 text-xs font-black text-text-secondary uppercase text-center">In Stock</Text>
+              <Text className="w-14 text-xs font-black text-text-secondary uppercase text-right">Qty</Text>
+              <Text className="w-14 text-xs font-black text-text-secondary uppercase text-center">Unit</Text>
+              <Text className="w-16 text-xs font-black text-text-secondary uppercase text-right">Line ₹</Text>
               <Text className="w-8" />
             </View>
 
@@ -1360,14 +1360,14 @@ export default function RecipeManagement() {
                   <View className="w-16 items-center">
                     {stock !== null ? (
                       <Text
-                        className={`text-[10px] font-bold font-mono ${
+                        className={`text-xs font-bold font-mono ${
                           mat && stock < (mat.reorder_level ?? 0) ? 'text-rose-500' : 'text-emerald-600'
                         }`}
                       >
                         {stock.toFixed(1)} {mat?.unit_short_name ?? ''}
                       </Text>
                     ) : (
-                      <Text className="text-[10px] text-slate-300">—</Text>
+                      <Text className="text-xs text-slate-300">—</Text>
                     )}
                   </View>
 
@@ -1389,7 +1389,7 @@ export default function RecipeManagement() {
                       className="flex-row items-center justify-between border border-slate-200 rounded-lg px-2 bg-white active:scale-95"
                       style={{ height: 36 }}
                     >
-                      <Text className="text-[10px] font-bold text-slate-600">
+                      <Text className="text-xs font-bold text-slate-600">
                         {itm.selected_unit || mat?.unit_short_name || 'Unit'}
                       </Text>
                       <ChevronDown size={8} color="#64748b" />
@@ -1408,7 +1408,7 @@ export default function RecipeManagement() {
                               (itm.selected_unit || mat.unit_short_name) === opt ? 'bg-blue-50/50' : ''
                             }`}
                           >
-                            <Text className={`text-[10px] font-bold ${
+                            <Text className={`text-xs font-bold ${
                               (itm.selected_unit || mat.unit_short_name) === opt ? 'text-blue-600' : 'text-slate-700'
                             } text-center`}>
                               {opt}
@@ -1427,7 +1427,7 @@ export default function RecipeManagement() {
                   {/* Remove */}
                   <Pressable
                     onPress={() => removeIngredientRow(idx)}
-                    className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 items-center justify-center active:bg-rose-100"
+                    className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 items-center justify-center active:bg-rose-100"
                   >
                     <Minus size={11} color="#dc2626" />
                   </Pressable>
@@ -1438,12 +1438,12 @@ export default function RecipeManagement() {
 
           {/* Live cost summary */}
           <View className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-            <Text className="text-[9px] font-black text-text-secondary uppercase tracking-widest mb-2">
+            <Text className="text-xs font-black text-text-secondary uppercase tracking-widest mb-2">
               Live Cost Preview · {costBasis === 'average' ? 'Avg Cost' : 'Last Purchase'}
             </Text>
             <View className="flex-row gap-2">
               <View className="flex-1 bg-white border border-slate-200 rounded-lg p-2 items-center">
-                <Text className="text-[9px] text-text-secondary font-bold uppercase">Total Ingredients</Text>
+                <Text className="text-xs text-text-secondary font-bold uppercase">Total Ingredients</Text>
                 <Text className="text-sm font-black font-mono text-text-primary mt-0.5">
                   ₹{liveCostInfo.total.toFixed(2)}
                 </Text>
@@ -1452,7 +1452,7 @@ export default function RecipeManagement() {
                 className="flex-1 rounded-lg p-2 items-center border"
                 style={{ backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30` }}
               >
-                <Text className="text-[9px] font-bold uppercase" style={{ color: colors.primary }}>
+                <Text className="text-xs font-bold uppercase" style={{ color: colors.primary }}>
                   Cost / Portion
                 </Text>
                 <Text className="text-sm font-black font-mono mt-0.5" style={{ color: colors.primary }}>
@@ -1503,7 +1503,7 @@ export default function RecipeManagement() {
             <Text className="text-base font-black text-text-primary" numberOfLines={1}>
               {selectedRecipe.recipe_name ?? selectedRecipe.name}
             </Text>
-            <Text className="text-[10px] font-mono text-text-secondary mt-0.5">
+            <Text className="text-xs font-mono text-text-secondary mt-0.5">
               {selectedRecipe.recipe_code} · Yield: {selectedRecipe.yield_quantity}{' '}
               {selectedRecipe.yield_unit}
             </Text>
@@ -1511,7 +1511,7 @@ export default function RecipeManagement() {
           <View className="flex-row gap-1.5 items-center">
             <Pressable
               onPress={() => void handleDuplicate(selectedRecipe)}
-              className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:bg-slate-100"
+              className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:bg-slate-100"
               accessibilityLabel="Duplicate"
             >
               <Copy size={13} color="#475569" />
@@ -1522,13 +1522,13 @@ export default function RecipeManagement() {
               style={{ backgroundColor: `${colors.primary}15`, borderColor: `${colors.primary}30` }}
             >
               <Pencil size={11} color={colors.primary} />
-              <Text className="text-[10px] font-black" style={{ color: colors.primary }}>
+              <Text className="text-xs font-black" style={{ color: colors.primary }}>
                 Edit
               </Text>
             </Pressable>
             <Pressable
               onPress={() => handleDelete(selectedRecipe)}
-              className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:bg-rose-100"
+              className="w-10 h-10 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:bg-rose-100"
               accessibilityLabel="Archive"
             >
               <Trash2 size={13} color="#dc2626" />
@@ -1556,7 +1556,7 @@ export default function RecipeManagement() {
             >
               {tab.icon}
               <Text
-                className="text-[10px] font-black"
+                className="text-xs font-black"
                 style={{ color: rightTab === tab.key ? '#fff' : colors.textSecondary }}
               >
                 {tab.label}
@@ -1596,13 +1596,13 @@ export default function RecipeManagement() {
         className="mt-3 pt-3 border-t border-slate-200"
         style={{ borderTopColor: '#e2e8f0' }}
       >
-        <Text className="text-[9px] font-black text-text-secondary uppercase tracking-widest mb-2">
+        <Text className="text-xs font-black text-text-secondary uppercase tracking-widest mb-2">
           Profitability · {linkedProduct?.name}
         </Text>
         <View className="flex-row gap-2 flex-wrap">
           {/* Cost / portion */}
           <View className="flex-1 min-w-[90px] bg-slate-50 border border-slate-200 rounded-xl p-2.5 items-center">
-            <Text className="text-[8px] font-black text-text-secondary uppercase">Recipe Cost</Text>
+            <Text className="text-[11px] font-black text-text-secondary uppercase">Recipe Cost</Text>
             <Text className="text-sm font-black font-mono text-text-primary mt-0.5">
               ₹{info.cost.toFixed(2)}
             </Text>
@@ -1610,7 +1610,7 @@ export default function RecipeManagement() {
 
           {/* Selling price */}
           <View className="flex-1 min-w-[90px] bg-slate-50 border border-slate-200 rounded-xl p-2.5 items-center">
-            <Text className="text-[8px] font-black text-text-secondary uppercase">Selling Price</Text>
+            <Text className="text-[11px] font-black text-text-secondary uppercase">Selling Price</Text>
             <Text className="text-sm font-black font-mono text-text-primary mt-0.5">
               ₹{(linkedProduct?.price ?? 0).toFixed(2)}
             </Text>
@@ -1624,7 +1624,7 @@ export default function RecipeManagement() {
               borderColor: `${marginColor}30`,
             }}
           >
-            <Text className="text-[8px] font-black uppercase" style={{ color: marginColor }}>
+            <Text className="text-[11px] font-black uppercase" style={{ color: marginColor }}>
               Gross Margin
             </Text>
             <Text className="text-sm font-black font-mono mt-0.5" style={{ color: marginColor }}>
@@ -1642,7 +1642,7 @@ export default function RecipeManagement() {
           >
             <View className="flex-row items-center gap-1">
               <TrendingUp size={8} color={marginColor} />
-              <Text className="text-[8px] font-black uppercase" style={{ color: marginColor }}>
+              <Text className="text-[11px] font-black uppercase" style={{ color: marginColor }}>
                 Margin %
               </Text>
             </View>
@@ -1661,7 +1661,7 @@ export default function RecipeManagement() {
           >
             <View className="flex-row items-center gap-1">
               <Flame size={8} color={foodCostColor} />
-              <Text className="text-[8px] font-black uppercase" style={{ color: foodCostColor }}>
+              <Text className="text-[11px] font-black uppercase" style={{ color: foodCostColor }}>
                 Food Cost %
               </Text>
             </View>
@@ -1690,7 +1690,7 @@ export default function RecipeManagement() {
             <BookOpen size={16} color={colors.primary} />
             <Text className="text-base font-black text-text-primary">Recipes</Text>
             <View className="bg-slate-100 rounded-full px-1.5 py-0.5">
-              <Text className="text-[10px] font-black text-text-secondary">{recipes.length}</Text>
+              <Text className="text-xs font-black text-text-secondary">{recipes.length}</Text>
             </View>
           </View>
           <Pressable
@@ -1699,7 +1699,7 @@ export default function RecipeManagement() {
             style={{ backgroundColor: colors.primary, height: 34 }}
           >
             <Plus size={12} color="white" />
-            <Text className="text-white font-extrabold text-[11px]">New</Text>
+            <Text className="text-white font-extrabold text-xs">New</Text>
           </Pressable>
         </View>
 
@@ -1727,7 +1727,7 @@ export default function RecipeManagement() {
         {/* Cost Basis toggle */}
         <View className="flex-row items-center bg-blue-50/60 border border-blue-100 rounded-xl px-2.5 py-2 mb-3 gap-2">
           <Calculator size={13} color={colors.primary} />
-          <Text className="text-[10px] font-bold text-text-secondary flex-1">Basis:</Text>
+          <Text className="text-xs font-bold text-text-secondary flex-1">Basis:</Text>
           <View className="flex-row gap-1">
             {(['average', 'last_purchase'] as CostBasis[]).map((b) => (
               <Pressable
@@ -1740,7 +1740,7 @@ export default function RecipeManagement() {
                 }}
               >
                 <Text
-                  className="text-[9px] font-black"
+                  className="text-xs font-black"
                   style={{ color: costBasis === b ? '#fff' : colors.textSecondary }}
                 >
                   {b === 'average' ? 'Avg' : 'Last'}
@@ -1815,7 +1815,7 @@ export default function RecipeManagement() {
                         {item.recipe_name ?? item.name}
                       </Text>
                       {prod && (
-                        <Text className="text-[9px] text-text-secondary mt-0.5" numberOfLines={1}>
+                        <Text className="text-xs text-text-secondary mt-0.5" numberOfLines={1}>
                           ↳ {prod.name}
                         </Text>
                       )}
@@ -1832,12 +1832,12 @@ export default function RecipeManagement() {
 
                   {/* Meta row */}
                   <View className="flex-row items-center justify-between flex-wrap gap-1">
-                    <Text className="text-[9px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                    <Text className="text-xs font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
                       {item.recipe_code}
                     </Text>
                     <View className="flex-row items-center gap-1.5">
                       {/* Cost snapshot */}
-                      <Text className="text-[10px] font-black font-mono" style={{ color: colors.primary }}>
+                      <Text className="text-xs font-black font-mono" style={{ color: colors.primary }}>
                         ₹{costSnapshot.toFixed(2)}
                       </Text>
                       {/* Margin badge */}
@@ -1846,7 +1846,7 @@ export default function RecipeManagement() {
                           className="rounded px-1.5 py-0.5"
                           style={{ backgroundColor: `${mColor}18` }}
                         >
-                          <Text className="text-[9px] font-black" style={{ color: mColor }}>
+                          <Text className="text-xs font-black" style={{ color: mColor }}>
                             {marginPct.toFixed(0)}%
                           </Text>
                         </View>
@@ -1887,7 +1887,7 @@ export default function RecipeManagement() {
             >
               <Calculator size={28} color={colors.primary} />
             </View>
-            <Text className="text-text-primary font-black text-base mb-1">Recipe Costing Workstation</Text>
+            <Text className="text-text-primary font-black text-base mb-1">Recipes</Text>
             <Text className="text-text-secondary text-xs text-center px-8 mb-5">
               Select a recipe from the left panel to inspect cost breakdowns, margins, and
               consumption history — or create a new recipe.

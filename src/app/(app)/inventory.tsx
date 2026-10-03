@@ -4278,7 +4278,7 @@ export default function InventoryScreen() {
       <View className="flex-1">
         {branchPickerVisible ? (
           <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-6">
-            {renderBranchButtons('Viewing branch')}
+            {renderBranchButtons('Branch')}
           </View>
         ) : null}
 
@@ -4690,7 +4690,7 @@ export default function InventoryScreen() {
       <View className="flex-col gap-6">
         {/* Branch picker & Reports Sub-Tab switcher */}
         <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-1 flex-row items-center justify-between flex-wrap gap-3">
-          {renderBranchButtons('Reports branch')}
+          {renderBranchButtons('Branch')}
 
           <View className="flex-row gap-1">
             <Pressable
@@ -5587,7 +5587,7 @@ export default function InventoryScreen() {
       return 'Record a purchase';
     }
     if (activeTab === 'transfers' && isCreatingRequest) {
-      return 'New Stock Transfer Request';
+      return 'Ask the kitchen for stock';
     }
     const matched = SIDEBAR_ITEMS.find((s) => s.id === activeTab);
     return matched ? matched.label : 'Inventory Center';
@@ -5596,33 +5596,33 @@ export default function InventoryScreen() {
   const getTabSubtitle = () => {
     switch (activeTab) {
       case 'dashboard':
-        return 'Overview of your inventory performance';
+        return 'Stock value, what needs buying, and the waste this month';
       case 'materials':
         return 'What is in stock, what is low, and what it is worth';
       case 'purchases':
-        return 'Record and trace procurement billing history';
+        return 'Supplier bills, and whether each is paid';
       case 'suppliers':
-        return 'Supplier records and payments directory';
+        return 'Who you buy from, with contact details and payment terms';
       case 'wastage':
-        return 'Maintain controls on spoils and ingredient losses';
+        return 'What was thrown away, and what it cost';
       case 'transfers':
         return isCreatingRequest
           ? 'Select ingredients and items to request from Central Kitchen/Warehouse'
           : 'Ledger adjustments and internal branch transfers';
       case 'recipes':
-        return 'Standardize menu recipe details, cost breakdown and margins';
+        return 'What goes into each menu item, and what it costs to make';
       case 'reports':
-        return 'Deep analytics and monthly margin metrics';
+        return 'Stock value, recipe margins, and where stock went';
       case 'alerts':
-        return 'Critical system logs and low stock notifications';
+        return 'What needs reordering, and recent changes';
       case 'units':
-        return 'Configure global recipe weight units';
+        return 'The units stock is counted in: kg, litre, piece';
       case 'categories':
-        return 'Classify storage items and classify waste';
+        return 'Groups that organise the materials list';
       case 'record_purchase':
         return "The supplier's bill, item by item";
       default:
-        return 'Enterprise Restaurant Control Cockpit';
+        return 'Inventory';
     }
   };
 
