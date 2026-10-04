@@ -11,8 +11,10 @@ import { supabase } from './supabase';
 import { getTenantContext } from './tenant-context';
 import { useSessionStore } from './use-session-store';
 import { fromPaise, toPaise } from './finance-utils';
-import { describeKitchenError } from './kitchen-utils';
+import { DEFAULT_KITCHEN_CATEGORIES, describeKitchenError } from './kitchen-utils';
 import type {
+  KitchenAllocation,
+  KitchenCategory,
   KitchenEntry,
   KitchenEntryFilter,
   KitchenEntryLine,
@@ -86,7 +88,7 @@ function actorName(): string {
 const ITEM_COLUMNS = 'id, name, unit, sell_price_paise, stock, is_active, updated_at';
 const PARTY_COLUMNS = 'id, kind, name, phone, is_active';
 const ENTRY_COLUMNS =
-  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, note, created_by, created_at, voided_at, void_reason, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
+  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, note, created_by, created_at, voided_at, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
 const UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
 const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count'];
@@ -147,6 +149,7 @@ function mapEntry(row: Record<string, unknown>): KitchenEntry {
     created_at: String(row.created_at ?? ''),
     voided_at: toStringOrNull(row.voided_at),
     void_reason: toStringOrNull(row.void_reason),
+    replaces_id: toStringOrNull(row.replaces_id),
     lines,
   };
 }
@@ -281,31 +284,70 @@ export async function fetchKitchenBalances(): Promise<ServiceResult<KitchenParty
   }
 }
 
-/** The pay-later buys (vendor) or sends (branch) that money can still be matched against. */
-export async function fetchKitchenOpenDocuments(partyId: string): Promise<ServiceResult<KitchenOpenDocument[]>> {
+/**
+ * The pay-later buys (vendor) or sends (branch) that money can still be
+ * matched against. While a payment is being edited, pass its id: what it
+ * already covers counts as open again, so the form can offer it back.
+ */
+export async function fetchKitchenOpenDocuments(partyId: string, reopenPaymentId?: string): Promise<ServiceResult<KitchenOpenDocument[]>> {
   try {
     const { tenant_id, branch_id } = scope();
-    const { data, error } = await supabase
+    const reopen = new Map<string, number>();
+    if (reopenPaymentId) {
+      const allocations = await fetchKitchenAllocations(reopenPaymentId);
+      if (allocations.error) return { data: null, error: allocations.error };
+      for (const a of allocations.data ?? []) reopen.set(a.covers_id, a.amount);
+    }
+    const query = supabase
       .from('kitchen_open_documents')
       .select('entry_id, party_id, type, entry_date, amount_paise, covered_paise, open_paise')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
-      .eq('party_id', partyId)
-      .gt('open_paise', 0)
-      .order('entry_date', { ascending: true });
+      .eq('party_id', partyId);
+    const { data, error } = await (reopenPaymentId ? query : query.gt('open_paise', 0)).order('entry_date', { ascending: true });
     if (error) return { data: null, error: explain(error, 'Unable to load what is open.') };
-    const rows = (data ?? []).filter(isRecord).map((row): KitchenOpenDocument => ({
-      entry_id: String(row.entry_id),
-      party_id: String(row.party_id),
-      type: row.type === 'sent' ? 'sent' : 'bought',
-      entry_date: String(row.entry_date ?? ''),
-      amount: fromPaise(toNumber(row.amount_paise)),
-      covered: fromPaise(toNumber(row.covered_paise)),
-      open: fromPaise(toNumber(row.open_paise)),
-    }));
+    const rows = (data ?? [])
+      .filter(isRecord)
+      .map((row): KitchenOpenDocument => {
+        const id = String(row.entry_id);
+        const reopened = reopen.get(id) ?? 0;
+        return {
+          entry_id: id,
+          party_id: String(row.party_id),
+          type: row.type === 'sent' ? 'sent' : 'bought',
+          entry_date: String(row.entry_date ?? ''),
+          amount: fromPaise(toNumber(row.amount_paise)),
+          covered: Math.max(0, fromPaise(toNumber(row.covered_paise)) - reopened),
+          open: fromPaise(toNumber(row.open_paise)) + reopened,
+          reopened,
+        };
+      })
+      .filter((d) => d.open > 0);
     return { data: rows, error: null };
   } catch (err) {
     return { data: null, error: explain(err, 'Unable to load what is open.') };
+  }
+}
+
+/** What one payment is set against: the buys or sends it covers, with how much of each. */
+export async function fetchKitchenAllocations(paymentId: string): Promise<ServiceResult<KitchenAllocation[]>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const { data, error } = await supabase
+      .from('kitchen_allocations')
+      .select('payment_id, covers_id, amount_paise')
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id)
+      .eq('payment_id', paymentId);
+    if (error) return { data: null, error: explain(error, 'Unable to load the matches.') };
+    const rows = (data ?? []).filter(isRecord).map((row): KitchenAllocation => ({
+      payment_id: String(row.payment_id),
+      covers_id: String(row.covers_id),
+      amount: fromPaise(toNumber(row.amount_paise)),
+    }));
+    return { data: rows, error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to load the matches.') };
   }
 }
 
@@ -367,51 +409,72 @@ export async function fetchKitchenItemEntries(itemId: string, limit = 100): Prom
 }
 
 /** Posts one entry: the row, its lines, its matches and the stock, in one transaction. */
+/** The shape kitchen_post_entry and kitchen_edit_entry read: paise, not rupees. */
+function entryPayload(input: PostEntryInput): Record<string, unknown> {
+  const { branch_id } = scope();
+  const payload: Record<string, unknown> = {
+    branch_id,
+    type: input.type,
+    entry_date: input.entry_date ?? null,
+    note: input.note ?? null,
+    created_by: actorName(),
+  };
+  switch (input.type) {
+    case 'sent':
+    case 'bought':
+      payload.party_id = input.party_id;
+      payload.lines = input.lines.map((l) => ({ item_id: l.item_id, qty: l.qty, price_paise: toPaise(l.price) }));
+      if (input.type === 'bought') {
+        payload.paid = input.paid;
+        payload.mode = input.paid ? input.mode ?? null : null;
+      }
+      break;
+    case 'received':
+    case 'paid':
+      payload.party_id = input.party_id;
+      payload.amount_paise = toPaise(input.amount);
+      payload.mode = input.mode;
+      if (input.covers && input.covers.length > 0) {
+        payload.covers = input.covers.map((c) => ({ entry_id: c.entry_id, amount_paise: toPaise(c.amount) }));
+      }
+      break;
+    case 'spent':
+      payload.amount_paise = toPaise(input.amount);
+      payload.mode = input.mode;
+      payload.category = input.category;
+      break;
+    case 'made':
+    case 'count':
+      payload.item_id = input.item_id;
+      payload.qty = input.qty;
+      break;
+  }
+  return payload;
+}
+
 export async function postKitchenEntry(input: PostEntryInput): Promise<ServiceResult<KitchenEntry>> {
   try {
-    const { branch_id } = scope();
-    const payload: Record<string, unknown> = {
-      branch_id,
-      type: input.type,
-      entry_date: input.entry_date ?? null,
-      note: input.note ?? null,
-      created_by: actorName(),
-    };
-    switch (input.type) {
-      case 'sent':
-      case 'bought':
-        payload.party_id = input.party_id;
-        payload.lines = input.lines.map((l) => ({ item_id: l.item_id, qty: l.qty, price_paise: toPaise(l.price) }));
-        if (input.type === 'bought') {
-          payload.paid = input.paid;
-          payload.mode = input.paid ? input.mode ?? null : null;
-        }
-        break;
-      case 'received':
-      case 'paid':
-        payload.party_id = input.party_id;
-        payload.amount_paise = toPaise(input.amount);
-        payload.mode = input.mode;
-        if (input.covers && input.covers.length > 0) {
-          payload.covers = input.covers.map((c) => ({ entry_id: c.entry_id, amount_paise: toPaise(c.amount) }));
-        }
-        break;
-      case 'spent':
-        payload.amount_paise = toPaise(input.amount);
-        payload.mode = input.mode;
-        payload.category = input.category;
-        break;
-      case 'made':
-      case 'count':
-        payload.item_id = input.item_id;
-        payload.qty = input.qty;
-        break;
-    }
-    const { data, error } = await supabase.rpc('kitchen_post_entry', { p: payload });
+    const { data, error } = await supabase.rpc('kitchen_post_entry', { p: entryPayload(input) });
     if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the entry.') };
     return { data: mapEntry({ ...data, lines: [] }), error: null };
   } catch (err) {
     return { data: null, error: explain(err, 'Unable to save the entry.') };
+  }
+}
+
+/**
+ * Corrects an entry. The database voids the old one with the reason "Edited"
+ * and posts this one in its place in a single transaction; payments that
+ * covered the old buy or send carry over to the new one as far as its amount
+ * allows. The kind of entry cannot change.
+ */
+export async function editKitchenEntry(id: string, input: PostEntryInput): Promise<ServiceResult<KitchenEntry>> {
+  try {
+    const { data, error } = await supabase.rpc('kitchen_edit_entry', { p_entry_id: id, p: entryPayload(input) });
+    if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the changes.') };
+    return { data: mapEntry({ ...data, lines: [] }), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to save the changes.') };
   }
 }
 
@@ -423,5 +486,84 @@ export async function voidKitchenEntry(id: string, reason?: string | null): Prom
     return { data: mapEntry({ ...data, lines: [] }), error: null };
   } catch (err) {
     return { data: null, error: explain(err, 'Unable to void the entry.') };
+  }
+}
+
+// ─── Expense categories ──────────────────────────────────────────────────────
+
+const CATEGORY_COLUMNS = 'id, name, sort_order, is_active';
+
+function mapCategory(row: Record<string, unknown>): KitchenCategory {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    sort_order: toNumber(row.sort_order),
+    is_active: row.is_active !== false,
+  };
+}
+
+/**
+ * The kitchen's expense categories, in its own order. A kitchen that has
+ * none yet gets the usual ones written in, so the Spent screen is never
+ * empty on day one; after that the list is whatever the kitchen makes it.
+ */
+export async function fetchKitchenCategories(includeInactive = false): Promise<ServiceResult<KitchenCategory[]>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const base = () => supabase.from('kitchen_categories').select(CATEGORY_COLUMNS).eq('tenant_id', tenant_id).eq('branch_id', branch_id);
+    const read = () => (includeInactive ? base() : base().eq('is_active', true)).order('sort_order', { ascending: true }).order('name', { ascending: true });
+    const first = await read();
+    if (first.error) return { data: null, error: explain(first.error, 'Unable to load the categories.') };
+    let rows = first.data ?? [];
+    if (rows.length === 0) {
+      const { count, error: countError } = await supabase
+        .from('kitchen_categories')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id);
+      if (countError) return { data: null, error: explain(countError, 'Unable to load the categories.') };
+      if ((count ?? 0) === 0) {
+        const seed = DEFAULT_KITCHEN_CATEGORIES.map((name, i) => ({ tenant_id, branch_id, name, sort_order: (i + 1) * 10 }));
+        const { error: seedError } = await supabase.from('kitchen_categories').insert(seed);
+        // Another device may have written the same list a moment earlier; either way, read what is there.
+        if (seedError && seedError.code !== '23505') return { data: null, error: explain(seedError, 'Unable to set up the categories.') };
+        const again = await read();
+        if (again.error) return { data: null, error: explain(again.error, 'Unable to load the categories.') };
+        rows = again.data ?? [];
+      }
+    }
+    return { data: rows.filter(isRecord).map(mapCategory), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to load the categories.') };
+  }
+}
+
+/** Adds a category, or renames one when an id is given. Old entries keep the name they were saved with. */
+export async function saveKitchenCategory(name: string, id?: string): Promise<ServiceResult<KitchenCategory>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const trimmed = name.trim();
+    if (!trimmed) return { data: null, error: 'Give the category a name.' };
+    if (trimmed.length > 40) return { data: null, error: 'Keep the category name to 40 letters.' };
+    const query = id
+      ? supabase.from('kitchen_categories').update({ name: trimmed, is_active: true }).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
+      : supabase.from('kitchen_categories').insert({ tenant_id, branch_id, name: trimmed, sort_order: 100 });
+    const { data, error } = await query.select(CATEGORY_COLUMNS).single();
+    if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the category.') };
+    return { data: mapCategory(data), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to save the category.') };
+  }
+}
+
+/** Hides a category from the picker, or brings it back. Entries under it are untouched. */
+export async function setKitchenCategoryActive(id: string, isActive: boolean): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const { error } = await supabase.from('kitchen_categories').update({ is_active: isActive }).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id);
+    if (error) return { data: false, error: explain(error, 'Unable to change the category.') };
+    return { data: true, error: null };
+  } catch (err) {
+    return { data: false, error: explain(err, 'Unable to change the category.') };
   }
 }

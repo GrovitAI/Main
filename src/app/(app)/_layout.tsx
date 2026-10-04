@@ -16,6 +16,7 @@ import {
   APP_TAB_ROUTE_NAMES,
   AppTabRouteName,
   KITCHEN_HOME,
+  isCentralKitchenSession,
   getInitialRouteNameForRole,
   getTabConfigForRoute,
   getTabsForRole,
@@ -454,8 +455,8 @@ export default function AppTabLayout() {
   // Show the global header for owners and admins on tablet/desktop
   const showHeader = session && isTablet && (session.role === 'owner' || session.role === 'admin');
 
-  // The kitchen login has its own screens and none of these tabs.
-  if (session?.role === 'kitchen') return <Redirect href={KITCHEN_HOME as never} />;
+  // The Central Kitchen login has its own screens and none of these tabs.
+  if (session && isCentralKitchenSession(session)) return <Redirect href={KITCHEN_HOME as never} />;
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>

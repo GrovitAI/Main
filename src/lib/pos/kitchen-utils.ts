@@ -15,7 +15,41 @@ import type {
   KitchenUnit,
 } from './kitchen-types';
 
-export const KITCHEN_CATEGORIES = ['Salaries', 'Gas', 'Electricity', 'Rent', 'Transport', 'Packaging', 'Repairs', 'Other'] as const;
+/** The categories a new kitchen starts with; it adds its own from the Spent screen. */
+export const DEFAULT_KITCHEN_CATEGORIES: readonly string[] = ['Salaries', 'Gas', 'Electricity', 'Rent', 'Transport', 'Packaging', 'Repairs', 'Cleaning', 'Other'];
+
+/** How many expense categories the Spent screen shows before "More". */
+export const SHOWN_CATEGORIES = 5;
+
+/**
+ * Categories in the order the kitchen uses them: the ones with the most
+ * expenses first, then the list's own order, then the name. Inactive ones are
+ * left out. A chosen name that is not among the first few is pulled into them,
+ * so the selection is always on screen.
+ */
+export function orderCategories<T extends { name: string; sort_order: number; is_active: boolean }>(
+  categories: readonly T[],
+  entries: readonly Pick<KitchenEntry, 'type' | 'category' | 'voided_at'>[],
+): T[] {
+  const uses = new Map<string, number>();
+  for (const e of entries) {
+    if (e.type !== 'spent' || e.voided_at !== null || !e.category) continue;
+    const key = e.category.trim().toLowerCase();
+    uses.set(key, (uses.get(key) ?? 0) + 1);
+  }
+  return categories
+    .filter((c) => c.is_active)
+    .slice()
+    .sort((a, b) => (uses.get(b.name.trim().toLowerCase()) ?? 0) - (uses.get(a.name.trim().toLowerCase()) ?? 0) || a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+}
+
+export function shownCategories<T extends { name: string }>(ordered: readonly T[], chosen: string | null, count = SHOWN_CATEGORIES): T[] {
+  const top = ordered.slice(0, count);
+  if (!chosen || top.some((c) => c.name === chosen)) return top;
+  const picked = ordered.find((c) => c.name === chosen);
+  if (!picked) return top;
+  return [...top.slice(0, Math.max(0, count - 1)), picked];
+}
 
 export const KITCHEN_MODES: readonly { value: KitchenMode; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -52,6 +86,15 @@ export function formatLongDate(dateKey: string): string {
   const d = new Date(`${dateKey}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateKey;
   return d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/** When an entry was keyed in, as "4 Oct, 11:32 pm"; the entry date says when the thing happened. */
+export function formatEnteredAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${day}, ${time}`;
 }
 
 // ─── Money and quantities ────────────────────────────────────────────────────
@@ -321,5 +364,6 @@ export function describeKitchenError(message: string | null | undefined, fallbac
   if (m.includes('KITCHEN_INVALID')) return 'Check the amount, the mode and who it is for.';
   if (m.includes('kitchen_items_name_key')) return 'An item with that name already exists.';
   if (m.includes('kitchen_parties_name_key')) return 'That name is already in the list.';
+  if (m.includes('kitchen_categories_name_key')) return 'That category is already in the list.';
   return fallback;
 }

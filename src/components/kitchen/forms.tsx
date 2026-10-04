@@ -102,9 +102,9 @@ export function DateField({ value, onChange }: { value: string; onChange: (d: st
   const choice: DateChoice = value === today ? 'today' : value === yesterday ? 'yesterday' : 'other';
   const [other, setOther] = useState(choice === 'other');
   return (
-    <Field label="Date" hint={other ? 'Year-month-day, for example 2026-10-04' : undefined}>
+    <Field label="When" hint={other ? 'Year-month-day, for example 2026-10-04' : undefined}>
       <Segmented
-        options={[{ value: 'today', label: 'Today' }, { value: 'yesterday', label: 'Yesterday' }, { value: 'other', label: 'Another day' }]}
+        options={[{ value: 'today', label: 'Today' }, { value: 'yesterday', label: 'Yesterday' }, { value: 'other', label: 'Date' }]}
         value={other ? 'other' : choice}
         onChange={(c) => {
           if (c === 'today') { setOther(false); onChange(today); }
@@ -192,6 +192,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
                         keyboardType="decimal-pad"
                         prefix="₹"
                         placeholder="0"
+                        flat
                       />
                     </View>
                     <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '800', minWidth: 72, textAlign: 'right', fontVariant: ['tabular-nums'] }}>
@@ -232,13 +233,15 @@ type OpenDocsPickerProps = {
   itemsById: ReadonlyMap<string, KitchenItem>;
   ticked: ReadonlySet<string>;
   onChange: (docs: KitchenOpenDocument[], ticked: Set<string>) => void;
+  /** The payment being edited: what it covers is offered again, ticked. */
+  reopenPaymentId?: string;
 };
 
 /**
  * The pay-later buys (for a vendor) or the sends (for a branch) still open.
  * Ticking one tells the form what this money is for; the form fills the amount.
  */
-export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange }: OpenDocsPickerProps) {
+export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reopenPaymentId }: OpenDocsPickerProps) {
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const entries = useKitchenStore((s) => s.entries);
@@ -252,19 +255,20 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange }: O
       return;
     }
     setLoading(true);
-    void fetchKitchenOpenDocuments(partyId).then((res) => {
+    void fetchKitchenOpenDocuments(partyId, reopenPaymentId).then((res) => {
       if (cancelled) return;
       setLoading(false);
       const list = res.data ?? [];
       setDocs(list);
-      onChange(list, new Set());
+      // Editing a payment: what it already covered starts ticked.
+      onChange(list, new Set(list.filter((d) => d.reopened > 0).map((d) => d.entry_id)));
     });
     return () => {
       cancelled = true;
     };
-    // The form owns `ticked`; only the party decides which slips are offered.
+    // The form owns `ticked`; only the party (and the payment being edited) decide which slips are offered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partyId]);
+  }, [partyId, reopenPaymentId]);
 
   if (!partyId) return null;
   const noun = kind === 'vendor' ? 'buys' : 'sends';

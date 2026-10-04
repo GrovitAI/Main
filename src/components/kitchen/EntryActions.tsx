@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pencil } from 'lucide-react-native';
 import { voidKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, formatLongDate, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { GhostButton, Notice, Sheet, TextField } from './ui';
 
@@ -14,13 +16,32 @@ type Props = {
   partiesById: ReadonlyMap<string, KitchenParty>;
 };
 
-/** One entry in full, and the one thing that can be done to it: void it. */
+/** The form that corrects an entry of this kind; stock-only entries are redone from the item instead. */
+function editHref(entry: KitchenEntry): { pathname: string; params: Record<string, string> } | null {
+  switch (entry.type) {
+    case 'sent': return { pathname: '/central-kitchen/send', params: { edit: entry.id } };
+    case 'received': return { pathname: '/central-kitchen/received', params: { edit: entry.id } };
+    case 'bought': return { pathname: '/central-kitchen/bought', params: { edit: entry.id } };
+    case 'paid': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'vendor' } };
+    case 'spent': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'expense' } };
+    default: return null;
+  }
+}
+
+/** One entry in full, and what can be done to it: edit it, or void it. */
 export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!entry) return null;
   const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
+  const href = editHref(entry);
+
+  const edit = () => {
+    if (!href) return;
+    onClose();
+    router.push(href as never);
+  };
 
   const doVoid = () => {
     confirmAction(
@@ -54,7 +75,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 2 }}>{entrySubline(entry, itemsById) || ' '}</Text>
         </View>
         {entry.lines.length > 0 ? (
-          <View className="rounded-2xl border border-border-soft bg-surface-tint" style={{ padding: 12, gap: 6 }}>
+          <View className="border-t border-b border-border-soft" style={{ paddingVertical: 10, gap: 6 }}>
             {entry.lines.map((l) => {
               const it = itemsById.get(l.item_id);
               return (
@@ -69,15 +90,21 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
         <View className="flex-row flex-wrap" style={{ gap: 14 }}>
           {entryAmountText(entry) ? <Meta label="Amount" value={entryAmountText(entry)} /> : null}
           {entry.mode ? <Meta label="Mode" value={modeLabel(entry.mode)} /> : null}
-          <Meta label="Recorded by" value={entry.created_by} />
+          <Meta label="On" value={formatLongDate(entry.entry_date)} />
+          <Meta label="Entered" value={`${formatEnteredAt(entry.created_at)} · ${entry.created_by}`} />
+          {entry.replaces_id ? <Meta label="Edited" value="Replaces an earlier entry" /> : null}
           {entry.note ? <Meta label="Note" value={entry.note} /> : null}
         </View>
         {entry.voided_at ? (
-          <Notice tone="neutral" text={`Voided${entry.void_reason ? `: ${entry.void_reason}` : ''}. It no longer counts anywhere.`} />
+          <Notice tone="neutral" text={entry.void_reason === 'Edited' ? 'Edited: a corrected entry took its place. This one no longer counts anywhere.' : `Voided${entry.void_reason ? `: ${entry.void_reason}` : ''}. It no longer counts anywhere.`} />
         ) : (
           <View style={{ gap: 10, marginTop: 4 }}>
             <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder="Why it is being voided (optional)" />
-            <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} />
+            <View className="flex-row" style={{ gap: 10 }}>
+              {href ? <View className="flex-1"><GhostButton label="Edit" icon={Pencil} tone="primary" onPress={edit} /></View> : null}
+              <View className="flex-1"><GhostButton label={busy ? 'Voiding…' : 'Void'} tone="out" onPress={doVoid} /></View>
+            </View>
+            {!href ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600' }}>A batch or a count is corrected by voiding it and recording it again from the item.</Text> : null}
             {error ? <Notice text={error} /> : null}
           </View>
         )}
@@ -89,7 +116,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <View>
-      <Text className="text-text-secondary" style={{ fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' }}>{label}</Text>
+      <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' }}>{label}</Text>
       <Text className="text-text-primary" style={{ fontSize: 14, fontWeight: '700', marginTop: 2 }}>{value}</Text>
     </View>
   );

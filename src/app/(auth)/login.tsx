@@ -8,7 +8,7 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { brand } from '@/lib/pos/brand';
 import { isSupabaseConfigured } from '@/lib/pos/supabase';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
+import { getDefaultHrefForSession } from '@/lib/pos/tab-config';
 import { useResponsive } from '@/lib/pos/useResponsive';
 
 const logoSource = require('../../../assets/images/le-leban-logo.png');
@@ -36,7 +36,7 @@ export default function LoginScreen() {
   // this screen stays mounted beneath the app routes and must not hijack them.
   useEffect(() => {
     if (session && segments[0] === '(auth)') {
-      router.replace(getDefaultHrefForRole(session.role, isPhone) as never);
+      router.replace(getDefaultHrefForSession(session, isPhone) as never);
     }
   }, [session, isPhone, segments]);
 

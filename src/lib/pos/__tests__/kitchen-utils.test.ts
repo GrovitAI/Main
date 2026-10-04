@@ -5,7 +5,10 @@ import {
   entryAmountText,
   entryHeadline,
   entrySubline,
+  formatEnteredAt,
   formatQty,
+  orderCategories,
+  shownCategories,
   isMoneyOut,
   linesTotal,
   matchesSearch,
@@ -44,6 +47,7 @@ const entry = (over: Partial<KitchenEntry> & Pick<KitchenEntry, 'type'>): Kitche
   created_at: `2026-10-04T10:00:${String(seq).padStart(2, '0')}Z`,
   voided_at: null,
   void_reason: null,
+  replaces_id: null,
   lines: [],
   ...over,
 });
@@ -139,8 +143,8 @@ describe('lines and quantities', () => {
 
 describe('matching money to what is open', () => {
   const docs: KitchenOpenDocument[] = [
-    { entry_id: 'd2', party_id: 'v1', type: 'bought', entry_date: '2026-10-02', amount: 1000, covered: 0, open: 1000 },
-    { entry_id: 'd1', party_id: 'v1', type: 'bought', entry_date: '2026-09-30', amount: 2720, covered: 1500, open: 1220 },
+    { entry_id: 'd2', party_id: 'v1', type: 'bought', entry_date: '2026-10-02', amount: 1000, covered: 0, open: 1000, reopened: 0 },
+    { entry_id: 'd1', party_id: 'v1', type: 'bought', entry_date: '2026-09-30', amount: 2720, covered: 1500, open: 1220, reopened: 0 },
   ];
 
   it('covers the oldest first and stops when the money runs out', () => {
@@ -208,5 +212,33 @@ describe('search and errors', () => {
     expect(describeKitchenError('P0002 KITCHEN_PARTY_NOT_FOUND', 'x')).toBe('That branch or vendor is no longer in the list.');
     expect(describeKitchenError('22023 KITCHEN_INVALID_MATCH', 'x')).toContain('matched amounts');
     expect(describeKitchenError('something else', 'fallback')).toBe('fallback');
+  });
+});
+
+describe('expense categories', () => {
+  const cat = (name: string, sort_order: number, is_active = true) => ({ id: name, name, sort_order, is_active });
+  const spent = (category: string, voided = false) => ({ type: 'spent' as const, category, voided_at: voided ? '2026-10-01T00:00:00Z' : null });
+
+  it('puts the most-used categories first, then the list order, and hides inactive ones', () => {
+    const list = [cat('Rent', 10), cat('Gas', 20), cat('Water cans', 100), cat('Old', 30, false)];
+    const uses = [spent('Water cans'), spent('water cans'), spent('Gas'), spent('Old'), spent('Old'), spent('Old'), spent('Gas', true)];
+    expect(orderCategories(list, uses).map((c) => c.name)).toEqual(['Water cans', 'Gas', 'Rent']);
+  });
+
+  it('shows the first few and pulls the chosen one in when it sits further down', () => {
+    const ordered = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((n, i) => cat(n, i));
+    expect(shownCategories(ordered, null).map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(shownCategories(ordered, 'C').map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(shownCategories(ordered, 'G').map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'G']);
+    expect(shownCategories(ordered, 'Missing').map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'E']);
+  });
+});
+
+describe('formatEnteredAt', () => {
+  it('gives the day and the clock time, and nothing for a bad stamp', () => {
+    const text = formatEnteredAt('2026-10-04T18:02:00+05:30');
+    expect(text).toMatch(/Oct/);
+    expect(text).toMatch(/\d{1,2}:\d{2}/);
+    expect(formatEnteredAt('not a date')).toBe('');
   });
 });

@@ -180,3 +180,4 @@ Migrations on staging and not yet on production, as of 2026-10-02, in order:
 | `20261001000500_finance_entry_templates.sql` | Regulars (115) |
 | `20261001000600_finance_receipts.sql` | Bill photos: a column, a private bucket, storage policies (116) |
 | `20261004000100_central_kitchen.sql` | The Central Kitchen's own books: items, branches and vendors, entries, matches, posting and voiding functions (131) |
+| `20261004000200_kitchen_categories_and_edit.sql` | Kitchen expense categories as a table; `kitchen_edit_entry` (void + repost in one transaction) and `replaces_id` (134) |

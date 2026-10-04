@@ -1,19 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
-import { postKitchenEntry } from '@/lib/pos/kitchen-service';
+import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateKey } from '@/lib/pos/kitchen-utils';
-import type { KitchenMode } from '@/lib/pos/kitchen-types';
+import type { KitchenEntryType, KitchenMode, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
 import { DateField, LinesEditor, ModePicker, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
+import { useEditEntry } from '@/components/kitchen/use-edit-entry';
+
+const EDITABLE: readonly KitchenEntryType[] = ['bought'];
 
 /** From a vendor. Stock goes up; paid on the spot, or on the vendor's tab. */
 export default function BoughtScreen() {
   const data = useKitchenData();
-  const params = useLocalSearchParams<{ party?: string }>();
+  const params = useLocalSearchParams<{ party?: string; edit?: string }>();
+  const { editing, missing } = useEditEntry(EDITABLE);
   const [partyId, setPartyId] = useState<string | null>(params.party ?? null);
   const [paidNow, setPaidNow] = useState<'later' | 'now'>('later');
   const [mode, setMode] = useState<KitchenMode>('cash');
@@ -22,29 +26,47 @@ export default function BoughtScreen() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState<string | null>(null);
+
+  // Editing: the form starts from the buy as it was saved.
+  useEffect(() => {
+    if (!editing || prefilled === editing.id) return;
+    setPartyId(editing.party_id);
+    setPaidNow(editing.paid ? 'now' : 'later');
+    setMode(editing.mode ?? 'cash');
+    setDate(editing.entry_date);
+    setLines(Object.fromEntries(editing.lines.map((l) => [l.item_id, { qty: l.qty, price: l.price }])));
+    setNote(editing.note ?? '');
+    setPrefilled(editing.id);
+  }, [editing, prefilled]);
 
   const party = partyId ? data.partiesById.get(partyId) ?? null : null;
   const defaultCost = useMemo(() => lastCostByItem(data.entries), [data.entries]);
   const chosen = useMemo(() => draftToLines(lines), [lines]);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
-  const canSave = !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date);
+  const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date);
   const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor') : 0;
 
   const save = async () => {
-    if (!partyId || !chosen || chosen.length === 0) return;
+    if (!partyId || !chosen || chosen.length === 0 || missing) return;
     setSaving(true);
     setError(null);
     const paid = paidNow === 'now';
-    const res = await postKitchenEntry({ type: 'bought', party_id: partyId, entry_date: date, lines: chosen, paid, mode: paid ? mode : null, note: note.trim() || null });
+    const input: PostEntryInput = { type: 'bought', party_id: partyId, entry_date: date, lines: chosen, paid, mode: paid ? mode : null, note: note.trim() || null };
+    const res = editing ? await editKitchenEntry(editing.id, input) : await postKitchenEntry(input);
     setSaving(false);
     if (res.error) {
       setError(res.error);
       return;
     }
     await data.load(true);
-    const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor');
-    useKitchenStore.getState().setNotice(paid ? `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'}, paid` : `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'} · we owe ${formatMoney(after)}`);
+    if (editing) {
+      useKitchenStore.getState().setNotice('Changes saved');
+    } else {
+      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor');
+      useKitchenStore.getState().setNotice(paid ? `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'}, paid` : `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'} · we owe ${formatMoney(after)}`);
+    }
     backToKitchen();
   };
 
@@ -58,12 +80,17 @@ export default function BoughtScreen() {
               <Text className="text-text-primary" style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, fontVariant: ['tabular-nums'] }}>{formatMoney(total)}</Text>
             </View>
             <View style={{ flex: 1.2 }}>
-              <PrimaryButton label={paidNow === 'now' ? 'Save, paid' : 'Save, pay later'} tone="buy" onPress={() => void save()} disabled={!canSave} loading={saving} />
+              <PrimaryButton label={editing ? 'Save changes' : paidNow === 'now' ? 'Save, paid' : 'Save, pay later'} onPress={() => void save()} disabled={!canSave} loading={saving} />
             </View>
           </View>
         }
       >
-        <KHeader title="Bought from a vendor" subtitle="Stock goes up; paid now, or on the vendor's tab" onBack={() => backToKitchen()} />
+        <KHeader
+          title={editing ? 'Edit buy' : 'Bought from a vendor'}
+          subtitle={editing ? 'The earlier entry is voided; this one takes its place' : "Stock goes up; paid now, or on the vendor's tab"}
+          onBack={() => backToKitchen()}
+        />
+        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a buy." /> : null}
         <Field label="Vendor">
           <PartyPicker kind="vendor" parties={data.parties} balances={data.balances} value={partyId} onChange={setPartyId} />
         </Field>

@@ -8,12 +8,13 @@ import { useFocusEffect } from 'expo-router';
 import { create } from 'zustand';
 import {
   fetchKitchenBalances,
+  fetchKitchenCategories,
   fetchKitchenEntries,
   fetchKitchenItems,
   fetchKitchenParties,
 } from './kitchen-service';
 import { localDateKey } from './kitchen-utils';
-import type { KitchenEntry, KitchenItem, KitchenParty, KitchenPartyBalance } from './kitchen-types';
+import type { KitchenCategory, KitchenEntry, KitchenItem, KitchenParty, KitchenPartyBalance } from './kitchen-types';
 
 /** How far back the home and history look without asking for more. */
 const RECENT_DAYS = 92;
@@ -27,6 +28,7 @@ function daysAgoKey(days: number): string {
 type KitchenState = {
   items: KitchenItem[];
   parties: KitchenParty[];
+  categories: KitchenCategory[];
   balances: KitchenPartyBalance[];
   entries: KitchenEntry[];
   loaded: boolean;
@@ -41,7 +43,7 @@ type KitchenState = {
   reset: () => void;
 };
 
-const EMPTY = { items: [], parties: [], balances: [], entries: [], loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
+const EMPTY = { items: [], parties: [], categories: [], balances: [], entries: [], loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
 
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -55,16 +57,18 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
   load: async (silent = false) => {
     if (get().loading) return;
     set({ loading: true, error: silent ? get().error : null });
-    const [items, parties, balances, entries] = await Promise.all([
+    const [items, parties, categories, balances, entries] = await Promise.all([
       fetchKitchenItems(),
       fetchKitchenParties(),
+      fetchKitchenCategories(),
       fetchKitchenBalances(),
       fetchKitchenEntries({ from: daysAgoKey(RECENT_DAYS), includeVoided: true }),
     ]);
-    const error = items.error ?? parties.error ?? balances.error ?? entries.error;
+    const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error;
     set({
       items: items.data ?? get().items,
       parties: parties.data ?? get().parties,
+      categories: categories.data ?? get().categories,
       balances: balances.data ?? get().balances,
       entries: entries.data ?? get().entries,
       loaded: true,

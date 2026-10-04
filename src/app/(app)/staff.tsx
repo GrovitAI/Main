@@ -65,7 +65,7 @@ const ROLES: { value: UserRole; label: string; description: string }[] = [
   { value: 'admin',   label: 'Admin',   description: 'Full access, selected branches' },
   { value: 'manager', label: 'Manager', description: 'POS + reports for own branch' },
   { value: 'cashier', label: 'Cashier', description: 'POS + orders for own branch' },
-  { value: 'kitchen', label: 'Central Kitchen', description: 'The kitchen’s own screens: stock, sends, buys and money' },
+  { value: 'kitchen', label: 'Kitchen', description: 'At a restaurant: the KOT screen. At the Central Kitchen branch: its own books' },
   { value: 'accountant', label: 'Accountant', description: 'Records finance entries; no balances' },
 ];
 

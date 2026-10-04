@@ -6,7 +6,7 @@
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 
 import { Platform } from 'react-native';
-import { getDefaultHrefForRole, getTabsForRole, usesManagementTabs, MOBILE_TABS } from '../tab-config';
+import { getDefaultHrefForRole, getDefaultHrefForSession, getTabsForRole, isCentralKitchenSession, usesManagementTabs, MOBILE_TABS } from '../tab-config';
 import type { UserRole } from '../session-context';
 
 /**
@@ -62,9 +62,9 @@ describe('getTabsForRole on phones', () => {
     expect(webNames('manager', true)).toContain('finance');
   });
 
-  it('gives the kitchen role none of these tabs: it has its own screens', () => {
-    expect(webNames('kitchen', true)).toEqual([]);
-    expect(webNames('kitchen', false)).toEqual([]);
+  it('leaves the kitchen role on its own two tabs', () => {
+    expect(webNames('kitchen', true)).toEqual(['kitchen', 'settings']);
+    expect(webNames('kitchen', false)).toEqual(['kitchen', 'settings']);
   });
 
   it('gives an accountant the ledger and settings, nothing else, on every device', () => {
@@ -125,10 +125,10 @@ describe('getTabsForRole in the installed app', () => {
     expect(nativeTabletNames('manager')).toEqual(['analytics', 'finance', 'inventory', 'menu', 'settings']);
   });
 
-  it('sends the kitchen role to the Central Kitchen screens on every device', () => {
-    expect(nativeTabletNames('kitchen')).toEqual([]);
-    expect(getDefaultHrefForRole('kitchen', true)).toBe('/central-kitchen/home');
-    expect(getDefaultHrefForRole('kitchen', false)).toBe('/central-kitchen/home');
+  it('still routes a restaurant kitchen login to the kitchen display', () => {
+    expect(nativeTabletNames('kitchen')).toEqual(['kitchen', 'settings']);
+    expect(getDefaultHrefForRole('kitchen', true)).toBe('/(app)/kitchen');
+    expect(getDefaultHrefForRole('kitchen', false)).toBe('/(app)/kitchen');
   });
 });
 
@@ -141,5 +141,28 @@ describe('usesManagementTabs', () => {
 
   it('is false only for a browser wide enough to bill on', () => {
     expect(onPlatform('web', () => usesManagementTabs(false))).toBe(false);
+  });
+});
+
+describe('the Central Kitchen login', () => {
+  const branch = (id: string, branch_type: string | null) => ({
+    id, tenant_id: 't', name: id, code: id, address: null, phone: null, gstin: null, invoice_prefix: 'A', branch_type, is_active: true,
+  });
+  const at = (role: UserRole, branch_type: string | null) => ({ role, branchId: 'own', accessibleBranches: [branch('own', branch_type), branch('other', 'RESTAURANT')] });
+
+  it('is the kitchen role placed at the central kitchen or a warehouse', () => {
+    expect(isCentralKitchenSession(at('kitchen', 'CENTRAL_KITCHEN'))).toBe(true);
+    expect(isCentralKitchenSession(at('kitchen', 'WAREHOUSE'))).toBe(true);
+    expect(isCentralKitchenSession(at('kitchen', 'RESTAURANT'))).toBe(false);
+    expect(isCentralKitchenSession(at('kitchen', null))).toBe(false);
+    expect(isCentralKitchenSession(at('owner', 'CENTRAL_KITCHEN'))).toBe(false);
+  });
+
+  it('lands on the Central Kitchen home, while a restaurant kitchen keeps its display', () => {
+    onPlatform('web', () => {
+      expect(getDefaultHrefForSession(at('kitchen', 'CENTRAL_KITCHEN'), true)).toBe('/central-kitchen/home');
+      expect(getDefaultHrefForSession(at('kitchen', 'RESTAURANT'), true)).toBe('/(app)/kitchen');
+      expect(getDefaultHrefForSession(at('owner', 'CENTRAL_KITCHEN'), true)).toBe('/(app)/analytics');
+    });
   });
 });

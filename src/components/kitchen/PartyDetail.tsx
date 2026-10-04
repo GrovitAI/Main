@@ -81,13 +81,13 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         <View className="flex-row" style={{ gap: 10, marginTop: 14 }}>
           {isBranch ? (
             <>
-              <View className="flex-1"><PrimaryButton label="Received" tone="in" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View>
+              <View className="flex-1"><PrimaryButton label="Received" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View>
               <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View>
             </>
           ) : (
             <>
-              <View className="flex-1"><PrimaryButton label="Pay" tone="out" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
-              <View className="flex-1"><GhostButton label="Bought" tone="buy" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View>
+              <View className="flex-1"><PrimaryButton label="Pay" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
+              <View className="flex-1"><GhostButton label="Bought" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View>
             </>
           )}
         </View>

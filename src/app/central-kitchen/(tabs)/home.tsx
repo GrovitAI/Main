@@ -7,8 +7,8 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
-import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, sumDues } from '@/lib/pos/kitchen-utils';
-import { ActionTile, Card, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton } from '@/components/kitchen/ui';
+import { formatLongDate, localDateKey, monthKeyOf, monthTotals, sumDues } from '@/lib/pos/kitchen-utils';
+import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
 /**
@@ -36,19 +36,16 @@ export default function KitchenHome() {
           <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>This month</Text>
           <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>{monthName}</Text>
         </View>
-        <View style={{ gap: 10 }}>
-          <View className="flex-row" style={{ gap: 10 }}>
-            <StatTile label="Money in" value={month.moneyIn} tone="in" />
-            <StatTile label="Money out" value={month.moneyOut} tone="out" />
-          </View>
-          <View className="flex-row" style={{ gap: 10 }}>
-            <StatTile label="Sent to branches" value={month.sent} />
-            <StatTile label="Bought" value={month.bought} />
-          </View>
+        <View className="flex-row">
+          <StatTile label="Money in" value={month.moneyIn} tone="in" />
+          <Divider vertical />
+          <StatTile label="Money out" value={month.moneyOut} tone="out" />
         </View>
-        <View className="flex-row items-center justify-between border-t border-border-soft" style={{ marginTop: 12, paddingTop: 10 }}>
-          <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '700' }}>In minus out</Text>
-          <Text className="text-text-primary" style={{ fontSize: 16, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(month.moneyIn - month.moneyOut)}</Text>
+        <Divider />
+        <View className="flex-row">
+          <StatTile label="Sent to branches" value={month.sent} />
+          <Divider vertical />
+          <StatTile label="Bought" value={month.bought} />
         </View>
       </Card>
       <View className="flex-row" style={{ gap: 10, marginTop: 12 }}>

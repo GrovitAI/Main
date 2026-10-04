@@ -16,7 +16,7 @@ import {
   Landmark,
 } from 'lucide-react-native';
 
-import type { UserRole } from './session-context';
+import type { PosSession, UserRole } from './session-context';
 
 export type TabConfig = {
   name: string;
@@ -69,9 +69,34 @@ const ADMIN_TABS: TabConfig[] = [
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
 ];
 
-// Kitchen: the Central Kitchen login lives in its own route group,
-// src/app/central-kitchen, and has none of these tabs.
+// Kitchen at a restaurant: the KOT display and printer settings only.
+const KITCHEN_TABS: TabConfig[] = [
+  { name: 'kitchen',  href: '/(app)/kitchen',  icon: ChefHat,   label: 'Kitchen' },
+  { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
+];
+
+// Kitchen at the Central Kitchen branch: its own screens live in
+// src/app/central-kitchen and have none of these tabs.
 export const KITCHEN_HOME = '/central-kitchen/home';
+
+const CENTRAL_KITCHEN_BRANCH_TYPES: ReadonlySet<string> = new Set(['CENTRAL_KITCHEN', 'WAREHOUSE']);
+
+type SessionShape = Pick<PosSession, 'role' | 'branchId' | 'accessibleBranches'>;
+
+/**
+ * True for the kitchen login whose own branch is the central kitchen (or a
+ * warehouse). The same role at a restaurant is that restaurant's KOT screen.
+ */
+export function isCentralKitchenSession(session: SessionShape): boolean {
+  if (session.role !== 'kitchen') return false;
+  const own = session.accessibleBranches.find((b) => b.id === session.branchId);
+  return own?.branch_type !== null && own?.branch_type !== undefined && CENTRAL_KITCHEN_BRANCH_TYPES.has(own.branch_type);
+}
+
+/** Where a sign-in lands: the Central Kitchen home for its login, else the role's default screen. */
+export function getDefaultHrefForSession(session: SessionShape, isPhone = false): string {
+  return isCentralKitchenSession(session) ? KITCHEN_HOME : getDefaultHrefForRole(session.role, isPhone);
+}
 
 // Accountant: records finance entries under the owner's rules. The same two
 // tabs on every device, because the role exists for the ledger alone.
@@ -142,7 +167,7 @@ export function usesManagementTabs(isPhone: boolean): boolean {
 }
 
 export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
-  if (role === 'kitchen') return [];
+  if (role === 'kitchen') return KITCHEN_TABS;
   if (usesManagementTabs(isPhone)) {
     if (role === 'accountant') return ACCOUNTANT_TABS;
     if (role === 'owner' || role === 'admin') return MOBILE_TABS;
@@ -168,7 +193,7 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
 }
 
 export function getDefaultScreenForRole(role: UserRole, isPhone = false): string {
-  if (role === 'kitchen') return KITCHEN_HOME;
+  if (role === 'kitchen') return '/(app)/kitchen';
   if (usesManagementTabs(isPhone)) {
     if (role === 'accountant') return '/(app)/finance';
     return '/(app)/analytics'; // Analytics is flagship home for phone

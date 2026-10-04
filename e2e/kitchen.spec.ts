@@ -87,6 +87,8 @@ test.describe.serial('central kitchen', () => {
     await saveAndWait(page, 'Save, pay later', /we owe ₹250/);
 
     await page.getByRole('button', { name: /^Spent:/ }).click();
+    // Spent opens on the expense; a vendor payment is the other segment.
+    await page.getByRole('tab', { name: 'Pay a vendor' }).click();
     await page.getByRole('button', { name: new RegExp(`^${vendorName}`) }).click();
     await page.getByRole('checkbox', { name: /Buy of/ }).first().click();
     await expect(page.getByLabel('Amount')).toHaveValue('250');

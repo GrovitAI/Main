@@ -47,6 +47,14 @@ export type KitchenPartyInput = {
   phone?: string | null;
 };
 
+/** An expense category: the kitchen's own list, seeded with the usual ones. */
+export type KitchenCategory = {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
 export type KitchenEntryLine = {
   id: string;
   item_id: string;
@@ -73,7 +81,16 @@ export type KitchenEntry = {
   created_at: string;
   voided_at: string | null;
   void_reason: string | null;
+  /** Set on a corrected entry: the one it took the place of, now voided "Edited". */
+  replaces_id: string | null;
   lines: KitchenEntryLine[];
+};
+
+/** What a payment is set against: one row per buy or send it covers. */
+export type KitchenAllocation = {
+  payment_id: string;
+  covers_id: string;
+  amount: number;
 };
 
 export type KitchenPartyBalance = {
@@ -96,6 +113,8 @@ export type KitchenOpenDocument = {
   amount: number;
   covered: number;
   open: number;
+  /** While a payment is being edited: what that payment already set against this one, counted as open again. */
+  reopened: number;
 };
 
 export type PostLineInput = { item_id: string; qty: number; price: number };

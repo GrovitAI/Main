@@ -96,6 +96,10 @@ src/
       kitchen.tsx            → Kitchen KOT display
       finance.tsx            → Finance module
       settings.tsx           → Settings (hidden from tabs)
+    central-kitchen/         → The Central Kitchen's own app (role `kitchen`; owner/admin via Settings)
+      _layout.tsx            → Role gate + stack; forms below are stack screens
+      (tabs)/                → home, items, branches, vendors, history
+      send.tsx, received.tsx, bought.tsx, spent.tsx, item-form.tsx, party-form.tsx, item/[id].tsx, party/[id].tsx
   lib/
     pos/
       supabase.ts            → Supabase client
@@ -145,6 +149,17 @@ Default screen: Dashboard
 Tabs: Dashboard | POS | Orders | Kitchen | Finance | Analytics | Settings
 Settings: full access to everything
 
+### Kitchen (role `kitchen`)
+At a restaurant branch: the KOT display. Tabs: Kitchen | Settings.
+At the Central Kitchen (or a warehouse) branch: the Central Kitchen's own
+screens. Default screen /central-kitchen/home; no tab of the main app.
+Tabs: Home | Items | Branches | Vendors | History (a rail on tablets).
+Sees only the kitchen's own books (tables kitchen_*; see
+supabase/migrations/20261004000100_central_kitchen.sql and
+20261004000200_kitchen_categories_and_edit.sql). Owner and admin may open the
+same screens from Settings → "Open Central Kitchen". The split is decided by
+isCentralKitchenSession() in src/lib/pos/tab-config.ts.
+
 ### Role source
 Stored in staff.role column in Supabase.
 During development hardcoded in src/lib/pos/session-context.ts
@@ -159,6 +174,7 @@ Will be replaced by auth session after Task 7.
 ⬜ Task 5: KOT generation + Kitchen display
 ⬜ Task 6: Settlement flow
 ✅ Task 7: Finance module (live as the Finance tab since 2026-09-13; see docs/FINANCE_MODULE.md)
+🟡 Tasks 131–134: Central Kitchen module (built 2026-10-04 on feat/central-kitchen; on staging, not yet on production; PRODUCT.md holds the product record, DESIGN.md the look)
 ⬜ Task 8: Analytics screen
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)

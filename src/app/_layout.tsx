@@ -6,7 +6,7 @@ import { ActivityIndicator, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { ApprovalProvider } from '@/lib/approval/ApprovalContext';
-import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
+import { getDefaultHrefForSession } from '@/lib/pos/tab-config';
 import { BREAKPOINTS } from '@/lib/pos/useResponsive';
 import { useSupabaseAutoRefresh } from '@/lib/pos/use-supabase-auto-refresh';
 import { TestDatabaseBanner } from '@/components/ui/TestDatabaseBanner';
@@ -56,7 +56,7 @@ export default function RootLayout() {
     if ((currentGroup === '(app)' || currentGroup === 'central-kitchen') && segments.length > 1) return;
 
     // Land on the role + device specific default screen (never on a hidden tab).
-    const target = session ? getDefaultHrefForRole(session.role, isPhone) : '/(app)';
+    const target = session ? getDefaultHrefForSession(session, isPhone) : '/(app)';
     router.replace(target as never);
   }, [isAuthenticated, isRestoring]);
 

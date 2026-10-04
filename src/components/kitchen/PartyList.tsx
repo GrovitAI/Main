@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
@@ -39,9 +39,13 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
     <>
       <KHeader title={copy.title} subtitle={copy.subtitle} right={<IconButton icon={Plus} label={copy.add} onPress={addParty} />} />
       {data.error ? <Notice text={data.error} /> : null}
-      <View className="flex-row" style={{ gap: 10, marginBottom: 12 }}>
-        <StatTile label={copy.total} value={total} tone={total > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'} onPress={() => undefined} />
-      </View>
+      <Card style={{ marginBottom: 12 }}>
+        <StatTile label={copy.total} value={total} tone={total > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'} />
+        {/* Day-one balances are not in the app yet; say so rather than show a settled ₹0 as fact. */}
+        <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 8 }}>
+          Counts only what is recorded here. Dues from before this app started are not entered yet.
+        </Text>
+      </Card>
       <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />
       <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12 }}>
         {!data.loaded ? (

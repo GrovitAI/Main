@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, type LucideIcon } from 'lucide-react-native';
 import type { KitchenEntry, KitchenEntryType, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
-import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
 import { Row, type Tone } from './ui';
 
 const ICONS: Record<KitchenEntryType, LucideIcon> = {
@@ -38,7 +38,11 @@ type Props = {
   onPress?: (entry: KitchenEntry) => void;
 };
 
-/** Entries newest first, each a row with who, what and how much. */
+/**
+ * Entries newest first, each a row with who, what and how much. The day
+ * heading is the date the thing happened; under the amount sits when it was
+ * keyed in, so a back-dated entry shows both.
+ */
 export function EntryList({ entries, itemsById, partiesById, grouped = true, onPress }: Props) {
   const ordered = useMemo(() => newestFirst(entries), [entries]);
   let lastDay = '';
@@ -61,6 +65,7 @@ export function EntryList({ entries, itemsById, partiesById, grouped = true, onP
               title={entryHeadline(e, names)}
               subtitle={entrySubline(e, itemsById)}
               right={entryAmountText(e) || undefined}
+              rightSub={formatEnteredAt(e.created_at)}
               tone={amountTone(e)}
               muted={e.voided_at !== null}
               onPress={onPress ? () => onPress(e) : undefined}
