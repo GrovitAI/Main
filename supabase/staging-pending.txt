@@ -9,3 +9,4 @@
 20261001000400_purchase_paid_by_branch_view.sql
 20261001000500_finance_entry_templates.sql
 20261001000600_finance_receipts.sql
+20261004000100_central_kitchen.sql
