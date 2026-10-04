@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { saveKitchenItem } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_UNITS, type KitchenUnit } from '@/lib/pos/kitchen-types';
@@ -37,13 +38,13 @@ export default function ItemFormScreen() {
     }
     await data.load(true);
     useKitchenStore.getState().setNotice(existing ? `${res.data.name} saved` : `${res.data.name} added`);
-    router.back();
+    backToKitchen();
   };
 
   return (
     <KeyboardAvoider>
       <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : 'Add item'} onPress={() => void save()} disabled={!name.trim()} loading={saving} />}>
-        <KHeader title={existing ? 'Edit item' : 'Add an item'} subtitle={existing ? undefined : 'Something the kitchen makes, or something it buys'} onBack={() => router.back()} />
+        <KHeader title={existing ? 'Edit item' : 'Add an item'} subtitle={existing ? undefined : 'Something the kitchen makes, or something it buys'} onBack={() => backToKitchen()} />
         <Field label="Name">
           <TextField value={name} onChange={setName} label="Item name" placeholder="e.g. Nutella sauce" autoFocus={!existing} />
         </Field>

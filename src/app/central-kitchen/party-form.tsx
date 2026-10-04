@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
@@ -30,13 +31,13 @@ export default function PartyFormScreen() {
     }
     await data.load(true);
     useKitchenStore.getState().setNotice(existing ? `${res.data.name} saved` : `${res.data.name} added`);
-    router.back();
+    backToKitchen();
   };
 
   return (
     <KeyboardAvoider>
       <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : `Add ${noun}`} onPress={() => void save()} disabled={!name.trim()} loading={saving} />}>
-        <KHeader title={existing ? `Edit ${noun}` : `Add a ${noun}`} subtitle={existing ? undefined : kind === 'branch' ? 'An outlet the kitchen sends to' : 'Someone the kitchen buys from'} onBack={() => router.back()} />
+        <KHeader title={existing ? `Edit ${noun}` : `Add a ${noun}`} subtitle={existing ? undefined : kind === 'branch' ? 'An outlet the kitchen sends to' : 'Someone the kitchen buys from'} onBack={() => backToKitchen()} />
         <Field label="Name">
           <TextField value={name} onChange={setName} label={`${noun} name`} placeholder={kind === 'branch' ? 'e.g. Kolathur' : 'e.g. Aavin dairy'} autoFocus={!existing} />
         </Field>

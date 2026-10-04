@@ -15,8 +15,8 @@ export default function ItemsScreen() {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const rows = useMemo(() => data.items.filter((i) => matchesSearch(query, i.name, i.unit)), [data.items, query]);
-  const openItem = (id: string) => (isTablet ? setSelected(id) : router.push({ pathname: '/(kitchen)/item/[id]', params: { id } }));
-  const addItem = () => router.push('/(kitchen)/item-form');
+  const openItem = (id: string) => (isTablet ? setSelected(id) : router.push({ pathname: '/central-kitchen/item/[id]', params: { id } }));
+  const addItem = () => router.push('/central-kitchen/item-form');
   const current = isTablet ? (selected && data.itemsById.has(selected) ? selected : rows[0]?.id ?? null) : null;
 
   const list = (

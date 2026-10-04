@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus, ArrowLeft } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, sumDues } from '@/lib/pos/kitchen-utils';
-import { ActionTile, Card, Empty, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton } from '@/components/kitchen/ui';
+import { ActionTile, Card, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
 /**
@@ -52,8 +52,8 @@ export default function KitchenHome() {
         </View>
       </Card>
       <View className="flex-row" style={{ gap: 10, marginTop: 12 }}>
-        <StatTile label="Branches yet to pay" value={owed} tone={owed > 0 ? 'in' : 'neutral'} onPress={() => router.navigate('/(kitchen)/(tabs)/branches')} />
-        <StatTile label="We owe vendors" value={owe} tone={owe > 0 ? 'out' : 'neutral'} onPress={() => router.navigate('/(kitchen)/(tabs)/vendors')} />
+        <StatTile label="Branches yet to pay" value={owed} tone={owed > 0 ? 'in' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/branches')} />
+        <StatTile label="We owe vendors" value={owe} tone={owe > 0 ? 'out' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/vendors')} />
       </View>
     </>
   );
@@ -61,12 +61,12 @@ export default function KitchenHome() {
   const actions = (
     <View style={{ gap: 10, marginTop: isTablet ? 0 : 12 }}>
       <View className="flex-row" style={{ gap: 10 }}>
-        <ActionTile icon={ArrowUpRight} label="Send" caption="Items to a branch" tone="primary" onPress={() => router.push('/(kitchen)/send')} />
-        <ActionTile icon={ArrowDownLeft} label="Received" caption="Money from a branch" tone="in" onPress={() => router.push('/(kitchen)/received')} />
+        <ActionTile icon={ArrowUpRight} label="Send" caption="Items to a branch" tone="primary" onPress={() => router.push('/central-kitchen/send')} />
+        <ActionTile icon={ArrowDownLeft} label="Received" caption="Money from a branch" tone="in" onPress={() => router.push('/central-kitchen/received')} />
       </View>
       <View className="flex-row" style={{ gap: 10 }}>
-        <ActionTile icon={ShoppingBag} label="Bought" caption="From a vendor" tone="buy" onPress={() => router.push('/(kitchen)/bought')} />
-        <ActionTile icon={ArrowUp} label="Spent" caption="Pay a vendor or a bill" tone="out" onPress={() => router.push('/(kitchen)/spent')} />
+        <ActionTile icon={ShoppingBag} label="Bought" caption="From a vendor" tone="buy" onPress={() => router.push('/central-kitchen/bought')} />
+        <ActionTile icon={ArrowUp} label="Spent" caption="Pay a vendor or a bill" tone="out" onPress={() => router.push('/central-kitchen/spent')} />
       </View>
     </View>
   );
@@ -82,7 +82,7 @@ export default function KitchenHome() {
               <LogOut size={20} color={colors.textSecondary} />
             </Pressable>
           ) : (
-            <GhostButton small label="Back to app" onPress={() => router.replace('/(app)/settings')} />
+            <IconButton icon={ArrowLeft} label="Back to the main app" tone="neutral" onPress={() => router.replace('/(app)/settings')} />
           )
         }
       />
@@ -103,9 +103,9 @@ export default function KitchenHome() {
             Add the items the kitchen makes and buys, then the branches it sends to and the vendors it buys from. Each takes a name and nothing else.
           </Text>
           <View className="flex-row flex-wrap" style={{ gap: 8, marginTop: 14 }}>
-            <GhostButton small icon={Plus} tone="primary" label="Add an item" onPress={() => router.push('/(kitchen)/item-form')} />
-            <GhostButton small icon={Plus} tone="primary" label="Add a branch" onPress={() => router.push({ pathname: '/(kitchen)/party-form', params: { kind: 'branch' } })} />
-            <GhostButton small icon={Plus} tone="primary" label="Add a vendor" onPress={() => router.push({ pathname: '/(kitchen)/party-form', params: { kind: 'vendor' } })} />
+            <GhostButton small icon={Plus} tone="primary" label="Add an item" onPress={() => router.push('/central-kitchen/item-form')} />
+            <GhostButton small icon={Plus} tone="primary" label="Add a branch" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'branch' } })} />
+            <GhostButton small icon={Plus} tone="primary" label="Add a vendor" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'vendor' } })} />
           </View>
         </Card>
       ) : isTablet ? (
@@ -121,7 +121,7 @@ export default function KitchenHome() {
       )}
 
       {data.loaded && !nothingSetUp ? (
-        <Section title="Today" action={<LinkButton label="All entries" onPress={() => router.navigate('/(kitchen)/(tabs)/history')} />}>
+        <Section title="Today" action={<LinkButton label="All entries" onPress={() => router.navigate('/central-kitchen/(tabs)/history')} />}>
           <Card padded={false} style={{ paddingHorizontal: 14 }}>
             {todays.length === 0 ? (
               <Empty title="Nothing recorded today yet" body="A send, a payment or a buy will show here the moment it is saved." />

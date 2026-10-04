@@ -1,13 +1,13 @@
 ---
 version: 1
 slug: "src-app-kitchen-tabs-index-tsx"
-primary_target: "src/app/(kitchen)/(tabs)/index.tsx"
-related_targets: ["src/app/(kitchen)/send.tsx","src/app/(kitchen)/received.tsx","src/app/(kitchen)/bought.tsx","src/app/(kitchen)/spent.tsx","src/app/(kitchen)/(tabs)/items.tsx","src/app/(kitchen)/(tabs)/branches.tsx","src/app/(kitchen)/(tabs)/vendors.tsx","src/app/(kitchen)/(tabs)/history.tsx"]
+primary_target: "src/app/central-kitchen/(tabs)/index.tsx"
+related_targets: ["src/app/central-kitchen/send.tsx","src/app/central-kitchen/received.tsx","src/app/central-kitchen/bought.tsx","src/app/central-kitchen/spent.tsx","src/app/central-kitchen/(tabs)/items.tsx","src/app/central-kitchen/(tabs)/branches.tsx","src/app/central-kitchen/(tabs)/vendors.tsx","src/app/central-kitchen/(tabs)/history.tsx"]
 ---
 
 # Central Kitchen screens
 
-Scope: the `(kitchen)` route group: Home, Send, Received, Bought, Spent, Items, Branches, Vendors, History, item and name detail pages. Visitor mode: Operate.
+Scope: the `central-kitchen` route group: Home, Send, Received, Bought, Spent, Items, Branches, Vendors, History, item and name detail pages. Visitor mode: Operate.
 
 Audience and job: the kitchen manager, on their own phone between batches, recording what was sent, received, bought and paid, and checking what each branch still owes. Owner and admins open the same screens from Settings.
 

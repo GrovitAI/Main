@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateKey } from '@/lib/pos/kitchen-utils';
@@ -44,7 +45,7 @@ export default function BoughtScreen() {
     await data.load(true);
     const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor');
     useKitchenStore.getState().setNotice(paid ? `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'}, paid` : `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'} · we owe ${formatMoney(after)}`);
-    router.back();
+    backToKitchen();
   };
 
   return (
@@ -62,7 +63,7 @@ export default function BoughtScreen() {
           </View>
         }
       >
-        <KHeader title="Bought from a vendor" subtitle="Stock goes up; paid now, or on the vendor's tab" onBack={() => router.back()} />
+        <KHeader title="Bought from a vendor" subtitle="Stock goes up; paid now, or on the vendor's tab" onBack={() => backToKitchen()} />
         <Field label="Vendor">
           <PartyPicker kind="vendor" parties={data.parties} balances={data.balances} value={partyId} onChange={setPartyId} />
         </Field>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Linking, Platform, Share, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { MessageCircle } from 'lucide-react-native';
 import { postKitchenEntry, kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
@@ -44,7 +45,9 @@ export default function SendScreen() {
   };
 
   const balanceAfter = party ? balanceFromEntries(useKitchenStore.getState().entries, party.id, 'branch') : 0;
-  const slip = saved && party ? slipText({ kitchenName: `Le Laban ${kitchenBranch().name}`, partyName: party.name, entry: saved, itemsById: data.itemsById, balanceAfter }) : '';
+  // The branch is usually named "Le Laban Central Kitchen" already; only add the brand when it is not.
+  const kitchenName = /le\s*laban/i.test(kitchenBranch().name) ? kitchenBranch().name : `Le Laban ${kitchenBranch().name}`;
+  const slip = saved && party ? slipText({ kitchenName, partyName: party.name, entry: saved, itemsById: data.itemsById, balanceAfter }) : '';
 
   const share = async () => {
     if (!slip) return;
@@ -65,7 +68,7 @@ export default function SendScreen() {
   const done = () => {
     useKitchenStore.getState().setNotice(`Sent to ${party?.name ?? 'the branch'} · ${formatMoney(saved?.amount ?? total)}`);
     setSaved(null);
-    router.back();
+    backToKitchen();
   };
 
   return (
@@ -83,7 +86,7 @@ export default function SendScreen() {
           </View>
         }
       >
-        <KHeader title="Send to a branch" subtitle="Stock goes down; the branch owes the total" onBack={() => router.back()} />
+        <KHeader title="Send to a branch" subtitle="Stock goes down; the branch owes the total" onBack={() => backToKitchen()} />
         <Field label="Branch">
           <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={setPartyId} />
         </Field>
@@ -106,7 +109,7 @@ export default function SendScreen() {
         {saved && party ? (
           <View style={{ gap: 14 }}>
             <View className="rounded-2xl border border-dashed border-border bg-surface-tint" style={{ padding: 14 }}>
-              <Text className="text-text-primary" style={{ fontSize: 16, fontWeight: '800' }}>Le Laban {kitchenBranch().name}</Text>
+              <Text className="text-text-primary" style={{ fontSize: 16, fontWeight: '800' }}>{kitchenName}</Text>
               <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 2 }}>To {party.name} · {formatDayLabel(saved.entry_date, '')}</Text>
               <View style={{ marginTop: 10, gap: 6 }}>
                 {saved.lines.map((l) => {

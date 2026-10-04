@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2 } from 'lucide-react-native';
 import { fetchKitchenItemEntries, postKitchenEntry, setKitchenItemActive } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
@@ -45,7 +46,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   if (!item) {
     return (
       <View>
-        {standalone ? <KHeader title="Item" onBack={() => router.back()} /> : null}
+        {standalone ? <KHeader title="Item" onBack={() => backToKitchen()} /> : null}
         <Empty title="This item is no longer in the list" />
       </View>
     );
@@ -82,7 +83,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
         await data.load(true);
         useKitchenStore.getState().setNotice(`${item.name} removed`);
         if (onRemoved) onRemoved();
-        else if (standalone) router.back();
+        else if (standalone) backToKitchen();
       })();
     });
   };
@@ -92,11 +93,11 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
       <KHeader
         title={item.name}
         subtitle={item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Raw material · not sold to branches'}
-        onBack={standalone ? () => router.back() : undefined}
+        onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={
           <View className="flex-row" style={{ gap: 8 }}>
-            <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/(kitchen)/item-form', params: { id: item.id } })} />
+            <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } })} />
             <IconButton icon={Trash2} label={`Remove ${item.name}`} tone="out" onPress={remove} />
           </View>
         }

@@ -70,8 +70,8 @@ const ADMIN_TABS: TabConfig[] = [
 ];
 
 // Kitchen: the Central Kitchen login lives in its own route group,
-// src/app/(kitchen), and has none of these tabs.
-export const KITCHEN_HOME = '/(kitchen)/home';
+// src/app/central-kitchen, and has none of these tabs.
+export const KITCHEN_HOME = '/central-kitchen/home';
 
 // Accountant: records finance entries under the owner's rules. The same two
 // tabs on every device, because the role exists for the ledger alone.

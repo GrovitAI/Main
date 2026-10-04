@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2, MessageCircle } from 'lucide-react-native';
 import { setKitchenPartyActive } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
@@ -29,7 +30,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   if (!party) {
     return (
       <View>
-        {standalone ? <KHeader title="Name" onBack={() => router.back()} /> : null}
+        {standalone ? <KHeader title="Name" onBack={() => backToKitchen()} /> : null}
         <Empty title="This name is no longer in the list" />
       </View>
     );
@@ -49,7 +50,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         await data.load(true);
         useKitchenStore.getState().setNotice(`${party.name} removed`);
         if (onRemoved) onRemoved();
-        else if (standalone) router.back();
+        else if (standalone) backToKitchen();
       })();
     });
   };
@@ -59,11 +60,11 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
       <KHeader
         title={party.name}
         subtitle={isBranch ? 'Branch' : 'Vendor'}
-        onBack={standalone ? () => router.back() : undefined}
+        onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={
           <View className="flex-row" style={{ gap: 8 }}>
-            <IconButton icon={Pencil} label={`Edit ${party.name}`} onPress={() => router.push({ pathname: '/(kitchen)/party-form', params: { id: party.id, kind: party.kind } })} />
+            <IconButton icon={Pencil} label={`Edit ${party.name}`} onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } })} />
             <IconButton icon={Trash2} label={`Remove ${party.name}`} tone="out" onPress={remove} />
           </View>
         }
@@ -72,7 +73,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
         <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -0.8, lineHeight: 46, marginTop: 2, color: tone, fontVariant: ['tabular-nums'] }}>{formatMoney(Math.abs(balance))}</Text>
         {party.phone ? (
-          <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} className="flex-row items-center" style={({ pressed }) => ({ gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
+          <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
             <MessageCircle size={16} color={semantic.success} />
             <Text style={{ color: semantic.success, fontSize: 13, fontWeight: '700' }}>{party.phone}</Text>
           </Pressable>
@@ -80,13 +81,13 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         <View className="flex-row" style={{ gap: 10, marginTop: 14 }}>
           {isBranch ? (
             <>
-              <View className="flex-1"><PrimaryButton label="Received" tone="in" onPress={() => router.push({ pathname: '/(kitchen)/received', params: { party: party.id } })} /></View>
-              <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/(kitchen)/send', params: { party: party.id } })} /></View>
+              <View className="flex-1"><PrimaryButton label="Received" tone="in" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View>
+              <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View>
             </>
           ) : (
             <>
-              <View className="flex-1"><PrimaryButton label="Pay" tone="out" onPress={() => router.push({ pathname: '/(kitchen)/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
-              <View className="flex-1"><GhostButton label="Bought" tone="buy" onPress={() => router.push({ pathname: '/(kitchen)/bought', params: { party: party.id } })} /></View>
+              <View className="flex-1"><PrimaryButton label="Pay" tone="out" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
+              <View className="flex-1"><GhostButton label="Bought" tone="buy" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View>
             </>
           )}
         </View>

@@ -290,8 +290,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange }: O
             accessibilityRole="checkbox"
             accessibilityState={{ checked: on }}
             accessibilityLabel={`${d.type === 'bought' ? 'Buy' : 'Send'} of ${formatDayLabel(d.entry_date)}, ${formatMoney(d.open)} open`}
-            className="flex-row items-center border-b border-border-soft"
-            style={({ pressed }) => ({ gap: 12, paddingVertical: 12, minHeight: 58, opacity: pressed ? 0.6 : 1 })}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.borderSoft, gap: 12, paddingVertical: 12, minHeight: 58, opacity: pressed ? 0.6 : 1 })}
           >
             <Tick on={on} />
             <View className="flex-1" style={{ minWidth: 0 }}>

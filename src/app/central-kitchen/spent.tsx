@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_CATEGORIES, allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
@@ -64,13 +65,13 @@ export default function SpentScreen() {
     } else {
       useKitchenStore.getState().setNotice(`${category ?? 'Expense'} · ${formatMoney(amount)} recorded`);
     }
-    router.back();
+    backToKitchen();
   };
 
   return (
     <KeyboardAvoider>
       <KScreen footer={<PrimaryButton label={kind === 'vendor' ? 'Save payment' : 'Save expense'} tone="out" onPress={() => void save()} disabled={!canSave} loading={saving} />}>
-        <KHeader title="Spent" subtitle="Money out: a vendor, or a bill" onBack={() => router.back()} />
+        <KHeader title="Spent" subtitle="Money out: a vendor, or a bill" onBack={() => backToKitchen()} />
         <View style={{ marginTop: 4 }}>
           <Segmented options={[{ value: 'vendor', label: 'Pay a vendor' }, { value: 'expense', label: 'Expense' }]} value={kind} onChange={setKind} />
         </View>

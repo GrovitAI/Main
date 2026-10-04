@@ -31,8 +31,8 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
     [data.parties, kind, query, balanceOf],
   );
   const total = sumDues(data.balances, kind);
-  const openParty = (id: string) => (isTablet ? setSelected(id) : router.push({ pathname: '/(kitchen)/party/[id]', params: { id } }));
-  const addParty = () => router.push({ pathname: '/(kitchen)/party-form', params: { kind } });
+  const openParty = (id: string) => (isTablet ? setSelected(id) : router.push({ pathname: '/central-kitchen/party/[id]', params: { id } }));
+  const addParty = () => router.push({ pathname: '/central-kitchen/party-form', params: { kind } });
   const current = isTablet ? (selected && data.partiesById.has(selected) ? selected : rows[0]?.party.id ?? null) : null;
 
   const list = (

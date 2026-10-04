@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
@@ -54,13 +55,13 @@ export default function ReceivedScreen() {
     await data.load(true);
     const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'branch');
     useKitchenStore.getState().setNotice(`Received ${formatMoney(amount)} from ${party?.name ?? 'the branch'} · now ${formatMoney(Math.max(0, after))} to pay`);
-    router.back();
+    backToKitchen();
   };
 
   return (
     <KeyboardAvoider>
       <KScreen footer={<PrimaryButton label="Save" tone="in" onPress={() => void save()} disabled={!canSave} loading={saving} />}>
-        <KHeader title="Received from a branch" subtitle="Any amount; it comes off what they owe" onBack={() => router.back()} />
+        <KHeader title="Received from a branch" subtitle="Any amount; it comes off what they owe" onBack={() => backToKitchen()} />
         <Field label="Branch">
           <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={(id) => { setPartyId(id); setTicked(new Set()); }} />
         </Field>

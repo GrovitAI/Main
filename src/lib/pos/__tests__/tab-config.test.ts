@@ -127,8 +127,8 @@ describe('getTabsForRole in the installed app', () => {
 
   it('sends the kitchen role to the Central Kitchen screens on every device', () => {
     expect(nativeTabletNames('kitchen')).toEqual([]);
-    expect(getDefaultHrefForRole('kitchen', true)).toBe('/(kitchen)/home');
-    expect(getDefaultHrefForRole('kitchen', false)).toBe('/(kitchen)/home');
+    expect(getDefaultHrefForRole('kitchen', true)).toBe('/central-kitchen/home');
+    expect(getDefaultHrefForRole('kitchen', false)).toBe('/central-kitchen/home');
   });
 });
 

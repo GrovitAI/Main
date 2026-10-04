@@ -2,6 +2,10 @@
  * The kitchen screens' shared pieces: one header, one card, one chip, one
  * button, one row, so every screen reads the same. Colours come from
  * brand.ts; money is green in, red out, amber for a buy.
+ *
+ * Pressables here take plain style objects, never className: NativeWind drops
+ * a Pressable's function style when a className is present, which is how a
+ * chip can lose its fill and padding on the web.
  */
 import React, { useMemo, useState } from 'react';
 import {
@@ -14,7 +18,9 @@ import {
   Text,
   TextInput,
   View,
+  type PressableStateCallbackType,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +45,16 @@ export const toneSoft: Record<Tone, string> = {
   buy: semantic.warningSoft,
   primary: colors.accentSoft,
 };
+
+const webNoOutline = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {};
+const tabular: TextStyle = { fontVariant: ['tabular-nums'] };
+
+/** A resting style plus the pressed dim, for every Pressable in these screens. */
+function pressed(base: StyleProp<ViewStyle>, dim = 0.65): (state: PressableStateCallbackType) => StyleProp<ViewStyle> {
+  return (state) => [base, { opacity: state.pressed ? dim : 1 }];
+}
+
+const cardStyle: ViewStyle = { borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 18, backgroundColor: colors.surfaceElevated };
 
 // ─── Screen and header ───────────────────────────────────────────────────────
 
@@ -103,8 +119,7 @@ export function KHeader({ title, subtitle, onBack, right, large = !onBack }: Hea
             accessibilityRole="button"
             accessibilityLabel="Back"
             hitSlop={8}
-            className="items-center justify-center rounded-full"
-            style={({ pressed }) => ({ width: 44, height: 44, marginLeft: -8, opacity: pressed ? 0.6 : 1 })}
+            style={pressed({ width: 44, height: 44, marginLeft: -8, borderRadius: 22, alignItems: 'center', justifyContent: 'center' })}
           >
             <ChevronLeft size={26} color={colors.textPrimary} />
           </Pressable>
@@ -137,8 +152,7 @@ export function IconButton({ icon: Icon, label, onPress, tone = 'primary' }: { i
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}
-      className="items-center justify-center rounded-2xl border border-border-soft bg-surface-elevated"
-      style={({ pressed }) => ({ width: 44, height: 44, opacity: pressed ? 0.6 : 1 })}
+      style={pressed({ ...cardStyle, borderRadius: 16, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' })}
     >
       <Icon size={20} color={toneColor[tone]} />
     </Pressable>
@@ -148,11 +162,7 @@ export function IconButton({ icon: Icon, label, onPress, tone = 'primary' }: { i
 // ─── Surfaces ────────────────────────────────────────────────────────────────
 
 export function Card({ children, style, padded = true }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; padded?: boolean }) {
-  return (
-    <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={[padded ? { padding: 14 } : null, style]}>
-      {children}
-    </View>
-  );
+  return <View style={[cardStyle, padded ? { padding: 14 } : null, style]}>{children}</View>;
 }
 
 export function Section({ title, action, children }: { title: string; action?: React.ReactNode; children?: React.ReactNode }) {
@@ -191,19 +201,19 @@ export function StatTile({ label, value, tone = 'neutral', onPress }: { label: s
   const body = (
     <>
       <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
-      <Text style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, marginTop: 2, color: toneColor[tone], fontVariant: ['tabular-nums'] }} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, marginTop: 2, color: toneColor[tone], ...tabular }} numberOfLines={1} adjustsFontSizeToFit>
         {formatMoney(value)}
       </Text>
     </>
   );
   if (onPress) {
     return (
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`} className="flex-1 rounded-2xl border border-border-soft bg-surface-elevated" style={({ pressed }) => ({ padding: 12, minHeight: 66, opacity: pressed ? 0.7 : 1 })}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`} style={pressed({ ...cardStyle, borderRadius: 16, flex: 1, padding: 12, minHeight: 66 })}>
         {body}
       </Pressable>
     );
   }
-  return <View className="flex-1 rounded-xl bg-surface-tint" style={{ padding: 10, minHeight: 60 }}>{body}</View>;
+  return <View style={{ flex: 1, borderRadius: 12, backgroundColor: colors.surfaceTint, padding: 10, minHeight: 60 }}>{body}</View>;
 }
 
 export function ActionTile({ icon: Icon, label, caption, tone, onPress }: { icon: LucideIcon; label: string; caption: string; tone: Tone; onPress: () => void }) {
@@ -212,10 +222,9 @@ export function ActionTile({ icon: Icon, label, caption, tone, onPress }: { icon
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${caption}`}
-      className="flex-1 rounded-2xl border border-border-soft bg-surface-elevated"
-      style={({ pressed }) => ({ padding: 14, minHeight: 100, justifyContent: 'space-between', opacity: pressed ? 0.7 : 1 })}
+      style={pressed({ ...cardStyle, flex: 1, padding: 14, minHeight: 100, justifyContent: 'space-between' })}
     >
-      <View className="items-center justify-center rounded-xl" style={{ width: 36, height: 36, backgroundColor: toneSoft[tone] }}>
+      <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: toneSoft[tone] }}>
         <Icon size={20} color={toneColor[tone]} />
       </View>
       <View>
@@ -243,28 +252,29 @@ type RowProps = {
   accessibilityLabel?: string;
 };
 
+const rowStyle: ViewStyle = { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, minHeight: 58, borderBottomWidth: 1, borderBottomColor: colors.borderSoft };
+
 export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel }: RowProps) {
   const content = (
     <>
       {Icon ? (
-        <View className="items-center justify-center rounded-xl" style={{ width: 36, height: 36, backgroundColor: toneSoft[iconTone] }}>
+        <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: toneSoft[iconTone] }}>
           <Icon size={18} color={toneColor[iconTone]} />
         </View>
       ) : null}
-      <View className="flex-1" style={{ minWidth: 0 }}>
-        <Text className="text-text-primary" style={[{ fontSize: 15, fontWeight: '700' }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{subtitle}</Text> : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[{ fontSize: 15, fontWeight: '700', color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={1}>{title}</Text>
+        {subtitle ? <Text style={{ fontSize: 12, fontWeight: '600', marginTop: 2, color: colors.textSecondary }} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right ? (
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: muted ? colors.textSecondary : toneColor[tone], fontVariant: ['tabular-nums'] }}>{right}</Text>
-          {rightSub ? <Text className="text-text-secondary" style={{ fontSize: 11, fontWeight: '700', marginTop: 1 }}>{rightSub}</Text> : null}
+          <Text style={{ fontSize: 15, fontWeight: '800', color: muted ? colors.textSecondary : toneColor[tone], ...tabular }}>{right}</Text>
+          {rightSub ? <Text style={{ fontSize: 11, fontWeight: '700', marginTop: 1, color: colors.textSecondary }}>{rightSub}</Text> : null}
         </View>
       ) : null}
     </>
   );
-  const base: ViewStyle = { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, minHeight: 58 };
-  if (!onPress && !onLongPress) return <View className="border-b border-border-soft" style={base}>{content}</View>;
+  if (!onPress && !onLongPress) return <View style={rowStyle}>{content}</View>;
   return (
     <Pressable
       onPress={onPress}
@@ -272,8 +282,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={selected ? { selected: true } : undefined}
-      className="border-b border-border-soft"
-      style={({ pressed }) => [base, { opacity: pressed ? 0.6 : 1 }]}
+      style={pressed(rowStyle)}
     >
       {content}
     </Pressable>
@@ -292,22 +301,22 @@ export function Empty({ title, body, action }: { title: string; body?: string; a
 
 export function Notice({ text, tone = 'out', action }: { text: string; tone?: Tone; action?: React.ReactNode }) {
   return (
-    <View className="flex-row items-center rounded-2xl" style={{ backgroundColor: toneSoft[tone], padding: 12, gap: 10, marginTop: 12 }} accessibilityRole="alert">
-      <Text className="flex-1" style={{ color: toneColor[tone], fontSize: 13, fontWeight: '700', lineHeight: 18 }}>{text}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 16, backgroundColor: toneSoft[tone], padding: 12, gap: 10, marginTop: 12 }} accessibilityRole="alert">
+      <Text style={{ flex: 1, color: toneColor[tone], fontSize: 13, fontWeight: '700', lineHeight: 18 }}>{text}</Text>
       {action}
     </View>
   );
 }
 
 export function Skeleton({ height = 60, style }: { height?: number; style?: StyleProp<ViewStyle> }) {
-  return <View className="rounded-2xl bg-border-soft" style={[{ height, opacity: 0.7 }, style]} accessibilityElementsHidden />;
+  return <View style={[{ height, borderRadius: 16, backgroundColor: colors.borderSoft, opacity: 0.7 }, style]} accessibilityElementsHidden />;
 }
 
 // ─── Inputs ──────────────────────────────────────────────────────────────────
 
 export function SearchBox({ value, onChange, placeholder = 'Search', autoFocus }: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean }) {
   return (
-    <View className="flex-row items-center rounded-2xl border border-border bg-surface-elevated" style={{ minHeight: 46, paddingHorizontal: 12, gap: 8 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: 46, paddingHorizontal: 12, gap: 8 }}>
       <Search size={18} color={colors.textSecondary} />
       <TextInput
         value={value}
@@ -317,12 +326,11 @@ export function SearchBox({ value, onChange, placeholder = 'Search', autoFocus }
         autoFocus={autoFocus}
         autoCorrect={false}
         accessibilityLabel={placeholder}
-        className="flex-1 text-text-primary"
-        style={{ fontSize: 15, fontWeight: '600', paddingVertical: 10, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}) }}
+        style={{ flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600', paddingVertical: 10, ...webNoOutline }}
         returnKeyType="search"
       />
       {value ? (
-        <Pressable onPress={() => onChange('')} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={() => onChange('')} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} style={pressed({ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' })}>
           <X size={16} color={colors.textSecondary} />
         </Pressable>
       ) : null}
@@ -353,7 +361,7 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
   return (
     <View style={{ gap: 10 }}>
       {showSearch ? <SearchBox value={query} onChange={setQuery} placeholder={searchPlaceholder} /> : null}
-      <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {shown.map((o) => {
           const on = o.value === value;
           return (
@@ -363,14 +371,16 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
-              className="flex-row items-center rounded-full border"
-              style={({ pressed }) => ({
+              style={pressed({
+                flexDirection: 'row',
+                alignItems: 'center',
+                borderRadius: 999,
+                borderWidth: 1,
                 minHeight: 40,
                 paddingHorizontal: 14,
                 gap: 6,
                 backgroundColor: on ? colors.primary : colors.surfaceElevated,
                 borderColor: on ? colors.primary : colors.border,
-                opacity: pressed ? 0.7 : 1,
               })}
             >
               <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }}>{o.label}</Text>
@@ -379,7 +389,7 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
           );
         })}
         {trailing}
-        {shown.length === 0 && emptyText ? <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', paddingVertical: 10 }}>{emptyText}</Text> : null}
+        {shown.length === 0 && emptyText ? <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600', paddingVertical: 10 }}>{emptyText}</Text> : null}
       </View>
     </View>
   );
@@ -387,7 +397,12 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
 
 export function AddChip({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} className="flex-row items-center rounded-full border border-dashed border-border bg-surface-tint" style={({ pressed }) => ({ minHeight: 40, paddingHorizontal: 14, gap: 4, opacity: pressed ? 0.7 : 1 })}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={pressed({ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.surfaceTint, minHeight: 40, paddingHorizontal: 14, gap: 4 })}
+    >
       <Plus size={14} color={colors.primary} />
       <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{label}</Text>
     </Pressable>
@@ -406,8 +421,8 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
   prefix?: string;
 }) {
   return (
-    <View className="flex-row items-center rounded-2xl border border-border bg-surface-elevated" style={{ minHeight: big ? 64 : 48, paddingHorizontal: 14 }}>
-      {prefix ? <Text className="text-text-secondary" style={{ fontSize: big ? 26 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
+    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: big ? 64 : 48, paddingHorizontal: 14 }}>
+      {prefix ? <Text style={{ color: colors.textSecondary, fontSize: big ? 26 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -418,8 +433,7 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
         autoFocus={autoFocus}
         multiline={multiline}
         accessibilityLabel={label}
-        className="flex-1 text-text-primary"
-        style={{ fontSize: big ? 30 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 10, letterSpacing: big ? -0.5 : 0, fontVariant: ['tabular-nums'], ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}) }}
+        style={{ flex: 1, color: colors.textPrimary, fontSize: big ? 30 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 10, letterSpacing: big ? -0.5 : 0, ...tabular, ...webNoOutline }}
       />
     </View>
   );
@@ -438,9 +452,10 @@ export function QtyStepper({ value, onChange, step, unit, label }: { value: numb
     setText(null);
     onChange(next);
   };
+  const side: ViewStyle = { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceTint };
   return (
-    <View className="flex-row items-center overflow-hidden rounded-xl border border-border" style={{ height: 44 }}>
-      <Pressable onPress={() => bump(-step)} accessibilityRole="button" accessibilityLabel={`Less ${label}`} className="items-center justify-center bg-surface-tint" style={({ pressed }) => ({ width: 44, height: 44, opacity: pressed ? 0.6 : 1 })}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', overflow: 'hidden', borderRadius: 12, borderWidth: 1, borderColor: colors.border, height: 44 }}>
+      <Pressable onPress={() => bump(-step)} accessibilityRole="button" accessibilityLabel={`Less ${label}`} style={pressed(side)}>
         <Minus size={18} color={colors.textPrimary} />
       </Pressable>
       <TextInput
@@ -452,10 +467,9 @@ export function QtyStepper({ value, onChange, step, unit, label }: { value: numb
         keyboardType="decimal-pad"
         inputMode="decimal"
         accessibilityLabel={`${label} quantity in ${unit}`}
-        className="text-text-primary bg-surface-elevated"
-        style={{ width: 64, height: 44, textAlign: 'center', fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'], ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}) }}
+        style={{ width: 64, height: 44, textAlign: 'center', fontSize: 15, fontWeight: '800', color: colors.textPrimary, backgroundColor: colors.surfaceElevated, ...tabular, ...webNoOutline }}
       />
-      <Pressable onPress={() => bump(step)} accessibilityRole="button" accessibilityLabel={`More ${label}`} className="items-center justify-center bg-surface-tint" style={({ pressed }) => ({ width: 44, height: 44, opacity: pressed ? 0.6 : 1 })}>
+      <Pressable onPress={() => bump(step)} accessibilityRole="button" accessibilityLabel={`More ${label}`} style={pressed(side)}>
         <Plus size={18} color={colors.textPrimary} />
       </Pressable>
     </View>
@@ -464,7 +478,7 @@ export function QtyStepper({ value, onChange, step, unit, label }: { value: numb
 
 export function Tick({ on }: { on: boolean }) {
   return (
-    <View className="items-center justify-center rounded-lg border-2" style={{ width: 26, height: 26, borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : 'transparent' }}>
+    <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center', borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : 'transparent' }}>
       {on ? <Check size={16} color={colors.textOnPrimary} strokeWidth={3} /> : null}
     </View>
   );
@@ -481,8 +495,10 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: off, busy: loading }}
-      className="flex-row items-center justify-center rounded-2xl"
-      style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 18, gap: 8, backgroundColor: toneColor[tone], opacity: off ? 0.45 : pressed ? 0.8 : 1 })}
+      style={(state) => [
+        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, minHeight: 52, paddingHorizontal: 18, gap: 8, backgroundColor: toneColor[tone] },
+        { opacity: off ? 0.45 : state.pressed ? 0.8 : 1 },
+      ]}
     >
       {loading ? <ActivityIndicator color={colors.textOnPrimary} /> : Icon ? <Icon size={18} color={colors.textOnPrimary} /> : null}
       <Text style={{ color: colors.textOnPrimary, fontSize: 16, fontWeight: '800' }}>{label}</Text>
@@ -496,8 +512,7 @@ export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', smal
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      className="flex-row items-center justify-center rounded-2xl border border-border bg-surface-elevated"
-      style={({ pressed }) => ({ minHeight: small ? 40 : 52, paddingHorizontal: small ? 14 : 18, gap: 8, opacity: pressed ? 0.7 : 1 })}
+      style={pressed({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: small ? 40 : 52, paddingHorizontal: small ? 14 : 18, gap: 8 })}
     >
       {Icon ? <Icon size={small ? 16 : 18} color={toneColor[tone]} /> : null}
       <Text style={{ color: toneColor[tone], fontSize: small ? 13 : 15, fontWeight: '800' }}>{label}</Text>
@@ -507,7 +522,7 @@ export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', smal
 
 export function LinkButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} style={({ pressed }) => ({ minHeight: 36, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} style={pressed({ minHeight: 36, justifyContent: 'center' })}>
       <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '800' }}>{label}</Text>
     </Pressable>
   );
@@ -515,11 +530,17 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
 
 export function Segmented<T extends string>({ options, value, onChange }: { options: readonly { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <View className="flex-row rounded-2xl border border-border bg-surface-tint" style={{ padding: 3 }} accessibilityRole="tablist">
+    <View style={{ flexDirection: 'row', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint, padding: 3 }} accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }} className="flex-1 items-center justify-center rounded-xl" style={{ minHeight: 42, backgroundColor: on ? colors.surfaceElevated : 'transparent', borderWidth: on ? 1 : 0, borderColor: colors.border }}>
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            style={pressed({ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12, minHeight: 42, backgroundColor: on ? colors.surfaceElevated : 'transparent', borderWidth: on ? 1 : 0, borderColor: colors.border })}
+          >
             <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>
           </Pressable>
         );
@@ -535,11 +556,25 @@ export function Sheet({ visible, onClose, title, children }: { visible: boolean;
   const { isTablet } = useResponsive();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} accessibilityLabel="Close" className="flex-1" style={{ backgroundColor: colors.overlay, justifyContent: isTablet ? 'center' : 'flex-end', alignItems: 'center' }}>
-        <Pressable onPress={() => undefined} className="bg-surface-elevated" style={{ width: '100%', maxWidth: isTablet ? 520 : undefined, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomLeftRadius: isTablet ? 24 : 0, borderBottomRightRadius: isTablet ? 24 : 0, padding: 18, paddingBottom: Math.max(insets.bottom, 12) + 8, maxHeight: '88%' }}>
-          <View className="flex-row items-center justify-between" style={{ marginBottom: 12 }}>
-            <Text className="text-text-primary" style={{ fontSize: 18, fontWeight: '800' }}>{title}</Text>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+      <Pressable onPress={onClose} accessibilityLabel="Close" style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: isTablet ? 'center' : 'flex-end', alignItems: 'center' }}>
+        <Pressable
+          onPress={() => undefined}
+          style={{
+            width: '100%',
+            maxWidth: isTablet ? 520 : undefined,
+            backgroundColor: colors.surfaceElevated,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            borderBottomLeftRadius: isTablet ? 24 : 0,
+            borderBottomRightRadius: isTablet ? 24 : 0,
+            padding: 18,
+            paddingBottom: Math.max(insets.bottom, 12) + 8,
+            maxHeight: '88%',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '800' }}>{title}</Text>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} style={pressed({ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}>
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -555,7 +590,7 @@ export function Toast({ text }: { text: string | null }) {
   if (!text) return null;
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: 16, right: 16, bottom: 96, alignItems: 'center' }}>
-      <View className="rounded-2xl" style={{ backgroundColor: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 12, maxWidth: 420 }} accessibilityLiveRegion="polite">
+      <View style={{ borderRadius: 16, backgroundColor: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 12, maxWidth: 420 }} accessibilityLiveRegion="polite">
         <Text style={{ color: colors.textOnPrimary, fontSize: 13, fontWeight: '700' }}>{text}</Text>
       </View>
     </View>
