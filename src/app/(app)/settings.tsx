@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark } from 'lucide-react-native';
+import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark, ChefHat } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { colors, brand } from '@/lib/pos/brand';
+import { KITCHEN_HOME } from '@/lib/pos/tab-config';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
@@ -584,6 +586,29 @@ export default function SettingsScreen() {
                   <Text className="text-xs text-slate-500 mt-3">{brand.tagline}</Text>
                 </View>
               </View>
+
+              {/* Central Kitchen: the owner and admins may open the kitchen's books */}
+              {session?.role === 'owner' || session?.role === 'admin' ? (
+                <View className="w-full md:w-1/2 px-3">
+                  <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                    <View>
+                      <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Central Kitchen</Text>
+                      <Text className="text-[22px] font-semibold text-slate-800">The kitchen&apos;s books</Text>
+                      <Text className="text-xs text-slate-500 mt-2.5">What it sent, bought and paid, and what each branch still owes it.</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => router.push(KITCHEN_HOME as never)}
+                      className="mt-5 self-start flex-row items-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-100 rounded-xl"
+                      style={{ minHeight: 44 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open the Central Kitchen"
+                    >
+                      <ChefHat size={14} color={colors.primary} />
+                      <Text className="text-xs font-bold text-primary">Open Central Kitchen</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
 
               {/* Active Currency Card */}
               <View className="w-full md:w-1/2 px-3">

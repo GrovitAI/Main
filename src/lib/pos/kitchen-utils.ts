@@ -114,6 +114,26 @@ export function chronological<T extends Pick<KitchenEntry, 'entry_date' | 'creat
   );
 }
 
+export function newestFirst<T extends Pick<KitchenEntry, 'entry_date' | 'created_at'>>(entries: readonly T[]): T[] {
+  return chronological(entries).reverse();
+}
+
+/** Rupees typed by hand: commas and spaces tolerated, anything else is 0. */
+export function parseAmount(text: string): number {
+  const n = Number(text.replace(/[,\s₹]/g, ''));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
+}
+
+/** The last price the kitchen paid for each item, from its buys. */
+export function lastCostByItem(entries: readonly KitchenEntry[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of newestFirst(entries)) {
+    if (e.type !== 'bought' || !isPosted(e)) continue;
+    for (const l of e.lines) if (!out.has(l.item_id)) out.set(l.item_id, l.price);
+  }
+  return out;
+}
+
 export type StatementRow = { entry: KitchenEntry; balanceAfter: number };
 
 /** A party's give-and-take, newest first, with the figure after each line. */

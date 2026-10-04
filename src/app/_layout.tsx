@@ -53,7 +53,7 @@ export default function RootLayout() {
     }
 
     // Already inside the app (e.g. a web deep link) — keep the requested screen.
-    if (currentGroup === '(app)' && segments.length > 1) return;
+    if ((currentGroup === '(app)' || currentGroup === '(kitchen)') && segments.length > 1) return;
 
     // Land on the role + device specific default screen (never on a hidden tab).
     const target = session ? getDefaultHrefForRole(session.role, isPhone) : '/(app)';
@@ -72,6 +72,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
+              <Stack.Screen name="(kitchen)" />
             </Stack>
           )}
           {isRestoring && (

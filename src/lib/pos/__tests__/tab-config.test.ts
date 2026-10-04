@@ -6,7 +6,7 @@
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 
 import { Platform } from 'react-native';
-import { getTabsForRole, usesManagementTabs, MOBILE_TABS } from '../tab-config';
+import { getDefaultHrefForRole, getTabsForRole, usesManagementTabs, MOBILE_TABS } from '../tab-config';
 import type { UserRole } from '../session-context';
 
 /**
@@ -62,8 +62,9 @@ describe('getTabsForRole on phones', () => {
     expect(webNames('manager', true)).toContain('finance');
   });
 
-  it('leaves the kitchen role on its own two tabs', () => {
-    expect(webNames('kitchen', true)).toEqual(['kitchen', 'settings']);
+  it('gives the kitchen role none of these tabs: it has its own screens', () => {
+    expect(webNames('kitchen', true)).toEqual([]);
+    expect(webNames('kitchen', false)).toEqual([]);
   });
 
   it('gives an accountant the ledger and settings, nothing else, on every device', () => {
@@ -124,8 +125,10 @@ describe('getTabsForRole in the installed app', () => {
     expect(nativeTabletNames('manager')).toEqual(['analytics', 'finance', 'inventory', 'menu', 'settings']);
   });
 
-  it('still routes the kitchen role to the kitchen display', () => {
-    expect(nativeTabletNames('kitchen')).toEqual(['kitchen', 'settings']);
+  it('sends the kitchen role to the Central Kitchen screens on every device', () => {
+    expect(nativeTabletNames('kitchen')).toEqual([]);
+    expect(getDefaultHrefForRole('kitchen', true)).toBe('/(kitchen)/home');
+    expect(getDefaultHrefForRole('kitchen', false)).toBe('/(kitchen)/home');
   });
 });
 

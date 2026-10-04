@@ -1,4 +1,4 @@
-import { Tabs, router, useSegments, usePathname } from 'expo-router';
+import { Redirect, Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView , ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { MapPin, User } from 'lucide-react-native';
 import {
   APP_TAB_ROUTE_NAMES,
   AppTabRouteName,
+  KITCHEN_HOME,
   getInitialRouteNameForRole,
   getTabConfigForRoute,
   getTabsForRole,
@@ -452,6 +453,9 @@ export default function AppTabLayout() {
   const initialRouteName = getInitialRouteNameForRole(userRole, isPhone);
   // Show the global header for owners and admins on tablet/desktop
   const showHeader = session && isTablet && (session.role === 'owner' || session.role === 'admin');
+
+  // The kitchen login has its own screens and none of these tabs.
+  if (session?.role === 'kitchen') return <Redirect href={KITCHEN_HOME as never} />;
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>

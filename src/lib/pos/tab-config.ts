@@ -69,11 +69,9 @@ const ADMIN_TABS: TabConfig[] = [
   { name: 'settings',  href: '/(app)/settings',  icon: Settings2,    label: 'Settings' },
 ];
 
-// Kitchen: Kitchen display and printer settings only
-const KITCHEN_TABS: TabConfig[] = [
-  { name: 'kitchen',  href: '/(app)/kitchen',  icon: ChefHat,   label: 'Kitchen' },
-  { name: 'settings', href: '/(app)/settings', icon: Settings2, label: 'Settings' },
-];
+// Kitchen: the Central Kitchen login lives in its own route group,
+// src/app/(kitchen), and has none of these tabs.
+export const KITCHEN_HOME = '/(kitchen)/home';
 
 // Accountant: records finance entries under the owner's rules. The same two
 // tabs on every device, because the role exists for the ledger alone.
@@ -144,8 +142,8 @@ export function usesManagementTabs(isPhone: boolean): boolean {
 }
 
 export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
+  if (role === 'kitchen') return [];
   if (usesManagementTabs(isPhone)) {
-    if (role === 'kitchen') return KITCHEN_TABS;
     if (role === 'accountant') return ACCOUNTANT_TABS;
     if (role === 'owner' || role === 'admin') return MOBILE_TABS;
     if (role === 'manager') return MOBILE_TABS.filter((tab) => !OWNER_ONLY_MOBILE_TABS.has(tab.name));
@@ -162,8 +160,6 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
       return OWNER_TABS;
     case 'admin':
       return ADMIN_TABS;
-    case 'kitchen':
-      return KITCHEN_TABS;
     case 'accountant':
       return ACCOUNTANT_TABS;
     default:
@@ -172,8 +168,8 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
 }
 
 export function getDefaultScreenForRole(role: UserRole, isPhone = false): string {
+  if (role === 'kitchen') return KITCHEN_HOME;
   if (usesManagementTabs(isPhone)) {
-    if (role === 'kitchen') return '/(app)/kitchen';
     if (role === 'accountant') return '/(app)/finance';
     return '/(app)/analytics'; // Analytics is flagship home for phone
   }
@@ -186,8 +182,6 @@ export function getDefaultScreenForRole(role: UserRole, isPhone = false): string
       return '/(app)/orders';
     case 'admin':
       return '/(app)/index';
-    case 'kitchen':
-      return '/(app)/kitchen';
     case 'accountant':
       return '/(app)/finance';
     default:

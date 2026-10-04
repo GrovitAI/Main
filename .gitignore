@@ -59,3 +59,8 @@ coverage/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Impeccable decision-page state (transient)
+/.impeccable/questions/
+/.impeccable/build/
+/.impeccable/review/
