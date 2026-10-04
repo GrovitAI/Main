@@ -1,3 +1,4 @@
+import { semantic } from '@/lib/pos/brand';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -104,10 +105,10 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
       />
       <Card>
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>In stock</Text>
-        <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -0.8, lineHeight: 46, marginTop: 2, color: item.stock < 0 ? '#b91c1c' : undefined, fontVariant: ['tabular-nums'] }} className="text-text-primary">
+        <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -0.8, lineHeight: 46, marginTop: 2, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className="text-text-primary">
           {formatQty(item.stock, item.unit)}
         </Text>
-        {item.stock < 0 ? <Text style={{ color: '#b91c1c', fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
+        {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
         <View className="flex-row" style={{ gap: 10, marginTop: 14 }}>
           <View className="flex-1"><GhostButton label="Made a batch" tone="primary" onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View>
           <View className="flex-1"><GhostButton label="Count stock" onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View>

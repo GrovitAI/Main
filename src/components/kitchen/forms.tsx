@@ -10,7 +10,7 @@ import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-s
 import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_MODES, formatDayLabel, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem, KitchenMode, KitchenOpenDocument, KitchenParty, KitchenPartyBalance, KitchenPartyKind } from '@/lib/pos/kitchen-types';
-import { AddChip, Chips, Field, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
+import { AddChip, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
 
 // ─── Who ─────────────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
           </View>
         </View>
       ) : null}
-      {error ? <Text style={{ color: colors.primaryDeep, fontSize: 13, fontWeight: '700' }}>{error}</Text> : null}
+      {error ? <Notice text={error} /> : null}
     </View>
   );
 }
@@ -305,7 +305,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(d.open)}</Text>
-              {d.covered > 0 ? <Text className="text-text-secondary" style={{ fontSize: 11, fontWeight: '700' }}>of {formatMoney(d.amount)}</Text> : null}
+              {d.covered > 0 ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>of {formatMoney(d.amount)}</Text> : null}
             </View>
           </Pressable>
         );

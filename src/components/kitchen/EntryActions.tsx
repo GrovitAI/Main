@@ -31,6 +31,7 @@ function editHref(entry: KitchenEntry): { pathname: string; params: Record<strin
 /** One entry in full, and what can be done to it: edit it, or void it. */
 export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) {
   const [reason, setReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!entry) return null;
@@ -61,6 +62,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
           await useKitchenStore.getState().load(true);
           useKitchenStore.getState().setNotice('Entry voided');
           setReason('');
+          setVoiding(false);
           onClose();
         })();
       },
@@ -99,12 +101,18 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
           <Notice tone="neutral" text={entry.void_reason === 'Edited' ? 'Edited: a corrected entry took its place. This one no longer counts anywhere.' : `Voided${entry.void_reason ? `: ${entry.void_reason}` : ''}. It no longer counts anywhere.`} />
         ) : (
           <View style={{ gap: 10, marginTop: 4 }}>
-            <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder="Why it is being voided (optional)" />
             <View className="flex-row" style={{ gap: 10 }}>
               {href ? <View className="flex-1"><GhostButton label="Edit" icon={Pencil} tone="primary" onPress={edit} /></View> : null}
-              <View className="flex-1"><GhostButton label={busy ? 'Voiding…' : 'Void'} tone="out" onPress={doVoid} /></View>
+              <View className="flex-1"><GhostButton label="Void…" tone="out" onPress={() => setVoiding((v) => !v)} /></View>
             </View>
             {!href ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600' }}>A batch or a count is corrected by voiding it and recording it again from the item.</Text> : null}
+            {voiding ? (
+              // The reason belongs to the void alone, so it opens with it.
+              <View className="border-t border-border-soft" style={{ gap: 10, paddingTop: 12 }}>
+                <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder="Why it is being voided (optional)" autoFocus />
+                <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} />
+              </View>
+            ) : null}
             {error ? <Notice text={error} /> : null}
           </View>
         )}
