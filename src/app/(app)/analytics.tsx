@@ -54,6 +54,7 @@ import {
   PaymentSplit,
 } from '@/lib/analytics/analytics-service';
 import { canViewAllBranches } from '@/lib/pos/branch-access';
+import { fetchAnalyticsTransactions } from '@/lib/pos/analytics-export-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 
 export default function AnalyticsScreen() {
@@ -97,6 +98,10 @@ export default function AnalyticsScreen() {
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState<AnalyticsDashboard | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loadedFilters, setLoadedFilters] = useState<AnalyticsFilters | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const exportPendingRef = useRef(false);
 
   // Franchise mode & royalty state
   const [isFranchiseMode, setIsFranchiseMode] = useState(false);
@@ -211,6 +216,7 @@ export default function AnalyticsScreen() {
     const currentRequestId = ++latestRequestIdRef.current;
     setLoading(true);
     setErrorMsg(null);
+    setExportNotice(null);
 
     try {
       const filters: AnalyticsFilters = {
@@ -232,6 +238,7 @@ export default function AnalyticsScreen() {
         setErrorMsg(res.error);
       } else {
         setDashboardData(res.data);
+        setLoadedFilters(filters);
       }
     } catch (err) {
       if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) {
@@ -250,60 +257,82 @@ export default function AnalyticsScreen() {
   // installed app has neither, so the export is a web-only affordance.
   const canExportCsv = Platform.OS === 'web';
 
-  const handleExportCSV = () => {
-    if (!dashboardData || !dashboardData.rawTransactions || dashboardData.rawTransactions.length === 0) {
-      return;
-    }
-
-    // Helper: escape CSV cell values to prevent breaking structure
-    const escapeCsv = (str: string) => {
-      if (str === null || str === undefined) return '';
-      const stringified = String(str);
-      if (stringified.includes(',') || stringified.includes('"') || stringified.includes('\n')) {
-        return `"${stringified.replace(/"/g, '""')}"`;
+  const handleExportCSV = async (): Promise<void> => {
+    if (!canExportCsv || !loadedFilters || loading || exportPendingRef.current) return;
+    exportPendingRef.current = true;
+    setExporting(true);
+    setExportNotice(null);
+    const requestId = latestRequestIdRef.current;
+    const filters = loadedFilters;
+    try {
+      const result = await fetchAnalyticsTransactions(filters);
+      if (!isMountedRef.current || requestId !== latestRequestIdRef.current) return;
+      if (result.error || !result.data) {
+        setExportNotice(result.error ?? 'Unable to export transactions. Please retry.');
+        return;
       }
-      return stringified;
-    };
+      if (result.data.length === 0) {
+        setExportNotice('No transactions to export for this period.');
+        return;
+      }
 
-    const headers = [
-      'Bill Number',
-      'Date/Time',
-      'Branch Name',
-      'Items Summary',
-      'Subtotal (Rs)',
-      'Tax (Rs)',
-      'Discount (Rs)',
-      'Total Amount (Rs)',
-      'Status'
-    ];
+      // Helper: escape CSV cell values to prevent breaking structure
+      const escapeCsv = (str: string) => {
+        if (str === null || str === undefined) return '';
+        const stringified = String(str);
+        if (stringified.includes(',') || stringified.includes('"') || stringified.includes('\n')) {
+          return `"${stringified.replace(/"/g, '""')}"`;
+        }
+        return stringified;
+      };
 
-    const csvRows = [headers.join(',')];
-
-    dashboardData.rawTransactions.forEach((tx) => {
-      const formattedDate = new Date(tx.created_at).toLocaleString('en-IN');
-      const row = [
-        escapeCsv(tx.invoice_number),
-        escapeCsv(formattedDate),
-        escapeCsv(tx.branch_name),
-        escapeCsv(tx.items_summary),
-        tx.subtotal.toFixed(2),
-        tx.tax_amount.toFixed(2),
-        tx.discount_amount.toFixed(2),
-        tx.total_amount.toFixed(2),
-        escapeCsv(tx.status.toUpperCase())
+      const headers = [
+        'Bill Number',
+        'Date/Time',
+        'Branch Name',
+        'Items Summary',
+        'Subtotal (Rs)',
+        'Tax (Rs)',
+        'Discount (Rs)',
+        'Total Amount (Rs)',
+        'Status'
       ];
-      csvRows.push(row.join(','));
-    });
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
+      const csvRows = [headers.join(',')];
+
+      result.data.forEach((tx) => {
+        const formattedDate = new Date(tx.created_at).toLocaleString('en-IN');
+        const row = [
+          escapeCsv(tx.invoice_number),
+          escapeCsv(formattedDate),
+          escapeCsv(tx.branch_name),
+          escapeCsv(tx.items_summary),
+          tx.subtotal.toFixed(2),
+          tx.tax_amount.toFixed(2),
+          tx.discount_amount.toFixed(2),
+          tx.total_amount.toFixed(2),
+          escapeCsv(tx.status.toUpperCase())
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
     
-    if (canExportCsv) {
-      const link = document.createElement('a');
-      link.setAttribute('href', csvContent);
-      link.setAttribute('download', `grovit_sales_report_${startDate}_to_${endDate}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (canExportCsv) {
+        const link = document.createElement('a');
+        link.setAttribute('href', csvContent);
+        link.setAttribute('download', `grovit_sales_report_${filters.startDate}_to_${filters.endDate}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch {
+      if (isMountedRef.current && requestId === latestRequestIdRef.current) {
+        setExportNotice('Unable to export transactions. Please retry.');
+      }
+    } finally {
+      exportPendingRef.current = false;
+      if (isMountedRef.current) setExporting(false);
     }
   };
 
@@ -1317,14 +1346,16 @@ export default function AnalyticsScreen() {
         </View>
 
         <View className="flex-row items-center gap-3">
-          {canExportCsv && dashboardData && dashboardData.rawTransactions && dashboardData.rawTransactions.length > 0 && (
+          {canExportCsv && dashboardData && loadedFilters && dashboardData.kpis.totalOrders > 0 && (
             <Pressable
-              onPress={handleExportCSV}
+              onPress={() => void handleExportCSV()}
+              disabled={loading || exporting || errorMsg !== null}
+              accessibilityLabel={exporting ? 'Preparing transaction export' : 'Export transactions'}
               id="btn-export-csv"
-              className="px-4 py-2 rounded-xl bg-primary flex-row items-center gap-1.5 active:opacity-90"
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-primary flex-row items-center gap-1.5 active:opacity-90 disabled:opacity-60"
             >
-              <Download size={14} color="#fff" />
-              <Text className="text-white text-xs font-bold">Export Transactions</Text>
+              {exporting ? <ActivityIndicator size="small" color={colors.textOnPrimary} /> : <Download size={14} color={colors.textOnPrimary} />}
+              <Text className="text-text-on-primary text-xs font-bold">{exporting ? 'Preparing export…' : 'Export Transactions'}</Text>
             </Pressable>
           )}
           {canExportCsv && dashboardData && dashboardData.itemWiseReport && dashboardData.itemWiseReport.length > 0 && (
@@ -1342,6 +1373,7 @@ export default function AnalyticsScreen() {
       </View>
 
       {/* FILTER CONTROL TOOLBAR */}
+      {exportNotice && <Text accessibilityRole="alert" className="px-4 py-2 text-sm text-text-secondary">{exportNotice}</Text>}
       <View className="bg-white border-b border-border/40 py-3.5 px-4 md:px-6 shadow-sm">
 
         {/* ── Branch Filter (owner only) ── */}
