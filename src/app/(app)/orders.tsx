@@ -46,6 +46,7 @@ import { webTextStyle } from '@/lib/pos/web-style';
 
 const TABLET_BREAKPOINT = 768;
 const REFRESH_INTERVAL_MS = 10_000;
+const HISTORY_REFRESH_INTERVAL_MS = 60_000;
 const SEARCH_DEBOUNCE_MS = 200;
 
 // ─── Filter types ─────────────────────────────────────────────────────────────
@@ -320,7 +321,13 @@ export default function OrdersScreen() {
 
   // Background refresh runs only while this tab is on screen and the app is
   // in the foreground; an idle till otherwise polls the database all day.
-  useActiveInterval(() => void loadOrders(true), REFRESH_INTERVAL_MS, { focused: isFocused });
+  // History reloads the ledger, totals, items and payments, so it needs a
+  // slower cadence than the active-order change check. Manual refresh is immediate.
+  useActiveInterval(() => loadOrders(true), activeTab === 'active' ? REFRESH_INTERVAL_MS : HISTORY_REFRESH_INTERVAL_MS, {
+    focused: isFocused,
+    // Active summaries live in the shared store; history is local to this screen.
+    pollKey: activeTab === 'active' ? 'orders-active' : undefined,
+  });
 
   // ── Search handler ──────────────────────────────────────────────────────────
   const handleSearchSubmit = useCallback(() => {
