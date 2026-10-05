@@ -340,7 +340,7 @@ export default function PosBillingScreen() {
   // The indicator is only on this screen, so the check runs only while the
   // screen is on and the app is in the foreground.
   const [isFocused, setIsFocused] = useState(false);
-  useActiveInterval(() => void checkPrinterHealth(), PRINTER_HEALTH_INTERVAL_MS, { focused: isFocused });
+  useActiveInterval(checkPrinterHealth, PRINTER_HEALTH_INTERVAL_MS, { focused: isFocused });
 
   const [timeStr, setTimeStr] = useState('11:42 AM');
   const [dateStr, setDateStr] = useState('20 May 2025');
