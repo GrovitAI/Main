@@ -52,6 +52,7 @@ const TAB_DEPENDENCIES: Record<InventoryTabName, InventoryEntity[]> = {
   categories: ['categories'],
   record_purchase: ['purchases', 'suppliers', 'materials', 'categories', 'units'],
 };
+const INVENTORY_ENTITIES = [...new Set(Object.values(TAB_DEPENDENCIES).flat())];
 
 /**
  * Owns all shared inventory data and the lazy per-tab loader.
@@ -82,10 +83,18 @@ export function useInventoryData(activeTab: InventoryTabName, branchId: string):
   const loadedEntities = useRef<Set<InventoryEntity>>(new Set());
   const lastFetchedBranchId = useRef<string | null>(null);
   const initialLoadDone = useRef(false);
+  const loadGeneration = useRef(0);
+  const entityRevisions = useRef(new Map<InventoryEntity, number>());
+  const pendingEntities = useRef(new Map<string, Promise<void>>());
 
-  const loadEntity = useCallback(async (entity: InventoryEntity, targetBranchId: string): Promise<void> => {
-    const apply = async <T,>(fetcher: () => Promise<ServiceResult<T>>, set: (data: T) => void) => {
+  useEffect(() => () => { loadGeneration.current++; }, []);
+
+  const fetchEntity = useCallback(async (entity: InventoryEntity, targetBranchId: string, generation: number, revision: number): Promise<void> => {
+    const apply = async <T,>(fetcher: () => Promise<ServiceResult<T>>, set: (data: T) => void): Promise<void> => {
       const res = await fetcher();
+      // A branch switch or a save invalidates an older response, even if it arrives last.
+      if (loadGeneration.current !== generation || (entityRevisions.current.get(entity) ?? 0) !== revision) return;
+      if (res.error) throw new Error(res.error);
       if (res.data !== null) {
         set(res.data);
         loadedEntities.current.add(entity);
@@ -130,11 +139,32 @@ export function useInventoryData(activeTab: InventoryTabName, branchId: string):
     }
   }, []);
 
+  const loadEntity = useCallback((entity: InventoryEntity, targetBranchId: string, generation: number): Promise<void> => {
+    const revision = entityRevisions.current.get(entity) ?? 0;
+    const key = `${generation}:${targetBranchId}:${entity}:${revision}`;
+    const pending = pendingEntities.current.get(key);
+    if (pending) return pending;
+    const request = (async (): Promise<void> => {
+      try {
+        await fetchEntity(entity, targetBranchId, generation, revision);
+      } catch (error: unknown) {
+        if (loadGeneration.current === generation && (entityRevisions.current.get(entity) ?? 0) === revision) throw error;
+      } finally {
+        pendingEntities.current.delete(key);
+      }
+    })();
+    pendingEntities.current.set(key, request);
+    return request;
+  }, [fetchEntity]);
+
   const loadAllData = useCallback(async (silent: boolean, targetBranchId: string): Promise<void> => {
     if (lastFetchedBranchId.current !== targetBranchId) {
+      loadGeneration.current++;
+      entityRevisions.current.clear();
       loadedEntities.current.clear();
       lastFetchedBranchId.current = targetBranchId;
     }
+    const generation = loadGeneration.current;
 
     const needed = TAB_DEPENDENCIES[activeTab].filter((d) => !loadedEntities.current.has(d));
     if (needed.length === 0) {
@@ -150,12 +180,20 @@ export function useInventoryData(activeTab: InventoryTabName, branchId: string):
 
     try {
       initializeLocalSeeder();
-      await Promise.all(needed.map((entity) => loadEntity(entity, targetBranchId)));
+      const results = await Promise.allSettled(needed.map((entity) => loadEntity(entity, targetBranchId, generation)));
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
     } catch (err: unknown) {
+      if (generation !== loadGeneration.current) return;
       setErrorMsg(err instanceof Error && err.message ? err.message : 'Unable to fetch inventory records.');
     } finally {
-      initialLoadDone.current = true;
-      setIsLoading(false);
+      if (generation === loadGeneration.current) {
+        initialLoadDone.current = true;
+        const stillLoading = INVENTORY_ENTITIES.some((entity) => pendingEntities.current.has(
+          `${generation}:${targetBranchId}:${entity}:${entityRevisions.current.get(entity) ?? 0}`,
+        ));
+        if (!stillLoading) setIsLoading(false);
+      }
     }
   }, [activeTab, loadEntity]);
 
@@ -174,7 +212,11 @@ export function useInventoryData(activeTab: InventoryTabName, branchId: string):
   );
 
   const reload = useCallback(async (entities: InventoryEntity[]): Promise<void> => {
-    entities.forEach((entity) => loadedEntities.current.delete(entity));
+    entities.forEach((entity) => {
+      loadedEntities.current.delete(entity);
+      // A refresh after a mutation must read new data, rather than reuse a pre-save request.
+      entityRevisions.current.set(entity, (entityRevisions.current.get(entity) ?? 0) + 1);
+    });
     await loadAllData(true, branchId);
   }, [loadAllData, branchId]);
 
