@@ -54,6 +54,7 @@ export type AnalyticsDashboard = {
 
   paymentSplit: PaymentSplit[];
   
+  /** @deprecated Export rows are fetched on demand by analytics-export-service. */
   rawTransactions: TransactionRow[];
   itemWiseReport: ProductInsight[];
 
@@ -268,14 +269,6 @@ export async function fetchAnalyticsDashboard(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // ---------- RAW TRANSACTIONS (Paginated for CSV export) ----------
-    const rawTransactions = await fetchRawTransactions(
-      tenant_id,
-      effectiveBranchId,
-      startTimestamp,
-      endTimestamp,
-    );
-
     return {
       data: {
         kpis,
@@ -283,7 +276,7 @@ export async function fetchAnalyticsDashboard(
         ordersByDay,
         salesByHour,
         paymentSplit,
-        rawTransactions,
+        rawTransactions: [],
         itemWiseReport,
         topSellingItems,
         leastSellingItems,
@@ -295,123 +288,6 @@ export async function fetchAnalyticsDashboard(
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[AnalyticsService] Error compiling analytics:', message);
     return { data: null, error: 'Internal system error occurred.' };
-  }
-}
-
-/**
- * Fetch raw transaction rows using pagination to avoid the 1,000-row PostgREST limit.
- * Used exclusively for CSV export — not for KPI/chart calculations.
- */
-async function fetchRawTransactions(
-  tenantId: string,
-  branchId: string | null,
-  startTimestamp: string,
-  endTimestamp: string,
-): Promise<TransactionRow[]> {
-  try {
-    const PAGE_SIZE = 1000;
-    const allBills: Record<string, unknown>[] = [];
-    let page = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      let query = supabase
-        .from('bills')
-        .select(`
-          id, invoice_number, created_at, subtotal, tax_amount,
-          discount_amount, total_amount, status,
-          branches ( name )
-        `)
-        .eq('tenant_id', tenantId)
-        .or(
-          `and(status.eq.paid,settled_at.gte.${startTimestamp},settled_at.lt.${endTimestamp}),and(status.neq.paid,created_at.gte.${startTimestamp},created_at.lt.${endTimestamp})`
-        )
-        .order('created_at', { ascending: true })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-      if (branchId) {
-        query = query.eq('branch_id', branchId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('[AnalyticsService] Error fetching raw transactions page:', error);
-        break;
-      }
-
-      if (data && data.length > 0) {
-        allBills.push(...data);
-        if (data.length < PAGE_SIZE) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        hasMore = false;
-      }
-    }
-
-    // Fetch bill_items for all retrieved bills (for items_summary in CSV)
-    const billIds = allBills.map((b) => String((b as Record<string, unknown>).id));
-    const CHUNK_SIZE = 50;
-    const itemChunks: string[][] = [];
-    for (let i = 0; i < billIds.length; i += CHUNK_SIZE) {
-      itemChunks.push(billIds.slice(i, i + CHUNK_SIZE));
-    }
-
-    const itemResults = await Promise.all(
-      itemChunks.map((chunk) =>
-        supabase
-          .from('bill_items')
-          .select('bill_id, qty, item_name')
-          .in('bill_id', chunk)
-      )
-    );
-
-    const allItems: Record<string, unknown>[] = [];
-    for (const res of itemResults) {
-      if (res.error) {
-        console.error('[AnalyticsService] Error fetching bill items chunk:', res.error);
-      } else if (res.data) {
-        allItems.push(...res.data);
-      }
-    }
-
-    // Build items lookup by bill_id
-    const itemsByBill = new Map<string, string[]>();
-    for (const item of allItems) {
-      const billId = String((item as Record<string, unknown>).bill_id);
-      const qty = Number((item as Record<string, unknown>).qty) || 0;
-      const name = String((item as Record<string, unknown>).item_name || 'Item');
-      const existing = itemsByBill.get(billId) ?? [];
-      existing.push(`${qty}x ${name}`);
-      itemsByBill.set(billId, existing);
-    }
-
-    return allBills.map((bill) => {
-      const b = bill as Record<string, unknown>;
-      const billId = String(b.id);
-      const branches = b.branches as Record<string, unknown> | null;
-      const itemsSummary = itemsByBill.get(billId)?.join(', ') ?? 'No Items';
-
-      return {
-        id: billId,
-        invoice_number: String(b.invoice_number ?? 'PENDING'),
-        created_at: String(b.created_at),
-        branch_name: String(branches?.name ?? '—'),
-        items_summary: itemsSummary,
-        subtotal: Number(b.subtotal) || 0,
-        tax_amount: Number(b.tax_amount) || 0,
-        discount_amount: Number(b.discount_amount) || 0,
-        total_amount: Number(b.total_amount) || 0,
-        status: String(b.status ?? 'paid'),
-      };
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[AnalyticsService] Error in fetchRawTransactions:', message);
-    return [];
   }
 }
 
