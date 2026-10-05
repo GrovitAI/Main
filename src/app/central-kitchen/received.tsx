@@ -44,7 +44,7 @@ export default function ReceivedScreen() {
 
   const party = partyId ? data.partiesById.get(partyId) ?? null : null;
   const amount = parseAmount(amountText);
-  const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch') : 0;
+  const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
   const canSave = !missing && !!partyId && amount > 0 && isValidDateKey(date);
@@ -74,7 +74,7 @@ export default function ReceivedScreen() {
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
     } else {
-      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'branch');
+      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'branch', party?.opening ?? 0);
       useKitchenStore.getState().setNotice(`Received ${formatMoney(amount)} from ${party?.name ?? 'the branch'} · now ${formatMoney(Math.max(0, after))} to pay`);
     }
     backToKitchen();

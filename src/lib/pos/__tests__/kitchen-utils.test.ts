@@ -118,9 +118,9 @@ describe('give and take', () => {
 
   it('adds up only what is still owed', () => {
     const balances: KitchenPartyBalance[] = [
-      { party_id: 'b1', kind: 'branch', name: 'Kolathur', phone: null, is_active: true, balance: 1400, last_entry_date: null },
-      { party_id: 'b2', kind: 'branch', name: 'Velachery', phone: null, is_active: true, balance: -200, last_entry_date: null },
-      { party_id: 'v1', kind: 'vendor', name: 'Aavin', phone: null, is_active: true, balance: 1220, last_entry_date: null },
+      { party_id: 'b1', kind: 'branch', name: 'Kolathur', phone: null, is_active: true, balance: 1400, opening: 0, last_entry_date: null },
+      { party_id: 'b2', kind: 'branch', name: 'Velachery', phone: null, is_active: true, balance: -200, opening: 0, last_entry_date: null },
+      { party_id: 'v1', kind: 'vendor', name: 'Aavin', phone: null, is_active: true, balance: 1220, opening: 0, last_entry_date: null },
     ];
     expect(sumDues(balances, 'branch')).toBe(1400);
     expect(sumDues(balances, 'vendor')).toBe(1220);
@@ -240,5 +240,21 @@ describe('formatEnteredAt', () => {
     expect(text).toMatch(/Oct/);
     expect(text).toMatch(/\d{1,2}:\d{2}/);
     expect(formatEnteredAt('not a date')).toBe('');
+  });
+});
+
+describe('opening balances', () => {
+  const sent = entry({ type: 'sent', party_id: 'b9', amount: 300, entry_date: '2026-10-02' });
+  const got = entry({ type: 'received', party_id: 'b9', amount: 1000, entry_date: '2026-10-03' });
+
+  it('starts the figure at what stood before the app', () => {
+    expect(balanceFromEntries([sent, got], 'b9', 'branch')).toBe(-700);
+    expect(balanceFromEntries([sent, got], 'b9', 'branch', 1200)).toBe(500);
+    expect(balanceFromEntries([sent, got], 'b9', 'branch', -50)).toBe(-750);
+  });
+
+  it('runs the statement from the opening figure', () => {
+    const rows = statementRows([sent, got], 'b9', 'branch', 1200);
+    expect(rows.map((r) => r.balanceAfter)).toEqual([500, 1500]);
   });
 });

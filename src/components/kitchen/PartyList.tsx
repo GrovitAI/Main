@@ -43,7 +43,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
         <StatTile label={copy.total} value={total} tone={total > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'} />
         {/* Day-one balances are not in the app yet; say so rather than show a settled ₹0 as fact. */}
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 8 }}>
-          Counts only what is recorded here. Dues from before this app started are not entered yet.
+          Includes each name’s opening balance from before this app. Set or correct it by editing the name.
         </Text>
       </Card>
       <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />

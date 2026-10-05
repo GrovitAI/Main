@@ -50,7 +50,7 @@ export default function SpentScreen() {
 
   const party = partyId ? data.partiesById.get(partyId) ?? null : null;
   const amount = parseAmount(amountText);
-  const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor') : 0;
+  const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
   const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category);
@@ -83,7 +83,7 @@ export default function SpentScreen() {
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
     } else if (isVendor && partyId) {
-      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor');
+      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor', party?.opening ?? 0);
       useKitchenStore.getState().setNotice(`Paid ${party?.name ?? 'the vendor'} ${formatMoney(amount)} · ${after > 0 ? `still owe ${formatMoney(after)}` : 'settled up'}`);
     } else {
       useKitchenStore.getState().setNotice(`${category ?? 'Expense'} · ${formatMoney(amount)} recorded`);

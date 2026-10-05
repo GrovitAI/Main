@@ -79,7 +79,10 @@ export default function KitchenHome() {
               <LogOut size={20} color={colors.textSecondary} />
             </Pressable>
           ) : (
-            <IconButton icon={ArrowLeft} label="Back to the main app" tone="neutral" onPress={() => router.replace('/(app)/settings')} />
+            // Go back to the Settings screen that opened the kitchen rather than replacing the
+            // kitchen with a second copy of the main app: each copy keeps its own Orders tab
+            // mounted and polling, which is how one browser tab came to poll four times over.
+            <IconButton icon={ArrowLeft} label="Back to the main app" tone="neutral" onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/settings'))} />
           )
         }
       />

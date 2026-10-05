@@ -39,12 +39,16 @@ export type KitchenParty = {
   name: string;
   phone: string | null;
   is_active: boolean;
+  /** What stood between us when the app started, rupees; positive is owed to the kitchen (branch) or by it (vendor). */
+  opening: number;
 };
 
 export type KitchenPartyInput = {
   kind: KitchenPartyKind;
   name: string;
   phone?: string | null;
+  /** Left out: unchanged. */
+  opening?: number;
 };
 
 /** An expense category: the kitchen's own list, seeded with the usual ones. */
@@ -99,8 +103,9 @@ export type KitchenPartyBalance = {
   name: string;
   phone: string | null;
   is_active: boolean;
-  /** Positive: a branch still owes the kitchen, or the kitchen still owes a vendor. */
+  /** Positive: a branch still owes the kitchen, or the kitchen still owes a vendor. Includes the opening balance. */
   balance: number;
+  opening: number;
   last_entry_date: string | null;
 };
 

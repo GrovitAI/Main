@@ -46,7 +46,7 @@ export default function BoughtScreen() {
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
   const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date);
-  const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor') : 0;
+  const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
 
   const save = async () => {
     if (!partyId || !chosen || chosen.length === 0 || missing) return;
@@ -64,7 +64,7 @@ export default function BoughtScreen() {
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
     } else {
-      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor');
+      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor', party?.opening ?? 0);
       useKitchenStore.getState().setNotice(paid ? `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'}, paid` : `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'} · we owe ${formatMoney(after)}`);
     }
     backToKitchen();

@@ -142,8 +142,9 @@ export function partyEffect(e: Pick<KitchenEntry, 'type' | 'paid' | 'amount'>, k
   return 0;
 }
 
-export function balanceFromEntries(entries: readonly KitchenEntry[], partyId: string, kind: KitchenPartyKind): number {
-  let bal = 0;
+/** The running figure: the opening balance plus every posted entry's effect. */
+export function balanceFromEntries(entries: readonly KitchenEntry[], partyId: string, kind: KitchenPartyKind, opening = 0): number {
+  let bal = opening;
   for (const e of entries) {
     if (e.party_id === partyId && isPosted(e)) bal += partyEffect(e, kind);
   }
@@ -180,8 +181,9 @@ export function lastCostByItem(entries: readonly KitchenEntry[]): Map<string, nu
 export type StatementRow = { entry: KitchenEntry; balanceAfter: number };
 
 /** A party's give-and-take, newest first, with the figure after each line. */
-export function statementRows(entries: readonly KitchenEntry[], partyId: string, kind: KitchenPartyKind): StatementRow[] {
-  let bal = 0;
+/** Newest first, each with the figure after it; the running figure starts at the opening balance. */
+export function statementRows(entries: readonly KitchenEntry[], partyId: string, kind: KitchenPartyKind, opening = 0): StatementRow[] {
+  let bal = Math.round(opening * 100) / 100;
   const rows: StatementRow[] = [];
   for (const e of chronological(entries)) {
     if (e.party_id !== partyId || !isPosted(e)) continue;

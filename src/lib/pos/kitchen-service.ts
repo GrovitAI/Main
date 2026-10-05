@@ -86,7 +86,7 @@ function actorName(): string {
 }
 
 const ITEM_COLUMNS = 'id, name, unit, sell_price_paise, stock, is_active, updated_at';
-const PARTY_COLUMNS = 'id, kind, name, phone, is_active';
+const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise';
 const ENTRY_COLUMNS =
   'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, note, created_by, created_at, voided_at, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
@@ -114,6 +114,7 @@ function mapParty(row: Record<string, unknown>): KitchenParty {
     name: String(row.name ?? ''),
     phone: toStringOrNull(row.phone),
     is_active: row.is_active !== false,
+    opening: fromPaise(toNumber(row.opening_paise)),
   };
 }
 
@@ -229,7 +230,8 @@ export async function saveKitchenParty(input: KitchenPartyInput, id?: string): P
     const { tenant_id, branch_id } = scope();
     const name = input.name.trim();
     if (!name) return { data: null, error: 'Type a name first.' };
-    const fields = { name, phone: input.phone?.trim() || null };
+    const fields: Record<string, unknown> = { name, phone: input.phone?.trim() || null };
+    if (input.opening !== undefined) fields.opening_paise = toPaise(input.opening);
     const query = id
       ? supabase.from('kitchen_parties').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
       : supabase.from('kitchen_parties').insert({ ...fields, kind: input.kind, tenant_id, branch_id });
@@ -264,7 +266,7 @@ export async function fetchKitchenBalances(): Promise<ServiceResult<KitchenParty
     const { tenant_id, branch_id } = scope();
     const { data, error } = await supabase
       .from('kitchen_party_balances')
-      .select('party_id, kind, name, phone, is_active, balance_paise, last_entry_date')
+      .select('party_id, kind, name, phone, is_active, balance_paise, opening_paise, last_entry_date')
       .eq('tenant_id', tenant_id)
       .eq('branch_id', branch_id)
       .order('name');
@@ -276,6 +278,7 @@ export async function fetchKitchenBalances(): Promise<ServiceResult<KitchenParty
       phone: toStringOrNull(row.phone),
       is_active: row.is_active !== false,
       balance: fromPaise(toNumber(row.balance_paise)),
+      opening: fromPaise(toNumber(row.opening_paise)),
       last_entry_date: toStringOrNull(row.last_entry_date),
     }));
     return { data: rows, error: null };

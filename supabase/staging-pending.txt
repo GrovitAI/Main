@@ -11,3 +11,4 @@
 20261001000600_finance_receipts.sql
 20261004000100_central_kitchen.sql
 20261004000200_kitchen_categories_and_edit.sql
+20261005000100_kitchen_opening_balances.sql

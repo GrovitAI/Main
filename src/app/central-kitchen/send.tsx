@@ -43,7 +43,7 @@ export default function SendScreen() {
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
   const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date);
-  const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch') : 0;
+  const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
 
   const save = async () => {
     if (!partyId || !chosen || chosen.length === 0 || missing) return;
@@ -60,7 +60,7 @@ export default function SendScreen() {
     setSaved({ ...res.data, lines: chosen.map((l, i) => ({ id: String(i), item_id: l.item_id, qty: l.qty, price: l.price, line_total: Math.round(l.qty * l.price * 100) / 100 })) });
   };
 
-  const balanceAfter = party ? balanceFromEntries(useKitchenStore.getState().entries, party.id, 'branch') : 0;
+  const balanceAfter = party ? balanceFromEntries(useKitchenStore.getState().entries, party.id, 'branch', party.opening) : 0;
   // The branch is usually named "Le Laban Central Kitchen" already; only add the brand when it is not.
   const kitchenName = /le\s*laban/i.test(kitchenBranch().name) ? kitchenBranch().name : `Le Laban ${kitchenBranch().name}`;
   const slip = saved && party ? slipText({ kitchenName, partyName: party.name, entry: saved, itemsById: data.itemsById, balanceAfter }) : '';

@@ -23,7 +23,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const data = useKitchenData();
   const party = data.partiesById.get(partyId) ?? null;
   const balance = data.balances.find((b) => b.party_id === partyId)?.balance ?? 0;
-  const rows = useMemo(() => (party ? statementRows(data.entries, partyId, party.kind) : []), [data.entries, partyId, party]);
+  const rows = useMemo(() => (party ? statementRows(data.entries, partyId, party.kind, party.opening) : []), [data.entries, partyId, party]);
   const [open, setOpen] = useState<KitchenEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +95,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
       </Card>
       <Section title="Give and take">
         <Card padded={false} style={{ paddingHorizontal: 14 }}>
-          {rows.length === 0 ? (
+          {rows.length === 0 && party.opening === 0 ? (
             <Empty title="Nothing yet" body={isBranch ? 'Sends and payments from this branch will show here, with the figure after each.' : 'Buys and payments to this vendor will show here, with the figure after each.'} />
           ) : (
             rows.map(({ entry, balanceAfter }) => {
@@ -113,6 +113,16 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
               );
             })
           )}
+          {party.opening !== 0 ? (
+            // The oldest line: what stood between us before the app, set on the name's edit page.
+            <Row
+              title="Opening balance"
+              subtitle="Before this app started"
+              right={formatMoney(Math.abs(party.opening))}
+              rightSub={party.opening > 0 ? (isBranch ? 'yet to pay' : 'we owed') : isBranch ? 'paid ahead' : 'overpaid'}
+              tone="neutral"
+            />
+          ) : null}
         </Card>
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 8 }}>Shows the last three months; the figure above counts everything.</Text>
       </Section>
