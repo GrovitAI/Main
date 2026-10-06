@@ -19,6 +19,8 @@ export const KITCHEN_TABS: readonly KitchenTab[] = [
 ];
 
 function TabButton({ tab, focused, onPress, rail }: { tab: KitchenTab; focused: boolean; onPress: () => void; rail: boolean }) {
+  const { isDesktop } = useResponsive();
+  const compact = Platform.OS === 'web' && isDesktop && rail;
   const Icon = tab.icon;
   const color = focused ? colors.primary : colors.textSecondary;
   return (
@@ -27,21 +29,12 @@ function TabButton({ tab, focused, onPress, rail }: { tab: KitchenTab; focused: 
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
       accessibilityLabel={tab.label}
-      style={({ pressed }) => ({
-        flex: rail ? undefined : 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 52,
-        width: rail ? 72 : undefined,
-        paddingVertical: 6,
-        borderRadius: 14,
-        opacity: pressed ? 0.6 : 1,
-      })}
+      className={`items-center rounded-xl active:opacity-60 ${compact ? `min-h-11 w-full flex-row justify-start gap-2 px-3 py-1.5 ${focused ? 'bg-accent-soft' : ''}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
     >
-      <View className="items-center justify-center rounded-xl" style={{ width: 44, height: 30, backgroundColor: focused ? colors.accentSoft : 'transparent' }}>
-        <Icon size={21} color={color} />
+      <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused ? 'bg-accent-soft' : ''}`}`}>
+        <Icon size={compact ? 18 : 21} color={color} />
       </View>
-      <Text style={{ color, fontSize: 12, fontWeight: focused ? '800' : '600', marginTop: 2 }} numberOfLines={1}>
+      <Text className={`${focused ? 'font-extrabold' : 'font-semibold'} ${compact ? 'text-[13px]' : 'mt-0.5 text-xs'}`} style={{ color }} numberOfLines={1}>
         {tab.label}
       </Text>
     </Pressable>
@@ -77,8 +70,10 @@ function BottomBar({ state, navigation }: BarProps) {
 
 function Rail({ state, navigation }: BarProps) {
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
+  const compact = Platform.OS === 'web' && isDesktop;
   return (
-    <View className="border-r border-border-soft bg-surface-elevated" style={{ width: 88, paddingTop: insets.top + 12, alignItems: 'center', gap: 6 }}>
+    <View className={`items-center gap-1.5 border-r border-border-soft bg-surface-elevated ${compact ? 'w-44 px-2' : 'w-[88px]'}`} style={{ paddingTop: insets.top + 12 }}>
       {KITCHEN_TABS.map((tab) => {
         const route = state.routes.find((r) => r.name === tab.name);
         if (!route) return null;

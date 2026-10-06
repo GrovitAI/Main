@@ -369,5 +369,25 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 - **Don't** colour an amount amber: amber marks a buy's icon only.
 - **Don't** reach for `shadow-panel`, `shadow-card`, `shadow-glow` or `rounded-panel` from the Tailwind config, or any of the `gradients` in `brand.ts`; those belong to the older POS screens.
 - **Don't** write a hex value in a kitchen component; every colour is `colors.*` or `semantic.*` from `src/lib/pos/brand.ts` (or its NativeWind mirror).
-- **Don't** pass `className` to a Pressable in the kitchen world; use a style object so the pressed dim survives on the web.
+- **Don't** combine `className` with a Pressable's function style: NativeWind drops the function. Class-styled controls use `active:opacity-*`; legacy controls with function styles keep their plain style objects.
 - **Don't** add a second type family, a weight below 600, or letter-spaced capitals outside the Label role.
+
+## Desktop browser density
+
+At browser widths of 1024 px and above, keep the same colours, content and
+workflows with a more compact layout:
+
+- 176 px sidebar with 18 px icons beside 13 px labels; each tab is at least
+  44 px tall. Phone tabs and the tablet rail retain their existing layout.
+- Root headings are 24/28 px; form headings are 18/24 px. Summary figures are
+  20/24 px and list titles are 14 px.
+- Overview content may use up to 980 px; entry forms keep their 720 px cap.
+- Cards use a 12 px radius and 12 px padding. Action tiles use a horizontal
+  icon/label layout, 14 px titles and a 76 px minimum height. List rows are
+  at least 52 px; primary controls remain at least 44 px.
+- This density applies only to desktop web. Phone and native tablet sizing,
+  financial calculations, data fetching and permissions retain their behavior.
+
+Verified in the browser at 1106 px and 1024 px desktop widths and 390 px
+phone width, including navigation to the Send form. This is browser evidence,
+not a native emulator or hardware test.

@@ -4,9 +4,8 @@
  * brand.ts; money is green in, red out, amber for a buy, on figures and
  * icons only. Every action, filled or outlined, is Le Laban blue.
  *
- * Pressables here take plain style objects, never className: NativeWind drops
- * a Pressable's function style when a className is present, which is how a
- * chip can lose its fill and padding on the web.
+ * Legacy Pressables with function styles must not also take className:
+ * NativeWind drops that function. Class-styled controls use active variants.
  */
 import React, { useMemo, useState } from 'react';
 import {
@@ -59,6 +58,12 @@ function pressed(base: StyleProp<ViewStyle>, dim = 0.65): (state: PressableState
 
 const cardStyle: ViewStyle = { borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 18, backgroundColor: colors.surfaceElevated };
 
+/** Compact browser controls on desktop; retain the phone/tablet touch layout. */
+function useDesktopDensity(): boolean {
+  const { isDesktop } = useResponsive();
+  return Platform.OS === 'web' && isDesktop;
+}
+
 // ─── Screen and header ───────────────────────────────────────────────────────
 
 type ScreenProps = {
@@ -71,12 +76,16 @@ type ScreenProps = {
   footer?: React.ReactNode;
   /** Room for a floating tab bar or a sheet. */
   bottomPad?: number;
+  /** Overview/list surfaces may use more width; entry forms stay readable. */
+  wide?: boolean;
 };
 
-export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24 }: ScreenProps) {
+export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24, wide = false }: ScreenProps) {
   const { isTablet } = useResponsive();
+  const compact = useDesktopDensity();
+  const widthClass = compact && wide ? 'max-w-[980px]' : isTablet ? 'max-w-[720px]' : '';
   const inner = (
-    <View style={{ width: '100%', maxWidth: isTablet ? 720 : undefined, alignSelf: 'center', paddingHorizontal: 16, paddingBottom: bottomPad }}>
+    <View className={`w-full self-center px-4 ${widthClass}`} style={{ paddingBottom: bottomPad }}>
       {children}
     </View>
   );
@@ -95,7 +104,7 @@ export function KScreen({ children, scroll = true, refreshing = false, onRefresh
       )}
       {footer ? (
         <View className="border-t border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
-          <View style={{ width: '100%', maxWidth: isTablet ? 720 : undefined, alignSelf: 'center' }}>{footer}</View>
+          <View className={`w-full self-center ${widthClass}`}>{footer}</View>
         </View>
       ) : null}
     </View>
@@ -113,8 +122,9 @@ type HeaderProps = {
 
 export function KHeader({ title, subtitle, onBack, right, large = !onBack }: HeaderProps) {
   const insets = useSafeAreaInsets();
+  const compact = useDesktopDensity();
   return (
-    <View style={{ paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 12 : 0) + 8, paddingBottom: 8 }}>
+    <View style={{ paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 12 : 0) + (compact ? 0 : 8), paddingBottom: 8 }}>
       <View className="flex-row items-center" style={{ minHeight: 44, gap: 8 }}>
         {onBack ? (
           <Pressable
@@ -129,8 +139,8 @@ export function KHeader({ title, subtitle, onBack, right, large = !onBack }: Hea
         ) : null}
         <View className="flex-1" style={{ minWidth: 0 }}>
           <Text
-            className="font-extrabold text-text-primary"
-            style={{ fontSize: large ? 28 : 20, letterSpacing: -0.4, lineHeight: large ? 32 : 24 }}
+            className={`font-extrabold text-text-primary ${large ? compact ? 'text-2xl leading-7' : 'text-[28px] leading-8' : compact ? 'text-lg leading-6' : 'text-xl leading-6'}`}
+            style={{ letterSpacing: -0.4 }}
             numberOfLines={1}
             accessibilityRole="header"
           >
@@ -165,12 +175,14 @@ export function IconButton({ icon: Icon, label, onPress, tone = 'primary' }: { i
 // ─── Surfaces ────────────────────────────────────────────────────────────────
 
 export function Card({ children, style, padded = true }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; padded?: boolean }) {
-  return <View style={[cardStyle, padded ? { padding: 14 } : null, style]}>{children}</View>;
+  const compact = useDesktopDensity();
+  return <View className={`border border-border-soft bg-surface-elevated ${compact ? 'rounded-xl' : 'rounded-[18px]'} ${padded ? compact ? 'p-3' : 'p-3.5' : ''}`} style={style}>{children}</View>;
 }
 
 export function Section({ title, action, children }: { title: string; action?: React.ReactNode; children?: React.ReactNode }) {
+  const compact = useDesktopDensity();
   return (
-    <View style={{ marginTop: 18 }}>
+    <View className={compact ? 'mt-3' : 'mt-[18px]'}>
       <View className="flex-row items-end justify-between" style={{ marginBottom: 8, minHeight: 24 }}>
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>
           {title}
@@ -201,17 +213,18 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 export function StatTile({ label, value, tone = 'neutral', onPress }: { label: string; value: number; tone?: Tone; onPress?: () => void }) {
+  const compact = useDesktopDensity();
   const body = (
     <>
       <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
-      <Text style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, marginTop: 2, color: toneColor[tone], ...tabular }} numberOfLines={1} adjustsFontSizeToFit>
+      <Text className={`mt-0.5 font-extrabold ${compact ? 'text-xl leading-6' : 'text-[22px] leading-[26px]'}`} style={{ letterSpacing: -0.3, color: toneColor[tone], ...tabular }} numberOfLines={1} adjustsFontSizeToFit>
         {formatMoney(value)}
       </Text>
     </>
   );
   if (onPress) {
     return (
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`} style={pressed({ ...cardStyle, borderRadius: 16, flex: 1, padding: 12, minHeight: 66 })}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`} className={`flex-1 border border-border-soft bg-surface-elevated px-3 active:opacity-60 ${compact ? 'min-h-[60px] rounded-xl py-2.5' : 'min-h-[66px] rounded-2xl py-3'}`}>
         {body}
       </Pressable>
     );
@@ -226,18 +239,19 @@ export function Divider({ vertical }: { vertical?: boolean }) {
 }
 
 export function ActionTile({ icon: Icon, label, caption, tone, onPress }: { icon: LucideIcon; label: string; caption: string; tone: Tone; onPress: () => void }) {
+  const compact = useDesktopDensity();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${caption}`}
-      style={pressed({ ...cardStyle, flex: 1, padding: 14, minHeight: 100, justifyContent: 'space-between' })}
+      className={`flex-1 border border-border-soft bg-surface-elevated active:opacity-60 ${compact ? 'min-h-[76px] flex-row items-center gap-2.5 rounded-xl p-3' : 'min-h-[100px] justify-between rounded-[18px] p-3.5'}`}
     >
-      <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: toneSoft[tone] }}>
-        <Icon size={20} color={toneColor[tone]} />
+      <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: toneSoft[tone] }}>
+        <Icon size={compact ? 18 : 20} color={toneColor[tone]} />
       </View>
-      <View>
-        <Text className="text-text-primary" style={{ fontSize: 17, fontWeight: '800' }}>{label}</Text>
+      <View className={compact ? 'min-w-0 flex-1' : ''}>
+        <Text className={`font-extrabold leading-5 text-text-primary ${compact ? 'text-sm' : 'text-[17px]'}`}>{label}</Text>
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{caption}</Text>
       </View>
     </Pressable>
@@ -261,9 +275,9 @@ type RowProps = {
   accessibilityLabel?: string;
 };
 
-const rowStyle: ViewStyle = { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, minHeight: 58, borderBottomWidth: 1, borderBottomColor: colors.borderSoft };
-
 export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel }: RowProps) {
+  const compact = useDesktopDensity();
+  const rowClass = `flex-row items-center gap-3 border-b border-border-soft ${compact ? 'min-h-[52px] py-2' : 'min-h-[58px] py-3'}`;
   const content = (
     <>
       {Icon ? (
@@ -272,7 +286,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[{ fontSize: 15, fontWeight: '700', color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={1}>{title}</Text>
+        <Text className={`font-bold ${compact ? 'text-sm' : 'text-[15px]'}`} style={[{ color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={1}>{title}</Text>
         {subtitle ? <Text style={{ fontSize: 12, fontWeight: '600', marginTop: 2, color: colors.textSecondary }} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right || rightSub ? (
@@ -283,7 +297,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
       ) : null}
     </>
   );
-  if (!onPress && !onLongPress) return <View style={rowStyle}>{content}</View>;
+  if (!onPress && !onLongPress) return <View className={rowClass}>{content}</View>;
   return (
     <Pressable
       onPress={onPress}
@@ -291,7 +305,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={selected ? { selected: true } : undefined}
-      style={pressed(rowStyle)}
+      className={`${rowClass} active:opacity-60`}
     >
       {content}
     </Pressable>
@@ -299,8 +313,9 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
 }
 
 export function Empty({ title, body, action }: { title: string; body?: string; action?: React.ReactNode }) {
+  const compact = useDesktopDensity();
   return (
-    <View className="items-center" style={{ paddingVertical: 28, paddingHorizontal: 12, gap: 6 }}>
+    <View className={`items-center gap-1.5 px-3 ${compact ? 'py-5' : 'py-7'}`}>
       <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '800', textAlign: 'center' }}>{title}</Text>
       {body ? <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', textAlign: 'center', lineHeight: 19, maxWidth: 300 }}>{body}</Text> : null}
       {action ? <View style={{ marginTop: 10 }}>{action}</View> : null}
@@ -501,6 +516,7 @@ export function Tick({ on }: { on: boolean }) {
 // ─── Buttons ─────────────────────────────────────────────────────────────────
 
 export function PrimaryButton({ label, onPress, disabled, loading, tone = 'primary', icon: Icon }: { label: string; onPress: () => void; disabled?: boolean; loading?: boolean; tone?: Tone; icon?: LucideIcon }) {
+  const compact = useDesktopDensity();
   const off = disabled || loading;
   return (
     <Pressable
@@ -509,13 +525,11 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: off, busy: loading }}
-      style={(state) => [
-        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, minHeight: 52, paddingHorizontal: 18, gap: 8, backgroundColor: toneColor[tone] },
-        { opacity: off ? 0.45 : state.pressed ? 0.8 : 1 },
-      ]}
+      className={`flex-row items-center justify-center gap-2 px-[18px] ${compact ? 'min-h-11 rounded-xl' : 'min-h-[52px] rounded-2xl'} ${off ? 'opacity-50' : 'active:opacity-80'}`}
+      style={{ backgroundColor: toneColor[tone] }}
     >
       {loading ? <ActivityIndicator color={colors.textOnPrimary} /> : Icon ? <Icon size={18} color={colors.textOnPrimary} /> : null}
-      <Text style={{ color: colors.textOnPrimary, fontSize: 16, fontWeight: '800' }}>{label}</Text>
+      <Text className={`font-extrabold text-text-on-primary ${compact ? 'text-sm' : 'text-base'}`}>{label}</Text>
     </Pressable>
   );
 }

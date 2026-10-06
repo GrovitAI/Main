@@ -69,7 +69,7 @@ export default function KitchenHome() {
   );
 
   return (
-    <KScreen refreshing={data.loading && data.loaded} onRefresh={data.refresh}>
+    <KScreen wide refreshing={data.loading && data.loaded} onRefresh={data.refresh}>
       <KHeader
         title="Central Kitchen"
         subtitle={isKitchenLogin ? formatLongDate(today) : `${branchName} · ${formatLongDate(today)}`}
