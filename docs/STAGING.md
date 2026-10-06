@@ -74,10 +74,41 @@ DATABASE** sits at the top of every screen while the app is on staging.
 To go back to the live database on this computer, delete
 `.env.development.local` and restart the dev server.
 
-What does not work on localhost: anything served by the Vercel functions
-under `/api` (approval emails, PrintNode printing, staff invitations). They
-are not part of the Expo dev server. Finance, Inventory, POS billing and
-Analytics talk to the database directly and work in full.
+Plain `expo start` does not serve the Vercel functions under `/api`.
+Staff account creation therefore returns 404 with that command. Finance,
+Inventory, POS billing and Analytics talk to the database directly and work.
+
+### Run staging with staff account creation
+
+Install the official Vercel CLI once if `vercel` is not already available.
+Put the **staging project's** existing secret or legacy `service_role` key in
+`.env.staging-server.local` (ignored by git):
+
+```dotenv
+SUPABASE_SERVICE_ROLE_KEY=<staging server key>
+```
+
+Find this key in **Grovit Staging → Settings → API Keys**. Keep it out of
+chat and never prefix it with `EXPO_PUBLIC_`. Stop any existing Expo server,
+then run:
+
+```bash
+npm run staging
+```
+
+Open http://localhost:8081 as before. This starts Expo and a loopback-only
+staff API on port 8083, running the same `api/staff/create.ts` and server auth
+helper used on Vercel. The launcher validates the server key against staging
+and creates an isolated, ignored API working directory under `.expo/`.
+It does not pull credentials or settings from the production Vercel project.
+The server key is never passed to Expo; production web continues to use its
+own origin. Staff authentication, permissions and tenant/branch checks are
+unchanged. Restart after changing the key or server source files.
+
+The API can start without the server key, but staff creation will remain
+unavailable until the key is added and the launcher restarted. Approval email
+and PrintNode endpoints are not enabled by this launcher. Press Ctrl+C to
+stop both processes.
 
 ### Browser tests against staging
 
