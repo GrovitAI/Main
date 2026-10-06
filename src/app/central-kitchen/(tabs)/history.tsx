@@ -50,7 +50,7 @@ export default function HistoryScreen() {
   );
 
   return (
-    <KScreen refreshing={data.loading && data.loaded} onRefresh={data.refresh}>
+    <KScreen wide refreshing={data.loading && data.loaded} onRefresh={data.refresh}>
       <KHeader title="History" subtitle="Everything the kitchen recorded, newest first" />
       {data.error ? <Notice text={data.error} /> : null}
       <SearchBox value={query} onChange={setQuery} placeholder="Search names, items, notes, amounts" />

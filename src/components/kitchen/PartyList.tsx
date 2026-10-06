@@ -6,7 +6,7 @@ import { useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { formatDayLabel, formatMoney, matchesSearch, sumDues } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, StatTile } from './ui';
+import { Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, StatTile, useDesktopDensity } from './ui';
 import { PartyDetail } from './PartyDetail';
 
 const COPY = {
@@ -18,6 +18,7 @@ const COPY = {
 export function PartyList({ kind }: { kind: KitchenPartyKind }) {
   const data = useKitchenData();
   const { isTablet } = useResponsive();
+  const desktop = useDesktopDensity();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const copy = COPY[kind];
@@ -76,9 +77,9 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
     return <KScreen refreshing={data.loading && data.loaded} onRefresh={data.refresh}>{list}</KScreen>;
   }
   return (
-    <View className="flex-1 flex-row bg-surface-tint">
-      <ScrollView className="flex-1" style={{ maxWidth: 420 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>{list}</ScrollView>
-      <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+    <View className={`flex-1 flex-row bg-surface-tint ${desktop ? 'w-full max-w-[1120px] self-start' : ''}`}>
+      <ScrollView className={desktop ? 'w-80 flex-none' : 'flex-1'} style={desktop ? undefined : { maxWidth: 420 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>{list}</ScrollView>
+      <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: desktop ? 16 : 20, paddingBottom: 24 }}>
         {current ? <PartyDetail partyId={current} onRemoved={() => setSelected(null)} /> : <Empty title="Pick a name" body="Its figure and give-and-take open here." />}
       </ScrollView>
     </View>

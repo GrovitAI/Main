@@ -9,7 +9,7 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, IconButton, KHeader, Notice, PrimaryButton, Section, Skeleton, TextField } from './ui';
+import { Card, Empty, GhostButton, IconButton, KHeader, Notice, PrimaryButton, Section, Skeleton, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
 import { EntryActions } from './EntryActions';
 
@@ -23,6 +23,7 @@ type Props = {
 /** One item: its stock, its price, a batch made or a count, and every entry that touched it. */
 export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const data = useKitchenData();
+  const desktop = useDesktopDensity();
   const item = data.itemsById.get(itemId) ?? null;
   const [moves, setMoves] = useState<KitchenEntry[] | null>(null);
   const [panel, setPanel] = useState<'made' | 'count' | null>(null);
@@ -104,14 +105,18 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
         }
       />
       <Card>
-        <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>In stock</Text>
-        <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -0.8, lineHeight: 46, marginTop: 2, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className="text-text-primary">
-          {formatQty(item.stock, item.unit)}
-        </Text>
-        {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
-        <View className="flex-row" style={{ gap: 10, marginTop: 14 }}>
-          <View className="flex-1"><GhostButton label="Made a batch" tone="primary" onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View>
-          <View className="flex-1"><GhostButton label="Count stock" onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View>
+        <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
+          <View className={desktop ? 'min-w-0 flex-1' : undefined}>
+            <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>In stock</Text>
+            <Text style={{ letterSpacing: desktop ? -0.4 : -0.8, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className={`mt-0.5 font-extrabold text-text-primary ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`}>
+              {formatQty(item.stock, item.unit)}
+            </Text>
+            {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
+          </View>
+          <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>
+            <View className="flex-1"><GhostButton label="Made a batch" tone="primary" onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View>
+            <View className="flex-1"><GhostButton label="Count stock" onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View>
+          </View>
         </View>
         {panel ? (
           <View className="flex-row items-center" style={{ gap: 8, marginTop: 10 }}>

@@ -5,13 +5,14 @@ import { Plus } from 'lucide-react-native';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { formatMoney, formatQty, matchesSearch } from '@/lib/pos/kitchen-utils';
-import { Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton } from '@/components/kitchen/ui';
+import { Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, useDesktopDensity } from '@/components/kitchen/ui';
 import { ItemDetail } from '@/components/kitchen/ItemDetail';
 
 /** What the kitchen makes and buys, with the stock figure of each. */
 export default function ItemsScreen() {
   const data = useKitchenData();
   const { isTablet } = useResponsive();
+  const desktop = useDesktopDensity();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const rows = useMemo(() => data.items.filter((i) => matchesSearch(query, i.name, i.unit)), [data.items, query]);
@@ -56,9 +57,9 @@ export default function ItemsScreen() {
     return <KScreen refreshing={data.loading && data.loaded} onRefresh={data.refresh}>{list}</KScreen>;
   }
   return (
-    <View className="flex-1 flex-row bg-surface-tint">
-      <ScrollView className="flex-1" style={{ maxWidth: 420 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>{list}</ScrollView>
-      <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+    <View className={`flex-1 flex-row bg-surface-tint ${desktop ? 'w-full max-w-[1120px] self-start' : ''}`}>
+      <ScrollView className={desktop ? 'w-80 flex-none' : 'flex-1'} style={desktop ? undefined : { maxWidth: 420 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>{list}</ScrollView>
+      <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: desktop ? 16 : 20, paddingBottom: 24 }}>
         {current ? <ItemDetail itemId={current} onRemoved={() => setSelected(null)} /> : <Empty title="Pick an item" body="Its stock and movements open here." />}
       </ScrollView>
     </View>

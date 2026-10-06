@@ -9,7 +9,7 @@ import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
 import { entrySubline, formatDayLabel, formatMoney, statementRows, typeLabel, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, IconButton, KHeader, Notice, PrimaryButton, Row, Section } from './ui';
+import { Card, Empty, GhostButton, IconButton, KHeader, Notice, PrimaryButton, Row, Section, useDesktopDensity } from './ui';
 import { EntryActions } from './EntryActions';
 
 type Props = {
@@ -21,6 +21,7 @@ type Props = {
 /** One branch or vendor: what it owes or is owed, and the give-and-take behind the figure. */
 export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const data = useKitchenData();
+  const desktop = useDesktopDensity();
   const party = data.partiesById.get(partyId) ?? null;
   const balance = data.balances.find((b) => b.party_id === partyId)?.balance ?? 0;
   const rows = useMemo(() => (party ? statementRows(data.entries, partyId, party.kind, party.opening) : []), [data.entries, partyId, party]);
@@ -70,26 +71,30 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         }
       />
       <Card>
-        <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
-        <Text style={{ fontSize: 40, fontWeight: '800', letterSpacing: -0.8, lineHeight: 46, marginTop: 2, color: tone, fontVariant: ['tabular-nums'] }}>{formatMoney(Math.abs(balance))}</Text>
-        {party.phone ? (
-          <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
-            <MessageCircle size={16} color={semantic.success} />
-            <Text style={{ color: semantic.success, fontSize: 13, fontWeight: '700' }}>{party.phone}</Text>
-          </Pressable>
-        ) : null}
-        <View className="flex-row" style={{ gap: 10, marginTop: 14 }}>
-          {isBranch ? (
-            <>
-              <View className="flex-1"><PrimaryButton label="Received" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View>
-              <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View>
-            </>
-          ) : (
-            <>
-              <View className="flex-1"><PrimaryButton label="Pay" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
-              <View className="flex-1"><GhostButton label="Bought" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View>
-            </>
-          )}
+        <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
+          <View className={desktop ? 'min-w-0 flex-1' : undefined}>
+            <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
+            <Text className={`mt-0.5 font-extrabold ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`} style={{ letterSpacing: desktop ? -0.4 : -0.8, color: tone, fontVariant: ['tabular-nums'] }}>{formatMoney(Math.abs(balance))}</Text>
+            {party.phone ? (
+              <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
+                <MessageCircle size={16} color={semantic.success} />
+                <Text style={{ color: semantic.success, fontSize: 13, fontWeight: '700' }}>{party.phone}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>
+            {isBranch ? (
+              <>
+                <View className="flex-1"><PrimaryButton label="Received" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View>
+                <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View>
+              </>
+            ) : (
+              <>
+                <View className="flex-1"><PrimaryButton label="Pay" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
+                <View className="flex-1"><GhostButton label="Bought" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View>
+              </>
+            )}
+          </View>
         </View>
         {error ? <Notice text={error} /> : null}
       </Card>

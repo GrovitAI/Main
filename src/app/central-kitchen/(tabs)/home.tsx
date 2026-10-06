@@ -7,8 +7,8 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
-import { formatLongDate, localDateKey, monthKeyOf, monthTotals, sumDues } from '@/lib/pos/kitchen-utils';
-import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton } from '@/components/kitchen/ui';
+import { formatLongDate, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
+import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
 /**
@@ -18,12 +18,15 @@ import { EntryList } from '@/components/kitchen/EntryList';
 export default function KitchenHome() {
   const data = useKitchenData();
   const { isTablet } = useResponsive();
+  const desktop = useDesktopDensity();
   const session = useSessionStore((s) => s.session);
   const today = localDateKey();
   const month = useMemo(() => monthTotals(data.entries, monthKeyOf(today)), [data.entries, today]);
   const owed = useMemo(() => sumDues(data.balances, 'branch'), [data.balances]);
   const owe = useMemo(() => sumDues(data.balances, 'vendor'), [data.balances]);
   const todays = useMemo(() => data.entries.filter((e) => e.entry_date === today && e.voided_at === null), [data.entries, today]);
+  const recent = useMemo(() => newestFirst(data.entries.filter((e) => e.entry_date !== today && e.voided_at === null)).slice(0, 5), [data.entries, today]);
+  const showRecent = todays.length === 0 && recent.length > 0;
   const monthName = new Date().toLocaleDateString('en-IN', { month: 'long' });
   const isKitchenLogin = session?.role === 'kitchen';
   const branchName = kitchenBranch().name;
@@ -56,12 +59,12 @@ export default function KitchenHome() {
   );
 
   const actions = (
-    <View style={{ gap: 10, marginTop: isTablet ? 0 : 12 }}>
-      <View className="flex-row" style={{ gap: 10 }}>
+    <View className={desktop ? 'flex-row gap-3' : undefined} style={desktop ? undefined : { gap: 10, marginTop: isTablet ? 0 : 12 }}>
+      <View className={desktop ? 'flex-1 flex-row gap-3' : 'flex-row'} style={desktop ? undefined : { gap: 10 }}>
         <ActionTile icon={ArrowUpRight} label="Send" caption="Items to a branch" tone="primary" onPress={() => router.push('/central-kitchen/send')} />
         <ActionTile icon={ArrowDownLeft} label="Received" caption="Money from a branch" tone="in" onPress={() => router.push('/central-kitchen/received')} />
       </View>
-      <View className="flex-row" style={{ gap: 10 }}>
+      <View className={desktop ? 'flex-1 flex-row gap-3' : 'flex-row'} style={desktop ? undefined : { gap: 10 }}>
         <ActionTile icon={ShoppingBag} label="Bought" caption="From a vendor" tone="buy" onPress={() => router.push('/central-kitchen/bought')} />
         <ActionTile icon={ArrowUp} label="Spent" caption="Pay a vendor or a bill" tone="out" onPress={() => router.push('/central-kitchen/spent')} />
       </View>
@@ -108,6 +111,27 @@ export default function KitchenHome() {
             <GhostButton small icon={Plus} tone="primary" label="Add a vendor" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'vendor' } })} />
           </View>
         </Card>
+      ) : desktop ? (
+        <View className="gap-3">
+          {actions}
+          <View className="flex-row items-start gap-4">
+            <View className="w-80 shrink-0">{summary}</View>
+            <View className="min-w-0 flex-1">
+              <Card>
+                <View className="flex-row items-center justify-between gap-3">
+                  <Text className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">{showRecent ? 'Recent entries' : 'Today'}</Text>
+                  <LinkButton label="All entries" onPress={() => router.navigate('/central-kitchen/(tabs)/history')} />
+                </View>
+                {showRecent ? <Text className="pb-2 text-xs font-semibold text-text-secondary">Nothing recorded today yet. Here are the latest entries.</Text> : null}
+                {todays.length === 0 && !showRecent ? (
+                  <Empty title="Nothing recorded today yet" body="A send, a payment or a buy will show here the moment it is saved." />
+                ) : (
+                  <EntryList entries={showRecent ? recent : todays} itemsById={data.itemsById} partiesById={data.partiesById} grouped={showRecent} />
+                )}
+              </Card>
+            </View>
+          </View>
+        </View>
       ) : isTablet ? (
         <View className="flex-row" style={{ gap: 16, alignItems: 'flex-start' }}>
           <View className="flex-1">{summary}</View>
@@ -120,7 +144,7 @@ export default function KitchenHome() {
         </>
       )}
 
-      {data.loaded && !nothingSetUp ? (
+      {data.loaded && !nothingSetUp && !desktop ? (
         <Section title="Today" action={<LinkButton label="All entries" onPress={() => router.navigate('/central-kitchen/(tabs)/history')} />}>
           <Card padded={false} style={{ paddingHorizontal: 14 }}>
             {todays.length === 0 ? (

@@ -59,7 +59,7 @@ function pressed(base: StyleProp<ViewStyle>, dim = 0.65): (state: PressableState
 const cardStyle: ViewStyle = { borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 18, backgroundColor: colors.surfaceElevated };
 
 /** Compact browser controls on desktop; retain the phone/tablet touch layout. */
-function useDesktopDensity(): boolean {
+export function useDesktopDensity(): boolean {
   const { isDesktop } = useResponsive();
   return Platform.OS === 'web' && isDesktop;
 }
@@ -83,9 +83,9 @@ type ScreenProps = {
 export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24, wide = false }: ScreenProps) {
   const { isTablet } = useResponsive();
   const compact = useDesktopDensity();
-  const widthClass = compact && wide ? 'max-w-[980px]' : isTablet ? 'max-w-[720px]' : '';
+  const widthClass = compact && wide ? 'max-w-[1120px] self-start' : isTablet ? 'max-w-[720px] self-center' : 'self-center';
   const inner = (
-    <View className={`w-full self-center px-4 ${widthClass}`} style={{ paddingBottom: bottomPad }}>
+    <View className={`w-full px-4 ${widthClass}`} style={{ paddingBottom: bottomPad }}>
       {children}
     </View>
   );
@@ -104,7 +104,7 @@ export function KScreen({ children, scroll = true, refreshing = false, onRefresh
       )}
       {footer ? (
         <View className="border-t border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
-          <View className={`w-full self-center ${widthClass}`}>{footer}</View>
+          <View className={`w-full ${widthClass}`}>{footer}</View>
         </View>
       ) : null}
     </View>
@@ -535,15 +535,20 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
 }
 
 export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', small }: { label: string; onPress: () => void; icon?: LucideIcon; tone?: Tone; small?: boolean }) {
+  const compact = useDesktopDensity();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={pressed({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: small ? TARGET : 52, paddingHorizontal: small ? 14 : 18, gap: 8 })}
+      {...(compact ? {
+        className: 'min-h-11 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-surface-elevated px-3.5 active:opacity-60',
+      } : {
+        style: pressed({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: small ? TARGET : 52, paddingHorizontal: small ? 14 : 18, gap: 8 }),
+      })}
     >
       {Icon ? <Icon size={small ? 16 : 18} color={toneColor[tone]} /> : null}
-      <Text style={{ color: toneColor[tone], fontSize: small ? 13 : 15, fontWeight: '800' }}>{label}</Text>
+      <Text style={{ color: toneColor[tone], fontSize: small ? 13 : compact ? 14 : 15, fontWeight: '800' }}>{label}</Text>
     </Pressable>
   );
 }

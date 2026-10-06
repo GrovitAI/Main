@@ -381,13 +381,22 @@ workflows with a more compact layout:
   44 px tall. Phone tabs and the tablet rail retain their existing layout.
 - Root headings are 24/28 px; form headings are 18/24 px. Summary figures are
   20/24 px and list titles are 14 px.
-- Overview content may use up to 980 px; entry forms keep their 720 px cap.
+- All five tab surfaces share a left-aligned content frame of up to 1120 px;
+  entry forms keep their 720 px cap. Items, Branches and Vendors use a fixed
+  320 px list pane beside a flexible detail pane.
 - Cards use a 12 px radius and 12 px padding. Action tiles use a horizontal
   icon/label layout, 14 px titles and a 76 px minimum height. List rows are
   at least 52 px; primary controls remain at least 44 px.
+- Home places its four actions in one row, then the monthly totals and dues
+  beside the entry list. When today is empty, desktop shows the five latest
+  non-voided entries with their dates and an explicit "nothing recorded today"
+  note. These entries come from the existing store, without another query.
+- Stock and party balances use 28/32 px figures beside their action buttons
+  on desktop, rather than the phone's 40/46 px figure over full-width buttons.
+  Figures may wrap if needed; amounts must never be ellipsized.
 - This density applies only to desktop web. Phone and native tablet sizing,
   financial calculations, data fetching and permissions retain their behavior.
 
-Verified in the browser at 1106 px and 1024 px desktop widths and 390 px
-phone width, including navigation to the Send form. This is browser evidence,
-not a native emulator or hardware test.
+Verified in the browser at 1366 px and 1024 px desktop widths and 390 px
+phone width across the tab surfaces. This is browser evidence, not a native
+emulator or hardware test.
