@@ -387,6 +387,11 @@ footer strip. More opens a 288 px grouped list 12 px above it.
 Desktop tabs have 8 px gaps between their 44 px targets. The current
 tab uses solid Primary with white text and icons; inactive hover uses Surface
 Tint. An open More menu uses Accent Soft unless More is the current section.
+Pointer selection moves the pill with a 180 ms clip-path transition using
+`cubic-bezier(0.77, 0, 0.175, 1)`. A hidden visual copy clips blue and white
+labels together, preserving contrast throughout the move. Repeated clicks
+retarget from the current position; keyboard navigation and the live system
+Reduce Motion preference select instantly. Page navigation never waits on it.
 Keyboard focus preserves readable contrast in both states. The menu closes on
 selection, outside click or Escape; arrow keys move through the list and
 Escape returns focus to More. Secondary screens highlight More. Every target
