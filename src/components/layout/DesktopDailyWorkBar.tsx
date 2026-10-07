@@ -26,7 +26,9 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
   const tabs = useMemo(() => getDailyWorkDesktopTabs(role), [role]);
   const groups = useMemo(() => getMoreGroups(role, false), [role]);
   const menuTabs = useMemo(() => groups.flatMap(group => group.tabs), [groups]);
-  const dockWidth = Math.min(width - 32, tabs.length * 112 + 16);
+  const tabGap = 8;
+  const dockWidth = Math.min(width - 32, tabs.length * 108 + 18 + (tabs.length - 1) * tabGap);
+  const tabWidth = (dockWidth - 18 - (tabs.length - 1) * tabGap) / tabs.length;
   const dockBottom = 24 + insets.bottom;
   const menuBottom = dockBottom + 64 + 12;
 
@@ -79,6 +81,8 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
         <FlatList<TabConfig>
           horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false}
           data={tabs} keyExtractor={tab => tab.name} extraData={[activeRoute, moreOpen, dockWidth]}
+          contentContainerClassName="items-center"
+          ItemSeparatorComponent={() => <View className="w-2" />}
           renderItem={({ item }) => {
             const selected = item.name === getDesktopNavigationSelection(role, activeRoute);
             const Icon = item.icon;
@@ -93,11 +97,11 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
                 aria-expanded={isMore ? moreOpen : undefined}
                 aria-haspopup={isMore ? 'menu' : undefined}
                 onPress={() => openTab(item)}
-                className={`min-h-[44px] flex-row items-center justify-center gap-2 rounded-lg px-2 focus:bg-accent-soft ${selected || (isMore && moreOpen) ? 'bg-accent-soft' : 'hover:bg-surface-tint'}`}
-                style={{ width: (dockWidth - 18) / tabs.length }}
+                className={`h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-2 active:opacity-90 ${selected ? 'bg-primary focus:bg-primary-deep' : `focus:bg-accent-soft ${isMore && moreOpen ? 'bg-accent-soft' : 'hover:bg-surface-tint'}`}`}
+                style={{ width: tabWidth }}
               >
-                <Icon size={18} color={selected || (isMore && moreOpen) ? colors.primaryDeep : colors.textSecondary} />
-                <Text className={`text-sm ${selected || (isMore && moreOpen) ? 'font-semibold text-primary-deep' : 'text-text-secondary'}`}>{item.label}</Text>
+                <Icon size={18} color={selected ? colors.textOnPrimary : isMore && moreOpen ? colors.primaryDeep : colors.textSecondary} />
+                <Text className={`text-sm ${selected ? 'font-semibold text-text-on-primary' : isMore && moreOpen ? 'font-semibold text-primary-deep' : 'text-text-secondary'}`}>{item.label}</Text>
               </Pressable>
             );
           }}

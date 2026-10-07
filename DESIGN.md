@@ -383,7 +383,11 @@ Central Kitchen module with its own five tabs.
 Desktop web (768 px+) uses a centered floating bottom bar: Orders, Inventory,
 Analytics, Kitchen and More for owners, with POS also retained for admins.
 The 64 px bar floats 24 px above the bottom over the page, with no full-width
-footer strip. More opens a 288 px grouped list 12 px above it. It closes after a
+footer strip. More opens a 288 px grouped list 12 px above it.
+Desktop tabs have 8 px gaps between their 44 px targets. The current
+tab uses solid Primary with white text and icons; inactive hover uses Surface
+Tint. An open More menu uses Accent Soft unless More is the current section.
+Keyboard focus preserves readable contrast in both states. The menu closes on
 selection, outside click or Escape; arrow keys move through the list and
 Escape returns focus to More. Secondary screens highlight More. Every target
 remains at least 44 px tall. Short windows constrain and scroll the list.
