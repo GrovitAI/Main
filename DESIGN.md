@@ -380,9 +380,10 @@ Branches and Settings under Administration, filtered by existing role access.
 Secondary screens highlight More while open. Kitchen opens the existing
 Central Kitchen module with its own five tabs.
 
-Desktop web (768 px+) uses a centered compact bottom bar: Orders, Inventory,
+Desktop web (768 px+) uses a centered floating bottom bar: Orders, Inventory,
 Analytics, Kitchen and More for owners, with POS also retained for admins.
-More opens a 288 px grouped list directly above the bar. It closes after a
+The 64 px bar floats 24 px above the bottom over the page, with no full-width
+footer strip. More opens a 288 px grouped list 12 px above it. It closes after a
 selection, outside click or Escape; arrow keys move through the list and
 Escape returns focus to More. Secondary screens highlight More. Every target
 remains at least 44 px tall. Short windows constrain and scroll the list.

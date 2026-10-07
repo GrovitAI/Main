@@ -27,7 +27,8 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
   const groups = useMemo(() => getMoreGroups(role, false), [role]);
   const menuTabs = useMemo(() => groups.flatMap(group => group.tabs), [groups]);
   const dockWidth = Math.min(width - 32, tabs.length * 112 + 16);
-  const menuBottom = 88 + insets.bottom;
+  const dockBottom = 24 + insets.bottom;
+  const menuBottom = dockBottom + 64 + 12;
 
   function closeMenu(): void {
     setMoreOpen(false);
@@ -73,8 +74,8 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
 
   if (hidden) return null;
   return (
-    <View className="items-center px-4 pt-2" style={{ height: 80 + insets.bottom }}>
-      <View className="rounded-2xl border border-border bg-surface-elevated p-2" style={{ width: dockWidth }}>
+    <View pointerEvents="box-none" className="absolute left-0 right-0 z-[100] items-center px-4" style={{ bottom: dockBottom }}>
+      <View className="h-[64px] justify-center rounded-3xl border border-border bg-surface-elevated p-2 shadow-card" style={{ width: dockWidth }}>
         <FlatList<TabConfig>
           horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false}
           data={tabs} keyExtractor={tab => tab.name} extraData={[activeRoute, moreOpen, dockWidth]}

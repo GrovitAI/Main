@@ -1,4 +1,4 @@
-import { ActivityIndicator, FlatList, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +22,7 @@ export default function MoreScreen() {
       <FlatList<NavigationRow>
         data={flattenNavigationGroups(getMoreGroups(session.role, isPhone))}
         keyExtractor={(row) => row.key}
-        contentContainerClassName="w-full max-w-[720px] px-5 pb-8"
+        contentContainerClassName={`w-full max-w-[720px] px-5 ${!isPhone && Platform.OS === 'web' ? 'pb-28' : 'pb-8'}`}
         ListHeaderComponent={<Text accessibilityRole="header" className="pb-2 pt-6 text-2xl font-semibold text-text-primary">More</Text>}
         ListEmptyComponent={<Text className="py-6 text-text-secondary">No additional screens are available for this account.</Text>}
         renderItem={({ item }) => {
