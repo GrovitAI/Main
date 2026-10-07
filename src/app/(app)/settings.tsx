@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark } from 'lucide-react-native';
+import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark, ChefHat } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { colors, brand } from '@/lib/pos/brand';
+import { FINANCE_MODULE_ENABLED, KITCHEN_HOME } from '@/lib/pos/tab-config';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
+import { FinanceAccountsCard } from '@/components/finance/FinanceAccountsCard';
 import { FinanceRulesCard } from '@/components/finance/FinanceRulesCard';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,6 +29,9 @@ export default function SettingsScreen() {
   // Finance rules apply to the whole business, so only the owner sets them.
   const isOwner = session?.role === 'owner';
   const [activeTab, setActiveTab] = useState<SettingsTab>('system');
+  useEffect(() => {
+    if (!FINANCE_MODULE_ENABLED && activeTab === 'finance') setActiveTab('system');
+  }, [activeTab]);
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -243,7 +249,7 @@ export default function SettingsScreen() {
               { key: 'system' as SettingsTab, label: 'System', icon: Settings },
               { key: 'printers' as SettingsTab, label: 'Printers', icon: PrinterIcon },
               ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approvals', icon: ShieldCheck }] : []),
-              ...(isOwner ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
+              ...(isOwner && FINANCE_MODULE_ENABLED ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
@@ -273,7 +279,7 @@ export default function SettingsScreen() {
                   { key: 'system' as SettingsTab, label: 'System Settings', icon: Settings },
                   { key: 'printers' as SettingsTab, label: 'Printer Configuration', icon: PrinterIcon },
                   ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approval Policies', icon: ShieldCheck }] : []),
-                  ...(isOwner ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
+                  ...(isOwner && FINANCE_MODULE_ENABLED ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
                 ].map((tab) => {
                   const isSel = activeTab === tab.key;
                   const Icon = tab.icon;
@@ -584,6 +590,29 @@ export default function SettingsScreen() {
                 </View>
               </View>
 
+              {/* Central Kitchen: the owner and admins may open the kitchen's books */}
+              {session?.role === 'owner' || session?.role === 'admin' ? (
+                <View className="w-full md:w-1/2 px-3">
+                  <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
+                    <View>
+                      <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Central Kitchen</Text>
+                      <Text className="text-[22px] font-semibold text-slate-800">The kitchen&apos;s books</Text>
+                      <Text className="text-xs text-slate-500 mt-2.5">What it sent, bought and paid, and what each branch still owes it.</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => router.push(KITCHEN_HOME as never)}
+                      className="mt-5 self-start flex-row items-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-100 rounded-xl"
+                      style={{ minHeight: 44 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open the Central Kitchen"
+                    >
+                      <ChefHat size={14} color={colors.primary} />
+                      <Text className="text-xs font-bold text-primary">Open Central Kitchen</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+
               {/* Active Currency Card */}
               <View className="w-full md:w-1/2 px-3">
                 <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
@@ -620,8 +649,9 @@ export default function SettingsScreen() {
               </View>
             </View>
           </ScrollView>
-        ) : activeTab === 'finance' ? (
+        ) : activeTab === 'finance' && FINANCE_MODULE_ENABLED ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+            <FinanceAccountsCard />
             <FinanceRulesCard />
           </ScrollView>
         ) : (

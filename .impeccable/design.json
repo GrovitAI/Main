@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T00:00:00+05:30",
+  "title": "Design System: Grovit Central Kitchen (Le Laban)",
+  "extensions": {
+    "colorMeta": {
+      "laban-blue": { "role": "primary", "displayName": "Le Laban Blue", "canonical": "#0066b2", "tonalRamp": ["oklch(18% 0.06 250)", "oklch(28% 0.09 250)", "oklch(38% 0.12 250)", "oklch(48% 0.14 250)", "oklch(58% 0.13 250)", "oklch(70% 0.10 250)", "oklch(84% 0.06 250)", "oklch(95% 0.02 250)"] },
+      "laban-blue-deep": { "role": "primary", "displayName": "Le Laban Deep", "canonical": "#004a8d", "tonalRamp": ["oklch(16% 0.06 252)", "oklch(26% 0.09 252)", "oklch(36% 0.11 252)", "oklch(46% 0.13 252)", "oklch(56% 0.12 252)", "oklch(68% 0.09 252)", "oklch(82% 0.06 252)", "oklch(94% 0.02 252)"] },
+      "blue-wash": { "role": "primary", "displayName": "Blue Wash", "canonical": "#dbeafe", "tonalRamp": ["oklch(20% 0.05 250)", "oklch(32% 0.07 250)", "oklch(44% 0.09 250)", "oklch(56% 0.10 250)", "oklch(68% 0.09 250)", "oklch(80% 0.06 250)", "oklch(89% 0.04 250)", "oklch(96% 0.02 250)"] },
+      "canvas-tint": { "role": "neutral", "displayName": "Canvas Tint", "canonical": "#e8f2fa", "tonalRamp": ["oklch(20% 0.03 235)", "oklch(32% 0.04 235)", "oklch(44% 0.05 235)", "oklch(56% 0.05 235)", "oklch(68% 0.04 235)", "oklch(80% 0.03 235)", "oklch(90% 0.02 235)", "oklch(96% 0.012 235)"] },
+      "card-white": { "role": "neutral", "displayName": "Card White", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(100% 0 0)"] },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#dbeafe", "tonalRamp": ["oklch(20% 0.05 250)", "oklch(32% 0.07 250)", "oklch(44% 0.09 250)", "oklch(56% 0.10 250)", "oklch(68% 0.09 250)", "oklch(80% 0.06 250)", "oklch(89% 0.04 250)", "oklch(96% 0.02 250)"] },
+      "stroke": { "role": "neutral", "displayName": "Stroke", "canonical": "#c5d9eb", "tonalRamp": ["oklch(18% 0.03 240)", "oklch(30% 0.04 240)", "oklch(42% 0.05 240)", "oklch(54% 0.06 240)", "oklch(66% 0.05 240)", "oklch(78% 0.04 240)", "oklch(87% 0.03 240)", "oklch(95% 0.015 240)"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#0f2744", "tonalRamp": ["oklch(16% 0.05 255)", "oklch(26% 0.06 255)", "oklch(36% 0.07 255)", "oklch(46% 0.07 255)", "oklch(58% 0.06 255)", "oklch(70% 0.05 255)", "oklch(84% 0.03 255)", "oklch(95% 0.01 255)"] },
+      "ink-muted": { "role": "neutral", "displayName": "Ink Muted", "canonical": "#5b6b7c", "tonalRamp": ["oklch(16% 0.02 245)", "oklch(26% 0.025 245)", "oklch(36% 0.03 245)", "oklch(48% 0.03 245)", "oklch(60% 0.03 245)", "oklch(72% 0.025 245)", "oklch(84% 0.02 245)", "oklch(95% 0.01 245)"] },
+      "on-blue": { "role": "neutral", "displayName": "On Blue", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(100% 0 0)"] },
+      "scrim": { "role": "neutral", "displayName": "Scrim", "canonical": "rgba(0, 74, 141, 0.45)", "tonalRamp": ["oklch(16% 0.06 252)", "oklch(26% 0.09 252)", "oklch(36% 0.11 252)", "oklch(46% 0.13 252)", "oklch(56% 0.12 252)", "oklch(68% 0.09 252)", "oklch(82% 0.06 252)", "oklch(94% 0.02 252)"] },
+      "money-in": { "role": "semantic", "displayName": "Money In", "canonical": "#15803d", "tonalRamp": ["oklch(18% 0.05 150)", "oklch(28% 0.08 150)", "oklch(38% 0.11 150)", "oklch(50% 0.13 150)", "oklch(62% 0.14 150)", "oklch(74% 0.12 150)", "oklch(86% 0.08 150)", "oklch(96% 0.03 150)"] },
+      "money-in-soft": { "role": "semantic", "displayName": "Money In Soft", "canonical": "#dcfce7", "tonalRamp": ["oklch(20% 0.04 150)", "oklch(32% 0.06 150)", "oklch(44% 0.08 150)", "oklch(56% 0.09 150)", "oklch(68% 0.09 150)", "oklch(80% 0.07 150)", "oklch(90% 0.05 150)", "oklch(97% 0.03 150)"] },
+      "money-out": { "role": "semantic", "displayName": "Money Out", "canonical": "#b91c1c", "tonalRamp": ["oklch(18% 0.07 27)", "oklch(28% 0.11 27)", "oklch(38% 0.14 27)", "oklch(48% 0.17 27)", "oklch(58% 0.19 27)", "oklch(70% 0.14 27)", "oklch(84% 0.08 27)", "oklch(95% 0.03 27)"] },
+      "money-out-soft": { "role": "semantic", "displayName": "Money Out Soft", "canonical": "#fee2e2", "tonalRamp": ["oklch(20% 0.06 25)", "oklch(32% 0.09 25)", "oklch(44% 0.11 25)", "oklch(56% 0.12 25)", "oklch(68% 0.11 25)", "oklch(80% 0.08 25)", "oklch(90% 0.05 25)", "oklch(96% 0.025 25)"] },
+      "buy-amber": { "role": "semantic", "displayName": "Buy Amber", "canonical": "#b45309", "tonalRamp": ["oklch(18% 0.05 60)", "oklch(28% 0.08 60)", "oklch(38% 0.11 60)", "oklch(50% 0.13 60)", "oklch(62% 0.14 60)", "oklch(74% 0.12 60)", "oklch(86% 0.08 60)", "oklch(96% 0.03 60)"] },
+      "buy-amber-soft": { "role": "semantic", "displayName": "Buy Amber Soft", "canonical": "#fef3c7", "tonalRamp": ["oklch(20% 0.05 85)", "oklch(32% 0.07 85)", "oklch(44% 0.09 85)", "oklch(56% 0.11 85)", "oklch(68% 0.12 85)", "oklch(80% 0.10 85)", "oklch(90% 0.07 85)", "oklch(97% 0.04 85)"] },
+      "stock-neutral": { "role": "semantic", "displayName": "Stock Neutral", "canonical": "#64748b", "tonalRamp": ["oklch(16% 0.02 255)", "oklch(26% 0.025 255)", "oklch(36% 0.03 255)", "oklch(48% 0.035 255)", "oklch(60% 0.035 255)", "oklch(72% 0.03 255)", "oklch(84% 0.02 255)", "oklch(95% 0.01 255)"] },
+      "stock-neutral-soft": { "role": "semantic", "displayName": "Stock Neutral Soft", "canonical": "#f1f5f9", "tonalRamp": ["oklch(18% 0.01 250)", "oklch(30% 0.012 250)", "oklch(42% 0.014 250)", "oklch(54% 0.015 250)", "oklch(66% 0.015 250)", "oklch(78% 0.012 250)", "oklch(89% 0.008 250)", "oklch(97% 0.005 250)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The screen title on a top-level tab; one per screen, never beside a back button." },
+      "headline": { "displayName": "Headline", "purpose": "The inline title on a pushed screen with a back chevron; the sheet title at 18 px." },
+      "figure": { "displayName": "Figure", "purpose": "A money figure in a stat cell or the pinned footer total; tabular, shrinks to fit." },
+      "figure-balance": { "displayName": "Figure Balance", "purpose": "The one 40 px number on a detail page (stock, balance)." },
+      "title": { "displayName": "Title", "purpose": "Action-tile verbs and a card's opening heading; the primary button label at 16 px." },
+      "body": { "displayName": "Body", "purpose": "Row titles and amounts, ghost-button labels, typed input text." },
+      "caption": { "displayName": "Caption", "purpose": "Subtitles, hints, chip labels, notice and toast text, link buttons." },
+      "label": { "displayName": "Label", "purpose": "Uppercase section and field headings, day headings, sheet detail labels. The 12 px floor." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "sheet-phone", "value": "platform Modal slide from the bottom edge", "purpose": "The slip sheet and entry sheet on a phone; no custom duration is set." },
+      { "name": "sheet-tablet", "value": "platform Modal fade, centred 520px dialog", "purpose": "The same sheet on a tablet or desktop width." },
+      { "name": "pressed-dim", "value": "opacity 0.65 (0.8 filled button, 0.6 tab)", "purpose": "The only pressed treatment; no hue change, no scale." }
+    ],
+    "breakpoints": [
+      { "name": "phone-web-max", "value": "480px", "purpose": "The phone layout is centred in a 480 px column with Stroke side edges on the web." },
+      { "name": "tablet", "value": "768px", "purpose": "Left rail replaces the bottom bar; content column capped at 720 px; home splits into two columns." },
+      { "name": "desktop", "value": "1024px", "purpose": "Same layout as tablet." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled action on a screen: Save send, Done, Add. Le Laban blue, 52 px tall.",
+      "html": "<button class=\"ds-btn-primary\">Save send</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 18px; border: none; border-radius: 16px; background: #0066b2; color: #ffffff; font: 800 16px/1 system-ui, -apple-system, Roboto, sans-serif; cursor: pointer; transition: opacity 120ms; } .ds-btn-primary:hover { opacity: 0.9; } .ds-btn-primary:active { opacity: 0.8; } .ds-btn-primary:focus-visible { outline: 2px solid #0066b2; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.45; cursor: default; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The outlined companion to the primary: WhatsApp, Edit, Cancel. White with a Stroke border; blue text when tone is primary.",
+      "html": "<button class=\"ds-btn-ghost ds-btn-ghost--primary\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\"/></svg>WhatsApp</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 18px; border: 1px solid #c5d9eb; border-radius: 16px; background: #ffffff; color: #0f2744; font: 800 15px/1 system-ui, -apple-system, Roboto, sans-serif; cursor: pointer; transition: opacity 120ms; } .ds-btn-ghost--primary { color: #0066b2; } .ds-btn-ghost:hover { opacity: 0.85; } .ds-btn-ghost:active { opacity: 0.65; } .ds-btn-ghost:focus-visible { outline: 2px solid #0066b2; outline-offset: 2px; }"
+    },
+    {
+      "name": "Choice Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Every choice is a wrapping row of 44 px pills; selected fills Le Laban blue; the last chip is a dashed New.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip--on\">Kolathur</button><button class=\"ds-chip\">Velachery <span class=\"ds-chip__hint\">₹1,800</span></button><button class=\"ds-chip ds-chip--add\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M5 12h14M12 5v14\"/></svg>New</button></div>",
+      "css": ".ds-chips { display: flex; flex-wrap: wrap; gap: 8px; } .ds-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid #c5d9eb; border-radius: 999px; background: #ffffff; color: #0f2744; font: 700 13px/1 system-ui, -apple-system, Roboto, sans-serif; cursor: pointer; transition: opacity 120ms; } .ds-chip__hint { font-weight: 600; font-size: 12px; color: #5b6b7c; opacity: 0.85; } .ds-chip--on { background: #0066b2; border-color: #0066b2; color: #ffffff; } .ds-chip--on .ds-chip__hint { color: #ffffff; } .ds-chip--add { border-style: dashed; background: #e8f2fa; color: #0066b2; gap: 4px; } .ds-chip:hover { opacity: 0.85; } .ds-chip:active { opacity: 0.65; } .ds-chip:focus-visible { outline: 2px solid #0066b2; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "A white, Stroke-bordered 48 px field; the big variant is 64 px with a rupee prefix and 30 px tabular digits.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field__label\">Amount</label><div class=\"ds-input ds-input--big\"><span class=\"ds-input__prefix\">₹</span><input class=\"ds-input__control\" inputmode=\"decimal\" placeholder=\"0\" value=\"1,800\"></div></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: system-ui, -apple-system, Roboto, sans-serif; } .ds-field__label { font-size: 12px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #5b6b7c; } .ds-input { display: flex; align-items: center; min-height: 48px; padding: 0 14px; border: 1px solid #c5d9eb; border-radius: 16px; background: #ffffff; } .ds-input--big { min-height: 64px; } .ds-input__prefix { margin-right: 6px; font-size: 26px; font-weight: 800; color: #5b6b7c; } .ds-input__control { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 10px 0; color: #0f2744; font: 800 30px/1.2 system-ui, -apple-system, Roboto, sans-serif; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; } .ds-input__control::placeholder { color: #5b6b7c; } .ds-input:focus-within { border-color: #0066b2; }"
+    },
+    {
+      "name": "Search Box",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "The 46 px search above any list or picker longer than six.",
+      "html": "<div class=\"ds-search\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#5b6b7c\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search__control\" placeholder=\"Search items\"></div>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px; border: 1px solid #c5d9eb; border-radius: 16px; background: #ffffff; } .ds-search__control { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 10px 0; color: #0f2744; font: 600 15px/1.2 system-ui, -apple-system, Roboto, sans-serif; } .ds-search__control::placeholder { color: #5b6b7c; } .ds-search:focus-within { border-color: #0066b2; }"
+    },
+    {
+      "name": "Month Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A white card with a 2x2 of bare stat cells separated by hairline dividers; money in green, money out red, the rest Ink.",
+      "html": "<section class=\"ds-card\"><header class=\"ds-card__head\"><span class=\"ds-label\">This month</span><span class=\"ds-card__meta\">October</span></header><div class=\"ds-stats\"><div class=\"ds-stat\"><span class=\"ds-stat__label\">Money in</span><span class=\"ds-stat__value ds-stat__value--in\">₹1,800</span></div><div class=\"ds-stat\"><span class=\"ds-stat__label\">Money out</span><span class=\"ds-stat__value ds-stat__value--out\">₹500</span></div><div class=\"ds-stat\"><span class=\"ds-stat__label\">Sent to branches</span><span class=\"ds-stat__value\">₹1,800</span></div><div class=\"ds-stat\"><span class=\"ds-stat__label\">Bought</span><span class=\"ds-stat__value\">₹500</span></div></div></section>",
+      "css": ".ds-card { padding: 14px; border: 1px solid #dbeafe; border-radius: 18px; background: #ffffff; font-family: system-ui, -apple-system, Roboto, sans-serif; } .ds-card__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; } .ds-label { font-size: 12px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #5b6b7c; } .ds-card__meta { font-size: 12px; font-weight: 700; color: #5b6b7c; } .ds-stats { display: grid; grid-template-columns: 1fr 1fr; } .ds-stat { display: flex; flex-direction: column; min-width: 0; padding: 0 0 10px; } .ds-stat:nth-child(odd) { border-right: 1px solid #dbeafe; padding-right: 12px; } .ds-stat:nth-child(even) { padding-left: 12px; } .ds-stat:nth-child(n+3) { border-top: 1px solid #dbeafe; padding-top: 10px; padding-bottom: 0; } .ds-stat__label { font-size: 12px; font-weight: 700; color: #5b6b7c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-stat__value { margin-top: 2px; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; color: #0f2744; } .ds-stat__value--in { color: #15803d; } .ds-stat__value--out { color: #b91c1c; }"
+    },
+    {
+      "name": "Action Tile",
+      "kind": "card",
+      "refersTo": "tile-action",
+      "description": "One of the four verbs on Home: a toned icon well, the verb, a one-line caption. 100 px tall, in a 2x2 with 10 px gaps.",
+      "html": "<button class=\"ds-tile\"><span class=\"ds-tile__well\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#0066b2\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 7h10v10M7 17 17 7\"/></svg></span><span class=\"ds-tile__text\"><span class=\"ds-tile__label\">Send</span><span class=\"ds-tile__caption\">Items to a branch</span></span></button>",
+      "css": ".ds-tile { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; width: 100%; min-height: 100px; padding: 14px; border: 1px solid #dbeafe; border-radius: 18px; background: #ffffff; text-align: left; cursor: pointer; font-family: system-ui, -apple-system, Roboto, sans-serif; transition: opacity 120ms; } .ds-tile__well { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 12px; background: #dbeafe; } .ds-tile__text { display: flex; flex-direction: column; } .ds-tile__label { font-size: 17px; font-weight: 800; color: #0f2744; } .ds-tile__caption { margin-top: 2px; font-size: 12px; font-weight: 600; color: #5b6b7c; } .ds-tile:hover { opacity: 0.85; } .ds-tile:active { opacity: 0.65; } .ds-tile:focus-visible { outline: 2px solid #0066b2; outline-offset: 2px; }"
+    },
+    {
+      "name": "Entry Row",
+      "kind": "custom",
+      "refersTo": "row",
+      "description": "One entry in a list: a toned icon well, who and what, the amount coloured by direction, and when it was keyed in.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-row__well ds-row__well--out\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b91c1c\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19V5M5 12l7-7 7 7\"/></svg></span><span class=\"ds-row__text\"><span class=\"ds-row__title\">Paid Aavin dairy</span><span class=\"ds-row__sub\">Cash</span></span><span class=\"ds-row__right\"><span class=\"ds-row__amount ds-row__amount--out\">−₹500</span><span class=\"ds-row__when\">4 Oct, 11:03 pm</span></span></div>",
+      "css": ".ds-row { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 12px 0; border-bottom: 1px solid #dbeafe; background: #ffffff; font-family: system-ui, -apple-system, Roboto, sans-serif; } .ds-row__well { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 12px; background: #f1f5f9; } .ds-row__well--out { background: #fee2e2; } .ds-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; } .ds-row__title { font-size: 15px; font-weight: 700; color: #0f2744; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-row__sub { margin-top: 2px; font-size: 12px; font-weight: 600; color: #5b6b7c; } .ds-row__right { display: flex; flex-direction: column; align-items: flex-end; } .ds-row__amount { font-size: 15px; font-weight: 800; color: #0f2744; font-variant-numeric: tabular-nums; } .ds-row__amount--out { color: #b91c1c; } .ds-row__when { margin-top: 1px; font-size: 12px; font-weight: 700; color: #5b6b7c; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "input",
+      "refersTo": "segmented",
+      "description": "Today / Yesterday / Date: a Canvas Tint track with a white, blue-text selected segment.",
+      "html": "<div class=\"ds-seg\" role=\"tablist\"><button class=\"ds-seg__tab ds-seg__tab--on\" role=\"tab\">Today</button><button class=\"ds-seg__tab\" role=\"tab\">Yesterday</button><button class=\"ds-seg__tab\" role=\"tab\">Date</button></div>",
+      "css": ".ds-seg { display: flex; padding: 3px; border: 1px solid #c5d9eb; border-radius: 16px; background: #e8f2fa; font-family: system-ui, -apple-system, Roboto, sans-serif; } .ds-seg__tab { flex: 1; min-height: 44px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #5b6b7c; font: 800 14px/1 system-ui, -apple-system, Roboto, sans-serif; cursor: pointer; transition: opacity 120ms; } .ds-seg__tab--on { background: #ffffff; border-color: #c5d9eb; color: #0066b2; } .ds-seg__tab:active { opacity: 0.65; } .ds-seg__tab:focus-visible { outline: 2px solid #0066b2; outline-offset: -2px; }"
+    },
+    {
+      "name": "Bottom Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Five tabs on a phone: icon in a 44x30 Blue Wash pill when active, 12 px label blue at 800; on a tablet the same five stack in an 88 px left rail.",
+      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab ds-tab--on\"><span class=\"ds-tab__pill\"><svg width=\"21\" height=\"21\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z\"/></svg></span><span class=\"ds-tab__label\">Home</span></button><button class=\"ds-tab\"><span class=\"ds-tab__pill\"><svg width=\"21\" height=\"21\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 7v10l9 5 9-5V7l-9-5Z\"/><path d=\"M3 7l9 5 9-5M12 12v10\"/></svg></span><span class=\"ds-tab__label\">Items</span></button><button class=\"ds-tab\"><span class=\"ds-tab__pill\"><svg width=\"21\" height=\"21\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 9l1.5-5h15L21 9M3 9h18v11H3zM9 20v-6h6v6\"/></svg></span><span class=\"ds-tab__label\">Branches</span></button><button class=\"ds-tab\"><span class=\"ds-tab__pill\"><svg width=\"21\" height=\"21\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M1 6h14v11H1zM15 9h4l4 4v4h-8z\"/><circle cx=\"6\" cy=\"18\" r=\"2\"/><circle cx=\"18\" cy=\"18\" r=\"2\"/></svg></span><span class=\"ds-tab__label\">Vendors</span></button><button class=\"ds-tab\"><span class=\"ds-tab__pill\"><svg width=\"21\" height=\"21\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12a9 9 0 1 0 3-6.7L3 8\"/><path d=\"M3 3v5h5M12 7v5l4 2\"/></svg></span><span class=\"ds-tab__label\">History</span></button></nav>",
+      "css": ".ds-tabs { display: flex; padding: 6px 6px 8px; border-top: 1px solid #dbeafe; background: #ffffff; font-family: system-ui, -apple-system, Roboto, sans-serif; } .ds-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 52px; padding: 6px 0; border: none; border-radius: 14px; background: transparent; color: #5b6b7c; cursor: pointer; transition: opacity 120ms; } .ds-tab__pill { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 30px; border-radius: 12px; } .ds-tab__label { margin-top: 2px; font-size: 12px; font-weight: 600; } .ds-tab--on { color: #0066b2; } .ds-tab--on .ds-tab__pill { background: #dbeafe; } .ds-tab--on .ds-tab__label { font-weight: 800; } .ds-tab:active { opacity: 0.6; } .ds-tab:focus-visible { outline: 2px solid #0066b2; outline-offset: -2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Kitchen Ledger",
+    "overview": "A ruled ledger page in Le Laban's blue, held in one hand between batches. The canvas is a faint blue wash; everything written on it sits in a white card with a hairline edge, the way lines sit on a ruled page. Money is coloured by which way it went (green came in, red went out, amber was bought on credit) and only the figures and their small icons carry that colour; every action on every screen, filled or outlined, is Le Laban blue, so the manager never has to ask which button is theirs. The system refuses nothing a kitchen manager already expects from a phone app (big title, a 2x2 of verbs, a list of today, five tabs) and adds nothing they must learn.\n\nDensity is moderate and finger-first: 44 pt targets everywhere (48 dp on Android), 15 px rows at 58 px tall, 12 px as the smallest text. Type is the system sans at heavy weights (600 to 800) with tabular numerals on every amount, so columns of rupees line up and a wrong figure is easy to spot. There are no shadows anywhere, no gradients, no decorative motion, no illustration: depth is one white layer on one tinted layer, and the only things that move are the platform's own sheet and fade.\n\nThis file records the Central Kitchen world (src/components/kitchen/ui.tsx and src/app/central-kitchen/**), which is the committed system for new surfaces in Grovit. The older POS and finance screens (src/app/(app)/*, src/components/ui, pos, finance) predate this world, carry their own panel radii, gradients and shadow classes, and are outside this system.",
+    "keyCharacteristics": [
+      "One action colour (Le Laban blue) for every filled and outlined control; semantic colour lives on figures and icon wells only",
+      "Pale blue canvas, white cards, hairline borders; flat, no shadows, no gradients",
+      "System sans, weights 600 to 800, tabular numerals, 28 px titles, 22 px figures, 15 px rows, 12 px floor",
+      "16 to 18 px corners on cards and controls, 999 px chips for every choice",
+      "Phone-first single column (max 480 px on the web, 720 px on a tablet) with the five tabs as a bottom bar or a left rail"
+    ],
+    "rules": [
+      { "name": "The One Blue Rule", "body": "Every control that does something, filled or outlined, is Le Laban blue or Ink on white. Green, red and amber are reserved for figures, entry-row amounts and the 36 px icon wells; a semantic colour on a button is a defect, with the single exception of the red \"Void\" label on its outlined confirm button.", "section": "colors" },
+      { "name": "The Direction Rule", "body": "A rupee amount is green when money came to the kitchen, red when it left, Ink when it is neither (a send's value, a buy's value, a stock figure). Amber marks a buy's icon only. The colour says which way the money went, never how the manager should feel about it.", "section": "colors" },
+      { "name": "The Zero Is Neutral Rule", "body": "A due that is zero is Ink, not green or red: \"Branches yet to pay ₹0\" is settled, not good news.", "section": "colors" },
+      { "name": "The Twelve Floor Rule", "body": "Nothing on screen is set below 12 px. Where a label must be quiet, it is 12 px Ink Muted at 600 or 700; never smaller.", "section": "typography" },
+      { "name": "The Tabular Money Rule", "body": "Every number that can be compared with another number (amounts, quantities, stock, stepper values, the big-input prefix) is set in tabular figures, so columns align in a card and a slip.", "section": "typography" },
+      { "name": "The No-Shadow Rule", "body": "A kitchen surface never casts a shadow. If something needs to read as above the page, it gets a white fill and a hairline, or a scrim beneath it; never a blur.", "section": "elevation" },
+      { "name": "The No Box-In-Box Rule", "body": "Inside a card, structure is drawn with hairline dividers and tinted wells, never with another bordered card.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do make every filled or outlined action Le Laban blue (or Ink on white for a neutral ghost); reserve green, red and amber for figures and icon wells (The One Blue Rule).",
+      "Do colour a rupee amount by direction: green in, red out, Ink otherwise; zero is Ink (The Direction Rule, The Zero Is Neutral Rule).",
+      "Do set every amount, quantity and stock figure in tabular numerals at 800.",
+      "Do use white cards with a 1 px Hairline edge at 18 px radius on the Canvas Tint page, and hairline Dividers or Canvas Tint wells for structure inside them.",
+      "Do offer every choice as 44 px pills, selected = blue fill, and add a search box once a list passes six.",
+      "Do keep one filled PrimaryButton per screen, pinned in the footer when the screen has a total.",
+      "Do keep every target at least 44 pt (48 dp on Android) and no text below 12 px.",
+      "Do use the uppercase 12 px/800 +0.8 px label for section and field headings, and nothing else in capitals.",
+      "Do put a screen's one large number (40 px) on a detail page only, with the 22 px figure for everything in a grid."
+    ],
+    "donts": [
+      "Don't cast a shadow, draw a gradient, or add a floating action; the kitchen world is flat (The No-Shadow Rule).",
+      "Don't nest a bordered card inside a card or a bordered input inside a card (The No Box-In-Box Rule); use the flat input and Dividers.",
+      "Don't colour a button green, red or amber; the single exception is the red \"Void\" label on its outlined confirm.",
+      "Don't colour an amount amber: amber marks a buy's icon only.",
+      "Don't reach for shadow-panel, shadow-card, shadow-glow or rounded-panel from the Tailwind config, or any of the gradients in brand.ts; those belong to the older POS screens.",
+      "Don't write a hex value in a kitchen component; every colour is colors.* or semantic.* from src/lib/pos/brand.ts (or its NativeWind mirror).",
+      "Don't pass className to a Pressable in the kitchen world; use a style object so the pressed dim survives on the web.",
+      "Don't add a second type family, a weight below 600, or letter-spaced capitals outside the Label role."
+    ]
+  }
+}

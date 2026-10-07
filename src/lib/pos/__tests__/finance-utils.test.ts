@@ -1,6 +1,5 @@
 import {
   buildDailySeries,
-  buildExpensesCsv,
   classifyVariance,
   computeCashVariance,
   computeExpectedCash,
@@ -12,53 +11,12 @@ import {
   formatPaymentMethod,
   formatPercent,
   getPresetDateRange,
-  groupExpensesByCategory,
   isIsoDate,
   parseAmountInput,
   summarizeLedger,
   sumRupees,
-  validateExpenseForm,
 } from '../finance-utils';
-import type { Expense, ExpenseFormValues, LedgerEntry } from '../finance-types';
-
-function makeExpense(over: Partial<Expense> = {}): Expense {
-  return {
-    id: 'e1',
-    tenant_id: 't',
-    branch_id: 'b',
-    amount: 100,
-    amount_paise: 10000,
-    category: 'Rent',
-    description: null,
-    expense_date: '2026-09-05',
-    payment_method: 'cash',
-    payee: null,
-    reference_no: null,
-    notes: null,
-    receipt_url: null,
-    status: 'recorded',
-    void_reason: null,
-    voided_at: null,
-    created_by: null,
-    created_at: '2026-09-05T10:00:00.000Z',
-    updated_at: null,
-    ...over,
-  };
-}
-
-function makeForm(over: Partial<ExpenseFormValues> = {}): ExpenseFormValues {
-  return {
-    amount: '250.50',
-    category: 'Rent',
-    description: 'September rent',
-    expense_date: '2026-09-05',
-    payment_method: 'cash',
-    payee: 'Landlord',
-    reference_no: 'REF-1',
-    notes: '',
-    ...over,
-  };
-}
+import type { LedgerEntry } from '../finance-types';
 
 describe('finance-utils money formatting', () => {
   test('formatINR uses the Indian grouping and hides paise when whole', () => {
@@ -150,68 +108,47 @@ describe('finance-utils dates', () => {
   });
 });
 
-describe('expense form validation', () => {
-  test('accepts a well-formed entry and normalises blanks to null', () => {
-    const result = validateExpenseForm(makeForm({ notes: '   ' }));
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.amount).toBe(250.5);
-      expect(result.value.notes).toBeNull();
-      expect(result.value.payee).toBe('Landlord');
-    }
-  });
-
-  test('rejects bad amounts', () => {
-    for (const amount of ['', '0', '-5', 'abc', '10.005', '20000000']) {
-      const result = validateExpenseForm(makeForm({ amount }));
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.errors.amount).toBeDefined();
-    }
-  });
-
+describe('amount input', () => {
   test('accepts rupee symbols and separators in the amount field', () => {
     expect(parseAmountInput('₹1,250.75')).toBe(1250.75);
     expect(parseAmountInput('1 000')).toBe(1000);
     expect(parseAmountInput('12.345')).toBeNull();
   });
 
-  test('requires a category and rejects future dates', () => {
-    const noCategory = validateExpenseForm(makeForm({ category: '  ' }));
-    expect(noCategory.ok).toBe(false);
-    if (!noCategory.ok) expect(noCategory.errors.category).toBeDefined();
-
-    const future = validateExpenseForm(makeForm({ expense_date: '2099-01-01' }));
-    expect(future.ok).toBe(false);
-    if (!future.ok) expect(future.errors.expense_date).toBeDefined();
+  test('rejects blanks, signs and letters', () => {
+    for (const raw of ['', '-5', 'abc', '10.005']) {
+      expect(parseAmountInput(raw)).toBeNull();
+    }
   });
 });
 
 describe('aggregation', () => {
-  test('groupExpensesByCategory ignores voided rows and sorts by spend', () => {
-    const groups = groupExpensesByCategory([
-      makeExpense({ id: '1', category: 'Rent', amount: 100 }),
-      makeExpense({ id: '2', category: 'Rent', amount: 50.25 }),
-      makeExpense({ id: '3', category: 'Gas / Fuel', amount: 400 }),
-      makeExpense({ id: '4', category: 'Rent', amount: 999, status: 'void' }),
-    ]);
-    expect(groups).toEqual([
-      { category: 'Gas / Fuel', total: 400, count: 1 },
-      { category: 'Rent', total: 150.25, count: 2 },
-    ]);
-  });
-
-  test('computeProfitAndLoss subtracts refunds, expenses and purchases', () => {
+  test('computeProfitAndLoss subtracts refunds and ledger expenses; purchases are information', () => {
     const pnl = computeProfitAndLoss({
       ...emptyFinanceSummary(),
       collectedRevenue: 10000,
       refundsTotal: 500,
       expensesTotal: 2000,
+      // A paid purchase is already inside expensesTotal, so this is not subtracted again.
       purchasesTotal: 1500,
     });
     expect(pnl.netRevenue).toBe(9500);
-    expect(pnl.totalOutflow).toBe(3500);
-    expect(pnl.netCashFlow).toBe(6000);
-    expect(pnl.margin).toBeCloseTo(0.6316, 4);
+    expect(pnl.totalOutflow).toBe(2000);
+    expect(pnl.netCashFlow).toBe(7500);
+    expect(pnl.margin).toBeCloseTo(0.7895, 4);
+  });
+
+  test('computeProfitAndLoss adds ledger income and charges a branch for the kitchen supplies', () => {
+    const pnl = computeProfitAndLoss({
+      ...emptyFinanceSummary(),
+      collectedRevenue: 10000,
+      otherIncome: 2000,
+      expensesTotal: 3000,
+      suppliesFromKitchen: 4000,
+    });
+    expect(pnl.totalOutflow).toBe(7000);
+    expect(pnl.netCashFlow).toBe(5000);
+    expect(pnl.margin).toBeCloseTo(5000 / 12000, 4);
   });
 
   test('margin is zero rather than infinite when there is no revenue', () => {
@@ -348,23 +285,5 @@ describe('day close', () => {
     expect(classifyVariance(null)).toBe('balanced');
     expect(classifyVariance(25)).toBe('surplus');
     expect(classifyVariance(-25)).toBe('shortage');
-  });
-});
-
-describe('csv export', () => {
-  test('quotes cells that contain commas or quotes', () => {
-    const csv = buildExpensesCsv([
-      makeExpense({ description: 'Rent, September', payee: 'The "Landlord"', amount: 1000 }),
-    ]);
-    const [header, row] = csv.split('\n');
-    expect(header).toBe('Date,Category,Description,Payee,Payment Method,Reference,Amount,Status');
-    expect(row).toContain('"Rent, September"');
-    expect(row).toContain('"The ""Landlord"""');
-    expect(row).toContain('1000.00');
-  });
-
-  test('null fields become empty cells', () => {
-    const csv = buildExpensesCsv([makeExpense({ description: null, payee: null, reference_no: null })]);
-    expect(csv.split('\n')[1]).toBe('2026-09-05,Rent,,,Cash,,100.00,recorded');
   });
 });

@@ -13,88 +13,10 @@ export type ServiceResult<T> = {
 
 export type FinancePreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
 
-export type FinanceTab = 'overview' | 'ledger' | 'expenses' | 'cashbook' | 'dayclose' | 'catalog';
+export type FinanceTab = 'overview' | 'ledger' | 'cashbook' | 'dayclose' | 'catalog';
 
 export const EXPENSE_PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'] as const;
 export type ExpensePaymentMethod = (typeof EXPENSE_PAYMENT_METHODS)[number];
-
-export type ExpenseStatus = 'recorded' | 'void';
-
-export type Expense = {
-  id: string;
-  tenant_id: string;
-  branch_id: string;
-  amount: number;
-  amount_paise: number;
-  category: string;
-  description: string | null;
-  /** Calendar date the expense belongs to — YYYY-MM-DD (DB column `date`). */
-  expense_date: string;
-  payment_method: ExpensePaymentMethod;
-  payee: string | null;
-  reference_no: string | null;
-  notes: string | null;
-  receipt_url: string | null;
-  status: ExpenseStatus;
-  void_reason: string | null;
-  voided_at: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string | null;
-};
-
-export type ExpenseInput = {
-  amount: number;
-  category: string;
-  description: string | null;
-  expense_date: string;
-  payment_method: ExpensePaymentMethod;
-  payee: string | null;
-  reference_no: string | null;
-  notes: string | null;
-};
-
-/** Raw form values before validation (everything is a string from TextInput). */
-export type ExpenseFormValues = {
-  amount: string;
-  category: string;
-  description: string;
-  expense_date: string;
-  payment_method: ExpensePaymentMethod;
-  payee: string;
-  reference_no: string;
-  notes: string;
-};
-
-export type ExpenseFormErrors = Partial<Record<keyof ExpenseFormValues, string>>;
-
-export type ExpenseCategory = {
-  id: string;
-  tenant_id: string;
-  name: string;
-  sort_order: number;
-  is_active: boolean;
-};
-
-export type ExpenseListFilters = {
-  startDate: string;
-  endDate: string;
-  /** null/undefined = all accessible branches (owner/admin only). */
-  branchId: string | null;
-  category: string | null;
-  paymentMethod: ExpensePaymentMethod | null;
-  search: string;
-  includeVoid: boolean;
-  page: number;
-  pageSize: number;
-};
-
-export type ExpensePage = {
-  rows: Expense[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
 
 export type FinanceFilters = {
   preset: FinancePreset;
@@ -129,13 +51,20 @@ export type FinanceSummary = {
   complimentaryValue: number;
   refundsTotal: number;
   refundsCount: number;
+  /** Recorded ledger expenses of the branch accounts in view; built-in categories left out. */
   expensesTotal: number;
   expensesCount: number;
+  /** Recorded ledger income of those accounts; income from our own accounts is left out when every branch is in view. */
+  otherIncome: number;
+  otherIncomeCount: number;
+  /** With one branch in view: goods billed to it by another of our accounts in the range. */
+  suppliesFromKitchen: number;
+  /** Supplier invoices dated in the range. Information only: a purchase is in expenses once paid. */
   purchasesTotal: number;
   purchasesCount: number;
-  /** Cash received via settlements. */
+  /** Cash received via settlements and cash-mode ledger income. */
   cashIn: number;
-  /** Cash paid out via expenses and cash refunds. */
+  /** Cash paid out via ledger expenses and cash refunds. */
   cashOut: number;
   paymentSplit: PaymentSplitEntry[];
   expensesByCategory: CategorySpend[];
@@ -146,11 +75,16 @@ export type ProfitAndLoss = {
   collectedRevenue: number;
   refundsTotal: number;
   netRevenue: number;
+  /** Ledger income on top of the tills' revenue. */
+  otherIncome: number;
   expensesTotal: number;
+  /** Goods billed to the branch in view by the kitchen. */
+  suppliesFromKitchen: number;
+  /** Information only; purchases are inside expensesTotal once paid. */
   purchasesTotal: number;
   totalOutflow: number;
   netCashFlow: number;
-  /** netCashFlow / netRevenue, 0..1 range (may be negative). 0 when no revenue. */
+  /** netCashFlow / (netRevenue + otherIncome), 0..1 range (may be negative). 0 when no income. */
   margin: number;
 };
 
@@ -163,7 +97,7 @@ export type FinanceDailyPoint = {
   net: number;
 };
 
-export type LedgerEntryKind = 'sale' | 'expense' | 'refund';
+export type LedgerEntryKind = 'sale' | 'income' | 'expense' | 'refund';
 
 export type LedgerEntry = {
   id: string;
@@ -231,8 +165,6 @@ export type DayClosureInput = {
  * The UI uses this to degrade gracefully instead of failing.
  */
 export type FinanceSchemaStatus = {
-  expensesExtended: boolean;
-  categoriesTable: boolean;
   dayClosuresTable: boolean;
   refundsExtended: boolean;
   summaryRpc: boolean;
@@ -247,6 +179,18 @@ export type CatalogKind = Exclude<LedgerKind, 'transfer'>;
 
 export const LEDGER_MODES = ['cash', 'bank'] as const;
 export type LedgerMode = (typeof LEDGER_MODES)[number];
+
+/**
+ * How a payable or receivable is settled. 'offset' clears a receivable from
+ * one of our own accounts against what this account owes that account: no
+ * cash moves, so it is never a mode for a hand-recorded entry.
+ */
+export const SETTLE_MODES = ['cash', 'bank', 'offset'] as const;
+export type SettleMode = (typeof SETTLE_MODES)[number];
+/** What a stored entry can carry: a settlement payment may be an offset. */
+export type EntryMode = SettleMode;
+/** The document that posted an entry: an inventory purchase or dispatch, or a cash count. */
+export type LedgerSourceType = 'purchase' | 'dispatch' | 'cash_count';
 
 /** income/expense/transfer: recorded → void. payable/receivable: open → settled or void. */
 export type LedgerStatus = 'recorded' | 'open' | 'settled' | 'void';
@@ -278,6 +222,12 @@ export type CatalogItem = {
   default_kind: CatalogKind | null;
   sort_order: number;
   is_system: boolean;
+  /**
+   * A stable key for the categories the system posts into or treats
+   * specially: 'purchases', 'branch_supplies', 'cash_difference',
+   * 'opening_balance', 'partners'. null for the owner's own categories.
+   */
+  system_key: string | null;
   is_active: boolean;
 };
 
@@ -313,15 +263,22 @@ export type FinanceEntry = {
   account_id: string;
   /** Whose cash or bank moved ("Paid from"), when that is another account; null means account_id. */
   paid_from_account_id: string | null;
+  /** The other one of our own accounts a payable or receivable is with: a branch that owes the kitchen for goods. */
+  counterparty_account_id: string | null;
+  /** The purchase or dispatch that posted this entry; null for a hand-recorded one. */
+  source_type: LedgerSourceType | null;
+  source_id: string | null;
   kind: LedgerKind;
   status: LedgerStatus;
   amount: number;
   amount_paise: number;
-  mode: LedgerMode | null;
+  mode: EntryMode | null;
   transfer_from: LedgerMode | null;
   transfer_to: LedgerMode | null;
   /** YYYY-MM-DD, the day the money moved. */
   transaction_date: string;
+  /** YYYY-MM-DD, when a payable is to be paid or a receivable collected; null when not set or not a due. */
+  due_date: string | null;
   entered_at: string;
   entered_by: string;
   entered_by_name: string | null;
@@ -332,6 +289,8 @@ export type FinanceEntry = {
   counterparty: string | null;
   reference_no: string | null;
   notes: string | null;
+  /** Where the photo or PDF of the bill sits in storage; null when none is attached. */
+  receipt_path: string | null;
   settles_entry_id: string | null;
   settled: number;
   settled_at: string | null;
@@ -350,6 +309,8 @@ export type FinanceEntryInput = {
   transfer_from: LedgerMode | null;
   transfer_to: LedgerMode | null;
   transaction_date: string;
+  /** Only kept on a payable or receivable. */
+  due_date: string | null;
   category_id: string | null;
   subcategory_id: string | null;
   particular_id: string | null;
@@ -370,6 +331,8 @@ export type EntryFormValues = {
   transfer_from: LedgerMode;
   transfer_to: LedgerMode;
   transaction_date: string;
+  /** '' when no due date. */
+  due_date: string;
   category_id: string;
   subcategory_id: string;
   particular_id: string;
@@ -381,7 +344,7 @@ export type EntryFormValues = {
 
 export type EntryFormErrors = Partial<Record<keyof EntryFormValues, string>>;
 
-export type LedgerSort = 'transaction_date' | 'entered_at' | 'amount' | 'particulars';
+export type LedgerSort = 'transaction_date' | 'due_date' | 'entered_at' | 'amount' | 'particulars';
 /** 'active' = everything that is not void. */
 export type LedgerStatusFilter = 'active' | 'open' | 'settled' | 'void' | 'all';
 
@@ -394,6 +357,8 @@ export type LedgerFilters = {
   categoryId: string | null;
   subcategoryId: string | null;
   particularId: string | null;
+  /** The exact name in "Paid to / Received from", matched without regard to case. */
+  counterparty: string | null;
   /** staff id */
   enteredBy: string | null;
   status: LedgerStatusFilter;
@@ -436,7 +401,7 @@ export type AccountBalance = {
 export type SettleEntryInput = {
   entry_id: string;
   amount: number;
-  mode: LedgerMode;
+  mode: SettleMode;
   transaction_date: string;
   paid_from_account_id: string | null;
   reference_no: string | null;
@@ -445,7 +410,7 @@ export type SettleEntryInput = {
 
 export type SettleFormValues = {
   amount: string;
-  mode: LedgerMode;
+  mode: SettleMode;
   transaction_date: string;
   paid_from_account_id: string;
   reference_no: string;
@@ -459,6 +424,123 @@ export type InterAccountPosition = {
   owed_by: string;
   owed_to: string;
   amount: number;
+};
+
+/** How soon an open payable or receivable is due. */
+export type DueBucket = 'overdue' | 'week' | 'later' | 'undated';
+
+/** What is open in one account, by kind and by how soon it is due. */
+export type DuesSummaryRow = {
+  account_id: string;
+  kind: 'payable' | 'receivable';
+  bucket: DueBucket;
+  amount: number;
+  entries: number;
+};
+
+/** A name offered in "Paid to / Received from". */
+export type CounterpartySuggestion = {
+  name: string;
+  source: 'used' | 'supplier' | 'staff';
+  /** How many ledger entries already carry the name. */
+  uses: number;
+};
+
+// ─── Statements ──────────────────────────────────────────────────────────────
+
+/** Whose statement: a vendor or customer by name, or one of our own accounts against the books in view. */
+export type StatementSubject =
+  | { type: 'name'; name: string }
+  | { type: 'account'; accountId: string; homeAccountId: string };
+
+export type StatementRow = {
+  entry: FinanceEntry;
+  /** What this row added to what is owed. */
+  billed: number;
+  /** What this row paid off. */
+  paid: number;
+  /** Running balance after this row. */
+  balance: number;
+};
+
+export type Statement = {
+  rows: StatementRow[];
+  billed: number;
+  paid: number;
+  /** The closing balance; its meaning is in `direction`. */
+  balance: number;
+  /**
+   * Who owes whom when the balance is not zero. For a name: 'they_owe' (a
+   * customer still to pay us) or 'we_owe' (a vendor still to be paid). For an
+   * account: 'they_owe' when that account owes the home account.
+   */
+  direction: 'they_owe' | 'we_owe' | 'settled';
+  /** The list stopped at the fetch limit; older rows may be missing. */
+  truncated: boolean;
+};
+
+/** A photo or PDF of a bill picked on the device, ready to upload. */
+export type ReceiptFile = {
+  uri: string;
+  name: string;
+  mimeType: string | null;
+  size: number | null;
+  /** In a browser the picker hands over the file itself. */
+  file?: Blob | null;
+};
+
+// ─── Regulars (entry templates) ──────────────────────────────────────────────
+
+/** A saved entry recorded again each month: rent, a salary, a subscription. */
+export type EntryTemplate = {
+  id: string;
+  account_id: string;
+  paid_from_account_id: string | null;
+  kind: CatalogKind;
+  /** The usual amount in rupees; 0 asks for it each time. */
+  amount: number;
+  mode: LedgerMode | null;
+  category_id: string | null;
+  subcategory_id: string | null;
+  particular_id: string | null;
+  particulars: string;
+  counterparty: string | null;
+  /** Day of the month a payable or receivable made from this falls due. */
+  due_day: number | null;
+  sort_order: number;
+  is_active: boolean;
+  /** YYYY-MM-DD, the transaction date it was last recorded with. */
+  last_recorded_on: string | null;
+};
+
+export type EntryTemplateInput = Omit<EntryTemplate, 'id' | 'sort_order' | 'is_active' | 'last_recorded_on'>;
+
+// ─── Cash counts ─────────────────────────────────────────────────────────────
+
+export type CashCount = {
+  id: string;
+  account_id: string;
+  mode: LedgerMode;
+  /** YYYY-MM-DD */
+  counted_on: string;
+  expected: number;
+  counted: number;
+  /** counted − expected. Positive is a surplus, negative a shortage. */
+  difference: number;
+  adjustment_entry_id: string | null;
+  note: string | null;
+  counted_by_name: string | null;
+  created_at: string;
+};
+
+export type CashCountInput = {
+  account_id: string;
+  mode: LedgerMode;
+  counted: number;
+  counted_on: string;
+  note: string | null;
+  /** Post the difference into the ledger so the books match the count. */
+  adjust: boolean;
 };
 
 /** The Books card: ledger income and expenses in range, and what is still open. */

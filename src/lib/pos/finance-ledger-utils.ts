@@ -10,16 +10,21 @@ import type {
   CatalogItem,
   CatalogKind,
   CatalogLevel,
+  DueBucket,
+  DuesSummaryRow,
   EntryFieldChange,
   EntryFormErrors,
   EntryFormValues,
+  EntryMode,
+  EntryTemplate,
+  EntryTemplateInput,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
   FinanceRules,
   LedgerFilters,
   LedgerKind,
-  LedgerMode,
+  LedgerSourceType,
   SettleEntryInput,
   SettleFormErrors,
   SettleFormValues,
@@ -35,9 +40,17 @@ export const LEDGER_KIND_LABELS: Record<LedgerKind, string> = {
   transfer: 'Transfer',
 };
 
-export const LEDGER_MODE_LABELS: Record<LedgerMode, string> = {
+export const LEDGER_MODE_LABELS: Record<EntryMode, string> = {
   cash: 'Cash',
   bank: 'Bank',
+  offset: 'Offset',
+};
+
+/** Where an entry the inventory module posted came from. */
+export const LEDGER_SOURCE_LABELS: Record<LedgerSourceType, string> = {
+  purchase: 'Posted from a purchase in Inventory',
+  dispatch: 'Posted from a dispatch in Inventory',
+  cash_count: 'Posted from a cash count',
 };
 
 /** Money in for income and receivables, out for expenses and payables. */
@@ -104,6 +117,9 @@ export function canEditEntry(
   now: Date = new Date(),
 ): boolean {
   if (entry.status === 'void') return false;
+  // A purchase, a dispatch or a count posted this: its figures follow that
+  // document, so it is changed there (or voided by the owner), not edited here.
+  if (entry.source_type) return false;
   if (isFinanceOwner(role)) return true;
   if (!isFinanceClerk(role) || !staffId || entry.entered_by !== staffId) return false;
   if (!rules) return false;
@@ -136,6 +152,195 @@ export function canSettleEntry(entry: Pick<FinanceEntry, 'kind' | 'status'>, rol
   if (entry.kind !== 'payable' && entry.kind !== 'receivable') return false;
   return isFinanceOwner(role) || isFinanceClerk(role);
 }
+
+/**
+ * A receivable from one of our own accounts (a branch owing the kitchen for
+ * goods) can be cleared against what this account owes that account, with
+ * no cash moving. The database caps the amount at what is actually owed.
+ */
+export function canOffsetEntry(entry: Pick<FinanceEntry, 'kind' | 'status' | 'counterparty_account_id'>): boolean {
+  return entry.status === 'open' && entry.kind === 'receivable' && entry.counterparty_account_id !== null;
+}
+
+/**
+ * "Owed by Kolathur" on a receivable and "Owed to Kolathur" on a payable
+ * when the other side is one of our own accounts; null otherwise.
+ */
+export function counterpartyCaption(
+  entry: Pick<FinanceEntry, 'kind' | 'counterparty_account_id'>,
+  accountName: (id: string) => string,
+): string | null {
+  if (!entry.counterparty_account_id) return null;
+  if (entry.kind === 'receivable') return `Owed by ${accountName(entry.counterparty_account_id)}`;
+  if (entry.kind === 'payable') return `Owed to ${accountName(entry.counterparty_account_id)}`;
+  return null;
+}
+
+// ─── Due dates ───────────────────────────────────────────────────────────────
+
+function daysBetween(fromIso: string, toIso: string): number | null {
+  const from = Date.parse(`${fromIso}T00:00:00Z`);
+  const to = Date.parse(`${toIso}T00:00:00Z`);
+  if (Number.isNaN(from) || Number.isNaN(to)) return null;
+  return Math.round((to - from) / 86_400_000);
+}
+
+export type DueStatus = {
+  bucket: DueBucket;
+  /** Days until the due date; negative when it has passed. null without a due date. */
+  days: number | null;
+  /** "Overdue 3 days", "Due today", "Due in 5 days", "Due 28 Oct" or "No due date". */
+  label: string;
+};
+
+/**
+ * How soon an open payable or receivable is due, as of `today` (YYYY-MM-DD).
+ * null for anything that is not an open due. Mirrors the buckets of
+ * finance_dues_summary() in the database.
+ */
+export function dueStatus(entry: Pick<FinanceEntry, 'kind' | 'status' | 'due_date'>, today: string): DueStatus | null {
+  if (entry.status !== 'open' || (entry.kind !== 'payable' && entry.kind !== 'receivable')) return null;
+  if (!entry.due_date) return { bucket: 'undated', days: null, label: 'No due date' };
+  const days = daysBetween(today, entry.due_date);
+  if (days === null) return { bucket: 'undated', days: null, label: 'No due date' };
+  if (days < 0) return { bucket: 'overdue', days, label: `Overdue ${-days} ${days === -1 ? 'day' : 'days'}` };
+  if (days === 0) return { bucket: 'week', days, label: 'Due today' };
+  if (days <= 7) return { bucket: 'week', days, label: `Due in ${days} ${days === 1 ? 'day' : 'days'}` };
+  const [, month, day] = entry.due_date.split('-');
+  const monthName = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(month) - 1] ?? '';
+  return { bucket: 'later', days, label: `Due ${Number(day)} ${monthName}`.trim() };
+}
+
+export type DuesTotals = { total: number; overdue: number; week: number; later: number; undated: number; entries: number };
+
+function emptyDuesTotals(): DuesTotals {
+  return { total: 0, overdue: 0, week: 0, later: 0, undated: 0, entries: 0 };
+}
+
+/** What is to pay and to collect across the given accounts, by how soon it is due. */
+export function summarizeDues(rows: readonly DuesSummaryRow[], accountIds?: readonly string[]): { payables: DuesTotals; receivables: DuesTotals } {
+  const payables = emptyDuesTotals();
+  const receivables = emptyDuesTotals();
+  const scope = accountIds ? new Set(accountIds) : null;
+  for (const row of rows) {
+    if (scope && !scope.has(row.account_id)) continue;
+    const target = row.kind === 'payable' ? payables : receivables;
+    target[row.bucket] = Math.round((target[row.bucket] + row.amount) * 100) / 100;
+    target.total = Math.round((target.total + row.amount) * 100) / 100;
+    target.entries += row.entries;
+  }
+  return { payables, receivables };
+}
+
+export type OwedToAccount = { account_id: string; total: number; overdue: number };
+
+/**
+ * What the user's own branch owes other accounts of ours: open receivables in
+ * books that are not theirs, which they can read only because their branch is
+ * the other side. Empty for the owner, whose books are all of them.
+ */
+export function summarizeOwedToOthers(rows: readonly DuesSummaryRow[], myAccountIds: readonly string[]): OwedToAccount[] {
+  const mine = new Set(myAccountIds);
+  const byAccount = new Map<string, OwedToAccount>();
+  for (const row of rows) {
+    if (row.kind !== 'receivable' || mine.has(row.account_id)) continue;
+    const current = byAccount.get(row.account_id) ?? { account_id: row.account_id, total: 0, overdue: 0 };
+    current.total = Math.round((current.total + row.amount) * 100) / 100;
+    if (row.bucket === 'overdue') current.overdue = Math.round((current.overdue + row.amount) * 100) / 100;
+    byAccount.set(row.account_id, current);
+  }
+  return [...byAccount.values()].sort((a, b) => b.total - a.total);
+}
+
+// ─── Regulars (entry templates) ──────────────────────────────────────────────
+
+/**
+ * The date a due made from a template falls on: its day of the month in the
+ * month of `date`, or in the next month when that day has already passed.
+ * A day the month does not have (the 31st in April) becomes its last day.
+ */
+export function templateDueDate(dueDay: number | null, date: string): string | null {
+  if (!dueDay || !ISO_DATE.test(date)) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+  let dueYear = year;
+  let dueMonth = month;
+  let due = Math.min(dueDay, lastDay(dueYear, dueMonth));
+  if (due < day) {
+    dueMonth += 1;
+    if (dueMonth > 12) {
+      dueMonth = 1;
+      dueYear += 1;
+    }
+    due = Math.min(dueDay, lastDay(dueYear, dueMonth));
+  }
+  return `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(due).padStart(2, '0')}`;
+}
+
+/** The ledger entry a template records on `date` for `amount` rupees. */
+export function templateToEntryInput(template: EntryTemplate, amount: number, date: string): FinanceEntryInput {
+  const isDue = template.kind === 'payable' || template.kind === 'receivable';
+  return {
+    account_id: template.account_id,
+    paid_from_account_id: isDue ? null : template.paid_from_account_id,
+    kind: template.kind,
+    amount,
+    mode: template.mode ?? 'cash',
+    transfer_from: null,
+    transfer_to: null,
+    transaction_date: date,
+    due_date: isDue ? templateDueDate(template.due_day, date) : null,
+    category_id: template.category_id,
+    subcategory_id: template.subcategory_id,
+    particular_id: template.particular_id,
+    particulars: template.particulars,
+    counterparty: template.counterparty,
+    reference_no: null,
+    notes: null,
+  };
+}
+
+/**
+ * What to save of an entry so it can be recorded again: everything but its
+ * date. null for what is never a regular: a transfer, the payment of a due, or
+ * an entry a document posted.
+ */
+export function entryToTemplateInput(entry: FinanceEntry): EntryTemplateInput | null {
+  if (entry.kind === 'transfer' || entry.settles_entry_id || entry.source_type || entry.status === 'void') return null;
+  const isDue = entry.kind === 'payable' || entry.kind === 'receivable';
+  const dueDay = isDue && entry.due_date ? Number(entry.due_date.slice(8, 10)) : null;
+  return {
+    account_id: entry.account_id,
+    paid_from_account_id: isDue ? null : entry.paid_from_account_id,
+    kind: entry.kind,
+    amount: entry.amount,
+    mode: entry.mode === 'cash' || entry.mode === 'bank' ? entry.mode : null,
+    category_id: entry.category_id,
+    subcategory_id: entry.subcategory_id,
+    particular_id: entry.particular_id,
+    particulars: entry.particulars,
+    counterparty: entry.counterparty,
+    due_day: dueDay !== null && dueDay >= 1 && dueDay <= 31 ? dueDay : null,
+  };
+}
+
+/** Whether a template has already been recorded in the month `date` is in. */
+export function templateRecordedInMonth(template: Pick<EntryTemplate, 'last_recorded_on'>, date: string): boolean {
+  return template.last_recorded_on !== null && template.last_recorded_on.slice(0, 7) === date.slice(0, 7);
+}
+
+// ─── Quick actions ───────────────────────────────────────────────────────────
+
+export type QuickEntryKey = 'paid' | 'received' | 'owe' | 'owed' | 'moved';
+
+/** The five everyday entries, each a short form of the full sheet with the kind already chosen. */
+export const QUICK_ENTRY_PRESETS: readonly { key: QuickEntryKey; kind: LedgerKind; label: string; title: string }[] = [
+  { key: 'paid', kind: 'expense', label: 'Paid a bill', title: 'Paid a bill' },
+  { key: 'received', kind: 'income', label: 'Received money', title: 'Received money' },
+  { key: 'owe', kind: 'payable', label: 'We owe', title: 'We owe someone' },
+  { key: 'owed', kind: 'receivable', label: 'Owed to us', title: 'Someone owes us' },
+  { key: 'moved', kind: 'transfer', label: 'Moved money', title: 'Moved money' },
+];
 
 /** A payable or receivable moves no money until it is settled, so it has no paying account. */
 export function kindCanHavePayer(kind: LedgerKind): boolean {
@@ -304,6 +509,7 @@ export function emptyEntryForm(accountId: string, defaultDate: string): EntryFor
     transfer_from: 'cash',
     transfer_to: 'bank',
     transaction_date: defaultDate,
+    due_date: '',
     category_id: '',
     subcategory_id: '',
     particular_id: '',
@@ -320,10 +526,12 @@ export function entryToFormValues(entry: FinanceEntry): EntryFormValues {
     paid_from_account_id: entry.paid_from_account_id ?? '',
     kind: entry.kind,
     amount: entry.amount.toString(),
-    mode: entry.mode ?? 'cash',
+    // An offset settlement is never edited by hand; the form only knows cash and bank.
+    mode: entry.mode && entry.mode !== 'offset' ? entry.mode : 'cash',
     transfer_from: entry.transfer_from ?? 'cash',
     transfer_to: entry.transfer_to ?? 'bank',
     transaction_date: entry.transaction_date,
+    due_date: entry.due_date ?? '',
     category_id: entry.category_id ?? '',
     subcategory_id: entry.subcategory_id ?? '',
     particular_id: entry.particular_id ?? '',
@@ -354,6 +562,13 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
   if (!ISO_DATE.test(values.transaction_date) || Number.isNaN(Date.parse(values.transaction_date))) {
     errors.transaction_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
   }
+  const isDue = values.kind === 'payable' || values.kind === 'receivable';
+  const dueDate = isDue ? values.due_date.trim() : '';
+  if (dueDate.length > 0 && (!ISO_DATE.test(dueDate) || Number.isNaN(Date.parse(dueDate)))) {
+    errors.due_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
+  } else if (dueDate.length > 0 && ISO_DATE.test(values.transaction_date) && dueDate < values.transaction_date) {
+    errors.due_date = 'The due date cannot be before the transaction date.';
+  }
   const particulars = values.particulars.trim();
   if (particulars.length === 0) errors.particulars = 'Say what this was for.';
   else if (particulars.length > 120) errors.particulars = 'Keep the particulars under 120 characters.';
@@ -380,6 +595,7 @@ export function validateEntryForm(values: EntryFormValues): EntryValidation {
       transfer_from: isTransfer ? values.transfer_from : null,
       transfer_to: isTransfer ? values.transfer_to : null,
       transaction_date: values.transaction_date,
+      due_date: dueDate.length > 0 ? dueDate : null,
       category_id: isTransfer ? null : emptyToNull(values.category_id),
       subcategory_id: isTransfer ? null : emptyToNull(values.subcategory_id),
       particular_id: isTransfer ? null : emptyToNull(values.particular_id),
@@ -406,20 +622,28 @@ export function emptySettleForm(entry: FinanceEntry, defaultDate: string): Settl
 
 export type SettleValidation = { ok: true; value: SettleEntryInput } | { ok: false; errors: SettleFormErrors };
 
-export function validateSettleForm(values: SettleFormValues, entry: FinanceEntry): SettleValidation {
+/**
+ * `owed` is what the entry's account owes the counterparty account right
+ * now, the most an offset can clear; pass it when the mode is 'offset'.
+ */
+export function validateSettleForm(values: SettleFormValues, entry: FinanceEntry, owed?: number): SettleValidation {
   const errors: SettleFormErrors = {};
   const remaining = remainingAmount(entry);
   const amount = parseAmountInput(values.amount);
+  const offset = values.mode === 'offset';
+  if (offset && !canOffsetEntry(entry)) errors.mode = 'Only a receivable from one of our own accounts can be offset.';
   if (amount === null) errors.amount = 'Enter an amount like 1250 or 1250.50.';
   else if (amount <= 0) errors.amount = 'The amount must be more than zero.';
   else if (amount > remaining + 0.004) errors.amount = `Only ${remaining.toFixed(2)} remains on this entry.`;
+  else if (offset && owed !== undefined && amount > owed + 0.004) errors.amount = `Only ${owed.toFixed(2)} is owed to that account to offset against.`;
   if (!ISO_DATE.test(values.transaction_date) || Number.isNaN(Date.parse(values.transaction_date))) {
     errors.transaction_date = 'Use the calendar, or type the date as YYYY-MM-DD.';
   }
   if (values.reference_no.length > 60) errors.reference_no = 'Keep the reference under 60 characters.';
   if (values.notes.length > 500) errors.notes = 'Keep notes under 500 characters.';
   if (Object.keys(errors).length > 0 || amount === null) return { ok: false, errors };
-  const payer = emptyToNull(values.paid_from_account_id);
+  // An offset is always "paid from" the counterparty; the database sets that itself.
+  const payer = offset ? null : emptyToNull(values.paid_from_account_id);
   return {
     ok: true,
     value: {
@@ -453,6 +677,7 @@ export function initialLedgerFilters(now: Date = new Date()): LedgerFilters {
     categoryId: null,
     subcategoryId: null,
     particularId: null,
+    counterparty: null,
     enteredBy: null,
     status: 'active',
     search: '',
@@ -475,6 +700,7 @@ const FIELD_LABELS: Record<string, string> = {
   transfer_from: 'From',
   transfer_to: 'To',
   transaction_date: 'Transaction date',
+  due_date: 'Due date',
   category_id: 'Category',
   subcategory_id: 'Sub-category',
   particular_id: 'Particular',
@@ -482,6 +708,7 @@ const FIELD_LABELS: Record<string, string> = {
   counterparty: 'Paid to / received from',
   reference_no: 'Reference',
   notes: 'Notes',
+  receipt_path: 'Bill',
   settles_entry_id: 'Settles',
   settled_paise: 'Settled',
   void_reason: 'Void reason',
@@ -500,6 +727,8 @@ export function describeChanges(
 ): ChangeLine[] {
   const render = (field: string, value: unknown): string => {
     if (value === null || value === undefined) return '—';
+    // The storage path means nothing to a reader; that a bill is there does.
+    if (field === 'receipt_path') return 'attached';
     if (field === 'amount_paise' || field === 'settled_paise') {
       return typeof value === 'number' ? formatMoney(value / 100) : String(value);
     }

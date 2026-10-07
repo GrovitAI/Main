@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getTenantContext } from './tenant-context';
+import { getActorName, getTenantContext } from './tenant-context';
 
 // ─── TYPES & INTERFACES ───────────────────────────────────────────────────────
 
@@ -130,6 +130,10 @@ export type InventoryPurchaseHeader = {
   status: 'Draft' | 'Completed';
   created_by: string | null;
   created_at: string;
+  /** The ledger entry record_purchase() posted: an expense when paid at once, a payable otherwise. */
+  finance_entry_id?: string | null;
+  /** That entry's kind and status when the caller may read it. Paid = an expense, or a settled payable. */
+  finance_entry?: { kind: string; status: string } | null;
   supplier_name?: string;
 };
 
@@ -454,6 +458,7 @@ type BranchNameRow = { id: string; name: string | null };
 
 type PurchaseHeaderRow = InventoryPurchaseHeader & {
   supplier: { supplier_name: string | null } | null;
+  finance_entry?: { kind: string; status: string } | { kind: string; status: string }[] | null;
 };
 type PurchaseItemRow = InventoryPurchaseItem & { material: MaterialNameJoin };
 type LedgerRow = InventoryStockLedger & { material: MaterialNameJoin };
@@ -568,6 +573,53 @@ type KpiWastageRow = { cost_impact: number | null };
 
 const TABLES_UNAVAILABLE_MESSAGE = 'Inventory tables are not available. Contact support.';
 
+/**
+ * Materials, units, categories and suppliers are one catalogue for the whole
+ * tenant. The database lets a branch change the rows it created and lets the
+ * owner and admins change any; a write it refuses touches no rows and raises
+ * no error, so the caller has to notice the empty result.
+ */
+const CATALOGUE_REFUSED_MESSAGE = 'This record was created by another branch. Ask the owner or an admin to change it.';
+
+/** Where stock is filed when the caller names no storage location. */
+/**
+ * Where a branch's stock is counted. Purchases, counts, wastage and opening
+ * stock all land here, so each material has one figure per branch; the
+ * storage pickers were taken off the screens on the owner's ask (2026-10-03).
+ */
+export const DEFAULT_STOCK_LOCATION = 'Main Storage';
+
+type CatalogueTable ='inventory_categories' | 'inventory_units' | 'inventory_suppliers' | 'inventory_materials';
+
+/**
+ * Saves a catalogue row. A new row is filed under the branch that created it;
+ * an edit leaves that branch alone, so editing never moves a row out of the
+ * reach of the branch that owns it.
+ */
+async function writeCatalogueRow(
+  table: CatalogueTable,
+  id: string | undefined,
+  row: Record<string, unknown>
+): Promise<{ data: unknown; error: unknown; refused: boolean }> {
+  const { tenant_id, branch_id } = getTenantContext();
+  if (id) {
+    const { data, error } = await supabase
+      .from(table)
+      .update(row)
+      .eq('id', id)
+      .eq('tenant_id', tenant_id)
+      .select('*')
+      .maybeSingle();
+    return { data, error, refused: !error && !data };
+  }
+  const { data, error } = await supabase
+    .from(table)
+    .insert({ ...row, tenant_id, branch_id })
+    .select('*')
+    .single();
+  return { data, error, refused: false };
+}
+
 type DescribedError = { code: string; message: string; status: number | null };
 
 function describeError(err: unknown): DescribedError {
@@ -675,11 +727,8 @@ export async function fetchCategories(): Promise<ServiceResult<InventoryCategory
 
 export async function saveCategory(category: Partial<InventoryCategory>): Promise<ServiceResult<InventoryCategory>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
     const code = category.category_code || `CAT${Math.floor(10 + Math.random() * 90)}`;
     const fullCategory = {
-      tenant_id,
-      branch_id,
       category_code: code,
       category_name: category.category_name || 'Unnamed Category',
       description: category.description || null,
@@ -689,15 +738,12 @@ export async function saveCategory(category: Partial<InventoryCategory>): Promis
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from('inventory_categories')
-      .upsert({ id: category.id || undefined, ...fullCategory })
-      .select('*')
-      .single();
+    const { data, error, refused } = await writeCatalogueRow('inventory_categories', category.id, fullCategory);
 
     if (error) {
       return { data: null, error: reportError('saveCategory', error, 'Unable to save category.') };
     }
+    if (refused) return { data: null, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: data as InventoryCategory, error: null };
   } catch (err: unknown) {
     return { data: null, error: reportError('saveCategory', err, 'Unable to save category.') };
@@ -706,17 +752,18 @@ export async function saveCategory(category: Partial<InventoryCategory>): Promis
 
 export async function deleteCategory(id: string): Promise<ServiceResult<boolean>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-    const { error } = await supabase
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
       .from('inventory_categories')
-      .update({ deleted_at: new Date().toISOString(), deleted_by: 'Owner Staff' })
+      .update({ deleted_at: new Date().toISOString(), deleted_by: getActorName() })
       .eq('id', id)
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+      .select('id');
 
     if (error) {
       return { data: false, error: reportError('deleteCategory', error, 'Unable to delete category.') };
     }
+    if (((data ?? []) as IdRow[]).length === 0) return { data: false, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: true, error: null };
   } catch (err: unknown) {
     return { data: false, error: reportError('deleteCategory', err, 'Unable to delete category.') };
@@ -747,7 +794,7 @@ export async function fetchUnits(): Promise<ServiceResult<InventoryUnit[]>> {
 
 export async function saveUnit(unit: Partial<InventoryUnit>): Promise<ServiceResult<InventoryUnit>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id } = getTenantContext();
 
     let duplicateQuery = supabase
       .from('inventory_units')
@@ -778,23 +825,18 @@ export async function saveUnit(unit: Partial<InventoryUnit>): Promise<ServiceRes
 
     const code = unit.unit_code || `UN${Math.floor(10 + Math.random() * 90)}`;
     const dbPayload = {
-      tenant_id,
-      branch_id,
       unit_code: code,
       unit_name: unit.unit_name || 'Unnamed Unit',
       short_name: unit.short_name || code.toLowerCase(),
       is_active: unit.is_active !== false,
     };
 
-    const { data, error } = await supabase
-      .from('inventory_units')
-      .upsert({ ...(unit.id ? { id: unit.id } : {}), ...dbPayload })
-      .select('*')
-      .single();
+    const { data, error, refused } = await writeCatalogueRow('inventory_units', unit.id, dbPayload);
 
     if (error) {
       return { data: null, error: reportError('saveUnit', error, 'Unable to save unit.') };
     }
+    if (refused) return { data: null, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: data as InventoryUnit, error: null };
   } catch (err: unknown) {
     return { data: null, error: reportError('saveUnit', err, 'Unable to save unit.') };
@@ -803,17 +845,18 @@ export async function saveUnit(unit: Partial<InventoryUnit>): Promise<ServiceRes
 
 export async function deleteUnit(id: string): Promise<ServiceResult<boolean>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-    const { error } = await supabase
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
       .from('inventory_units')
       .update({ is_active: false })
       .eq('id', id)
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+      .select('id');
 
     if (error) {
       return { data: false, error: reportError('deleteUnit', error, 'Unable to delete unit.') };
     }
+    if (((data ?? []) as IdRow[]).length === 0) return { data: false, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: true, error: null };
   } catch (err: unknown) {
     return { data: false, error: reportError('deleteUnit', err, 'Unable to delete unit.') };
@@ -845,7 +888,7 @@ export async function fetchSuppliers(): Promise<ServiceResult<InventorySupplier[
 
 export async function saveSupplier(supplier: Partial<InventorySupplier>): Promise<ServiceResult<InventorySupplier>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
+    const { tenant_id } = getTenantContext();
 
     let duplicateQuery = supabase
       .from('inventory_suppliers')
@@ -868,8 +911,6 @@ export async function saveSupplier(supplier: Partial<InventorySupplier>): Promis
 
     const code = supplier.supplier_code || `SUP${Math.floor(10 + Math.random() * 90)}`;
     const fullSupplier = {
-      tenant_id,
-      branch_id,
       supplier_code: code,
       supplier_name: supplier.supplier_name || 'Unnamed Supplier',
       contact_person: supplier.contact_person || null,
@@ -889,15 +930,12 @@ export async function saveSupplier(supplier: Partial<InventorySupplier>): Promis
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from('inventory_suppliers')
-      .upsert({ id: supplier.id || undefined, ...fullSupplier })
-      .select('*')
-      .single();
+    const { data, error, refused } = await writeCatalogueRow('inventory_suppliers', supplier.id, fullSupplier);
 
     if (error) {
       return { data: null, error: reportError('saveSupplier', error, 'Unable to save supplier.') };
     }
+    if (refused) return { data: null, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: data as InventorySupplier, error: null };
   } catch (err: unknown) {
     return { data: null, error: reportError('saveSupplier', err, 'Unable to save supplier.') };
@@ -906,17 +944,18 @@ export async function saveSupplier(supplier: Partial<InventorySupplier>): Promis
 
 export async function deleteSupplier(id: string): Promise<ServiceResult<boolean>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-    const { error } = await supabase
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
       .from('inventory_suppliers')
-      .update({ deleted_at: new Date().toISOString(), deleted_by: 'Owner Staff' })
+      .update({ deleted_at: new Date().toISOString(), deleted_by: getActorName() })
       .eq('id', id)
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+      .select('id');
 
     if (error) {
       return { data: false, error: reportError('deleteSupplier', error, 'Unable to delete supplier.') };
     }
+    if (((data ?? []) as IdRow[]).length === 0) return { data: false, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: true, error: null };
   } catch (err: unknown) {
     return { data: false, error: reportError('deleteSupplier', err, 'Unable to delete supplier.') };
@@ -1039,8 +1078,8 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
       }
     }
 
+    const isNew = !material.id;
     const openingStock = toNumber(material.opening_stock);
-    const currentStock = material.id ? toNumber(material.current_stock) : openingStock;
     const reorderLevel = toNumber(material.reorder_level);
     const averageCost = toNumber(material.average_cost);
     const lastPurchasePrice = toNumber(material.last_purchase_price) || averageCost;
@@ -1048,41 +1087,79 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
       material.conversion_factor !== undefined && material.conversion_factor
         ? toNumber(material.conversion_factor)
         : null;
+    const now = new Date().toISOString();
 
-    const fullMaterial = {
-      tenant_id,
-      branch_id,
+    const details = {
       material_code: code,
       material_name: material.material_name || 'Unnamed Material',
       category_id: material.category_id || null,
       inventory_unit_id: material.inventory_unit_id || null,
       primary_unit_id: material.primary_unit_id !== undefined ? material.primary_unit_id : null,
       conversion_factor: conversionFactor,
-      opening_stock: openingStock,
-      current_stock: currentStock,
       reorder_level: reorderLevel,
       average_cost: averageCost,
       last_purchase_price: lastPurchasePrice,
-      inventory_value: currentStock * averageCost,
       barcode: material.barcode || null,
       hsn_code: material.hsn_code || null,
       preferred_supplier_id: material.preferred_supplier_id || null,
       is_active: material.is_active !== false,
       deleted_at: null,
       deleted_by: null,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
+    // Stock belongs to purchases, counts and transfers. An edit of the details
+    // must not write it: the form only knows one branch's quantity.
+    const fullMaterial = isNew
+      ? { ...details, opening_stock: openingStock, current_stock: openingStock, inventory_value: openingStock * averageCost }
+      : details;
 
-    const { data, error } = await supabase
-      .from('inventory_materials')
-      .upsert({ id: material.id || undefined, ...fullMaterial })
-      .select('*')
-      .single();
+    const { data, error, refused } = await writeCatalogueRow('inventory_materials', material.id, fullMaterial);
 
     if (error) {
       return { data: null, error: reportError('saveMaterial', error, 'Unable to save material.') };
     }
-    return { data: data as InventoryMaterial, error: null };
+    if (refused) return { data: null, error: CATALOGUE_REFUSED_MESSAGE };
+
+    const saved = data as InventoryMaterial;
+
+    // The screen reads stock from the branch's stock level, so opening stock
+    // has to land there (and in the stock ledger) or it is never seen.
+    if (isNew && openingStock > 0) {
+      const { error: lvlErr } = await supabase.from('inventory_material_stock_levels').insert({
+        tenant_id,
+        branch_id,
+        material_id: saved.id,
+        location_id: DEFAULT_STOCK_LOCATION,
+        current_stock: openingStock,
+        reserved_stock: 0,
+        available_stock: openingStock,
+        updated_at: now,
+      });
+      if (lvlErr) {
+        return { data: null, error: reportError('saveMaterial', lvlErr, 'The material was saved, but its opening stock was not. Add it with a stock adjustment.') };
+      }
+      const { error: ledgerErr } = await supabase.from('inventory_stock_ledger').insert({
+        tenant_id,
+        branch_id,
+        material_id: saved.id,
+        transaction_date: now,
+        transaction_type: 'Opening Stock',
+        reference_type: 'Material',
+        reference_id: saved.id,
+        qty_in: openingStock,
+        qty_out: 0,
+        balance_stock: openingStock,
+        unit_cost: averageCost,
+        total_value: openingStock * averageCost,
+        remarks: 'Opening stock',
+        created_by: getActorName(),
+      });
+      if (ledgerErr) {
+        console.error('[inventory-service] saveMaterial (opening ledger):', ledgerErr.code, ledgerErr.message);
+      }
+    }
+
+    return { data: saved, error: null };
   } catch (err: unknown) {
     return { data: null, error: reportError('saveMaterial', err, 'Unable to save material.') };
   }
@@ -1090,17 +1167,18 @@ export async function saveMaterial(material: Partial<InventoryMaterial>): Promis
 
 export async function deleteMaterial(id: string): Promise<ServiceResult<boolean>> {
   try {
-    const { tenant_id, branch_id } = getTenantContext();
-    const { error } = await supabase
+    const { tenant_id } = getTenantContext();
+    const { data, error } = await supabase
       .from('inventory_materials')
-      .update({ deleted_at: new Date().toISOString(), deleted_by: 'Owner Staff' })
+      .update({ deleted_at: new Date().toISOString(), deleted_by: getActorName() })
       .eq('id', id)
       .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id);
+      .select('id');
 
     if (error) {
       return { data: false, error: reportError('deleteMaterial', error, 'Unable to delete material.') };
     }
+    if (((data ?? []) as IdRow[]).length === 0) return { data: false, error: CATALOGUE_REFUSED_MESSAGE };
     return { data: true, error: null };
   } catch (err: unknown) {
     return { data: false, error: reportError('deleteMaterial', err, 'Unable to delete material.') };
@@ -1150,11 +1228,14 @@ export async function fetchVendorPrices(materialId?: string): Promise<ServiceRes
 export async function fetchPurchases(): Promise<ServiceResult<InventoryPurchaseHeader[]>> {
   try {
     const { tenant_id, branch_id, isOwnerOrAdmin } = getTenantContext();
+    // The ledger entry says whether the purchase is paid. Its select policy
+    // decides who may see it; a refused embed simply comes back empty.
     let query = supabase
       .from('inventory_purchase_headers')
       .select(`
         *,
-        supplier:inventory_suppliers(supplier_name)
+        supplier:inventory_suppliers(supplier_name),
+        finance_entry:finance_entries!inventory_purchase_headers_finance_entry_id_fkey(kind, status)
       `)
       .eq('tenant_id', tenant_id);
     if (!isOwnerOrAdmin) query = query.eq('branch_id', branch_id);
@@ -1167,8 +1248,9 @@ export async function fetchPurchases(): Promise<ServiceResult<InventoryPurchaseH
 
     const rows = (data ?? []) as PurchaseHeaderRow[];
     const formatted: InventoryPurchaseHeader[] = rows.map((p) => {
-      const { supplier, ...rest } = p;
-      return { ...rest, supplier_name: supplier?.supplier_name || 'Unknown Supplier' };
+      const { supplier, finance_entry, ...rest } = p;
+      const entry = Array.isArray(finance_entry) ? finance_entry[0] ?? null : finance_entry ?? null;
+      return { ...rest, finance_entry: entry, supplier_name: supplier?.supplier_name || 'Unknown Supplier' };
     });
 
     return { data: formatted, error: null };
@@ -1208,174 +1290,101 @@ export async function fetchPurchaseItems(purchaseId: string): Promise<ServiceRes
   }
 }
 
+/** A date-only value for the database: 'YYYY-MM-DD', or the date part of an ISO timestamp. */
+function toDateOnly(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  return match ? match[1] : null;
+}
+
+function mapPurchaseRpcError(err: unknown): string {
+  const { code, message } = describeError(err);
+  console.error('[inventory-service] createPurchase:', code || 'UNKNOWN', message);
+  if (code === 'PGRST202') return 'The purchase service is not deployed yet.';
+  if (message.includes('PURCHASE_NO_ACCOUNT')) return 'This branch has no finance account yet. Add it under Finance before recording purchases.';
+  if (message.includes('PURCHASE_SUPPLIER_NOT_FOUND')) return 'Choose a supplier.';
+  if (message.includes('PURCHASE_MATERIAL_NOT_FOUND')) return 'One of the materials no longer exists. Remove it and try again.';
+  if (message.includes('LEDGER_NO_ACCOUNT')) return 'The account chosen under "Paid by" is not available. Pick another.';
+  if (message.includes('PURCHASE_INVALID')) return 'Check the quantities, prices, the invoice date and the pay-by date.';
+  if (message.includes('_FORBIDDEN')) return 'You cannot record purchases for that branch.';
+  return 'Unable to save purchase.';
+}
+
 /**
- * Creates a purchase and automates cost averaging, ledger logs, pricing history logs and location stock splits.
+ * Records a goods receipt. The `record_purchase` database function writes the
+ * header, the lines, the material averages, the stock level, the stock ledger
+ * and the finance entry in ONE transaction: an expense in the branch's books
+ * when `paid`, otherwise a payable to the supplier that Finance settles later.
+ * Numbered PO-<branch>-0001 from the branch counter.
+ *
+ * `payment.paidFromAccountId`: the finance account whose cash or bank paid,
+ * when it was not this branch's own (a branch paying the kitchen's vendor).
+ * `payment.dueDate`: when a purchase on credit is to be paid, 'YYYY-MM-DD'.
+ * `payment.branchId`: the branch that bought the goods, when the owner records
+ * a purchase for a branch other than their own; the database refuses a branch
+ * the signed-in user cannot access.
  */
 export async function createPurchase(
-  header: Omit<InventoryPurchaseHeader, 'id' | 'tenant_id' | 'branch_id' | 'purchase_number' | 'created_at' | 'status'>,
+  header: Omit<InventoryPurchaseHeader, 'id' | 'tenant_id' | 'branch_id' | 'purchase_number' | 'created_at' | 'status' | 'finance_entry_id' | 'finance_entry'>,
   items: Omit<InventoryPurchaseItem, 'id' | 'tenant_id' | 'branch_id' | 'purchase_header_id' | 'created_at'>[],
-  location_id = 'Dry Storage'
+  location_id: string = DEFAULT_STOCK_LOCATION,
+  paid = true,
+  payment: { paidFromAccountId?: string | null; dueDate?: string | null; branchId?: string | null } = {}
 ): Promise<ServiceResult<InventoryPurchaseHeader>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
-    const purchaseNum = `PO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const now = new Date().toISOString();
+    const purchaseDate = toDateOnly(header.purchase_date);
+    if (!purchaseDate) return { data: null, error: 'Enter the invoice date as YYYY-MM-DD.' };
 
-    const supabaseHeader = {
-      ...header,
-      tenant_id,
-      branch_id,
-      purchase_number: purchaseNum,
-      status: 'Completed' as const,
-      created_at: now,
-    };
-
-    const { data, error } = await supabase
-      .from('inventory_purchase_headers')
-      .insert(supabaseHeader)
-      .select('*')
-      .single();
+    const { data, error } = await supabase.rpc('record_purchase', {
+      p_branch_id: payment.branchId || branch_id,
+      p_supplier_id: header.supplier_id,
+      p_purchase_date: purchaseDate,
+      p_invoice_number: header.invoice_number,
+      p_invoice_date: toDateOnly(header.invoice_date) ?? purchaseDate,
+      p_payment_mode: header.payment_mode,
+      p_paid: paid,
+      p_items: items.map((itm) => ({
+        material_id: itm.material_id,
+        quantity: itm.quantity,
+        unit_price: itm.unit_price,
+        line_total: itm.line_total,
+      })),
+      p_subtotal: header.subtotal,
+      p_discount: header.discount_amount,
+      p_tax: header.tax_amount,
+      p_transport: header.transport_charges,
+      p_other: header.other_charges,
+      p_grand_total: header.grand_total,
+      p_remarks: header.remarks,
+      p_location_id: location_id,
+      p_created_by: header.created_by,
+      p_paid_from_account_id: paid ? payment.paidFromAccountId ?? null : null,
+      p_due_date: paid ? null : toDateOnly(payment.dueDate),
+    });
 
     if (error) {
-      return { data: null, error: reportError('createPurchase', error, 'Unable to save purchase.') };
+      return { data: null, error: mapPurchaseRpcError(error) };
     }
 
-    const savedHeader = data as InventoryPurchaseHeader;
-
-    const finalItems = items.map((itm) => ({
-      ...itm,
-      tenant_id,
-      branch_id,
-      purchase_header_id: savedHeader.id,
-      created_at: now,
-    }));
-
-    const { error: itemsErr } = await supabase.from('inventory_purchase_items').insert(finalItems);
-    if (itemsErr) {
-      return { data: null, error: reportError('createPurchase', itemsErr, 'Unable to save purchase items.') };
+    const result = data as { header?: InventoryPurchaseHeader | null; finance_entry_id?: string | null } | null;
+    if (!result || !result.header) {
+      console.error('[inventory-service] createPurchase:', 'EMPTY_RESULT', 'RPC returned no header');
+      return { data: null, error: 'Unable to save purchase.' };
     }
 
-    for (const itm of items) {
-      const { data: matRaw, error: matErr } = await supabase
-        .from('inventory_materials')
-        .select('id, current_stock, average_cost')
-        .eq('id', itm.material_id)
-        .eq('tenant_id', tenant_id)
-        .maybeSingle();
-
-      if (matErr) {
-        return { data: null, error: reportError('createPurchase', matErr, 'Unable to update material stock.') };
-      }
-
-      const matData = matRaw as MaterialStockRow | null;
-      if (!matData) continue;
-
-      // Average Cost Formula: ((Current Stock * Avg Cost) + (Qty * Cost)) / (Current Stock + Qty)
-      const currentStock = toNumber(matData.current_stock);
-      const currentAvgCost = toNumber(matData.average_cost);
-      const purchasedQty = toNumber(itm.quantity);
-      const unitPrice = toNumber(itm.unit_price);
-
-      const totalStock = currentStock + purchasedQty;
-      const nextAvgCost =
-        totalStock > 0 ? (currentStock * currentAvgCost + purchasedQty * unitPrice) / totalStock : unitPrice;
-
-      const { error: matUpdErr } = await supabase
-        .from('inventory_materials')
-        .update({
-          current_stock: totalStock,
-          average_cost: nextAvgCost,
-          last_purchase_price: unitPrice,
-          inventory_value: totalStock * nextAvgCost,
-          updated_at: now,
-        })
-        .eq('id', itm.material_id)
-        .eq('tenant_id', tenant_id);
-
-      if (matUpdErr) {
-        return { data: null, error: reportError('createPurchase', matUpdErr, 'Unable to update material stock.') };
-      }
-
-      const { data: lvlRows, error: lvlErr } = await supabase
-        .from('inventory_material_stock_levels')
-        .select('*')
-        .eq('tenant_id', tenant_id)
-        .eq('branch_id', branch_id)
-        .eq('material_id', itm.material_id)
-        .eq('location_id', location_id)
-        .limit(1);
-
-      if (lvlErr) {
-        return { data: null, error: reportError('createPurchase', lvlErr, 'Unable to update stock levels.') };
-      }
-
-      const stockLvl = ((lvlRows ?? []) as InventoryStockLevel[])[0] ?? null;
-
-      if (stockLvl) {
-        const { error: lvlUpdErr } = await supabase
-          .from('inventory_material_stock_levels')
-          .update({
-            current_stock: toNumber(stockLvl.current_stock) + purchasedQty,
-            available_stock: toNumber(stockLvl.available_stock) + purchasedQty,
-            updated_at: now,
-          })
-          .eq('id', stockLvl.id)
-          .eq('tenant_id', tenant_id)
-          .eq('branch_id', branch_id);
-        if (lvlUpdErr) {
-          return { data: null, error: reportError('createPurchase', lvlUpdErr, 'Unable to update stock levels.') };
-        }
-      } else {
-        const { error: lvlInsErr } = await supabase.from('inventory_material_stock_levels').insert({
-          tenant_id,
-          branch_id,
-          material_id: itm.material_id,
-          location_id,
-          current_stock: purchasedQty,
-          available_stock: purchasedQty,
-          reserved_stock: 0,
-        });
-        if (lvlInsErr) {
-          return { data: null, error: reportError('createPurchase', lvlInsErr, 'Unable to update stock levels.') };
-        }
-      }
-
-      const { error: priceErr } = await supabase.from('inventory_material_vendor_prices').insert({
+    return {
+      data: {
+        ...result.header,
         tenant_id,
         branch_id,
-        material_id: itm.material_id,
-        supplier_id: header.supplier_id,
-        purchase_price: unitPrice,
-        effective_date: now,
-      });
-      if (priceErr) {
-        console.error('[inventory-service] createPurchase (vendor price):', priceErr.code, priceErr.message);
-      }
-
-      const { error: ledgerErr } = await supabase.from('inventory_stock_ledger').insert({
-        tenant_id,
-        branch_id,
-        material_id: itm.material_id,
-        transaction_date: now,
-        transaction_type: 'Purchase',
-        reference_type: 'Purchase Invoice',
-        reference_id: savedHeader.id,
-        qty_in: purchasedQty,
-        qty_out: 0,
-        balance_stock: totalStock,
-        unit_cost: unitPrice,
-        total_value: purchasedQty * unitPrice,
-        remarks: `Purchased from supplier via PO ${purchaseNum}`,
-        created_by: header.created_by,
-      });
-      if (ledgerErr) {
-        return { data: null, error: reportError('createPurchase', ledgerErr, 'Unable to write stock ledger.') };
-      }
-    }
-
-    return { data: savedHeader, error: null };
+        finance_entry_id: result.finance_entry_id ?? result.header.finance_entry_id ?? null,
+        finance_entry: result.finance_entry_id ? { kind: paid ? 'expense' : 'payable', status: paid ? 'recorded' : 'open' } : null,
+      },
+      error: null,
+    };
   } catch (err: unknown) {
-    return { data: null, error: reportError('createPurchase', err, 'Unable to save purchase.') };
+    return { data: null, error: mapPurchaseRpcError(err) };
   }
 }
 
@@ -1537,12 +1546,30 @@ export async function createAdjustment(
         const newLoc = isDeduct ? currentLoc - qtyAdj : currentLoc + qtyAdj;
         const { error: lvlUpdErr } = await supabase
           .from('inventory_material_stock_levels')
-          .update({ current_stock: newLoc, available_stock: newLoc, updated_at: now })
+          .update({ current_stock: newLoc, available_stock: newLoc - toNumber(stockLvl.reserved_stock), updated_at: now })
           .eq('id', stockLvl.id)
           .eq('tenant_id', tenant_id)
           .eq('branch_id', branch_id);
         if (lvlUpdErr) {
           return { data: null, error: reportError('createAdjustment', lvlUpdErr, 'Unable to update stock levels.') };
+        }
+      } else {
+        // No stock was ever filed at this location. The branch's stock is the
+        // sum of its locations, so without a row the adjustment would be
+        // recorded and never show.
+        const firstQty = isDeduct ? -qtyAdj : qtyAdj;
+        const { error: lvlInsErr } = await supabase.from('inventory_material_stock_levels').insert({
+          tenant_id,
+          branch_id,
+          material_id: adjustment.material_id,
+          location_id: adjustment.location_id || DEFAULT_STOCK_LOCATION,
+          current_stock: firstQty,
+          reserved_stock: 0,
+          available_stock: firstQty,
+          updated_at: now,
+        });
+        if (lvlInsErr) {
+          return { data: null, error: reportError('createAdjustment', lvlInsErr, 'Unable to update stock levels.') };
         }
       }
 
@@ -1661,19 +1688,31 @@ export async function createWastage(
         .select('*')
         .eq('tenant_id', tenant_id)
         .eq('branch_id', branch_id)
-        .eq('material_id', record.material_id)
-        .eq('location_id', record.location_id)
-        .limit(1);
+        .eq('material_id', record.material_id);
       if (lvlErr) {
         return { data: null, error: reportError('createWastage', lvlErr, 'Unable to update stock levels.') };
       }
 
-      const stockLvl = ((lvlRows ?? []) as InventoryStockLevel[])[0] ?? null;
-      if (stockLvl) {
-        const newLoc = Math.max(0, toNumber(stockLvl.current_stock) - qty);
+      // The branch's stock is the sum of its location rows. The loss comes off
+      // the location named on the form first, then wherever the rest is held,
+      // so the figure on the screen drops by the whole quantity (a row never
+      // goes below zero; a loss larger than the stock stops at zero).
+      const levels = [...((lvlRows ?? []) as InventoryStockLevel[])].sort((a, b) => {
+        if (a.location_id === record.location_id) return -1;
+        if (b.location_id === record.location_id) return 1;
+        return toNumber(b.current_stock) - toNumber(a.current_stock);
+      });
+      let remaining = qty;
+      for (const stockLvl of levels) {
+        if (remaining <= 0) break;
+        const held = toNumber(stockLvl.current_stock);
+        if (held <= 0) continue;
+        const taken = Math.min(held, remaining);
+        remaining -= taken;
+        const newLoc = held - taken;
         const { error: lvlUpdErr } = await supabase
           .from('inventory_material_stock_levels')
-          .update({ current_stock: newLoc, available_stock: newLoc, updated_at: now })
+          .update({ current_stock: newLoc, available_stock: newLoc - toNumber(stockLvl.reserved_stock), updated_at: now })
           .eq('id', stockLvl.id)
           .eq('tenant_id', tenant_id)
           .eq('branch_id', branch_id);
@@ -1753,7 +1792,7 @@ export async function recordAuditLog(
       action_type: action,
       old_value: toPlainJson(oldVal),
       new_value: toPlainJson(newVal),
-      performed_by: 'Owner Staff',
+      performed_by: getActorName(),
       created_at: new Date().toISOString(),
     });
     if (error) {
@@ -2102,7 +2141,7 @@ export async function createTransferRequest(
     const { tenant_id } = getTenantContext();
     const now = new Date().toISOString();
     const requestId = uuidv4();
-    const createdBy = 'Owner Staff';
+    const createdBy = getActorName();
 
     const { data: headerRaw, error: headerErr } = await supabase
       .from('inventory_transfer_requests')
@@ -2339,7 +2378,7 @@ export async function createDispatch(
 ): Promise<ServiceResult<InventoryDispatch>> {
   try {
     const { tenant_id } = getTenantContext();
-    const author = createdBy || 'Owner Staff';
+    const author = createdBy || getActorName();
 
     const { data, error } = await supabase.rpc('create_dispatch', {
       p_tenant_id: tenant_id,
@@ -2398,7 +2437,7 @@ export async function receiveDispatch(
 ): Promise<ServiceResult<boolean>> {
   try {
     const { tenant_id } = getTenantContext();
-    const author = receivedBy || 'Owner Staff';
+    const author = receivedBy || getActorName();
 
     const { data, error } = await supabase.rpc('receive_dispatch', {
       p_tenant_id: tenant_id,

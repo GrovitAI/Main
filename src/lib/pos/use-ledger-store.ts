@@ -9,10 +9,14 @@
 import { create } from 'zustand';
 
 import {
+  attachEntryReceipt,
   createCatalogItem,
+  createEntryTemplate,
   createLedgerEntry,
   fetchAccountBalances,
+  fetchDuesSummary,
   fetchEntryRevisions,
+  fetchEntryTemplates,
   fetchFinanceAccounts,
   fetchFinanceCatalog,
   fetchFinanceRules,
@@ -21,19 +25,26 @@ import {
   fetchLedgerEntries,
   fetchLedgerEntry,
   fetchLedgerSummary,
+  recordCashCount,
   reorderCatalogItems,
   settleLedgerEntry,
+  updateAccountOpening,
   updateCatalogItem,
+  updateEntryTemplate,
   updateFinanceRules,
   updateLedgerEntry,
   voidLedgerEntry,
 } from './finance-ledger-service';
 import type {
   AccountBalance,
+  CashCountInput,
   CatalogItem,
   CatalogItemInput,
   CatalogItemPatch,
+  DuesSummaryRow,
   EntryRevision,
+  EntryTemplate,
+  EntryTemplateInput,
   FinanceAccount,
   FinanceEntry,
   FinanceEntryInput,
@@ -42,9 +53,11 @@ import type {
   InterAccountPosition,
   LedgerAccountSummary,
   LedgerFilters,
+  ReceiptFile,
   SettleEntryInput,
 } from './finance-types';
-import { LEDGER_MAX_ROWS, catalogSiblings, initialLedgerFilters, moveCatalogSibling } from './finance-ledger-utils';
+import { LEDGER_MAX_ROWS, catalogSiblings, initialLedgerFilters, moveCatalogSibling, templateToEntryInput } from './finance-ledger-utils';
+import { getCurrentBusinessDate } from './finance-utils';
 
 type MutationResult = { ok: true } | { ok: false; error: string };
 
@@ -77,6 +90,12 @@ type LedgerState = {
   positions: InterAccountPosition[];
   /** Per-account ledger income, expenses and open amounts for the current range. */
   summary: LedgerAccountSummary[];
+  /** What is open as of today, by how soon it is due. A clerk gets their own dues. */
+  dues: DuesSummaryRow[];
+
+  /** Saved entries recorded again each month: rent, salaries, subscriptions. */
+  templates: EntryTemplate[];
+  templatesLoading: boolean;
 
   /** Free-text particulars under the category the Catalog screen is looking at. */
   freeText: FreeTextParticular[];
@@ -84,6 +103,8 @@ type LedgerState = {
 
   /** Set by the phone's quick-add button; the ledger opens a blank form and clears it. */
   newEntryRequested: boolean;
+  /** Set by "Pay now" on a purchase: the ledger opens Settle on this entry and clears it. */
+  settleRequestId: string | null;
 
   initialize: () => Promise<void>;
   refreshReference: () => Promise<void>;
@@ -96,6 +117,22 @@ type LedgerState = {
   voidEntry: (id: string, reason: string) => Promise<MutationResult>;
   /** Records a payment against an open payable or receivable. */
   settleEntry: (input: SettleEntryInput) => Promise<MutationResult>;
+  /** Records a count of an account's cash box or bank balance, posting the difference when asked. */
+  countCash: (input: CashCountInput) => Promise<MutationResult>;
+  loadTemplates: () => Promise<void>;
+  /** Saves an entry as a regular, to be recorded again with one tap. */
+  saveTemplate: (input: EntryTemplateInput) => Promise<MutationResult>;
+  /** Switches a regular off. Nothing already recorded changes. */
+  removeTemplate: (id: string) => Promise<MutationResult>;
+  /**
+   * Records one ledger entry per pick on `date`. Stops at the first failure
+   * and says how many were saved before it.
+   */
+  recordTemplates: (picks: readonly { template: EntryTemplate; amount: number }[], date: string) => Promise<MutationResult & { recorded: number }>;
+  /** Uploads a photo or PDF of the bill and ties it to the entry. */
+  attachReceipt: (entryId: string, file: ReceiptFile) => Promise<MutationResult>;
+  /** The owner sets what an account held when the ledger started. */
+  saveAccountOpening: (id: string, openingCash: number, openingBank: number) => Promise<MutationResult>;
   openEntry: (entry: FinanceEntry | null) => Promise<void>;
   /** Opens an entry that may not be on the current page, such as the one a payment settles. */
   openEntryById: (id: string) => Promise<void>;
@@ -108,6 +145,8 @@ type LedgerState = {
   loadFreeText: (categoryId: string | null, subcategoryId: string | null) => Promise<void>;
   requestNewEntry: () => void;
   clearNewEntryRequest: () => void;
+  requestSettle: (entryId: string) => void;
+  clearSettleRequest: () => void;
 };
 
 export const useLedgerStore = create<LedgerState>((set, get) => {
@@ -139,11 +178,16 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     balancesLoading: false,
     positions: [],
     summary: [],
+    dues: [],
+
+    templates: [],
+    templatesLoading: false,
 
     freeText: [],
     freeTextLoading: false,
 
     newEntryRequested: false,
+    settleRequestId: null,
 
     initialize: async () => {
       if (get().initialized || get().initializing) return;
@@ -248,6 +292,86 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
       return { ok: true };
     },
 
+    countCash: async (input) => {
+      set({ mutating: true });
+      const { data, error } = await recordCashCount(input);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to record the count.' };
+      // A posted difference is a new entry and a changed balance.
+      await Promise.all([get().loadEntries(0), get().loadBalances()]);
+      return { ok: true };
+    },
+
+    loadTemplates: async () => {
+      set({ templatesLoading: true });
+      const { data } = await fetchEntryTemplates();
+      set({ templates: data ?? get().templates, templatesLoading: false });
+    },
+
+    saveTemplate: async (input) => {
+      set({ mutating: true });
+      const { data, error } = await createEntryTemplate(input);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to save the regular.' };
+      set({ templates: [...get().templates, data] });
+      return { ok: true };
+    },
+
+    removeTemplate: async (id) => {
+      const { data, error } = await updateEntryTemplate(id, { is_active: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to update the regular.' };
+      set({ templates: get().templates.filter((t) => t.id !== id) });
+      return { ok: true };
+    },
+
+    recordTemplates: async (picks, date) => {
+      set({ mutating: true });
+      let recorded = 0;
+      let failure: string | null = null;
+      for (const pick of picks) {
+        const { data, error } = await createLedgerEntry(templateToEntryInput(pick.template, pick.amount, date));
+        if (error || !data) {
+          failure = error ?? 'Unable to save the entry.';
+          break;
+        }
+        recorded += 1;
+        // Remember the amount used and that this month is done.
+        const updated = await updateEntryTemplate(pick.template.id, { amount: pick.amount, last_recorded_on: date });
+        if (updated.data) {
+          const fresh = updated.data;
+          set({ templates: get().templates.map((t) => (t.id === fresh.id ? fresh : t)) });
+        }
+      }
+      set({ mutating: false });
+      if (recorded > 0) await Promise.all([get().loadEntries(0), get().loadBalances()]);
+      if (failure) {
+        return { ok: false, error: recorded > 0 ? `${recorded} saved, then: ${failure}` : failure, recorded };
+      }
+      return { ok: true, recorded };
+    },
+
+    attachReceipt: async (entryId, file) => {
+      set({ mutating: true });
+      const { data, error } = await attachEntryReceipt(entryId, file);
+      set({ mutating: false });
+      if (error || !data) return { ok: false, error: error ?? 'Unable to attach the bill.' };
+      set({
+        entries: get().entries.map((e) => (e.id === entryId ? data : e)),
+        selected: get().selected?.id === entryId ? data : get().selected,
+      });
+      // The history gains a line for the attachment.
+      if (get().selected?.id === entryId) await get().openEntry(data);
+      return { ok: true };
+    },
+
+    saveAccountOpening: async (id, openingCash, openingBank) => {
+      const { data, error } = await updateAccountOpening(id, openingCash, openingBank);
+      if (error || !data) return { ok: false, error: error ?? 'Unable to save the opening balance.' };
+      set({ accounts: get().accounts.map((a) => (a.id === id ? data : a)) });
+      await get().loadBalances();
+      return { ok: true };
+    },
+
     openEntry: async (entry) => {
       const requestId = ++revisionsRequest;
       set({ selected: entry, revisions: [], revisionsLoading: entry !== null });
@@ -270,20 +394,22 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
     loadBalances: async () => {
       const ids = get().accounts.filter((a) => a.is_active).map((a) => a.id);
       if (ids.length === 0) {
-        set({ balances: [], positions: [], summary: [] });
+        set({ balances: [], positions: [], summary: [], dues: [] });
         return;
       }
       set({ balancesLoading: true });
       const { startDate, endDate } = get().filters;
-      const [balances, positions, summary] = await Promise.all([
+      const [balances, positions, summary, dues] = await Promise.all([
         fetchAccountBalances(ids),
         fetchInterAccountPositions(),
         fetchLedgerSummary(startDate, endDate),
+        fetchDuesSummary(getCurrentBusinessDate()),
       ]);
       set({
         balances: balances.data ?? [],
         positions: positions.data ?? [],
         summary: summary.data ?? [],
+        dues: dues.data ?? [],
         balancesLoading: false,
       });
     },
@@ -339,5 +465,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => {
 
     requestNewEntry: () => set({ newEntryRequested: true }),
     clearNewEntryRequest: () => set({ newEntryRequested: false }),
+    requestSettle: (entryId) => set({ settleRequestId: entryId }),
+    clearSettleRequest: () => set({ settleRequestId: null }),
   };
 });

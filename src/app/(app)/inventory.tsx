@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Easing,
   FlatList,
@@ -49,7 +48,6 @@ import {
   X,
   Hash,
   CreditCard,
-  Home,
   Upload,
   Store,
   MoreVertical,
@@ -61,16 +59,16 @@ import {
 } from 'lucide-react-native';
 import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhoneInventoryScreen, type InventoryTab } from '@/components/phone/PhoneInventoryScreen';
 
-import { getTenantContext } from '@/lib/pos/tenant-context';
+import { getActorName, getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { canRaiseTransferRequest } from '@/lib/pos/transfer-access';
 import { webImageStyle, webTextStyle, webViewStyle } from '@/lib/pos/web-style';
-import { Sparkline, CircularProgress } from '@/components/inventory/InventoryCharts';
+import { Sparkline } from '@/components/inventory/InventoryCharts';
 import { SidebarDecoration, SidebarLabel } from '@/components/inventory/InventorySidebar';
 import { InventoryMobileMenu } from '@/components/inventory/InventoryMobileMenu';
 import { InventoryNotificationsModal } from '@/components/inventory/InventoryNotificationsModal';
@@ -86,7 +84,7 @@ import {
   fetchPurchases,
   fetchPurchaseItems,
   createPurchase,
-  updatePurchaseStatus,
+  DEFAULT_STOCK_LOCATION,
   fetchAdjustments,
   createAdjustment,
   fetchWastage,
@@ -144,6 +142,12 @@ import { SearchableDropdown } from '@/components/ui/SearchableDropdown';
 import { getProducts, type Product } from '@/lib/pos/products-service';
 import * as DocumentPicker from 'expo-document-picker';
 import { getErrorMessage } from '../../lib/pos/error-utils';
+import { confirmAction, notify } from '@/lib/pos/dialogs';
+import { fetchFinanceAccounts } from '@/lib/pos/finance-ledger-service';
+import type { FinanceAccount } from '@/lib/pos/finance-types';
+import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { FINANCE_MODULE_ENABLED } from '@/lib/pos/tab-config';
+import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import {
   validateImportRows,
   importRawMaterials,
@@ -327,7 +331,7 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
         />
       </Svg>
       <View className="absolute items-center justify-center">
-        <Text className="text-[8px] font-black text-slate-400 uppercase">Total Loss</Text>
+        <Text className="text-[11px] font-black text-slate-400 uppercase">Total Loss</Text>
         <Text className="text-xs font-black text-slate-800">₹{totalLoss}</Text>
       </View>
     </View>
@@ -337,6 +341,10 @@ function WastageDonutChart({ totalLoss = 1440, spoilage = 900, expiry = 350, the
 // ─── MAIN SCREEN COMPONENT ───────────────────────────────────────────────────
 
 /** One row of the recipe margin report. */
+/** Choosing this on a purchase leaves the supplier as a payable in Finance instead of an expense paid today. */
+const PAY_LATER_MODE = 'Pay later (credit)';
+const PURCHASE_PAYMENT_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Credit Card', PAY_LATER_MODE] as const;
+
 type RecipeMarginRow = {
   name: string;
   price: number;
@@ -413,13 +421,10 @@ export default function InventoryScreen() {
   // ─── FILTER STATES ─────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'healthy' | 'low' | 'out' | 'expiring'>('all');
-  const [locationFilter, setLocationFilter] = useState<string>('all');
-  const [showOnlyMyItems, setShowOnlyMyItems] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'healthy' | 'low' | 'out'>('all');
   const [pageSize, setPageSize] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 
   // ─── MODAL STATES ──────────────────────────────────────────────────────────
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -453,6 +458,12 @@ export default function InventoryScreen() {
   const { session } = useSessionStore();
   // The owner may look at any branch's stock, transfers and reports. Everyone
   // else is pinned to their own branch, so the picker is never drawn for them.
+  const signedInName = session?.displayName?.trim() || 'Staff';
+  const signedInInitials = signedInName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
   const canPickBranch = canViewAllBranches(session?.role);
   const accessibleBranches = session?.accessibleBranches ?? [];
   const branchPickerVisible = canPickBranch && accessibleBranches.length > 1;
@@ -464,8 +475,10 @@ export default function InventoryScreen() {
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
   const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
-  // Hide bottom tab bar on mobile when creating a transfer request
-  useTabBarHidden(activeTab === 'transfers' && isCreatingRequest);
+  // The two full-page entry forms have their own Back and Save row at the
+  // bottom; the floating tab bar sat on top of it (it covered Cancel on the
+  // purchase form).
+  useTabBarHidden(activeTab === 'record_purchase' || (activeTab === 'transfers' && isCreatingRequest));
 
   const [newReqSearchQuery, setNewReqSearchQuery] = useState('');
   const [newReqSelectedCategoryId, setNewReqSelectedCategoryId] = useState('all');
@@ -509,13 +522,53 @@ export default function InventoryScreen() {
   const [purchaseItems, setPurchaseItems] = useState<{ material_id: string; quantity: string; pack_size: string; unit_price: string; gst: string; unit_short_name?: string }[]>([
     { material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' },
   ]);
-  const [purchaseLocation, setPurchaseLocation] = useState('Dry Storage');
+  // The branch the goods were bought for. The owner may buy for any branch
+  // they can see; everyone else buys for their own. Follows the viewed branch
+  // each time the form opens.
+  const [purchaseBranchId, setPurchaseBranchId] = useState<string>(viewedBranchId);
   const [purchaseInvoiceDate, setPurchaseInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  // Whose cash or bank paid, when it was not this branch's own ('' = this branch),
+  // and when a purchase on credit is to be paid ('' = no date).
+  const [purchasePaidBy, setPurchasePaidBy] = useState('');
+  const [purchaseDueDate, setPurchaseDueDate] = useState('');
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccount[]>([]);
+
+  // Finance sends the user here to record raw materials as a purchase.
+  const routeParams = useLocalSearchParams<{ tab?: string }>();
+  useEffect(() => {
+    if (routeParams.tab === 'record_purchase') setActiveTab('record_purchase');
+  }, [routeParams.tab]);
+
+  useEffect(() => {
+    if (activeTab === 'record_purchase') setPurchaseBranchId(viewedBranchId);
+  }, [activeTab, viewedBranchId]);
+
+  // The finance accounts, for "Paid by" on a purchase. Loaded when the form first opens.
+  useEffect(() => {
+    if (activeTab !== 'record_purchase' || financeAccounts.length > 0) return;
+    let cancelled = false;
+    void fetchFinanceAccounts().then(({ data }) => {
+      if (!cancelled && data) setFinanceAccounts(data.filter((a) => a.is_active));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, financeAccounts.length]);
+
+  // The buying branch's own account first (the everyday case), then every
+  // other account that may have paid for it. Empty until the accounts have loaded.
+  const purchasePayerOptions = useMemo(() => {
+    const own = financeAccounts.find((a) => a.kind === 'branch' && a.branch_id === purchaseBranchId);
+    if (!own) return [];
+    return [
+      { id: '', label: `${own.name} (this branch)` },
+      ...financeAccounts.filter((a) => a.id !== own.id).map((a) => ({ id: a.id, label: a.kind === 'partner' ? `${a.name} (partner)` : a.name })),
+    ];
+  }, [financeAccounts, purchaseBranchId]);
 
   // Redesigned Purchase Modal Dropdown state controls
   const [isSupDropdownOpen, setIsSupDropdownOpen] = useState(false);
   const [isPayDropdownOpen, setIsPayDropdownOpen] = useState(false);
-  const [isLocDropdownOpen, setIsLocDropdownOpen] = useState(false);
   const [openLineMatDropdownIdx, setOpenLineMatDropdownIdx] = useState<number | null>(null);
   const [openLineUnitDropdownIdx, setOpenLineUnitDropdownIdx] = useState<number | null>(null);
   const [openLineGstDropdownIdx, setOpenLineGstDropdownIdx] = useState<number | null>(null);
@@ -532,15 +585,13 @@ export default function InventoryScreen() {
   const [wastageMaterialId, setWastageMaterialId] = useState('');
   const [wastageQty, setWastageQty] = useState('');
   const [wastageReason, setWastageReason] = useState<'Expired' | 'Spoiled' | 'Kitchen Waste' | 'Damage' | 'Theft' | 'Other'>('Spoiled');
-  const [wastageLocation, setWastageLocation] = useState('Dry Storage');
-  const [wastageRecorder, setWastageRecorder] = useState('Chef Amit');
+  const [wastageRecorder, setWastageRecorder] = useState('');
 
   // New Adjustment states
   const [adjMaterialId, setAdjMaterialId] = useState('');
   const [adjQty, setAdjQty] = useState('');
   const [adjType, setAdjType] = useState<'Add' | 'Deduct'>('Add');
   const [adjReason, setAdjReason] = useState('Physical Stock Audit');
-  const [adjLocation, setAdjLocation] = useState('Dry Storage');
   const [adjRemarks, setAdjRemarks] = useState('');
 
   // Material Form states
@@ -719,31 +770,26 @@ export default function InventoryScreen() {
         (m.barcode && m.barcode.includes(searchQuery));
       const matchCat = selectedCategoryFilter === 'all' || m.category_id === selectedCategoryFilter;
       
-      // Status Filter
-      const isOut = m.current_stock === 0;
+      // Status Filter. Stock at or below zero is out of stock.
+      const isOut = m.current_stock <= 0;
       const isLow = m.current_stock > 0 && m.current_stock <= m.reorder_level;
-      const isHealthy = m.current_stock > m.reorder_level;
-      const isExpiringSoon = m.current_stock > 0 && m.current_stock <= m.reorder_level * 0.6;
-      
+      const isHealthy = m.current_stock > 0 && m.current_stock > m.reorder_level;
+
       let matchStatus = true;
       if (statusFilter === 'healthy') matchStatus = isHealthy;
       else if (statusFilter === 'low') matchStatus = isLow;
       else if (statusFilter === 'out') matchStatus = isOut;
-      else if (statusFilter === 'expiring') matchStatus = isExpiringSoon;
 
-      // Location Filter
-      const itemLocation = m.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage';
-      const matchLocation = locationFilter === 'all' || itemLocation === locationFilter;
-
-      // My Items Filter (mocked using preferred supplier ID or code check)
-      const matchMyItems = !showOnlyMyItems || (m.preferred_supplier_id === 'sup-00000000-0000-0000-0000-000000000001');
-
-      return matchSearch && matchCat && matchStatus && matchLocation && matchMyItems;
+      return matchSearch && matchCat && matchStatus;
     });
-  }, [materials, searchQuery, selectedCategoryFilter, statusFilter, locationFilter, showOnlyMyItems]);
+  }, [materials, searchQuery, selectedCategoryFilter, statusFilter]);
 
+  // Everything at or below its reorder level, the empty shelf included: that
+  // is the list to buy from.
   const lowStockMaterials = useMemo(() => {
-    return materials.filter((m) => m.current_stock <= m.reorder_level && m.current_stock > 0);
+    return materials
+      .filter((m) => m.current_stock <= m.reorder_level)
+      .sort((a, b) => a.current_stock - a.reorder_level - (b.current_stock - b.reorder_level));
   }, [materials]);
 
   const handleDownloadTemplate = async () => {
@@ -777,10 +823,10 @@ export default function InventoryScreen() {
       if (Platform.OS === 'web') {
         XLSX.writeFile(wb, 'grovit_raw_materials_template.xlsx');
       } else {
-        Alert.alert('Info', 'Excel template download is supported on the web version.');
+        notify('Info', 'Excel template download is supported on the web version.');
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to generate template: ' + (getErrorMessage(err) || err));
+      notify('Error', 'Failed to generate template: ' + (getErrorMessage(err) || err));
     }
   };
 
@@ -804,7 +850,7 @@ export default function InventoryScreen() {
       if (Platform.OS === 'web') {
         const file = asset.file;
         if (!file) {
-          Alert.alert('Error', 'Unable to access the selected file.');
+          notify('Error', 'Unable to access the selected file.');
           return;
         }
 
@@ -813,7 +859,7 @@ export default function InventoryScreen() {
           try {
             const data = e.target?.result;
             if (!data) {
-              Alert.alert('Error', 'File content is empty.');
+              notify('Error', 'File content is empty.');
               return;
             }
 
@@ -824,7 +870,7 @@ export default function InventoryScreen() {
             const json = XLSX.utils.sheet_to_json<ImportRow>(worksheet);
 
             if (json.length === 0) {
-              Alert.alert('Error', 'The uploaded Excel file contains no data rows.');
+              notify('Error', 'The uploaded Excel file contains no data rows.');
               return;
             }
 
@@ -832,15 +878,15 @@ export default function InventoryScreen() {
             setImportSummary(summary);
             setIsImportModalOpen(true);
           } catch (err) {
-            Alert.alert('Error', 'Failed to parse Excel file: ' + (getErrorMessage(err) || err));
+            notify('Error', 'Failed to parse Excel file: ' + (getErrorMessage(err) || err));
           }
         };
         reader.readAsArrayBuffer(file);
       } else {
-        Alert.alert('Info', 'Excel import is currently supported on the web version.');
+        notify('Info', 'Excel import is currently supported on the web version.');
       }
     } catch (err) {
-      Alert.alert('Error', 'File picker error: ' + (getErrorMessage(err) || err));
+      notify('Error', 'File picker error: ' + (getErrorMessage(err) || err));
     }
   };
 
@@ -854,19 +900,19 @@ export default function InventoryScreen() {
       console.log('[Import] Execution result:', result);
 
       if (result.error) {
-        Alert.alert('Import Failed', String(result.error));
+        notify('Import Failed', String(result.error));
       } else if (result.data) {
-        Alert.alert('Import Success', `Successfully imported ${result.data.count} raw materials.`);
+        notify('Import Success', `Successfully imported ${result.data.count} raw materials.`);
         setIsImportModalOpen(false);
         setImportSummary(null);
         invalidateEntities(['materials', 'kpis']);
         await loadAllData(false, viewedBranchId);
       } else {
-        Alert.alert('Import Error', 'Import process finished without data or error.');
+        notify('Import Error', 'Import process finished without data or error.');
       }
     } catch (err) {
       console.error('[Import] Execution threw error:', err);
-      Alert.alert('Error', 'An unexpected error occurred: ' + (getErrorMessage(err) || err));
+      notify('Error', 'An unexpected error occurred: ' + (getErrorMessage(err) || err));
     } finally {
       setIsImporting(false);
     }
@@ -991,18 +1037,42 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteMaterialItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteMaterial(id);
-      invalidateEntities(['materials', 'kpis']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  // Removing a catalogue record: ask first, and say so when it did not happen.
+  const removeCatalogueRecord = useCallback(
+    (
+      what: string,
+      name: string,
+      remove: () => Promise<{ error: string | null }>,
+      entities: string[]
+    ) => {
+      confirmAction(
+        `Remove ${what}`,
+        `Remove "${name}"? Records that already use it keep their history.`,
+        'Remove',
+        () => {
+          void (async () => {
+            setIsLoading(true);
+            try {
+              const res = await remove();
+              if (res.error) {
+                notify(`Could not remove the ${what}`, res.error);
+                return;
+              }
+              invalidateEntities(entities);
+              await loadAllData(true);
+            } finally {
+              setIsLoading(false);
+            }
+          })();
+        }
+      );
+    },
+    [invalidateEntities, loadAllData]
+  );
+
+  const handleDeleteMaterialItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('material', name, () => deleteMaterial(id), ['materials', 'kpis']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenSupplierModal = useCallback((supplier?: InventorySupplier) => {
     setModalError(null);
@@ -1082,18 +1152,9 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteSupplierItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteSupplier(id);
-      invalidateEntities(['suppliers']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  const handleDeleteSupplierItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('supplier', name, () => deleteSupplier(id), ['suppliers']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenCategoryModal = useCallback((category?: InventoryCategory) => {
     setModalError(null);
@@ -1149,18 +1210,9 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteCategoryItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteCategory(id);
-      invalidateEntities(['categories']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  const handleDeleteCategoryItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('category', name, () => deleteCategory(id), ['categories']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenUnitModal = useCallback((unit?: InventoryUnit) => {
     setModalError(null);
@@ -1221,18 +1273,9 @@ export default function InventoryScreen() {
     loadAllData,
   ]);
 
-  const handleDeleteUnitItem = useCallback(async (id: string) => {
-    setIsLoading(true);
-    try {
-      await deleteUnit(id);
-      invalidateEntities(['units']);
-      await loadAllData(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [invalidateEntities, loadAllData]);
+  const handleDeleteUnitItem = useCallback((id: string, name: string) => {
+    removeCatalogueRecord('unit', name, () => deleteUnit(id), ['units']);
+  }, [removeCatalogueRecord]);
 
   const handleOpenPurchaseModal = () => {
     setModalError(null);
@@ -1245,7 +1288,6 @@ export default function InventoryScreen() {
     setActiveTab('record_purchase');
     setIsSupDropdownOpen(false);
     setIsPayDropdownOpen(false);
-    setIsLocDropdownOpen(false);
     setOpenLineMatDropdownIdx(null);
     setOpenLineUnitDropdownIdx(null);
     setOpenLineGstDropdownIdx(null);
@@ -1257,6 +1299,7 @@ export default function InventoryScreen() {
     setModalError(null);
     setWastageMaterialId('');
     setWastageQty('');
+    setWastageRecorder(getActorName());
     setIsWastageModalOpen(true);
   };
 
@@ -1331,12 +1374,12 @@ export default function InventoryScreen() {
 
   const handleSaveTransferRequest = useCallback(async () => {
     if (!newReqFromBranchId) {
-      Alert.alert('Error', 'Please select supplying branch.');
+      notify('Error', 'Please select supplying branch.');
       return;
     }
     const validItems = newReqItems.filter(itm => itm.material_id && Number(itm.requested_quantity) > 0);
     if (validItems.length === 0) {
-      Alert.alert('Error', 'Please add at least one material with quantity > 0.');
+      notify('Error', 'Please add at least one material with quantity > 0.');
       return;
     }
 
@@ -1357,11 +1400,11 @@ export default function InventoryScreen() {
       if (res.error) throw new Error(res.error);
       setIsNewRequestModalOpen(false);
       setIsCreatingRequest(false);
-      Alert.alert('Success', 'Transfer request created successfully.');
+      notify('Success', 'Transfer request created successfully.');
       invalidateEntities(['transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to create request.');
+      notify('Error', getErrorMessage(err) || 'Failed to create request.');
     } finally {
       setIsLoading(false);
     }
@@ -1390,7 +1433,7 @@ export default function InventoryScreen() {
       setDispatchQuantities(initialDispatch);
       setIsApprovalModalOpen(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to load request items.');
+      notify('Error', getErrorMessage(err) || 'Failed to load request items.');
     } finally {
       setIsLoading(false);
     }
@@ -1405,14 +1448,14 @@ export default function InventoryScreen() {
 
     setIsLoading(true);
     try {
-      const res = await approveTransferRequest(selectedRequest.id, itemsPayload, 'Central Kitchen Staff');
+      const res = await approveTransferRequest(selectedRequest.id, itemsPayload, getActorName());
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
-      Alert.alert('Success', 'Transfer request approved.');
+      notify('Success', 'Transfer request approved.');
       invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to approve request.');
+      notify('Error', getErrorMessage(err) || 'Failed to approve request.');
     } finally {
       setIsLoading(false);
     }
@@ -1422,44 +1465,39 @@ export default function InventoryScreen() {
     if (!selectedRequest) return;
     setIsLoading(true);
     try {
-      const res = await rejectTransferRequest(selectedRequest.id, 'Central Kitchen Staff', approveRemarks);
+      const res = await rejectTransferRequest(selectedRequest.id, getActorName(), approveRemarks);
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
-      Alert.alert('Success', 'Transfer request rejected.');
+      notify('Success', 'Transfer request rejected.');
       invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to reject request.');
+      notify('Error', getErrorMessage(err) || 'Failed to reject request.');
     } finally {
       setIsLoading(false);
     }
   }, [selectedRequest, approveRemarks, invalidateEntities, loadAllData]);
 
   const handleProcessCancelRequest = useCallback(async (requestId: string) => {
-    Alert.alert(
+    confirmAction(
       'Cancel Request',
       'Are you sure you want to cancel this transfer request? Any stock reservations will be released.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              const res = await cancelTransferRequest(requestId, 'Branch Staff', 'Cancelled by requesting branch.');
-              if (res.error) throw new Error(res.error);
-              Alert.alert('Success', 'Transfer request cancelled successfully.');
-              invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
-              await loadAllData(true);
-            } catch (err) {
-              Alert.alert('Error', getErrorMessage(err) || 'Failed to cancel request.');
-            } finally {
-              setIsLoading(false);
-            }
+      'Yes, Cancel',
+      () => {
+        void (async () => {
+          setIsLoading(true);
+          try {
+            const res = await cancelTransferRequest(requestId, getActorName(), 'Cancelled by requesting branch.');
+            if (res.error) throw new Error(res.error);
+            invalidateEntities(['transferRequests', 'dispatchesList', 'materials', 'kpis']);
+            await loadAllData(true);
+          } catch (err) {
+            notify('Error', getErrorMessage(err) || 'Failed to cancel request.');
+          } finally {
+            setIsLoading(false);
           }
-        }
-      ]
+        })();
+      }
     );
   }, [invalidateEntities, loadAllData]);
 
@@ -1471,20 +1509,20 @@ export default function InventoryScreen() {
     })).filter(itm => itm.dispatched_quantity > 0);
 
     if (itemsPayload.length === 0) {
-      Alert.alert('Error', 'Please dispatch at least one item with quantity > 0.');
+      notify('Error', 'Please dispatch at least one item with quantity > 0.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await createDispatch(selectedRequest.id, itemsPayload, approveRemarks, 'Central Kitchen Staff');
+      const res = await createDispatch(selectedRequest.id, itemsPayload, approveRemarks, getActorName());
       if (res.error) throw new Error(res.error);
       setIsApprovalModalOpen(false);
-      Alert.alert('Success', 'Stock dispatch shipment created.');
+      notify('Success', 'Stock dispatch shipment created.');
       invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to dispatch shipment.');
+      notify('Error', getErrorMessage(err) || 'Failed to dispatch shipment.');
     } finally {
       setIsLoading(false);
     }
@@ -1508,7 +1546,7 @@ export default function InventoryScreen() {
       setReceivedQuantities(initialReceived);
       setIsReceiveModalOpen(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to load dispatch items.');
+      notify('Error', getErrorMessage(err) || 'Failed to load dispatch items.');
     } finally {
       setIsLoading(false);
     }
@@ -1525,14 +1563,14 @@ export default function InventoryScreen() {
 
     setIsLoading(true);
     try {
-      const res = await receiveDispatch(selectedDispatch.id, itemsPayload, receiveRemarks, 'Branch Staff');
+      const res = await receiveDispatch(selectedDispatch.id, itemsPayload, receiveRemarks, getActorName());
       if (res.error) throw new Error(res.error);
       setIsReceiveModalOpen(false);
-      Alert.alert('Success', 'Shipment receipt recorded and ledger updated.');
+      notify('Success', 'Shipment receipt recorded and ledger updated.');
       invalidateEntities(['dispatchesList', 'transferRequests', 'materials', 'kpis']);
       await loadAllData(true);
     } catch (err) {
-      Alert.alert('Error', getErrorMessage(err) || 'Failed to record shipment receipt.');
+      notify('Error', getErrorMessage(err) || 'Failed to record shipment receipt.');
     } finally {
       setIsLoading(false);
     }
@@ -1595,12 +1633,15 @@ export default function InventoryScreen() {
       const freight = Number(purchaseTransportCharges) || 0;
       const grand_total = subtotal + tax_amount + freight;
 
+      // "Pay later" leaves the supplier as a payable in Finance; every other
+      // mode records the purchase as an expense paid today.
+      const paidNow = purchasePaymentMode !== PAY_LATER_MODE;
       const headerPayload = {
-        purchase_date: new Date(purchaseInvoiceDate).toISOString(),
+        purchase_date: purchaseInvoiceDate,
         supplier_id: purchaseSupplierId,
         invoice_number: purchaseInvoiceNum || null,
-        invoice_date: new Date(purchaseInvoiceDate).toISOString(),
-        payment_mode: purchasePaymentMode,
+        invoice_date: purchaseInvoiceDate,
+        payment_mode: paidNow ? purchasePaymentMode : 'Credit',
         subtotal: subtotal,
         discount_amount: 0,
         tax_amount: tax_amount,
@@ -1609,7 +1650,7 @@ export default function InventoryScreen() {
         grand_total: grand_total,
         invoice_file_url: purchaseInvoiceNum ? `https://supabase.storage/invoice/${purchaseInvoiceNum}.pdf` : null,
         remarks: purchaseRemarks || null,
-        created_by: 'Owner Staff',
+        created_by: getActorName(),
       };
 
       const finalItems = purchaseItems
@@ -1626,9 +1667,20 @@ export default function InventoryScreen() {
           };
         });
 
-      const res = await createPurchase(headerPayload, finalItems, purchaseLocation);
+      if (!paidNow && purchaseDueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDueDate) || purchaseDueDate < purchaseInvoiceDate)) {
+        throw new Error('Enter the pay-by date as YYYY-MM-DD, on or after the invoice date.');
+      }
+      const res = await createPurchase(headerPayload, finalItems, DEFAULT_STOCK_LOCATION, paidNow, {
+        paidFromAccountId: purchasePaidBy || null,
+        dueDate: purchaseDueDate || null,
+        branchId: purchaseBranchId,
+      });
       if (res.error) throw new Error(res.error);
+      // Show the list the purchase went into.
+      if (purchaseBranchId !== viewedBranchId) setViewedBranchId(purchaseBranchId);
       setActiveTab('purchases');
+      setPurchasePaidBy('');
+      setPurchaseDueDate('');
       setPurchaseSupplierId('');
       setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
       setPurchaseRemarks('');
@@ -1665,8 +1717,8 @@ export default function InventoryScreen() {
         material_id: wastageMaterialId,
         quantity: Number(wastageQty),
         reason: wastageReason,
-        location_id: wastageLocation,
-        recorded_by: wastageRecorder,
+        location_id: DEFAULT_STOCK_LOCATION,
+        recorded_by: wastageRecorder.trim() || getActorName(),
       };
       const res = await createWastage(payload);
       if (res.error) throw new Error(res.error);
@@ -1708,9 +1760,9 @@ export default function InventoryScreen() {
         quantity: Number(adjQty),
         adjustment_type: adjType,
         reason: adjReason,
-        location_id: adjLocation,
+        location_id: DEFAULT_STOCK_LOCATION,
         remarks: adjRemarks || null,
-        created_by: 'Owner Staff',
+        created_by: getActorName(),
         adjustment_date: new Date().toISOString(),
       };
       const res = await createAdjustment(payload);
@@ -1761,7 +1813,36 @@ export default function InventoryScreen() {
   // ─── TAB RENDER VIEWS ──────────────────────────────────────────────────────
 
   const renderDashboard = () => {
-    const activeHealth = kpis ? Math.round(100 - (kpis.lowStockCount / (kpis.totalMaterials || 1)) * 100) : 82;
+    const rupees = (value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+    // Every figure below comes from the data: nothing is shown until it has loaded.
+    const wastageShare =
+      kpis && kpis.monthlyPurchasesThisMonth > 0 ? (kpis.wastageCostImpactThisMonth / kpis.monthlyPurchasesThisMonth) * 100 : null;
+
+    // Purchases still on credit: the supplier's payable is open in Finance.
+    const unpaidPurchases = purchases.filter((p) => p.finance_entry?.kind === 'payable' && p.finance_entry.status === 'open');
+    const unpaidPurchasesTotal = unpaidPurchases.reduce((sum, p) => sum + p.grand_total, 0);
+
+    const lastPurchaseTime = purchases.reduce((latest, p) => Math.max(latest, new Date(p.purchase_date).getTime() || 0), 0);
+    const daysSincePurchase = lastPurchaseTime > 0 ? Math.max(0, Math.floor((Date.now() - lastPurchaseTime) / 86_400_000)) : null;
+    const lastPurchaseCaption =
+      daysSincePurchase === null ? 'No purchases yet' : daysSincePurchase === 0 ? 'Last purchase: today' : `Last purchase: ${daysSincePurchase} ${daysSincePurchase === 1 ? 'day' : 'days'} ago`;
+
+    // Purchase value per month for the last five months, oldest first.
+    const procurementTrend = (() => {
+      const now = new Date();
+      const months = [4, 3, 2, 1, 0].map((back) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
+      const totals = new Map(months.map((m) => [m, 0]));
+      for (const p of purchases) {
+        const key = (p.purchase_date || '').slice(0, 7);
+        if (totals.has(key)) totals.set(key, (totals.get(key) ?? 0) + p.grand_total);
+      }
+      return months.map((m) => totals.get(m) ?? 0);
+    })();
+    const hasProcurementTrend = procurementTrend.filter((v) => v > 0).length >= 2;
 
     return (
       <View className="flex-col gap-6">
@@ -1772,28 +1853,34 @@ export default function InventoryScreen() {
                 <View className="w-8 h-8 rounded-lg bg-blue-50 items-center justify-center">
                   <Boxes size={16} color="#0066b2" />
                 </View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inventory Value</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Inventory Value</Text>
               </View>
               <Text className="text-2xl font-black text-slate-800 leading-none">
-                ₹{kpis ? kpis.inventoryValuation.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '21,285'}
+                {kpis ? rupees(kpis.inventoryValuation) : '—'}
               </Text>
-              <Text className="text-[9.5px] text-emerald-600 font-bold mt-2">↑ 12.4% vs last month</Text>
+              <Text className="text-xs text-slate-400 font-bold mt-2">
+                {kpis ? `${kpis.totalMaterials} ${kpis.totalMaterials === 1 ? 'material' : 'materials'} at average cost` : 'Loading…'}
+              </Text>
             </View>
-            <Sparkline data={[18000, 19500, 17200, 20500, 21285]} strokeColor="#0066b2" />
           </View>
 
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
             <View className="flex-1 pr-3">
               <View className="flex-row items-center gap-2 mb-2">
-                <View className="w-8 h-8 rounded-lg bg-emerald-50 items-center justify-center">
-                  <Heart size={16} color="#16a34a" />
+                <View className={`w-8 h-8 rounded-lg items-center justify-center ${lowStockMaterials.length > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                  {lowStockMaterials.length > 0 ? <AlertTriangle size={16} color="#d97706" /> : <Check size={16} color="#16a34a" />}
                 </View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inventory Health</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Needs Reordering</Text>
               </View>
-              <Text className="text-2xl font-black text-slate-800 leading-none">{activeHealth}% Good</Text>
-              <Text className="text-[9.5px] text-emerald-600 font-bold mt-2">Good</Text>
+              <Text className="text-2xl font-black text-slate-800 leading-none">{kpis ? lowStockMaterials.length : '—'}</Text>
+              <Text className={`text-xs font-bold mt-2 ${lowStockMaterials.length > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {!kpis
+                  ? 'Loading…'
+                  : lowStockMaterials.length === 0
+                    ? 'Nothing at or below its reorder level'
+                    : `${lowStockMaterials.filter((m) => m.current_stock <= 0).length} out of stock, the rest running low`}
+              </Text>
             </View>
-            <CircularProgress percentage={activeHealth} />
           </View>
 
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
@@ -1802,14 +1889,15 @@ export default function InventoryScreen() {
                 <View className="w-8 h-8 rounded-lg bg-amber-50 items-center justify-center">
                   <AlertTriangle size={16} color="#d97706" />
                 </View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Wastage</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Wastage</Text>
               </View>
               <Text className="text-2xl font-black text-slate-800 leading-none">
-                ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '1,440'}
+                {kpis ? rupees(kpis.wastageCostImpactThisMonth) : '—'}
               </Text>
-              <Text className="text-[9.5px] text-rose-500 font-bold mt-2">6.7% of purchases</Text>
+              <Text className="text-xs text-rose-500 font-bold mt-2">
+                {wastageShare === null ? 'This month' : `${wastageShare.toFixed(1)}% of this month's purchases`}
+              </Text>
             </View>
-            <Sparkline data={[1200, 1500, 950, 1600, 1440]} strokeColor="#f97316" fillColor="rgba(249, 115, 22, 0.1)" />
           </View>
 
           <View className="flex-1 min-w-[220px] bg-white border border-slate-200/80 rounded-3xl p-5 flex-row items-center justify-between shadow-sm">
@@ -1818,14 +1906,21 @@ export default function InventoryScreen() {
                 <View className="w-8 h-8 rounded-lg bg-purple-50 items-center justify-center">
                   <TrendingUp size={16} color="#8b5cf6" />
                 </View>
-                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Procurement</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Procurement</Text>
               </View>
               <Text className="text-2xl font-black text-slate-800 leading-none">
-                ₹{kpis ? kpis.monthlyPurchasesThisMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '22,950'}
+                {kpis ? rupees(kpis.monthlyPurchasesThisMonth) : '—'}
               </Text>
-              <Text className="text-[9.5px] text-slate-400 font-bold mt-2">Last purchase: 3 days ago</Text>
+              <Text className="text-xs text-slate-400 font-bold mt-2">{lastPurchaseCaption}</Text>
+              {unpaidPurchases.length > 0 ? (
+                <Text className="text-xs text-amber-600 font-bold mt-1">
+                  {unpaidPurchases.length} unpaid · {rupees(unpaidPurchasesTotal)} to pay
+                </Text>
+              ) : null}
             </View>
-            <Sparkline data={[19000, 25000, 18500, 24000, 22950]} strokeColor="#8b5cf6" fillColor="rgba(139, 92, 246, 0.1)" />
+            {hasProcurementTrend ? (
+              <Sparkline data={procurementTrend} strokeColor="#8b5cf6" fillColor="rgba(139, 92, 246, 0.1)" />
+            ) : null}
           </View>
         </View>
 
@@ -1837,7 +1932,7 @@ export default function InventoryScreen() {
               className="flex-row items-center px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/50 active:scale-95 transition-all"
             >
               <Plus size={14} color="#0066b2" className="mr-1.5" />
-              <Text className="text-xs font-bold text-[#0066b2]">+ Add Purchase</Text>
+              <Text className="text-xs font-bold text-[#0066b2]">Add Purchase</Text>
             </Pressable>
 
             <Pressable
@@ -1845,7 +1940,7 @@ export default function InventoryScreen() {
               className="flex-row items-center px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/50 active:scale-95 transition-all"
             >
               <Plus size={14} color="#16a34a" className="mr-1.5" />
-              <Text className="text-xs font-bold text-emerald-700">+ Add Stock</Text>
+              <Text className="text-xs font-bold text-emerald-700">Adjust Stock</Text>
             </Pressable>
 
             <Pressable
@@ -1863,14 +1958,6 @@ export default function InventoryScreen() {
               <User size={14} color="#7c3aed" className="mr-1.5" />
               <Text className="text-xs font-bold text-purple-700">Add Supplier</Text>
             </Pressable>
-
-            <Pressable
-              onPress={() => alert('Exported successfully!')}
-              className="flex-row items-center px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 active:scale-95 transition-all"
-            >
-              <FileText size={14} color="#475569" className="mr-1.5" />
-              <Text className="text-xs font-bold text-slate-700">Export Report</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -1880,7 +1967,7 @@ export default function InventoryScreen() {
               <View className="flex-row items-center gap-2">
                 <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Low Stock Items</Text>
                 <View className="bg-amber-100 rounded px-1.5 py-0.5">
-                  <Text className="text-[9px] font-extrabold text-amber-700">{lowStockMaterials.length}</Text>
+                  <Text className="text-xs font-extrabold text-amber-700">{lowStockMaterials.length}</Text>
                 </View>
               </View>
               <Pressable onPress={() => setActiveTab('materials')}>
@@ -1891,16 +1978,16 @@ export default function InventoryScreen() {
             {lowStockMaterials.length === 0 ? (
               <View className="py-8 items-center justify-center">
                 <Check size={32} color="#16a34a" className="mb-2" />
-                <Text className="text-xs font-bold text-slate-500">All materials healthy!</Text>
+                <Text className="text-xs font-bold text-slate-500">Nothing is low on stock</Text>
               </View>
             ) : (
               <View className="gap-2.5">
                 <View className="flex-row border-b border-slate-100 pb-1.5">
-                  <Text className="flex-1 text-[9.5px] font-black text-slate-400 uppercase">Item</Text>
-                  <Text className="w-16 text-right text-[9.5px] font-black text-slate-400 uppercase">Stock</Text>
-                  <Text className="w-16 text-right text-[9.5px] font-black text-slate-400 uppercase">Min</Text>
-                  <Text className="w-12 text-center text-[9.5px] font-black text-slate-400 uppercase">Unit</Text>
-                  <Text className="w-16 text-center text-[9.5px] font-black text-slate-400 uppercase">Action</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-400 uppercase">Item</Text>
+                  <Text className="w-16 text-right text-xs font-black text-slate-400 uppercase">Stock</Text>
+                  <Text className="w-16 text-right text-xs font-black text-slate-400 uppercase">Min</Text>
+                  <Text className="w-12 text-center text-xs font-black text-slate-400 uppercase">Unit</Text>
+                  <Text className="w-16 text-center text-xs font-black text-slate-400 uppercase">Action</Text>
                 </View>
 
                 {lowStockMaterials.slice(0, 3).map((item) => (
@@ -1913,7 +2000,7 @@ export default function InventoryScreen() {
                       onPress={handleOpenPurchaseModal}
                       className="w-16 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 items-center justify-center active:scale-95"
                     >
-                      <Text className="text-[9px] font-bold text-amber-700 uppercase">Reorder</Text>
+                      <Text className="text-xs font-bold text-amber-700 uppercase">Reorder</Text>
                     </Pressable>
                   </View>
                 ))}
@@ -1931,179 +2018,51 @@ export default function InventoryScreen() {
 
           <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Procurement Trend</Text>
+              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Most Purchased</Text>
               <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
-                <Text className="text-[10px] font-bold text-slate-500">This Month</Text>
+                <Text className="text-xs font-bold text-slate-500">By spend</Text>
               </View>
             </View>
-            <ProcurementLineChart />
-          </View>
-
-          <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Wastage Breakdown</Text>
-              <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1">
-                <Text className="text-[10px] font-bold text-slate-500">This Month</Text>
+            {!kpis || kpis.topPurchasedMaterials.length === 0 ? (
+              <View className="py-8 items-center justify-center">
+                <Text className="text-xs font-bold text-slate-500">No purchases recorded yet</Text>
               </View>
-            </View>
-
-            <View className="flex-row items-center justify-between pt-2">
-              <WastageDonutChart
-                totalLoss={kpis ? kpis.wastageCostImpactThisMonth : 1440}
-                spoilage={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.625) : 900}
-                expiry={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.243) : 350}
-                theft={kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.132) : 190}
-              />
-              <View className="flex-1 pl-6 gap-2">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2.5 h-2.5 rounded-full bg-red-600" />
-                    <Text className="text-[11px] font-bold text-slate-500">Spoilage</Text>
+            ) : (
+              <View className="gap-2.5">
+                <View className="flex-row border-b border-slate-100 pb-1.5">
+                  <Text className="flex-1 text-xs font-black text-slate-400 uppercase">Item</Text>
+                  <Text className="w-20 text-right text-xs font-black text-slate-400 uppercase">Quantity</Text>
+                  <Text className="w-24 text-right text-xs font-black text-slate-400 uppercase">Spend</Text>
+                </View>
+                {kpis.topPurchasedMaterials.map((row) => (
+                  <View key={row.material_id} className="flex-row items-center py-1">
+                    <Text className="flex-1 text-xs font-black text-slate-700">{row.material_name}</Text>
+                    <Text className="w-20 text-right text-xs font-bold text-slate-500">
+                      {row.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </Text>
+                    <Text className="w-24 text-right text-xs font-bold text-slate-800">{rupees(row.total_spend)}</Text>
                   </View>
-                  <Text className="text-[11px] font-black text-slate-700">
-                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.625) : 900} (62.5%)
-                  </Text>
-                </View>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-                    <Text className="text-[11px] font-bold text-slate-500">Expiry</Text>
-                  </View>
-                  <Text className="text-[11px] font-black text-slate-700">
-                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.243) : 350} (24.3%)
-                  </Text>
-                </View>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-1.5">
-                    <View className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                    <Text className="text-[11px] font-bold text-slate-500">Theft</Text>
-                  </View>
-                  <Text className="text-[11px] font-black text-slate-700">
-                    ₹{kpis ? Math.round(kpis.wastageCostImpactThisMonth * 0.132) : 190} (13.2%)
-                  </Text>
-                </View>
+                ))}
               </View>
-            </View>
-          </View>
-        </View>
-
-        <View className="flex-row flex-wrap justify-between gap-6 mb-6">
-          <View className="flex-1 min-w-[280px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Inventory Activity (Today)</Text>
-            <View className="flex-row justify-between">
-              <View className="items-center flex-1">
-                <View className="w-9 h-9 rounded-full bg-emerald-50 items-center justify-center mb-2">
-                  <ArrowUp size={16} color="#10b981" />
-                </View>
-                <Text className="text-[9.5px] font-bold text-slate-400 uppercase">Purchased</Text>
-                <Text className="text-sm font-black text-slate-800 mt-1">₹4,200</Text>
-                <Text className="text-[10px] text-slate-400">3 Bills</Text>
-              </View>
-              <View className="items-center flex-1 border-x border-slate-100">
-                <View className="w-9 h-9 rounded-full bg-blue-50 items-center justify-center mb-2">
-                  <ArrowDown size={16} color="#3b82f6" />
-                </View>
-                <Text className="text-[9.5px] font-bold text-slate-400 uppercase">Consumed</Text>
-                <Text className="text-sm font-black text-slate-800 mt-1">₹3,100</Text>
-                <Text className="text-[10px] text-slate-400">12 Items</Text>
-              </View>
-              <View className="items-center flex-1">
-                <View className="w-9 h-9 rounded-full bg-rose-50 items-center justify-center mb-2">
-                  <AlertTriangle size={16} color="#ef4444" />
-                </View>
-                <Text className="text-[9.5px] font-bold text-slate-400 uppercase">Wastage</Text>
-                <Text className="text-sm font-black text-slate-800 mt-1">₹250</Text>
-                <Text className="text-[10px] text-slate-400">2 Entries</Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-1 min-w-[280px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Recent Activity</Text>
-              <Pressable onPress={() => setActiveTab('alerts')}>
-                <Text className="text-xs font-bold text-blue-600">View all</Text>
-              </Pressable>
-            </View>
-            <View className="gap-3">
-              <View className="flex-row items-start gap-3">
-                <View className="w-7 h-7 rounded-full bg-emerald-50 items-center justify-center mt-0.5">
-                  <Truck size={13} color="#10b981" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-slate-700 leading-tight">Purchase received from Al Wadi Foods</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">20 kg Chicken, 10 L Oil, 5 kg Rice</Text>
-                </View>
-                <Text className="text-[9px] text-slate-400 font-bold">10:42 AM</Text>
-              </View>
-
-              <View className="flex-row items-start gap-3">
-                <View className="w-7 h-7 rounded-full bg-rose-50 items-center justify-center mt-0.5">
-                  <Trash2 size={13} color="#ef4444" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-slate-700 leading-tight">Wastage recorded</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">2 L Milk spoiled</Text>
-                </View>
-                <Text className="text-[9px] text-slate-400 font-bold">09:30 AM</Text>
-              </View>
-
-              <View className="flex-row items-start gap-3">
-                <View className="w-7 h-7 rounded-full bg-purple-50 items-center justify-center mt-0.5">
-                  <User size={13} color="#8b5cf6" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-slate-700 leading-tight">New supplier added</Text>
-                  <Text className="text-[10px] text-slate-400 mt-0.5">Fresh Valley Supplies</Text>
-                </View>
-                <Text className="text-[9px] text-slate-400 font-bold">Yesterday</Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-1 min-w-[280px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wider">Top Consumed Items</Text>
-              <View className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5">
-                <Text className="text-[10px] font-bold text-slate-500">This Month</Text>
-              </View>
-            </View>
-            <View className="gap-2.5">
-              <View className="flex-row border-b border-slate-100 pb-1">
-                <Text className="flex-1 text-[9.5px] font-black text-slate-400 uppercase">Item</Text>
-                <Text className="w-20 text-right text-[9.5px] font-black text-slate-400 uppercase">Consumed</Text>
-                <Text className="w-12 text-center text-[9.5px] font-black text-slate-400 uppercase">Unit</Text>
-              </View>
-              {[
-                { name: 'Chicken', qty: 120, unit: 'kg' },
-                { name: 'Vegetable Oil', qty: 60, unit: 'L' },
-                { name: 'Rice', qty: 45, unit: 'kg' },
-                { name: 'Flour', qty: 40, unit: 'kg' },
-                { name: 'Sugar', qty: 25, unit: 'kg' },
-              ].map((x, i) => (
-                <View key={i} className="flex-row items-center py-0.5">
-                  <Text className="flex-1 text-xs font-black text-slate-700">{x.name}</Text>
-                  <Text className="w-20 text-right text-xs font-bold text-slate-800">{x.qty}</Text>
-                  <Text className="w-12 text-center text-xs font-semibold text-slate-400">{x.unit}</Text>
-                </View>
-              ))}
-            </View>
+            )}
           </View>
         </View>
 
         {lowStockMaterials.length > 0 && (
           <Pressable
             onPress={() => setActiveTab('alerts')}
+            accessibilityRole="button"
+            accessibilityLabel="See everything that needs reordering"
             className="flex-row items-center justify-between bg-rose-50 border border-rose-100 rounded-2xl p-4 shadow-sm active:scale-[98.5%] transition-all"
           >
             <View className="flex-row items-center gap-3">
               <AlertTriangle size={18} color="#dc2626" />
               <Text className="text-xs font-black text-rose-700">
-                {lowStockMaterials.length} item{lowStockMaterials.length > 1 ? 's are' : ' is'} low on stock and require{lowStockMaterials.length > 1 ? '' : 's'} attention
+                {lowStockMaterials.length === 1 ? '1 material needs' : `${lowStockMaterials.length} materials need`} reordering
               </Text>
             </View>
             <View className="bg-rose-100 border border-rose-200 rounded-lg px-3 py-1.5">
-              <Text className="text-[10px] font-black text-rose-800 uppercase">View Alerts</Text>
+              <Text className="text-xs font-black text-rose-800 uppercase">See them</Text>
             </View>
           </Pressable>
         )}
@@ -2131,8 +2090,6 @@ export default function InventoryScreen() {
     const totalStockValue = materials.reduce((sum, m) => sum + (m.current_stock * m.average_cost), 0);
     const lowStockCount = materials.filter(m => m.current_stock <= m.reorder_level && m.current_stock > 0).length;
     const outOfStockCount = materials.filter(m => m.current_stock === 0).length;
-    const pendingPurchasesCount = 8;
-    const pendingPurchasesValuation = 48250;
 
     // ─── CLIENT-SIDE PAGINATION ─────────────────────────────────────────────
     const totalFiltered = filteredMaterials.length;
@@ -2149,7 +2106,7 @@ export default function InventoryScreen() {
         {/* ─── 3. ADVANCED FILTERS CONSOLE ───────────────────────────────────── */}
         <View 
           className="bg-white border border-slate-200 rounded-2xl p-4 gap-3 shadow-xs"
-          style={{ zIndex: (isCategoryDropdownOpen || isLocationDropdownOpen) ? 100 : 10, position: 'relative' }}
+          style={{ zIndex: isCategoryDropdownOpen ? 100 : 10, position: 'relative' }}
         >
           
           {/* Row 1: Status pills */}
@@ -2157,10 +2114,9 @@ export default function InventoryScreen() {
             <View className="flex-row gap-1.5 flex-wrap">
               {([
                 { key: 'all', label: 'All' },
-                { key: 'healthy', label: 'Healthy' },
+                { key: 'healthy', label: 'In stock' },
                 { key: 'low', label: 'Low Stock' },
                 { key: 'out', label: 'Out of Stock' },
-                { key: 'expiring', label: 'Expiring Soon' },
               ] as const).map((pill) => {
                 const isActive = statusFilter === pill.key;
                 return (
@@ -2176,16 +2132,12 @@ export default function InventoryScreen() {
                         : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    <Text className={`text-[11px] font-bold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                    <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-slate-600'}`}>
                       {pill.label}
                     </Text>
                   </Pressable>
                 );
               })}
-            </View>
-            <View className="flex-row items-center gap-1.5">
-              <View className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <Text className="text-[10px] text-amber-600 font-bold">Auto-Sync Active</Text>
             </View>
           </View>
 
@@ -2200,12 +2152,13 @@ export default function InventoryScreen() {
                 <Search size={14} color="#64748b" className="mr-1.5" />
                 <TextInput
                   placeholder="Search materials..."
+                  accessibilityLabel="Search materials"
                   value={searchQuery}
                   onChangeText={(t) => {
                     setSearchQuery(t);
                     setCurrentPage(1);
                   }}
-                  className="flex-1 text-[11px] text-slate-800 outline-none"
+                  className="flex-1 text-xs text-slate-800 outline-none"
                   style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
                 />
                 {searchQuery.length > 0 && (
@@ -2220,11 +2173,10 @@ export default function InventoryScreen() {
                 <Pressable
                   onPress={() => {
                     setIsCategoryDropdownOpen(!isCategoryDropdownOpen);
-                    setIsLocationDropdownOpen(false);
                   }}
                   className="flex-row items-center bg-white border border-slate-200 rounded-lg px-3 py-2 gap-1 active:scale-95 shadow-xs"
                 >
-                  <Text className="text-[11px] font-bold text-slate-600">
+                  <Text className="text-xs font-bold text-slate-600">
                     {selectedCategoryFilter === 'all'
                       ? 'All Categories'
                       : categories.find((c) => c.id === selectedCategoryFilter)?.category_name || 'Category'}
@@ -2241,7 +2193,7 @@ export default function InventoryScreen() {
                       }}
                       className={`px-3 py-1.5 rounded-lg ${selectedCategoryFilter === 'all' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
                     >
-                      <Text className={`text-[11px] font-bold ${selectedCategoryFilter === 'all' ? 'text-blue-600' : 'text-slate-700'}`}>All Categories</Text>
+                      <Text className={`text-xs font-bold ${selectedCategoryFilter === 'all' ? 'text-blue-600' : 'text-slate-700'}`}>All Categories</Text>
                     </Pressable>
                     {categories.map((c) => (
                       <Pressable
@@ -2253,65 +2205,12 @@ export default function InventoryScreen() {
                         }}
                         className={`px-3 py-1.5 rounded-lg ${selectedCategoryFilter === c.id ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
                       >
-                        <Text className={`text-[11px] font-bold ${selectedCategoryFilter === c.id ? 'text-blue-600' : 'text-slate-700'}`}>{c.category_name}</Text>
+                        <Text className={`text-xs font-bold ${selectedCategoryFilter === c.id ? 'text-blue-600' : 'text-slate-700'}`}>{c.category_name}</Text>
                       </Pressable>
                     ))}
                   </View>
                 )}
               </View>
-
-              {/* Location Dropdown */}
-              <View className="relative">
-                <Pressable
-                  onPress={() => {
-                    setIsLocationDropdownOpen(!isLocationDropdownOpen);
-                    setIsCategoryDropdownOpen(false);
-                  }}
-                  className="flex-row items-center bg-white border border-slate-200 rounded-lg px-3 py-2 gap-1 active:scale-95 shadow-xs"
-                >
-                  <Text className="text-[11px] font-bold text-slate-600">
-                    {locationFilter === 'all' ? 'All Locations' : locationFilter}
-                  </Text>
-                  <ChevronDown size={10} color="#64748b" />
-                </Pressable>
-                {isLocationDropdownOpen && (
-                  <View className="absolute top-10 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-40 p-1">
-                    {['all', 'Freezer', 'Dry Storage'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => {
-                          setLocationFilter(loc);
-                          setIsLocationDropdownOpen(false);
-                          setCurrentPage(1);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg ${locationFilter === loc ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'}`}
-                      >
-                        <Text className={`text-[11px] font-bold ${locationFilter === loc ? 'text-blue-600' : 'text-slate-700'}`}>
-                          {loc === 'all' ? 'All Locations' : loc}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              {/* Checkbox: Show only my items */}
-              <Pressable
-                onPress={() => {
-                  setShowOnlyMyItems(!showOnlyMyItems);
-                  setCurrentPage(1);
-                }}
-                className="flex-row items-center gap-1.5 px-1 py-1.5 active:opacity-85"
-              >
-                <View
-                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
-                    showOnlyMyItems ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
-                  }`}
-                >
-                  {showOnlyMyItems && <Check size={8} color="white" strokeWidth={3} />}
-                </View>
-                <Text className="text-[11px] font-semibold text-slate-500">Show only my items</Text>
-              </Pressable>
 
             </View>
 
@@ -2321,28 +2220,14 @@ export default function InventoryScreen() {
                 onPress={handleOpenPurchaseModal}
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
-                <Text className="text-[11px] font-bold text-slate-600">+ Purchase</Text>
+                <Text className="text-xs font-bold text-slate-600">+ Purchase</Text>
               </Pressable>
               
               <Pressable
-                onPress={handleOpenPurchaseModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
-              >
-                <Text className="text-[11px] font-bold text-slate-600">+ Receive</Text>
-              </Pressable>
-
-              <Pressable
                 onPress={handleOpenAdjustmentModal}
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
               >
-                <Text className="text-[11px] font-bold text-slate-600">Transfer</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleOpenAdjustmentModal}
-                className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs"
-              >
-                <Text className="text-[11px] font-bold text-slate-600">Adjust</Text>
+                <Text className="text-xs font-bold text-slate-600">Adjust</Text>
               </Pressable>
 
               <Pressable
@@ -2350,7 +2235,7 @@ export default function InventoryScreen() {
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs flex-row items-center gap-1"
               >
                 <Download size={12} color="#475569" />
-                <Text className="text-[11px] font-bold text-slate-600">Download Template</Text>
+                <Text className="text-xs font-bold text-slate-600">Download Template</Text>
               </Pressable>
 
               <Pressable
@@ -2358,7 +2243,7 @@ export default function InventoryScreen() {
                 className="bg-white border border-slate-200 hover:bg-slate-50 rounded-lg px-2.5 py-2 active:scale-95 shadow-xs flex-row items-center gap-1"
               >
                 <Upload size={12} color="#475569" />
-                <Text className="text-[11px] font-bold text-slate-600">Import Excel</Text>
+                <Text className="text-xs font-bold text-slate-600">Import Excel</Text>
               </Pressable>
 
               <Pressable
@@ -2366,7 +2251,7 @@ export default function InventoryScreen() {
                 className="bg-blue-600 hover:bg-blue-700 flex-row items-center gap-1 px-3 py-2 rounded-lg active:scale-95 shadow-xs"
               >
                 <Plus size={12} color="white" />
-                <Text className="text-[11px] font-bold text-white">Add Raw Material</Text>
+                <Text className="text-xs font-bold text-white">Add Raw Material</Text>
               </Pressable>
             </View>
 
@@ -2379,7 +2264,7 @@ export default function InventoryScreen() {
             <View className="flex-row justify-between items-center mb-1.5 flex-wrap gap-2">
               <View className="flex-row items-center gap-1.5">
                 <AlertTriangle size={14} color="#d97706" />
-                <Text className="text-[11px] font-black text-amber-800">
+                <Text className="text-xs font-black text-amber-800">
                   Low Stock Alerts ({lowStockMaterials.length})
                 </Text>
               </View>
@@ -2387,7 +2272,7 @@ export default function InventoryScreen() {
                 onPress={() => { setStatusFilter('low'); setCurrentPage(1); }}
                 className="active:opacity-80"
               >
-                <Text className="text-[11px] font-bold text-amber-700">View all low stock →</Text>
+                <Text className="text-xs font-bold text-amber-700">View all low stock →</Text>
               </Pressable>
             </View>
             
@@ -2400,10 +2285,10 @@ export default function InventoryScreen() {
                     className="bg-white border border-amber-200/80 hover:border-amber-300 rounded-full px-2.5 py-0.5 flex-row items-center gap-1 active:scale-95 shadow-xs"
                   >
                     <View className="w-1 h-1 rounded-full bg-amber-500" />
-                    <Text className="text-[10px] font-semibold text-slate-600">
+                    <Text className="text-xs font-semibold text-slate-600">
                       {lm.material_name}
                     </Text>
-                    <Text className="text-[9.5px] font-black text-amber-600">
+                    <Text className="text-xs font-black text-amber-600">
                       {lm.current_stock} {lm.unit_short_name || 'KG'} left
                     </Text>
                   </Pressable>
@@ -2425,34 +2310,31 @@ export default function InventoryScreen() {
             {/* Table Header */}
             <View className="flex-row border-b border-slate-100 pb-2.5 mb-0.5 px-2">
               <View style={{ width: '22%' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Item Name</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Item Name</Text>
               </View>
               <View style={{ width: '10%' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Category</Text>
-              </View>
-              <View style={{ width: '10%' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Location</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Category</Text>
               </View>
               <View style={{ width: '15%' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Current Stock</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Current Stock</Text>
               </View>
               <View style={{ width: '8%', alignItems: 'center' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Min. Level</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Min. Level</Text>
               </View>
               <View style={{ width: '6%', alignItems: 'center' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Unit</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Unit</Text>
               </View>
               <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Avg. Cost</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Avg. Cost</Text>
               </View>
               <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Stock Value</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Stock Value</Text>
               </View>
               <View style={{ width: '11%', alignItems: 'center' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Status</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Status</Text>
               </View>
               <View style={{ width: '8%', alignItems: 'center' }}>
-                <Text className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Actions</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Actions</Text>
               </View>
             </View>
 
@@ -2460,12 +2342,20 @@ export default function InventoryScreen() {
             {paginated.length === 0 ? (
               <View className="py-16 items-center justify-center flex-1">
                 <Boxes size={36} color="#94a3b8" className="mb-3" />
-                <Text className="text-sm font-bold text-slate-500">No materials matched your filters</Text>
-                <Text className="text-[10px] text-slate-400 mt-0.5">Try resetting search filters or register a new raw ingredient.</Text>
+                <Text className="text-sm font-bold text-slate-500">
+                  {materials.length === 0 ? 'No raw materials yet' : 'No materials matched your filters'}
+                </Text>
+                <Text className="text-xs text-slate-400 mt-0.5">
+                  {materials.length === 0
+                    ? 'Add the first one with "Add Raw Material", or import a spreadsheet.'
+                    : 'Clear the search or the filters to see the rest.'}
+                </Text>
               </View>
             ) : (
               paginated.map((item) => {
-                const isOut = item.current_stock === 0;
+                // Sales can take stock below zero when nothing was recorded as
+                // bought; the shelf is empty either way.
+                const isOut = item.current_stock <= 0;
                 const isLow = item.current_stock > 0 && item.current_stock <= item.reorder_level;
 
                 let badgeColor = 'bg-emerald-50 border-emerald-200 text-emerald-700';
@@ -2478,8 +2368,7 @@ export default function InventoryScreen() {
                   badgeText = 'Low Stock';
                 }
 
-                const itemLocation = item.category_name === 'Raw Meats' ? 'Freezer' : 'Dry Storage';
-                const valuation = item.current_stock * item.average_cost;
+                const valuation = Math.max(0, item.current_stock) * item.average_cost;
 
                 return (
                   <View 
@@ -2488,26 +2377,21 @@ export default function InventoryScreen() {
                   >
                     
                     {/* Item Name (Title + Code) */}
-                    <View style={{ width: '22%' }} className="justify-center pr-3">
-                      <Text className="text-[11.5px] font-black text-slate-800 leading-tight truncate">{item.material_name}</Text>
-                      <Text className="text-[8.5px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                    <View style={{ width: '32%' }} className="justify-center pr-3">
+                      <Text className="text-xs font-black text-slate-800 leading-tight truncate">{item.material_name}</Text>
+                      <Text className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                         {item.material_code}
                       </Text>
                     </View>
 
                     {/* Category */}
                     <View style={{ width: '10%' }}>
-                      <Text className="text-[11px] font-semibold text-slate-600">{item.category_name || 'N/A'}</Text>
-                    </View>
-
-                    {/* Location */}
-                    <View style={{ width: '10%' }}>
-                      <Text className="text-[11px] font-semibold text-slate-600">{itemLocation}</Text>
+                      <Text className="text-xs font-semibold text-slate-600">{item.category_name || 'N/A'}</Text>
                     </View>
 
                     {/* Current Stock (Val + Level Indicator Bar) */}
                     <View style={{ width: '15%' }} className="flex-col">
-                      <Text className={`text-[11px] font-extrabold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-800'}`}>
+                      <Text className={`text-xs font-extrabold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-800'}`}>
                         {item.current_stock} {item.unit_short_name}
                       </Text>
                       
@@ -2518,29 +2402,29 @@ export default function InventoryScreen() {
                           style={{ width: `${Math.min(Math.max((item.current_stock / (item.reorder_level || 1)) * 100, 0), 100)}%` }} 
                         />
                       </View>
-                      <Text className="text-[8.5px] text-slate-400 mt-0.5 font-medium">
+                      <Text className="text-[11px] text-slate-400 mt-0.5 font-medium">
                         {item.current_stock} / {item.reorder_level} {item.unit_short_name}
                       </Text>
                     </View>
 
                     {/* Min Level */}
                     <View style={{ width: '8%', alignItems: 'center' }}>
-                      <Text className="text-[11px] font-bold text-slate-700">{item.reorder_level}</Text>
+                      <Text className="text-xs font-bold text-slate-700">{item.reorder_level}</Text>
                     </View>
 
                     {/* Unit */}
                     <View style={{ width: '6%', alignItems: 'center' }}>
-                      <Text className="text-[11px] font-black text-slate-400 uppercase">{item.unit_short_name || 'UoM'}</Text>
+                      <Text className="text-xs font-black text-slate-400 uppercase">{item.unit_short_name || 'UoM'}</Text>
                     </View>
 
                     {/* Avg Cost */}
                     <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                      <Text className="text-[11px] font-bold text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
+                      <Text className="text-xs font-bold text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
                     </View>
 
                     {/* Stock Value */}
                     <View style={{ width: '10%', alignItems: 'flex-end' }}>
-                      <Text className="text-[11px] font-black text-slate-800">
+                      <Text className="text-xs font-black text-slate-800">
                         ₹{valuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
@@ -2548,7 +2432,7 @@ export default function InventoryScreen() {
                     {/* Status Badge */}
                     <View style={{ width: '11%', alignItems: 'center' }}>
                       <View className={`border rounded-full px-1.5 py-0.5 ${badgeColor} shadow-xs`}>
-                        <Text className="text-[8.5px] font-extrabold uppercase tracking-wider">{badgeText}</Text>
+                        <Text className="text-[11px] font-extrabold uppercase tracking-wider">{badgeText}</Text>
                       </View>
                     </View>
 
@@ -2556,21 +2440,27 @@ export default function InventoryScreen() {
                     <View style={{ width: '8%' }} className="flex-row items-center justify-center gap-1">
                       <Pressable
                         onPress={() => handleOpenMaterialModal(item)}
-                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit ${item.material_name}`}
+                        className="w-10 h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
-                        <Eye size={10} color="#64748b" />
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleOpenMaterialModal(item)}
-                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
-                      >
-                        <FileText size={10} color="#64748b" />
+                        <FileText size={16} color="#64748b" />
                       </Pressable>
                       <Pressable
                         onPress={handleOpenPurchaseModal}
-                        className="w-6 h-6 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                        accessibilityRole="button"
+                        accessibilityLabel="Record a purchase"
+                        className="w-10 h-10 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
                       >
-                        <ShoppingCart size={10} color="#64748b" />
+                        <ShoppingCart size={16} color="#64748b" />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => handleDeleteMaterialItem(item.id, item.material_name)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${item.material_name}`}
+                        className="w-10 h-10 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg items-center justify-center active:scale-95 shadow-xs"
+                      >
+                        <Trash2 size={16} color="#e11d48" />
                       </Pressable>
                     </View>
 
@@ -2584,7 +2474,7 @@ export default function InventoryScreen() {
 
         {/* ─── 6. PAGINATION FOOTER ──────────────────────────────────────────── */}
         <View className="flex-row justify-between items-center px-3 py-1 flex-wrap gap-3">
-          <Text className="text-[11px] font-bold text-slate-400">
+          <Text className="text-xs font-bold text-slate-400">
             Showing {totalFiltered > 0 ? (currentPage - 1) * pageSize + 1 : 0} to {Math.min(currentPage * pageSize, totalFiltered)} of {totalFiltered} items
           </Text>
 
@@ -2592,7 +2482,7 @@ export default function InventoryScreen() {
             
             {/* Rows per page selector */}
             <View className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-xs">
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rows per page</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Rows per page</Text>
               <Pressable
                 onPress={() => {
                   const nextSize = pageSize === 10 ? 25 : pageSize === 25 ? 50 : 10;
@@ -2601,7 +2491,7 @@ export default function InventoryScreen() {
                 }}
                 className="flex-row items-center gap-1 active:opacity-75"
               >
-                <Text className="text-[11.5px] font-black text-slate-700">{pageSize}</Text>
+                <Text className="text-xs font-black text-slate-700">{pageSize}</Text>
                 <ChevronDown size={8} color="#64748b" />
               </Pressable>
             </View>
@@ -2616,7 +2506,7 @@ export default function InventoryScreen() {
                     currentPage === 1 ? 'border-slate-100 bg-slate-50/50 opacity-40' : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
-                  <Text className="text-[11px] font-black text-slate-500">‹</Text>
+                  <Text className="text-xs font-black text-slate-500">‹</Text>
                 </Pressable>
                 
                 {Array.from({ length: totalPages }).map((_, idx) => {
@@ -2632,7 +2522,7 @@ export default function InventoryScreen() {
                           : 'border-slate-200 bg-white hover:bg-slate-50'
                       }`}
                     >
-                      <Text className={`text-[11.5px] font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                      <Text className={`text-xs font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
                         {pageNum}
                       </Text>
                     </Pressable>
@@ -2646,7 +2536,7 @@ export default function InventoryScreen() {
                     currentPage === totalPages ? 'border-slate-100 bg-slate-50/50 opacity-40' : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
-                  <Text className="text-[11px] font-black text-slate-500">›</Text>
+                  <Text className="text-xs font-black text-slate-500">›</Text>
                 </Pressable>
               </View>
             )}
@@ -2699,10 +2589,17 @@ export default function InventoryScreen() {
   };
 
   const renderPurchases = () => {
-    // ── derive a display-status from status field ──────────────────────────
-    // Only 'Completed' = Paid. Draft invoices are Pending (< 30d) or Overdue (≥ 30d).
+    // ── derive a display-status from the finance entry ─────────────────────
+    // Paid = the ledger holds an expense, or a payable that has been settled.
+    // An open payable is Pending (< 30d) or Overdue (≥ 30d). Purchases from
+    // before the ledger link fall back to the old status field.
     const getPayStatus = (p: InventoryPurchaseHeader): 'Paid' | 'Pending' | 'Overdue' => {
-      if (p.status === 'Completed') return 'Paid';
+      const entry = p.finance_entry;
+      if (entry) {
+        if (entry.kind === 'expense' || entry.status === 'settled') return 'Paid';
+      } else if (p.status === 'Completed') {
+        return 'Paid';
+      }
       const invoiceDate = new Date(p.purchase_date);
       const diffDays = (Date.now() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24);
       return diffDays >= 30 ? 'Overdue' : 'Pending';
@@ -2736,8 +2633,8 @@ export default function InventoryScreen() {
         {/* ── PAGE HEADER ─────────────────────────────────────────────── */}
         <View className="flex-row justify-between items-start flex-wrap gap-4">
           <View className="flex-1 min-w-[200px]">
-            <Text className="text-sm font-black text-slate-800">Purchase Invoices & Procurement Records</Text>
-            <Text className="text-xs text-slate-500 mt-0.5">Record freight invoices, payment histories, and stock updates.</Text>
+            <Text className="text-sm font-black text-slate-800">Purchases</Text>
+            <Text className="text-xs text-slate-500 mt-0.5">Every supplier bill, with its payment status.</Text>
           </View>
           <Pressable
             onPress={handleOpenPurchaseModal}
@@ -2745,7 +2642,7 @@ export default function InventoryScreen() {
             style={{ gap: 6 }}
           >
             <Plus size={14} color="white" />
-            <Text className="text-xs font-black text-white">+ Record Purchase</Text>
+            <Text className="text-xs font-black text-white">Record Purchase</Text>
           </Pressable>
         </View>
 
@@ -2758,7 +2655,7 @@ export default function InventoryScreen() {
             </View>
             <View>
               <Text className="text-xl font-black text-slate-800 leading-tight">{purchases.length}</Text>
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Invoices</Text>
+              <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Invoices</Text>
             </View>
           </View>
 
@@ -2771,7 +2668,7 @@ export default function InventoryScreen() {
               <Text className="text-xl font-black text-slate-800 leading-tight">
                 ₹{totalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</Text>
+              <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Amount</Text>
             </View>
           </View>
 
@@ -2782,7 +2679,7 @@ export default function InventoryScreen() {
             </View>
             <View>
               <Text className="text-xl font-black text-slate-800 leading-tight">{pendingCount}</Text>
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Payments</Text>
+              <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Payments</Text>
             </View>
           </View>
 
@@ -2793,7 +2690,7 @@ export default function InventoryScreen() {
             </View>
             <View>
               <Text className="text-xl font-black text-slate-800 leading-tight">{supplierCount || suppliers.length}</Text>
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Suppliers</Text>
+              <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider">Suppliers</Text>
             </View>
           </View>
         </View>
@@ -2805,9 +2702,10 @@ export default function InventoryScreen() {
             <Search size={14} color="#94a3b8" />
             <TextInput
               placeholder="Search by PO / Invoice / Supplier..."
+              accessibilityLabel="Search purchases"
               value={purSearchQuery}
               onChangeText={(t) => { setPurSearchQuery(t); setPurPage(1); }}
-              className="flex-1 text-[11px] text-slate-800 outline-none"
+              className="flex-1 text-xs text-slate-800 outline-none"
               placeholderTextColor="#94a3b8"
               style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
             />
@@ -2833,18 +2731,13 @@ export default function InventoryScreen() {
                     : 'bg-white border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <Text className={`text-[11px] font-bold ${purStatusFilter === s ? 'text-white' : 'text-slate-600'}`}>
+                <Text className={`text-xs font-bold ${purStatusFilter === s ? 'text-white' : 'text-slate-600'}`}>
                   {s === 'all' ? 'All' : s}
                 </Text>
               </Pressable>
             ))}
           </View>
 
-          {/* Export */}
-          <Pressable className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-xs active:scale-95">
-            <Download size={13} color="#64748b" />
-            <Text className="text-[11px] font-bold text-slate-600">Export</Text>
-          </Pressable>
         </View>
 
         {/* ── TABLE ───────────────────────────────────────────────────── */}
@@ -2853,25 +2746,25 @@ export default function InventoryScreen() {
           {/* Table Header */}
           <View className="flex-row items-center px-4 py-3 bg-slate-50 border-b border-slate-200">
             <View style={{ width: '18%' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">PO Number</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">PO Number</Text>
             </View>
             <View style={{ width: '12%' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Invoice No.</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Invoice No.</Text>
             </View>
             <View style={{ width: '20%' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Supplier</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Supplier</Text>
             </View>
             <View style={{ width: '14%' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Invoice Date</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Invoice Date</Text>
             </View>
             <View style={{ width: '16%', alignItems: 'flex-end' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Amount</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Amount</Text>
             </View>
             <View style={{ width: '12%', alignItems: 'center' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Status</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Status</Text>
             </View>
             <View style={{ width: '8%', alignItems: 'center' }}>
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Actions</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Actions</Text>
             </View>
           </View>
 
@@ -2908,7 +2801,7 @@ export default function InventoryScreen() {
                     {/* PO Number */}
                     <View style={{ width: '18%' }}>
                       <Text className="text-[12px] font-black text-[#0066b2]">{item.purchase_number}</Text>
-                      <Text className="text-[9px] text-slate-400 font-semibold mt-0.5">By {item.created_by || 'Staff'}</Text>
+                      <Text className="text-xs text-slate-400 font-semibold mt-0.5">By {item.created_by || 'Staff'}</Text>
                     </View>
 
                     {/* Invoice Number */}
@@ -2933,14 +2826,14 @@ export default function InventoryScreen() {
                       <Text className="text-[13px] font-black text-slate-800">
                         ₹{item.grand_total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
-                      <Text className="text-[9px] font-bold text-slate-400 mt-0.5">{item.payment_mode}</Text>
+                      <Text className="text-xs font-bold text-slate-400 mt-0.5">{item.payment_mode}</Text>
                     </View>
 
                     {/* Status Badge */}
                     <View style={{ width: '12%', alignItems: 'center' }}>
                       <View className={`flex-row items-center gap-1 border rounded-full px-2 py-0.5 ${statusColor.bg} ${statusColor.border}`}>
-                        <Text className={`text-[9px] font-black ${statusColor.text}`}>{statusIcon}</Text>
-                        <Text className={`text-[9px] font-black ${statusColor.text}`}>{payStatus}</Text>
+                        <Text className={`text-xs font-black ${statusColor.text}`}>{statusIcon}</Text>
+                        <Text className={`text-xs font-black ${statusColor.text}`}>{payStatus}</Text>
                       </View>
                     </View>
 
@@ -2951,7 +2844,7 @@ export default function InventoryScreen() {
                           setPurMenuY(e.nativeEvent.pageY);
                           setPurOpenActionIdx(purOpenActionIdx === item.id ? null : item.id);
                         }}
-                        className="w-7 h-7 rounded-lg border border-slate-200 bg-white items-center justify-center active:scale-95 hover:bg-slate-50 shadow-xs"
+                        className="w-10 h-10 rounded-lg border border-slate-200 bg-white items-center justify-center active:scale-95 hover:bg-slate-50 shadow-xs"
                       >
                         <MoreVertical size={14} color="#64748b" />
                       </Pressable>
@@ -2965,7 +2858,7 @@ export default function InventoryScreen() {
 
         {/* ── PAGINATION FOOTER ───────────────────────────────────────── */}
         <View className="flex-row justify-between items-center flex-wrap gap-3">
-          <Text className="text-[11px] font-bold text-slate-400">
+          <Text className="text-xs font-bold text-slate-400">
             Showing {filtered.length > 0 ? (purPage - 1) * purPageSize + 1 : 0} to{' '}
             {Math.min(purPage * purPageSize, filtered.length)} of {filtered.length} invoices
           </Text>
@@ -2973,12 +2866,12 @@ export default function InventoryScreen() {
           <View className="flex-row items-center gap-3">
             {/* Rows per page */}
             <View className="flex-row items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-xs">
-              <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Rows</Text>
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">Rows</Text>
               <Pressable
                 onPress={() => { setPurPageSize(purPageSize === 10 ? 25 : purPageSize === 25 ? 50 : 10); setPurPage(1); }}
                 className="flex-row items-center gap-1"
               >
-                <Text className="text-[11px] font-black text-slate-700">{purPageSize}</Text>
+                <Text className="text-xs font-black text-slate-700">{purPageSize}</Text>
                 <ChevronDown size={8} color="#64748b" />
               </Pressable>
             </View>
@@ -2989,11 +2882,11 @@ export default function InventoryScreen() {
                 <Pressable
                   onPress={() => setPurPage((p) => Math.max(p - 1, 1))}
                   disabled={purPage === 1}
-                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                  className={`w-10 h-10 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
                     purPage === 1 ? 'border-slate-100 bg-slate-50 opacity-40' : 'border-slate-200 bg-white'
                   }`}
                 >
-                  <Text className="text-[11px] font-black text-slate-500">‹</Text>
+                  <Text className="text-xs font-black text-slate-500">‹</Text>
                 </Pressable>
 
                 {Array.from({ length: Math.min(totalPages, 5) }).map((_, idx) => {
@@ -3003,11 +2896,11 @@ export default function InventoryScreen() {
                     <Pressable
                       key={pageNum}
                       onPress={() => setPurPage(pageNum)}
-                      className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                      className={`w-10 h-10 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
                         isActive ? 'bg-[#0066b2] border-[#0066b2]' : 'border-slate-200 bg-white'
                       }`}
                     >
-                      <Text className={`text-[11px] font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                      <Text className={`text-xs font-extrabold ${isActive ? 'text-white' : 'text-slate-600'}`}>
                         {pageNum}
                       </Text>
                     </Pressable>
@@ -3017,11 +2910,11 @@ export default function InventoryScreen() {
                 <Pressable
                   onPress={() => setPurPage((p) => Math.min(p + 1, totalPages))}
                   disabled={purPage === totalPages}
-                  className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
+                  className={`w-10 h-10 rounded-lg border items-center justify-center active:scale-95 shadow-xs ${
                     purPage === totalPages ? 'border-slate-100 bg-slate-50 opacity-40' : 'border-slate-200 bg-white'
                   }`}
                 >
-                  <Text className="text-[11px] font-black text-slate-500">›</Text>
+                  <Text className="text-xs font-black text-slate-500">›</Text>
                 </Pressable>
               </View>
             )}
@@ -3072,101 +2965,42 @@ export default function InventoryScreen() {
                 <Text className="text-[12px] font-bold text-slate-700">View Details</Text>
               </Pressable>
 
-              {/* Edit Invoice */}
-              <Pressable
-                onPress={async () => {
-                  const item = purchases.find((p) => p.id === purOpenActionIdx);
-                  if (!item) return;
-                  // Set ALL header fields first
-                  setModalError(null);
-                  setPurchaseSupplierId(item.supplier_id);
-                  setPurchaseInvoiceNum(item.invoice_number ?? '');
-                  setPurchasePaymentMode(item.payment_mode);
-                  setPurchaseTransportCharges(String(item.transport_charges ?? 0));
-                  setPurchaseRemarks(item.remarks ?? '');
-                  setPurchaseLocation('Dry Storage');
-                  const dateVal = item.invoice_date
-                    ? item.invoice_date.split('T')[0]
-                    : item.purchase_date.split('T')[0];
-                  setPurchaseInvoiceDate(dateVal);
-                  setCalendarDate(new Date(dateVal));
-                  // Reset dropdown states
-                  setIsSupDropdownOpen(false);
-                  setIsPayDropdownOpen(false);
-                  setIsLocDropdownOpen(false);
-                  setIsCalendarOpen(false);
-                  setOpenLineMatDropdownIdx(null);
-                  setOpenLineUnitDropdownIdx(null);
-                  setOpenLineGstDropdownIdx(null);
-                  // Fetch and pre-fill line items
-                  const linesRes = await fetchPurchaseItems(item.id);
-                  if (linesRes.data && linesRes.data.length > 0) {
-                    const mappedLines = linesRes.data.map((line) => {
-                      const mat = materials.find((m) => m.id === line.material_id);
-                      return {
-                        material_id: line.material_id,
-                        quantity: String(line.quantity),
-                        pack_size: '1',
-                        unit_price: String(line.unit_price),
-                        gst: '0',
-                        unit_short_name: mat?.unit_short_name ?? '',
-                      };
-                    });
-                    setPurchaseItems(mappedLines);
-                  } else {
-                    setPurchaseItems([{ material_id: '', quantity: '', pack_size: '1', unit_price: '', gst: '0', unit_short_name: '' }]);
-                  }
-                  // Navigate then close modal
-                  setActiveTab('record_purchase');
-                  setPurOpenActionIdx(null);
-                }}
-                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-slate-100"
-              >
-                <FileText size={13} color="#0066b2" />
-                <Text className="text-[12px] font-bold text-slate-700">Edit Invoice</Text>
-              </Pressable>
+              {/* A recorded purchase has already moved stock, the average cost and
+                  the ledger. There is no edit or delete here: both used to be
+                  offered, and "edit" saved the invoice a second time. */}
 
-
-
-              {/* Mark as Paid / Unpaid */}
+              {/* Payment lives in the ledger: settling the supplier's payable marks it paid here.
+                  A purchase still on credit goes straight to that payable in Finance. */}
               {(() => {
+                if (!FINANCE_MODULE_ENABLED) return null;
                 const item = purchases.find((p) => p.id === purOpenActionIdx);
-                if (!item) return null;
-                const isPaid = item.status === 'Completed';
+                const entryId = item?.finance_entry_id ?? null;
+                const unpaid = item?.finance_entry?.kind === 'payable' && item.finance_entry.status === 'open';
+                if (!entryId || !unpaid) {
+                  return (
+                    <View className="flex-row items-center gap-2 px-3 py-2.5">
+                      <Check size={13} color="#64748b" />
+                      <Text className="text-[12px] font-bold text-slate-500">Paid via Finance › Ledger</Text>
+                    </View>
+                  );
+                }
                 return (
                   <Pressable
-                    onPress={async () => {
-                      const newStatus = isPaid ? 'Draft' : 'Completed';
+                    onPress={() => {
                       setPurOpenActionIdx(null);
-                      // Optimistic update
-                      setPurchases((prev) =>
-                        prev.map((p) => p.id === item.id ? { ...p, status: newStatus } : p)
-                      );
-                      await updatePurchaseStatus(item.id, newStatus);
+                      useLedgerStore.getState().requestSettle(entryId);
+                      useFinanceStore.getState().setTab('ledger');
+                      router.push('/finance');
                     }}
-                    className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-emerald-50"
+                    className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-slate-100"
+                    accessibilityRole="button"
+                    accessibilityLabel="Pay this purchase in Finance"
                   >
-                    <Check size={13} color={isPaid ? '#64748b' : '#059669'} />
-                    <Text
-                      className="text-[12px] font-bold"
-                      style={{ color: isPaid ? '#64748b' : '#059669' }}
-                    >
-                      {isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}
-                    </Text>
+                    <CreditCard size={13} color="#0066b2" />
+                    <Text className="text-[12px] font-bold text-slate-700">Pay now</Text>
                   </Pressable>
                 );
               })()}
-
-              <View style={{ height: 1, backgroundColor: '#f1f5f9', marginVertical: 2 }} />
-
-              {/* Delete */}
-              <Pressable
-                onPress={() => setPurOpenActionIdx(null)}
-                className="flex-row items-center gap-2 px-3 py-2.5 rounded-lg active:bg-rose-100"
-              >
-                <Trash2 size={13} color="#e11d48" />
-                <Text className="text-[12px] font-bold text-rose-600">Delete</Text>
-              </Pressable>
 
             </View>
           </Pressable>
@@ -3361,21 +3195,21 @@ export default function InventoryScreen() {
             className="flex-row items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50/50 border border-blue-200 active:scale-95 shadow-xs"
           >
             <ArrowLeft size={14} color="#0066b2" />
-            <Text className="text-[11px] font-black text-[#0066b2]">Back to Purchases</Text>
+            <Text className="text-xs font-black text-[#0066b2]">Back to Purchases</Text>
           </Pressable>
 
           <View className="flex-1 min-w-[200px] px-2">
             <Text className="text-lg font-black text-slate-800 leading-tight">
-              Record Procurement Invoice
+              Record a purchase
             </Text>
-            <Text className="text-[11px] text-slate-400 font-bold mt-0.5">
-              Enter invoice details and add items to update your inventory
+            <Text className="text-xs text-slate-400 font-bold mt-0.5">
+              The supplier&apos;s bill, item by item. Stock and cost update when it is saved.
             </Text>
           </View>
 
           <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/50 border border-blue-100 shadow-xs">
             <FileText size={14} color="#0066b2" />
-            <Text className="text-[10px] font-black text-[#0066b2] uppercase tracking-wider">
+            <Text className="text-xs font-black text-[#0066b2] uppercase tracking-wider">
               Procurement Form
             </Text>
           </View>
@@ -3389,18 +3223,44 @@ export default function InventoryScreen() {
         )}
 
         {/* SECTION A: INVOICE META DETAILS (STATIONARY/FROZEN) */}
-        <View className="flex-col gap-6 mb-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 3000 : 100, position: 'relative' }}>
+        <View className="flex-col gap-6 mb-6" style={{ zIndex: (isSupDropdownOpen || isPayDropdownOpen || isCalendarOpen) ? 3000 : 100, position: 'relative' }}>
+            {/* Branch: the owner can buy for any branch they can see */}
+            {branchPickerVisible ? (
+              <View className="gap-1.5">
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Bought for *</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {accessibleBranches.map((b) => {
+                    const selected = b.id === purchaseBranchId;
+                    return (
+                      <Pressable
+                        key={b.id}
+                        onPress={() => {
+                          setPurchaseBranchId(b.id);
+                          setPurchasePaidBy('');
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Bought for ${b.name}`}
+                        className={`min-h-[44px] items-center justify-center rounded-xl border px-4 ${selected ? 'bg-primary border-primary' : 'bg-white border-slate-200'}`}
+                      >
+                        <Text className={`text-xs font-bold ${selected ? 'text-white' : 'text-slate-600'}`}>{b.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+
             {/* Row 1: Supplier and Invoice Number */}
             <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: isSupDropdownOpen ? 2000 : 10, position: 'relative' }}>
               
               {/* Supplier dropdown */}
               <View className="flex-1 min-w-[280px] max-w-[49%] gap-1.5 relative" style={{ zIndex: isSupDropdownOpen ? 1000 : 1 }}>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Supplier *</Text>
                 <Pressable
                   onPress={() => {
                     setIsSupDropdownOpen(!isSupDropdownOpen);
                     setIsPayDropdownOpen(false);
-                    setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
                   className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
@@ -3422,7 +3282,7 @@ export default function InventoryScreen() {
                   }}
                   className="mt-1 flex-row items-center self-start"
                 >
-                  <Text className="text-[10.5px] font-black text-blue-600">+ Add new supplier</Text>
+                  <Text className="text-xs font-black text-blue-600">+ Add new supplier</Text>
                 </Pressable>
 
                 {isSupDropdownOpen && (
@@ -3444,7 +3304,7 @@ export default function InventoryScreen() {
                       ))}
                       {suppliers.length === 0 && (
                         <View className="p-2 items-center">
-                          <Text className="text-[11px] text-slate-400">No suppliers registered</Text>
+                          <Text className="text-xs text-slate-400">No suppliers registered</Text>
                         </View>
                       )}
                     </ScrollView>
@@ -3454,13 +3314,14 @@ export default function InventoryScreen() {
 
               {/* Invoice / Bill number */}
               <View className="flex-1 min-w-[280px] max-w-[49%] gap-1.5">
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Invoice / Bill Number *</Text>
                 <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Hash size={14} color="#64748b" className="mr-2" />
                   <TextInput
                     value={purchaseInvoiceNum}
                     onChangeText={setPurchaseInvoiceNum}
                     placeholder="e.g., INV-8976"
+                    accessibilityLabel="Invoice or bill number"
                     className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
                   />
                 </View>
@@ -3468,18 +3329,17 @@ export default function InventoryScreen() {
 
             </View>
 
-            {/* Row 2: Date, Payment, Freight, Storage */}
-            <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen || isLocDropdownOpen) ? 2000 : 5, position: 'relative' }}>
+            {/* Row 2: Date, Payment, Freight */}
+            <View className="flex-row flex-wrap justify-between gap-y-4" style={{ zIndex: (isPayDropdownOpen || isCalendarOpen) ? 2000 : 5, position: 'relative' }}>
               
               {/* Date Input with Mini Calendar Popup */}
               <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: 10000 }}>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Invoice Date *</Text>
                 <Pressable
                   onPress={() => {
                     setIsCalendarOpen(!isCalendarOpen);
                     setIsSupDropdownOpen(false);
                     setIsPayDropdownOpen(false);
-                    setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                   }}
                   className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
@@ -3516,7 +3376,7 @@ export default function InventoryScreen() {
                     <View className="flex-row mb-1">
                       {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
                         <View key={d} className="w-[14.28%] items-center">
-                          <Text className="text-[9px] font-black text-slate-400 uppercase">{d}</Text>
+                          <Text className="text-xs font-black text-slate-400 uppercase">{d}</Text>
                         </View>
                       ))}
                     </View>
@@ -3544,7 +3404,7 @@ export default function InventoryScreen() {
                               isSelected ? 'bg-blue-600' : 'hover:bg-slate-50 active:bg-slate-100'
                             }`}
                           >
-                            <Text className={`text-[10px] font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
+                            <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-slate-700'}`}>
                               {dayNum}
                             </Text>
                           </Pressable>
@@ -3557,12 +3417,11 @@ export default function InventoryScreen() {
 
               {/* Payment Mode */}
               <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: isPayDropdownOpen ? 1000 : 1 }}>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Payment Mode *</Text>
                 <Pressable
                   onPress={() => {
                     setIsPayDropdownOpen(!isPayDropdownOpen);
                     setIsSupDropdownOpen(false);
-                    setIsLocDropdownOpen(false);
                     setOpenLineMatDropdownIdx(null);
                     setIsCalendarOpen(false);
                   }}
@@ -3577,7 +3436,7 @@ export default function InventoryScreen() {
 
                 {isPayDropdownOpen && (
                   <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
-                    {['Cash', 'UPI', 'Bank Transfer', 'Credit Card'].map((mode) => (
+                    {PURCHASE_PAYMENT_MODES.map((mode) => (
                       <Pressable
                         key={mode}
                         onPress={() => {
@@ -3595,9 +3454,56 @@ export default function InventoryScreen() {
                 )}
               </View>
 
+              {/* Paid by: another account's money, for a branch paying the kitchen's vendor */}
+              {purchasePaymentMode !== PAY_LATER_MODE && purchasePayerOptions.length > 1 ? (
+                <View className="w-full gap-1.5 mb-2">
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Paid by</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'center' }}>
+                    {purchasePayerOptions.map((option) => {
+                      const selected = purchasePaidBy === option.id;
+                      return (
+                        <Pressable
+                          key={option.id || 'own'}
+                          onPress={() => setPurchasePaidBy(option.id)}
+                          className={`min-h-[40px] items-center justify-center rounded-full border px-3.5 ${selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'}`}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`Paid by ${option.label}`}
+                        >
+                          <Text className={`text-xs font-bold ${selected ? 'text-blue-700' : 'text-slate-700'}`}>{option.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  {purchasePaidBy ? (
+                    <Text className="text-xs text-slate-500">
+                      The cost stays in this branch&apos;s books; the money leaves the account chosen, and Finance shows what this branch owes it.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Pay by: when a purchase on credit falls due */}
+              {purchasePaymentMode === PAY_LATER_MODE ? (
+                <View className={`gap-1.5 ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`}>
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Pay by</Text>
+                  <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
+                    <Calendar size={14} color="#64748b" className="mr-2" />
+                    <TextInput
+                      value={purchaseDueDate}
+                      onChangeText={setPurchaseDueDate}
+                      placeholder="YYYY-MM-DD (optional)"
+                      autoCapitalize="none"
+                      className="flex-1 text-xs text-slate-800 font-bold p-0 outline-none"
+                      accessibilityLabel="Pay by date"
+                    />
+                  </View>
+                </View>
+              ) : null}
+
               {/* Freight Charge */}
               <View className={`gap-1.5 ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`}>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider">Freight (₹)</Text>
                 <View className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 shadow-inner">
                   <Truck size={14} color="#64748b" className="mr-2" />
                   <TextInput
@@ -3610,46 +3516,6 @@ export default function InventoryScreen() {
                 </View>
               </View>
 
-              {/* Storage Destination */}
-              <View className={`gap-1.5 relative ${width < 768 ? 'w-full mb-2' : 'flex-1 min-w-[140px] max-w-[23.5%]'}`} style={{ zIndex: isLocDropdownOpen ? 1000 : 1 }}>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Destination *</Text>
-                <Pressable
-                  onPress={() => {
-                    setIsLocDropdownOpen(!isLocDropdownOpen);
-                    setIsSupDropdownOpen(false);
-                    setIsPayDropdownOpen(false);
-                    setOpenLineMatDropdownIdx(null);
-                    setIsCalendarOpen(false);
-                  }}
-                  className="flex-row bg-white border border-slate-200 rounded-xl items-center px-3 py-2 justify-between active:scale-[99%]"
-                >
-                  <View className="flex-row items-center gap-2">
-                    <Home size={14} color="#64748b" />
-                    <Text className="text-xs font-bold text-slate-700">{purchaseLocation || 'Select location'}</Text>
-                  </View>
-                  <ChevronDown size={12} color="#64748b" />
-                </Pressable>
-
-                {isLocDropdownOpen && (
-                  <View className="absolute top-[62px] left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => {
-                          setPurchaseLocation(loc);
-                          setIsLocDropdownOpen(false);
-                        }}
-                        className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                          purchaseLocation === loc ? 'bg-blue-50/50' : ''
-                        }`}
-                      >
-                        <Text className={`text-xs font-bold ${purchaseLocation === loc ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-
             </View>
           </View>
 
@@ -3657,8 +3523,8 @@ export default function InventoryScreen() {
           <View className="border-t border-slate-100 pt-4 flex-col flex-1" style={{ zIndex: 1 }}>
             <View className="flex-row justify-between items-center mb-1">
               <View>
-                <Text className="text-sm font-black text-slate-800">Procurement Items</Text>
-                <Text className="text-[10.5px] font-semibold text-slate-400 mt-0.5">
+                <Text className="text-sm font-black text-slate-800">Items</Text>
+                <Text className="text-xs font-semibold text-slate-400 mt-0.5">
                   Add the raw materials included in this invoice.
                 </Text>
               </View>
@@ -3668,38 +3534,38 @@ export default function InventoryScreen() {
                 className="bg-[#0066b2] hover:bg-blue-700 flex-row items-center gap-1.5 px-4 py-2.5 rounded-lg active:scale-95 shadow-sm"
               >
                 <Plus size={12} color="#ffffff" />
-                <Text className="text-xs font-bold text-white">+ Add Item</Text>
+                <Text className="text-xs font-bold text-white">Add Item</Text>
               </Pressable>
             </View>
 
             {/* Structured Columns Header */}
             <View className="flex-row border-b border-slate-100 pb-2 px-1">
               <View style={{ width: '18%' }} className="pr-4">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">RAW MATERIAL</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">RAW MATERIAL</Text>
               </View>
               <View style={{ width: '8%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">UNIT</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">UNIT</Text>
               </View>
               <View style={{ width: '9%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">QTY</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">QTY</Text>
               </View>
               <View style={{ width: '10%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">PACK SIZE</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">PACK SIZE</Text>
               </View>
               <View style={{ width: '10%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">RATE (₹)</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">RATE (₹)</Text>
               </View>
               <View style={{ width: '9%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST (%)</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">GST (%)</Text>
               </View>
               <View style={{ width: '12%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">GST AMOUNT (₹)</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">GST AMOUNT (₹)</Text>
               </View>
               <View style={{ width: '18%' }} className="items-center justify-center pr-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">AMOUNT (₹)</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">AMOUNT (₹)</Text>
               </View>
               <View style={{ width: '6%' }} className="items-center justify-center">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider text-center">ACTION</Text>
+                <Text className="text-xs font-black text-slate-400 uppercase tracking-wider text-center">ACTION</Text>
               </View>
             </View>
 
@@ -3713,7 +3579,7 @@ export default function InventoryScreen() {
                   <Boxes size={20} color="#0066b2" />
                 </View>
                 <Text className="text-xs font-black text-slate-700">No items added yet</Text>
-                <Text className="text-[10px] font-semibold text-slate-400">Add your first item to get started</Text>
+                <Text className="text-xs font-semibold text-slate-400">Add your first item to get started</Text>
               </View>
             ) : (
               purchaseItems.map((itm, idx) => {
@@ -3740,17 +3606,16 @@ export default function InventoryScreen() {
                           setOpenLineGstDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
-                          setIsLocDropdownOpen(false);
-                          setIsCalendarOpen(false);
+                                setIsCalendarOpen(false);
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
                         <View className="flex-col flex-1 pr-1">
-                          <Text className="text-[11px] font-bold text-slate-700 truncate">
+                          <Text className="text-xs font-bold text-slate-700 truncate">
                             {selectedMat ? selectedMat.material_name : 'Select'}
                           </Text>
                           {selectedMat && (
-                            <Text className="text-[9px] text-slate-400 font-bold mt-0.5">
+                            <Text className="text-xs text-slate-400 font-bold mt-0.5">
                               {selectedMat.material_code}
                             </Text>
                           )}
@@ -3778,7 +3643,7 @@ export default function InventoryScreen() {
                                   itm.material_id === m.id ? 'bg-blue-50/50' : ''
                                 }`}
                               >
-                                <Text className={`text-[10px] font-bold ${itm.material_id === m.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
+                                <Text className={`text-xs font-bold ${itm.material_id === m.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
                                   {m.material_name} ({m.material_code})
                                 </Text>
                               </Pressable>
@@ -3797,12 +3662,11 @@ export default function InventoryScreen() {
                           setOpenLineGstDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
-                          setIsLocDropdownOpen(false);
-                          setIsCalendarOpen(false);
+                                setIsCalendarOpen(false);
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
-                        <Text className="text-[11px] font-bold text-slate-700 truncate text-center flex-1">
+                        <Text className="text-xs font-bold text-slate-700 truncate text-center flex-1">
                           {itm.unit_short_name || (selectedMat ? matUnitShort : 'Unit')}
                         </Text>
                         <ChevronDown size={10} color="#64748b" />
@@ -3822,7 +3686,7 @@ export default function InventoryScreen() {
                                   (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : ''
                                 }`}
                               >
-                                <Text className={`text-[10px] font-bold ${(itm.unit_short_name || matUnitShort) === u.short_name ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
+                                <Text className={`text-xs font-bold ${(itm.unit_short_name || matUnitShort) === u.short_name ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
                                   {u.unit_name} ({u.short_name})
                                 </Text>
                               </Pressable>
@@ -3839,7 +3703,7 @@ export default function InventoryScreen() {
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'quantity', val)}
                         placeholder="0.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-xs font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
                     </View>
 
@@ -3850,7 +3714,7 @@ export default function InventoryScreen() {
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'pack_size', val)}
                         placeholder="1.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-xs font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
                     </View>
 
@@ -3861,7 +3725,7 @@ export default function InventoryScreen() {
                         onChangeText={(val) => handleUpdatePurchaseLine(idx, 'unit_price', val)}
                         placeholder="0.00"
                         keyboardType="numeric"
-                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-[11px] font-bold text-slate-800 shadow-inner text-center outline-none"
+                        className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 text-xs font-bold text-slate-800 shadow-inner text-center outline-none"
                       />
                     </View>
 
@@ -3874,12 +3738,11 @@ export default function InventoryScreen() {
                           setOpenLineUnitDropdownIdx(null);
                           setIsSupDropdownOpen(false);
                           setIsPayDropdownOpen(false);
-                          setIsLocDropdownOpen(false);
-                          setIsCalendarOpen(false);
+                                setIsCalendarOpen(false);
                         }}
                         className="flex-row bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-between shadow-xs active:scale-[98%]"
                       >
-                        <Text className="text-[11px] font-bold text-slate-700 text-center flex-1">
+                        <Text className="text-xs font-bold text-slate-700 text-center flex-1">
                           {itm.gst || '0'}%
                         </Text>
                         <ChevronDown size={10} color="#64748b" />
@@ -3898,7 +3761,7 @@ export default function InventoryScreen() {
                                 itm.gst === gstVal ? 'bg-blue-50/50' : ''
                               }`}
                             >
-                              <Text className={`text-[10px] font-bold ${itm.gst === gstVal ? 'text-blue-600 font-extrabold' : 'text-slate-700'} text-center`}>{gstVal}%</Text>
+                              <Text className={`text-xs font-bold ${itm.gst === gstVal ? 'text-blue-600 font-extrabold' : 'text-slate-700'} text-center`}>{gstVal}%</Text>
                             </Pressable>
                           ))}
                         </View>
@@ -3908,7 +3771,7 @@ export default function InventoryScreen() {
                     {/* GST Amount Column */}
                     <View style={{ width: '12%' }} className="items-center justify-center pr-3">
                       <View className="bg-white border border-slate-200 rounded-lg w-full px-2 py-1 items-center justify-center shadow-xs">
-                        <Text className="text-[11px] font-bold text-slate-500">
+                        <Text className="text-xs font-bold text-slate-500">
                           {gstAmount.toFixed(2)}
                         </Text>
                       </View>
@@ -3925,7 +3788,7 @@ export default function InventoryScreen() {
                     <View style={{ width: '6%' }} className="items-center justify-center">
                       <Pressable
                         onPress={() => handleRemovePurchaseLine(idx)}
-                        className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
+                        className="w-10 h-10 bg-rose-50 border border-rose-100 rounded-lg items-center justify-center active:scale-90"
                       >
                         <Trash2 size={12} color="#dc2626" />
                       </Pressable>
@@ -3959,7 +3822,7 @@ export default function InventoryScreen() {
           </View>
           <View>
             <Text className="text-xs font-black text-slate-700">{purchaseItems.length}</Text>
-            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Items</Text>
+            <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Items</Text>
           </View>
         </View>
 
@@ -3970,7 +3833,7 @@ export default function InventoryScreen() {
           <Text className="text-xs font-black text-slate-700">
             {purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.pack_size) || 1), 0).toFixed(2)}
           </Text>
-          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
+          <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Quantity</Text>
         </View>
 
         <View className="w-[1px] h-8 bg-slate-200" />
@@ -3980,7 +3843,7 @@ export default function InventoryScreen() {
           <Text className="text-xs font-black text-slate-700">
             ₹{purchaseItems.reduce((acc, itm) => acc + (Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
-          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
+          <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Before Tax</Text>
         </View>
 
         <View className="w-[1px] h-8 bg-slate-200" />
@@ -3990,7 +3853,7 @@ export default function InventoryScreen() {
           <Text className="text-xs font-black text-slate-700">
             ₹{purchaseItems.reduce((acc, itm) => acc + ((Number(itm.quantity) || 0) * (Number(itm.unit_price) || 0) * (Number(itm.gst || '0') / 100)), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
-          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
+          <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total GST</Text>
         </View>
 
         <View className="w-[1px] h-8 bg-slate-200" />
@@ -4000,7 +3863,7 @@ export default function InventoryScreen() {
           <Text className="text-xs font-black text-slate-700">
             ₹{(Number(purchaseTransportCharges) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
-          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Freight</Text>
+          <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">Freight</Text>
         </View>
 
         <View className="w-[1px] h-8 bg-slate-200" />
@@ -4014,7 +3877,7 @@ export default function InventoryScreen() {
               (Number(purchaseTransportCharges) || 0)
             ).toFixed(2)}
           </Text>
-          <Text className="text-[9px] font-bold text-[#0066b2] uppercase tracking-wider mt-0.5">Total Amount</Text>
+          <Text className="text-xs font-bold text-[#0066b2] uppercase tracking-wider mt-0.5">Total Amount</Text>
         </View>
       </View>
 
@@ -4034,7 +3897,7 @@ export default function InventoryScreen() {
               onPress={handleRecordPurchase}
               className="px-5 py-2.5 bg-[#0066b2] hover:bg-blue-700 rounded-xl items-center active:scale-95 shadow-sm"
             >
-              <Text className="text-xs font-bold text-white">Record Procurement Invoice</Text>
+              <Text className="text-xs font-bold text-white">Save purchase</Text>
             </Pressable>
           </View>
 
@@ -4047,8 +3910,8 @@ export default function InventoryScreen() {
       <View className="flex-1">
         <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
           <View className="flex-1 mr-4">
-            <Text className="text-sm font-bold text-slate-800">Wastage & Spoilage Register</Text>
-            <Text className="text-xs text-slate-500">Log spoiled materials, physical damage, and calculate cost impacts.</Text>
+            <Text className="text-sm font-bold text-slate-800">Wastage</Text>
+            <Text className="text-xs text-slate-500">Spoiled, expired or damaged stock, valued at cost.</Text>
           </View>
           <Pressable
             onPress={handleOpenWastageModal}
@@ -4121,7 +3984,7 @@ export default function InventoryScreen() {
                 </Pressable>
                 <View>
                   <Text className="text-base font-black text-[#0f2744]">Select Materials</Text>
-                  <Text className="text-[10px] text-slate-400 font-bold">
+                  <Text className="text-xs text-slate-400 font-bold">
                     Tap cards to view details, or use controls to quick-add
                   </Text>
                 </View>
@@ -4135,6 +3998,7 @@ export default function InventoryScreen() {
                 value={newReqSearchQuery}
                 onChangeText={setNewReqSearchQuery}
                 placeholder="Search raw materials by name or code..."
+                accessibilityLabel="Search raw materials"
                 placeholderTextColor="#94a3b8"
                 className="flex-1 text-xs font-semibold text-[#0f2744] h-8 p-0 outline-none"
                 style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
@@ -4210,7 +4074,7 @@ export default function InventoryScreen() {
             {isMobile && newReqItems.length > 0 && (
               <View className="absolute bottom-4 left-4 right-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-xl flex-row items-center justify-between z-50">
                 <View>
-                  <Text className="text-[10px] font-black text-slate-400 uppercase">Request List</Text>
+                  <Text className="text-xs font-black text-slate-400 uppercase">Request List</Text>
                   <Text className="text-xs font-black text-[#0f2744]">{newReqItems.length} items</Text>
                 </View>
                 <Pressable
@@ -4243,7 +4107,7 @@ export default function InventoryScreen() {
 
             {/* Supplying Branch Selector */}
             <View className="mb-4 relative" style={{ zIndex: 1000 }}>
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1.5">
                 Supply Source (Branch)*
               </Text>
               <Pressable
@@ -4277,7 +4141,7 @@ export default function InventoryScreen() {
 
             {/* Cart Header */}
             <View className="flex-row justify-between items-center mb-3 pb-2 border-b border-slate-100">
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">
                 Request List
               </Text>
               <Text className="text-xs font-black text-[#0066b2]">{newReqItems.length} items</Text>
@@ -4288,7 +4152,7 @@ export default function InventoryScreen() {
               {newReqItems.length === 0 ? (
                 <View className="py-20 items-center justify-center flex-1">
                   <ShoppingCart size={32} color="#cbd5e1" className="mb-2" />
-                  <Text className="text-[10px] font-bold text-slate-400 text-center px-4">
+                  <Text className="text-xs font-bold text-slate-400 text-center px-4">
                     Tap raw material cards on the left to add items to your request list
                   </Text>
                 </View>
@@ -4309,13 +4173,14 @@ export default function InventoryScreen() {
 
             {/* Remarks */}
             <View className="mb-4">
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+              <Text className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1.5">
                 Remarks / Instructions
               </Text>
               <TextInput
                 value={newReqRemarks}
                 onChangeText={setNewReqRemarks}
                 placeholder="e.g. Urgent stock request for weekend"
+                accessibilityLabel="Remarks for the request"
                 placeholderTextColor="#94a3b8"
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#0f2744] outline-none"
                 style={webTextStyle({ minHeight: 44, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) })}
@@ -4374,12 +4239,12 @@ export default function InventoryScreen() {
               <Pressable
                 key={b.id}
                 onPress={() => setViewedBranchId(b.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: viewedBranchId === b.id }}
                 className={`px-3 py-1.5 rounded-xl border ${isSelected ? 'bg-primary border-primary' : 'bg-white border-slate-200'}`}
                 style={{ minHeight: 44 }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
               >
-                <Text className={`text-[11px] font-bold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{b.name}</Text>
+                <Text className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{b.name}</Text>
               </Pressable>
             );
           })}
@@ -4396,14 +4261,14 @@ export default function InventoryScreen() {
       <View className="flex-1">
         {branchPickerVisible ? (
           <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-6">
-            {renderBranchButtons('Viewing branch')}
+            {renderBranchButtons('Branch')}
           </View>
         ) : null}
 
         {/* Header Title with Primary Action */}
         <View className="flex-row justify-between items-center mb-6 flex-wrap gap-4">
           <View className="flex-1 mr-4">
-            <Text className="text-sm font-bold text-slate-800">Internal Supply Chain & Transfers</Text>
+            <Text className="text-sm font-bold text-slate-800">Transfers between branches</Text>
             <Text className="text-xs text-slate-500">
               Manage transfer requests between your outlets and the Central Kitchen.
             </Text>
@@ -4434,6 +4299,8 @@ export default function InventoryScreen() {
         <View className="flex-row bg-slate-100 p-1 rounded-2xl mb-4 border border-slate-200/60 max-w-md">
           <Pressable
             onPress={() => setTransferSubTab('requests')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: transferSubTab === 'requests' }}
             className={`flex-1 items-center justify-center py-2 rounded-xl ${
               transferSubTab === 'requests' ? 'bg-white shadow-sm' : ''
             }`}
@@ -4445,6 +4312,8 @@ export default function InventoryScreen() {
           </Pressable>
           <Pressable
             onPress={() => setTransferSubTab('dispatches')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: transferSubTab === 'dispatches' }}
             className={`flex-1 items-center justify-center py-2 rounded-xl ${
               transferSubTab === 'dispatches' ? 'bg-white shadow-sm' : ''
             }`}
@@ -4456,6 +4325,8 @@ export default function InventoryScreen() {
           </Pressable>
           <Pressable
             onPress={() => setTransferSubTab('adjustments')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: transferSubTab === 'adjustments' }}
             className={`flex-1 items-center justify-center py-2 rounded-xl ${
               transferSubTab === 'adjustments' ? 'bg-white shadow-sm' : ''
             }`}
@@ -4556,22 +4427,48 @@ export default function InventoryScreen() {
         </View>
 
         <View className="flex-1 min-w-[320px] bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-          <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage Leakage Analysis</Text>
-          <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
-            <View>
-              <Text className="text-[9px] font-black text-rose-800 uppercase">Monthly Leakage</Text>
-              <Text className="text-2xl font-black text-rose-900 mt-1">
-                ₹{kpis ? kpis.wastageCostImpactThisMonth.toLocaleString() : '1,440'}
-              </Text>
-            </View>
-            <View className="bg-rose-100 rounded-xl p-2">
-              <AlertTriangle size={20} color="#dc2626" />
-            </View>
-          </View>
-          <Text className="text-xs text-slate-500 leading-relaxed font-medium">
-            Leakage primarily consists of Spoilage (62.5%) and Expirations (24.3%). We advise adjusting reorder levels
-            to maintain optimal raw meat and dairy stocks.
-          </Text>
+          <Text className="text-xs font-black text-slate-800 uppercase tracking-wider mb-4">Wastage This Month</Text>
+          {(() => {
+            // This branch's wastage since the first of the month, by reason, at cost.
+            const monthStart = new Date();
+            monthStart.setDate(1);
+            monthStart.setHours(0, 0, 0, 0);
+            const byReason = new Map<string, number>();
+            let total = 0;
+            for (const w of wastages) {
+              if (w.branch_id !== viewedBranchId || new Date(w.recorded_at) < monthStart) continue;
+              total += w.cost_impact;
+              byReason.set(w.reason, (byReason.get(w.reason) ?? 0) + w.cost_impact);
+            }
+            const reasons = [...byReason.entries()].sort((a, b) => b[1] - a[1]);
+            return (
+              <>
+                <View className="flex-row items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-2xl mb-4">
+                  <View>
+                    <Text className="text-xs font-black text-rose-800 uppercase">Lost at cost</Text>
+                    <Text className="text-2xl font-black text-rose-900 mt-1">
+                      ₹{total.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    </Text>
+                  </View>
+                  <View className="bg-rose-100 rounded-xl p-2">
+                    <AlertTriangle size={20} color="#dc2626" />
+                  </View>
+                </View>
+                {reasons.length === 0 ? (
+                  <Text className="text-xs text-slate-500 font-medium">No wastage recorded this month.</Text>
+                ) : (
+                  reasons.map(([reason, cost]) => (
+                    <View key={reason} className="flex-row justify-between py-1">
+                      <Text className="text-xs font-bold text-slate-700">{reason}</Text>
+                      <Text className="text-xs font-bold text-slate-500">
+                        ₹{cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })} ({total > 0 ? ((cost / total) * 100).toFixed(0) : '0'}%)
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </>
+            );
+          })()}
         </View>
       </View>
     );
@@ -4579,7 +4476,12 @@ export default function InventoryScreen() {
     // Helper to render Margin Analysis Dashboard
     const renderMarginAnalysis = () => {
       // Find products that have recipes linked
-      const marginProducts = products.filter(p => p.recipe_id);
+      // A recipe reaches a product two ways: the product names the recipe
+      // (Menu), or the recipe names the product (Recipes). Sales consumption
+      // honours both, so the report must too.
+      const recipeForProduct = (p: Product) =>
+        recipes.find(r => r.id === p.recipe_id) ?? recipes.find(r => r.menu_item_id === p.id);
+      const marginProducts = products.filter(p => recipeForProduct(p));
       
       // Calculate average margins
       let totalCost = 0;
@@ -4588,7 +4490,7 @@ export default function InventoryScreen() {
       let lowMarginProductsCount = 0;
 
       const items = marginProducts.map(p => {
-        const recipe = recipes.find(r => r.id === p.recipe_id);
+        const recipe = recipeForProduct(p);
         const recipeCost = recipe ? recipe.cost_snapshot : 0;
         const marginAmt = p.price - recipeCost;
         const marginPct = p.price > 0 ? (marginAmt / p.price) * 100 : 0;
@@ -4616,26 +4518,26 @@ export default function InventoryScreen() {
             <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
               <Text className="text-slate-500 font-semibold text-xs">Target Food Cost %</Text>
               <Text className="text-2xl font-black text-slate-800 mt-1 font-mono">{avgFoodCostPct.toFixed(1)}%</Text>
-              <Text className="text-[10px] text-slate-400 mt-1">Lower is better (ideal: 25-35%)</Text>
+              <Text className="text-xs text-slate-400 mt-1">Lower is better (ideal: 25-35%)</Text>
             </View>
             <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
               <Text className="text-slate-500 font-semibold text-xs">Average Profit Margin %</Text>
               <Text className={`text-2xl font-black mt-1 font-mono ${avgMarginPct >= 60 ? 'text-emerald-600' : 'text-amber-500'}`}>
                 {avgMarginPct.toFixed(1)}%
               </Text>
-              <Text className="text-[10px] text-slate-400 mt-1">Higher is better (target: &gt;60%)</Text>
+              <Text className="text-xs text-slate-400 mt-1">Higher is better (target: &gt;60%)</Text>
             </View>
             <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
               <Text className="text-slate-500 font-semibold text-xs">Healthy Margin Products</Text>
               <Text className="text-2xl font-black text-emerald-600 mt-1 font-mono">{profitProductsCount}</Text>
-              <Text className="text-[10px] text-slate-400 mt-1">Products with margin &gt;= 50%</Text>
+              <Text className="text-xs text-slate-400 mt-1">Products with margin &gt;= 50%</Text>
             </View>
             <View className="flex-1 min-w-[200px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
               <Text className="text-slate-500 font-semibold text-xs">Low Margin Warning</Text>
               <Text className={`text-2xl font-black mt-1 font-mono ${lowMarginProductsCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
                 {lowMarginProductsCount}
               </Text>
-              <Text className="text-[10px] text-slate-400 mt-1">Products with margin &lt; 50%</Text>
+              <Text className="text-xs text-slate-400 mt-1">Products with margin &lt; 50%</Text>
             </View>
           </View>
 
@@ -4649,11 +4551,11 @@ export default function InventoryScreen() {
             ) : (
               <View className="border border-slate-200 rounded-2xl overflow-hidden">
                 <View className="flex-row bg-slate-50 p-3 border-b border-slate-200">
-                  <Text className="flex-[2] text-[10px] font-black text-slate-500 uppercase">Product</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Retail Price</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Recipe Cost</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Margin</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Margin %</Text>
+                  <Text className="flex-[2] text-xs font-black text-slate-500 uppercase">Product</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Retail Price</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Recipe Cost</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Margin</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Margin %</Text>
                 </View>
                 <FlatList
                   data={items}
@@ -4719,7 +4621,7 @@ export default function InventoryScreen() {
               <View>
                 <Text className="text-slate-500 font-semibold text-xs">Total Variance Cost Impact</Text>
                 <Text className="text-2xl font-black text-rose-600 mt-1 font-mono">₹{totalLossImpact.toFixed(2)}</Text>
-                <Text className="text-[10px] text-slate-400 mt-1 font-medium">Financial value of inventory discrepancies</Text>
+                <Text className="text-xs text-slate-400 mt-1 font-medium">Financial value of inventory discrepancies</Text>
               </View>
             </View>
             <View className="flex-1 min-w-[240px] bg-white p-4 rounded-2xl border border-slate-100 shadow-xs flex-row items-center gap-4">
@@ -4731,7 +4633,7 @@ export default function InventoryScreen() {
                 <Text className="text-2xl font-black text-slate-800 mt-1 font-mono">
                   {items.filter(itm => Math.abs(itm.varianceQty) > 0.01).length}
                 </Text>
-                <Text className="text-[10px] text-slate-400 mt-1 font-medium">Ingredients with physical deviations</Text>
+                <Text className="text-xs text-slate-400 mt-1 font-medium">Ingredients with physical deviations</Text>
               </View>
             </View>
           </View>
@@ -4746,11 +4648,11 @@ export default function InventoryScreen() {
             ) : (
               <View className="border border-slate-200 rounded-2xl overflow-hidden">
                 <View className="flex-row bg-slate-50 p-3 border-b border-slate-200">
-                  <Text className="flex-[2] text-[10px] font-black text-slate-500 uppercase">Ingredient</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Theoretical</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Actual</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Variance</Text>
-                  <Text className="flex-1 text-[10px] font-black text-slate-500 uppercase text-right">Cost Impact</Text>
+                  <Text className="flex-[2] text-xs font-black text-slate-500 uppercase">Ingredient</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Theoretical</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Actual</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Variance</Text>
+                  <Text className="flex-1 text-xs font-black text-slate-500 uppercase text-right">Cost Impact</Text>
                 </View>
                 <FlatList
                   data={items}
@@ -4771,42 +4673,48 @@ export default function InventoryScreen() {
       <View className="flex-col gap-6">
         {/* Branch picker & Reports Sub-Tab switcher */}
         <View className="bg-slate-100 border border-slate-200 p-3 rounded-2xl mb-1 flex-row items-center justify-between flex-wrap gap-3">
-          {renderBranchButtons('Reports branch')}
+          {renderBranchButtons('Branch')}
 
           <View className="flex-row gap-1">
             <Pressable
               onPress={() => setReportsSubTab('valuation')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: reportsSubTab === 'valuation' }}
               className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
                 reportsSubTab === 'valuation'
                   ? 'bg-primary border-primary text-white'
                   : 'bg-white border-slate-200 text-text-secondary active:bg-slate-50'
               }`}
             >
-              <Text className={`text-[10px] font-bold ${reportsSubTab === 'valuation' ? 'text-white' : 'text-text-secondary'}`}>
+              <Text className={`text-xs font-bold ${reportsSubTab === 'valuation' ? 'text-white' : 'text-text-secondary'}`}>
                 Valuation & Wastage
               </Text>
             </Pressable>
             <Pressable
               onPress={() => setReportsSubTab('margins')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: reportsSubTab === 'margins' }}
               className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
                 reportsSubTab === 'margins'
                   ? 'bg-primary border-primary text-white'
                   : 'bg-white border-slate-200 text-text-secondary active:bg-slate-50'
               }`}
             >
-              <Text className={`text-[10px] font-bold ${reportsSubTab === 'margins' ? 'text-white' : 'text-text-secondary'}`}>
+              <Text className={`text-xs font-bold ${reportsSubTab === 'margins' ? 'text-white' : 'text-text-secondary'}`}>
                 Margin Analysis
               </Text>
             </Pressable>
             <Pressable
               onPress={() => setReportsSubTab('variance')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: reportsSubTab === 'variance' }}
               className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
                 reportsSubTab === 'variance'
                   ? 'bg-primary border-primary text-white'
                   : 'bg-white border-slate-200 text-text-secondary active:bg-slate-50'
               }`}
             >
-              <Text className={`text-[10px] font-bold ${reportsSubTab === 'variance' ? 'text-white' : 'text-text-secondary'}`}>
+              <Text className={`text-xs font-bold ${reportsSubTab === 'variance' ? 'text-white' : 'text-text-secondary'}`}>
                 Variance Report
               </Text>
             </Pressable>
@@ -4825,24 +4733,52 @@ export default function InventoryScreen() {
     return (
       <View className="flex-row justify-between flex-wrap gap-6">
         <View className="flex-1 min-w-[320px] flex-col">
-          <Text className="text-sm font-bold text-slate-800 mb-4">Active Stock Alerts & Thresholds</Text>
-          <FlatList
-            key="alerts-flatlist"
-            data={alerts}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View className="py-20 w-full items-center justify-center">
-                <Check size={48} color="#16a34a" className="mb-4" />
-                <Text className="text-base font-bold text-slate-500">All alerts cleared</Text>
-              </View>
-            }
-            renderItem={renderAlertItem}
-            extraData={alerts}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-          />
+          <Text className="text-sm font-bold text-slate-800 mb-1">Needs reordering</Text>
+          <Text className="text-xs text-slate-500 mb-4">Every material at or below its reorder level, worked out from the stock itself.</Text>
+          {lowStockMaterials.length === 0 ? (
+            <View className="py-20 w-full items-center justify-center">
+              <Check size={48} color="#16a34a" className="mb-4" />
+              <Text className="text-base font-bold text-slate-500">Nothing is low on stock</Text>
+            </View>
+          ) : (
+            <View className="gap-2">
+              {lowStockMaterials.map((m) => {
+                const out = m.current_stock <= 0;
+                return (
+                  <View key={m.id} className="flex-row items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 gap-3">
+                    <View className={`w-2.5 h-2.5 rounded-full ${out ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                    <View className="flex-1">
+                      <Text className="text-sm font-bold text-slate-800">{m.material_name}</Text>
+                      <Text className="text-xs text-slate-500">
+                        {out ? 'Out of stock' : `${m.current_stock} ${m.unit_short_name} left`} · reorder at {m.reorder_level} {m.unit_short_name}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={handleOpenPurchaseModal}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Record a purchase of ${m.material_name}`}
+                      className="min-h-[40px] px-3 rounded-xl border border-amber-200 bg-amber-50 items-center justify-center active:scale-95"
+                    >
+                      <Text className="text-xs font-bold text-amber-800">Record purchase</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          {alerts.length > 0 && (
+            <FlatList
+              key="alerts-flatlist"
+              data={alerts}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              renderItem={renderAlertItem}
+              extraData={alerts}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+            />
+          )}
         </View>
 
         <View className="flex-1 min-w-[320px] flex-col">
@@ -4952,50 +4888,50 @@ export default function InventoryScreen() {
       <View className="flex-row justify-between items-start mb-2.5">
         <View className="flex-1 mr-2">
           <Text className="text-sm font-black text-slate-800">{item.supplier_name}</Text>
-          <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+          <Text className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">
             Code: {item.supplier_code}
           </Text>
         </View>
         <View className="bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
-          <Text className="text-[9px] font-bold text-blue-700 uppercase">{item.payment_terms}</Text>
+          <Text className="text-xs font-bold text-blue-700 uppercase">{item.payment_terms}</Text>
         </View>
       </View>
 
       <View className="border-t border-slate-100 pt-2 gap-1.5">
         <View className="flex-row items-center">
-          <Text className="text-[11px] font-bold text-slate-400 w-20">Contact:</Text>
-          <Text className="text-[11px] font-semibold text-slate-700">{item.contact_person || 'N/A'}</Text>
+          <Text className="text-xs font-bold text-slate-400 w-20">Contact:</Text>
+          <Text className="text-xs font-semibold text-slate-700">{item.contact_person || 'N/A'}</Text>
         </View>
         <View className="flex-row items-center">
-          <Text className="text-[11px] font-bold text-slate-400 w-20">Phone:</Text>
-          <Text className="text-[11px] font-semibold text-slate-700">{item.phone}</Text>
+          <Text className="text-xs font-bold text-slate-400 w-20">Phone:</Text>
+          <Text className="text-xs font-semibold text-slate-700">{item.phone}</Text>
         </View>
         <View className="flex-row items-center">
-          <Text className="text-[11px] font-bold text-slate-400 w-20">GST Number:</Text>
-          <Text className="text-[11px] font-semibold text-slate-700 uppercase">{item.gst_number || 'N/A'}</Text>
+          <Text className="text-xs font-bold text-slate-400 w-20">GST Number:</Text>
+          <Text className="text-xs font-semibold text-slate-700 uppercase">{item.gst_number || 'N/A'}</Text>
         </View>
         <View className="flex-row items-start">
-          <Text className="text-[11px] font-bold text-slate-400 w-20">Address:</Text>
-          <Text className="text-[11px] text-slate-500 flex-1">
+          <Text className="text-xs font-bold text-slate-400 w-20">Address:</Text>
+          <Text className="text-xs text-slate-500 flex-1">
             {item.address}, {item.city}, {item.state}
           </Text>
         </View>
       </View>
 
       <View className="flex-row justify-between items-center mt-4 pt-2 border-t border-slate-50">
-        <Text className="text-[10px] italic text-slate-400">
+        <Text className="text-xs italic text-slate-400">
           Registered: {new Date(item.created_at).toLocaleDateString()}
         </Text>
         <View className="flex-row gap-1.5">
           <Pressable
             onPress={() => handleOpenSupplierModal(item)}
-            className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+            className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
           >
             <FileText size={14} color="#64748b" />
           </Pressable>
           <Pressable
-            onPress={() => handleDeleteSupplierItem(item.id)}
-            className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+            onPress={() => handleDeleteSupplierItem(item.id, item.supplier_name)}
+            className="w-10 h-10 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
           >
             <Trash2 size={14} color="#e11d48" />
           </Pressable>
@@ -5020,13 +4956,13 @@ export default function InventoryScreen() {
         </View>
         <View className="items-end">
           <Text className="text-sm font-black text-rose-700">₹{item.cost_impact.toFixed(2)}</Text>
-          <Text className="text-[10px] text-slate-400 mt-0.5">Qty lost: {item.quantity}</Text>
+          <Text className="text-xs text-slate-400 mt-0.5">Qty lost: {item.quantity}</Text>
         </View>
       </View>
 
       <View className="flex-row justify-between pt-3 mt-3 border-t border-slate-100 items-center flex-wrap gap-1">
-        <Text className="text-[11px] text-slate-400 font-semibold">Recorded by {item.recorded_by}</Text>
-        <Text className="text-[11px] text-slate-400">
+        <Text className="text-xs text-slate-400 font-semibold">Recorded by {item.recorded_by}</Text>
+        <Text className="text-xs text-slate-400">
           {new Date(item.recorded_at).toLocaleDateString()} {new Date(item.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
@@ -5072,12 +5008,12 @@ export default function InventoryScreen() {
         <View className="flex-row justify-between items-center mb-1.5 flex-wrap gap-1">
           {item.category_name && (
             <View className="bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-md">
-              <Text className="text-[9px] font-bold text-slate-500" numberOfLines={1}>
+              <Text className="text-xs font-bold text-slate-500" numberOfLines={1}>
                 {item.category_name}
               </Text>
             </View>
           )}
-          <Text className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+          <Text className="text-xs font-black text-slate-400 uppercase tracking-wider">
             #{item.material_code}
           </Text>
         </View>
@@ -5091,8 +5027,8 @@ export default function InventoryScreen() {
         <View className="flex-col gap-1 mb-2.5 pt-1.5 border-t border-slate-50">
           {/* Dest stock */}
           <View className="flex-row justify-between items-center">
-            <Text className="text-[9px] font-bold text-slate-400">Current Stock:</Text>
-            <Text className={`text-[10px] font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
+            <Text className="text-xs font-bold text-slate-400">Current Stock:</Text>
+            <Text className={`text-xs font-black ${item.current_stock <= item.reorder_level ? 'text-red-500' : 'text-slate-700'}`}>
               {item.current_stock.toFixed(2)} {item.unit_short_name || 'Units'}
             </Text>
           </View>
@@ -5101,8 +5037,8 @@ export default function InventoryScreen() {
         {/* Bottom Row: Cost and Quick Add/Incrementer */}
         <View className="flex-row justify-between items-center pt-2 border-t border-slate-50/50 flex-wrap gap-2">
           <View>
-            <Text className="text-[8px] font-bold text-slate-400 uppercase">Avg Cost</Text>
-            <Text className="text-[10px] font-black text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
+            <Text className="text-[11px] font-bold text-slate-400 uppercase">Avg Cost</Text>
+            <Text className="text-xs font-black text-slate-700">₹{item.average_cost.toFixed(2)}</Text>
           </View>
 
           {/* Inline controls */}
@@ -5122,7 +5058,7 @@ export default function InventoryScreen() {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Plus size={10} color={colors.primary} strokeWidth={3} className="mr-0.5" />
-                <Text className="text-[10px] font-black text-[#0066b2]">Request</Text>
+                <Text className="text-xs font-black text-[#0066b2]">Request</Text>
               </CustomPressable>
             ) : (
               <View className="flex-row items-center border border-blue-200 rounded-lg bg-white overflow-hidden" style={{ height: 28 }}>
@@ -5153,7 +5089,7 @@ export default function InventoryScreen() {
                   placeholder="0"
                   placeholderTextColor="#94a3b8"
                   selectTextOnFocus={true}
-                  className="w-10 text-center text-[10px] font-black text-slate-800 p-0 m-0 outline-none h-full"
+                  className="w-10 text-center text-xs font-black text-slate-800 p-0 m-0 outline-none h-full"
                   style={Platform.OS === 'web' ? webTextStyle({ outlineStyle: 'none' }) : undefined}
                 />
 
@@ -5185,10 +5121,10 @@ export default function InventoryScreen() {
       <View className="bg-slate-50 border border-slate-200/60 rounded-xl px-2.5 py-1.5 flex-row justify-between items-center gap-2">
         {/* Name & Code on left */}
         <View className="flex-1 pr-1">
-          <Text className="text-[11px] font-black text-[#0f2744] leading-tight" numberOfLines={1}>
+          <Text className="text-xs font-black text-[#0f2744] leading-tight" numberOfLines={1}>
             {mat.material_name}
           </Text>
-          <Text className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">
+          <Text className="text-[11px] font-bold text-slate-400 uppercase mt-0.5">
             #{mat.material_code}
           </Text>
         </View>
@@ -5210,7 +5146,7 @@ export default function InventoryScreen() {
               value={item.requested_quantity}
               onChangeText={(val) => handleUpdateNewReqItemQty(item.material_id, val)}
               keyboardType="numeric"
-              className="w-10 text-center text-[10px] font-black text-[#0f2744] p-0 m-0 outline-none"
+              className="w-10 text-center text-xs font-black text-[#0f2744] p-0 m-0 outline-none"
               style={webTextStyle({ height: '100%', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}) })}
             />
 
@@ -5260,7 +5196,7 @@ export default function InventoryScreen() {
             </Text>
           </View>
           <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
-            <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
+            <Text className="text-xs font-black uppercase tracking-wider">{item.status}</Text>
           </View>
         </View>
 
@@ -5279,7 +5215,7 @@ export default function InventoryScreen() {
         {/* Items Preview */}
         {item.items && item.items.length > 0 && (
           <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
-            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+            <Text className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1.5">
               Items Requested ({item.items.length})
             </Text>
             <View className="flex-col gap-1.5">
@@ -5294,7 +5230,7 @@ export default function InventoryScreen() {
                 </View>
               ))}
               {item.items.length > 3 && (
-                <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
+                <Text className="text-xs font-bold text-[#0066b2] italic text-center mt-0.5">
                   + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
                 </Text>
               )}
@@ -5358,7 +5294,7 @@ export default function InventoryScreen() {
             </Text>
           </View>
           <View className={`border rounded-lg px-2.5 py-1 ${statusColor}`}>
-            <Text className="text-[10px] font-black uppercase tracking-wider">{item.status}</Text>
+            <Text className="text-xs font-black uppercase tracking-wider">{item.status}</Text>
           </View>
         </View>
 
@@ -5374,7 +5310,7 @@ export default function InventoryScreen() {
         {/* Items Preview */}
         {item.items && item.items.length > 0 && (
           <View className="mb-3 border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50 p-2.5">
-            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1.5">
+            <Text className="text-xs font-black text-slate-400 uppercase tracking-wider mb-1.5">
               Items Dispatched ({item.items.length})
             </Text>
             <View className="flex-col gap-1.5">
@@ -5389,7 +5325,7 @@ export default function InventoryScreen() {
                 </View>
               ))}
               {item.items.length > 3 && (
-                <Text className="text-[10px] font-bold text-[#0066b2] italic text-center mt-0.5">
+                <Text className="text-xs font-bold text-[#0066b2] italic text-center mt-0.5">
                   + {item.items.length - 3} more {item.items.length - 3 === 1 ? 'item' : 'items'}
                 </Text>
               )}
@@ -5430,14 +5366,14 @@ export default function InventoryScreen() {
             <Text className={`text-sm font-black ${isAdd ? 'text-emerald-600' : 'text-rose-600'}`}>
               {isAdd ? '+' : '-'}{item.quantity}
             </Text>
-            <Text className="text-[10px] text-slate-400 mt-0.5">
+            <Text className="text-xs text-slate-400 mt-0.5">
               {new Date(item.adjustment_date).toLocaleDateString()}
             </Text>
           </View>
         </View>
         {item.remarks && (
           <View className="bg-slate-50 rounded-lg p-2.5 mt-2.5 border border-slate-100">
-            <Text className="text-[11px] text-slate-500 italic">Remarks: {item.remarks}</Text>
+            <Text className="text-xs text-slate-500 italic">Remarks: {item.remarks}</Text>
           </View>
         )}
       </View>
@@ -5456,7 +5392,7 @@ export default function InventoryScreen() {
         </Text>
         <View className="flex-1 items-end justify-center">
           <View className={`px-2 py-0.5 rounded border ${isHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-            <Text className={`text-[10px] font-mono font-black ${isHealthy ? 'text-emerald-700' : 'text-rose-700'}`}>
+            <Text className={`text-xs font-mono font-black ${isHealthy ? 'text-emerald-700' : 'text-rose-700'}`}>
               {item.marginPct.toFixed(1)}%
             </Text>
           </View>
@@ -5470,7 +5406,7 @@ export default function InventoryScreen() {
       <View className="flex-row p-3 border-b border-slate-100 items-center">
         <View className="flex-[2]">
           <Text className="text-xs font-bold text-slate-800">{item.material_name}</Text>
-          <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase self-start mt-1">
+          <Text className="text-xs bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase self-start mt-1">
             {item.material_code}
           </Text>
         </View>
@@ -5497,7 +5433,7 @@ export default function InventoryScreen() {
     return (
       <View className={`border rounded-xl p-3 mb-3 ${alertColor} shadow-sm`}>
         <View className="flex-row justify-between items-start mb-2 flex-wrap gap-1">
-          <Text className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700">
+          <Text className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
             {item.alert_type}
           </Text>
           {!item.is_read && (
@@ -5505,12 +5441,12 @@ export default function InventoryScreen() {
               onPress={() => handleMarkAlert(item.id)}
               className="bg-slate-200 border border-slate-300 rounded px-2 py-0.5"
             >
-              <Text className="text-[9px] font-bold text-slate-600">Acknowledge</Text>
+              <Text className="text-xs font-bold text-slate-600">Acknowledge</Text>
             </Pressable>
           )}
         </View>
         <Text className="text-xs font-semibold text-slate-800 leading-relaxed mb-1">{item.message}</Text>
-        <Text className="text-[9px] text-slate-400 italic">{new Date(item.created_at).toLocaleString()}</Text>
+        <Text className="text-xs text-slate-400 italic">{new Date(item.created_at).toLocaleString()}</Text>
       </View>
     );
   }, [handleMarkAlert]);
@@ -5519,14 +5455,14 @@ export default function InventoryScreen() {
     <View className="bg-white border border-slate-100 rounded-xl p-3 mb-3 shadow-sm">
       <View className="flex-row justify-between items-center mb-1 flex-wrap gap-1">
         <Text className="text-xs font-bold text-slate-800">Module: {item.module_name.toUpperCase()}</Text>
-        <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">
+        <Text className="text-xs bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">
           {item.action_type}
         </Text>
       </View>
-      <Text className="text-[10px] text-slate-500 mb-2">Recorded on item: {item.performed_by}</Text>
+      <Text className="text-xs text-slate-500 mb-2">Recorded on item: {item.performed_by}</Text>
       <View className="flex-row justify-between items-center border-t border-slate-50 pt-2 flex-wrap gap-1">
-        <Text className="text-[10px] text-slate-400 font-semibold">Performed by: {item.performed_by}</Text>
-        <Text className="text-[10px] text-slate-400">
+        <Text className="text-xs text-slate-400 font-semibold">Performed by: {item.performed_by}</Text>
+        <Text className="text-xs text-slate-400">
           {new Date(item.created_at).toLocaleDateString()} {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
@@ -5541,7 +5477,7 @@ export default function InventoryScreen() {
         </View>
         <View>
           <Text className="text-sm font-black text-slate-800">{item.unit_name}</Text>
-          <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase mt-0.5 self-start">
+          <Text className="text-xs bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase mt-0.5 self-start">
             Code: {item.unit_code}
           </Text>
         </View>
@@ -5550,13 +5486,13 @@ export default function InventoryScreen() {
       <View className="flex-row items-center gap-1.5">
         <Pressable
           onPress={() => handleOpenUnitModal(item)}
-          className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+          className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
         >
           <FileText size={14} color="#64748b" />
         </Pressable>
         <Pressable
-          onPress={() => handleDeleteUnitItem(item.id)}
-          className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+          onPress={() => handleDeleteUnitItem(item.id, item.unit_name)}
+          className="w-10 h-10 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
         >
           <Trash2 size={14} color="#e11d48" />
         </Pressable>
@@ -5573,7 +5509,7 @@ export default function InventoryScreen() {
         <View className="flex-1">
           <View className="flex-row items-center mb-0.5 flex-wrap">
             <Text className="text-sm font-black text-slate-800 mr-2">{item.category_name}</Text>
-            <Text className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">
+            <Text className="text-xs bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md uppercase">
               {item.category_code}
             </Text>
           </View>
@@ -5584,13 +5520,13 @@ export default function InventoryScreen() {
       <View className="flex-row items-center gap-1.5">
         <Pressable
           onPress={() => handleOpenCategoryModal(item)}
-          className="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
+          className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg items-center justify-center active:scale-95"
         >
           <FileText size={14} color="#64748b" />
         </Pressable>
         <Pressable
-          onPress={() => handleDeleteCategoryItem(item.id)}
-          className="w-8 h-8 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
+          onPress={() => handleDeleteCategoryItem(item.id, item.category_name)}
+          className="w-10 h-10 bg-slate-50 border border-rose-100 rounded-lg items-center justify-center active:scale-95"
         >
           <Trash2 size={14} color="#e11d48" />
         </Pressable>
@@ -5631,10 +5567,10 @@ export default function InventoryScreen() {
 
   const getTabTitle = () => {
     if (activeTab === 'record_purchase') {
-      return 'Record Procurement Invoice';
+      return 'Record a purchase';
     }
     if (activeTab === 'transfers' && isCreatingRequest) {
-      return 'New Stock Transfer Request';
+      return 'Ask the kitchen for stock';
     }
     const matched = SIDEBAR_ITEMS.find((s) => s.id === activeTab);
     return matched ? matched.label : 'Inventory Center';
@@ -5643,33 +5579,33 @@ export default function InventoryScreen() {
   const getTabSubtitle = () => {
     switch (activeTab) {
       case 'dashboard':
-        return 'Overview of your inventory performance';
+        return 'Stock value, what needs buying, and the waste this month';
       case 'materials':
-        return 'Manage raw ingredients and physical stocks';
+        return 'What is in stock, what is low, and what it is worth';
       case 'purchases':
-        return 'Record and trace procurement billing history';
+        return 'Supplier bills, and whether each is paid';
       case 'suppliers':
-        return 'Supplier records and payments directory';
+        return 'Who you buy from, with contact details and payment terms';
       case 'wastage':
-        return 'Maintain controls on spoils and ingredient losses';
+        return 'What was thrown away, and what it cost';
       case 'transfers':
         return isCreatingRequest
           ? 'Select ingredients and items to request from Central Kitchen/Warehouse'
           : 'Ledger adjustments and internal branch transfers';
       case 'recipes':
-        return 'Standardize menu recipe details, cost breakdown and margins';
+        return 'What goes into each menu item, and what it costs to make';
       case 'reports':
-        return 'Deep analytics and monthly margin metrics';
+        return 'Stock value, recipe margins, and where stock went';
       case 'alerts':
-        return 'Critical system logs and low stock notifications';
+        return 'What needs reordering, and recent changes';
       case 'units':
-        return 'Configure global recipe weight units';
+        return 'The units stock is counted in: kg, litre, piece';
       case 'categories':
-        return 'Classify storage items and classify waste';
+        return 'Groups that organise the materials list';
       case 'record_purchase':
-        return 'Enter invoice details and items to update your inventory';
+        return "The supplier's bill, item by item";
       default:
-        return 'Enterprise Restaurant Control Cockpit';
+        return 'Inventory';
     }
   };
 
@@ -5717,10 +5653,18 @@ export default function InventoryScreen() {
     <View className="flex-1 bg-slate-50 flex-row">
       {/* LEFT SIDEBAR (Web/Tablet view) — auto-collapses to icon rail */}
       {width >= 768 && activeTab !== 'record_purchase' && !(activeTab === 'transfers' && isCreatingRequest) && (
+        // The rail keeps its own column in the page. On the web the wider panel
+        // that opens under the pointer lays over the content instead of pushing
+        // the whole page sideways; pinned, it takes its full width in the page.
+        <View style={{ width: Platform.OS === 'web' && !sidebarPinned ? SIDEBAR_COLLAPSED_W : undefined, flexShrink: 0, height: '100%', zIndex: 40 }}>
         <View
           style={[
             Platform.OS === 'web'
               ? webViewStyle({
+                  position: sidebarPinned ? 'relative' : 'absolute',
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
                   width: sidebarExpanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W,
                   minWidth: SIDEBAR_COLLAPSED_W,
                   maxWidth: SIDEBAR_EXPANDED_W,
@@ -5728,8 +5672,9 @@ export default function InventoryScreen() {
                   flexShrink: 0,
                   flexDirection: 'column',
                   height: '100%',
-                  transition: 'width 240ms cubic-bezier(0.4,0,0.2,1)',
+                  transition: 'width 240ms cubic-bezier(0.4,0,0.2,1), box-shadow 240ms',
                   willChange: 'width',
+                  boxShadow: sidebarExpanded && !sidebarPinned ? '12px 0 32px rgba(0, 32, 64, 0.35)' : 'none',
                 })
               : {
                   width: sidebarAnim,
@@ -6032,6 +5977,7 @@ export default function InventoryScreen() {
             )}
           </Pressable>
         </View>
+        </View>
       )}
 
       {/* RIGHT MAIN PANEL */}
@@ -6053,7 +5999,7 @@ export default function InventoryScreen() {
               )}
               <View>
                 <Text className="text-base font-black text-slate-800 leading-none">{getTabTitle()}</Text>
-                <Text className="text-[11px] text-slate-400 font-bold mt-0.5">{getTabSubtitle()}</Text>
+                <Text className="text-xs text-slate-400 font-bold mt-0.5">{getTabSubtitle()}</Text>
               </View>
             </View>
 
@@ -6067,7 +6013,7 @@ export default function InventoryScreen() {
                 </Pressable>
                 {lowStockMaterials.length > 0 && (
                   <View className="absolute top-0 right-0 bg-red-500 rounded-full w-4 h-4 items-center justify-center border border-white">
-                    <Text className="text-[8px] font-black text-white leading-none">
+                    <Text className="text-[11px] font-black text-white leading-none">
                       {lowStockMaterials.length > 9 ? '9+' : lowStockMaterials.length}
                     </Text>
                   </View>
@@ -6076,19 +6022,14 @@ export default function InventoryScreen() {
 
               <View className="flex-row items-center gap-2 border-l border-slate-200 pl-4">
                 <View className="w-9 h-9 rounded-full bg-blue-600 items-center justify-center">
-                  <Text className="text-xs font-black text-white">RA</Text>
+                  <Text className="text-xs font-black text-white">{signedInInitials}</Text>
                 </View>
                 {width >= 768 && (
                   <View>
-                    <Text className="text-xs font-black text-slate-800 leading-none">Rami Abou Jaoude</Text>
-                    <Text className="text-[9.5px] text-slate-400 font-bold mt-0.5">Manager</Text>
+                    <Text className="text-xs font-black text-slate-800 leading-none">{signedInName}</Text>
+                    <Text className="text-xs text-slate-400 font-bold mt-0.5 capitalize">{session?.role ?? ''}</Text>
                   </View>
                 )}
-              </View>
-
-              <View className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row items-center gap-2">
-                <Calendar size={14} color="#475569" />
-                <Text className="text-[10px] font-black text-slate-600">Jun 1 - Jun 30, 2024</Text>
               </View>
             </View>
           </View>
@@ -6152,7 +6093,7 @@ export default function InventoryScreen() {
           <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%]">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-base font-black text-slate-900">Review Request: {selectedRequest?.request_number}</Text>
-              <Pressable onPress={() => setIsApprovalModalOpen(false)}>
+              <Pressable onPress={() => setIsApprovalModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close" hitSlop={12}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
@@ -6165,17 +6106,17 @@ export default function InventoryScreen() {
                 )}
               </View>
 
-              <Text className="text-[10px] font-black text-slate-500 uppercase mt-2 mb-1">Verify approved & dispatched quantities</Text>
+              <Text className="text-xs font-black text-slate-500 uppercase mt-2 mb-1">Verify approved & dispatched quantities</Text>
               
               {reqItemsList.map((itm) => (
                 <View key={itm.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2">
                   <Text className="text-xs font-bold text-slate-800">{itm.material_name}</Text>
-                  <Text className="text-[10px] text-slate-400 font-semibold mb-2">Requested: {itm.requested_quantity} {itm.unit_short_name}</Text>
+                  <Text className="text-xs text-slate-400 font-semibold mb-2">Requested: {itm.requested_quantity} {itm.unit_short_name}</Text>
                   
                   <View className="flex-row gap-3">
                     {selectedRequest?.status === 'Pending' && (
                       <View className="flex-1 gap-1">
-                        <Text className="text-[9px] font-black text-slate-500 uppercase">Approved Quantity</Text>
+                        <Text className="text-xs font-black text-slate-500 uppercase">Approved Quantity</Text>
                         <TextInput
                           value={approvedQuantities[itm.material_id] || ''}
                           onChangeText={(val) => setApprovedQuantities({ ...approvedQuantities, [itm.material_id]: val })}
@@ -6188,7 +6129,7 @@ export default function InventoryScreen() {
 
                     {(selectedRequest?.status === 'Approved' || selectedRequest?.status === 'Partially Dispatched') && (
                       <View className="flex-1 gap-1">
-                        <Text className="text-[9px] font-black text-slate-500 uppercase">Dispatch Quantity</Text>
+                        <Text className="text-xs font-black text-slate-500 uppercase">Dispatch Quantity</Text>
                         <TextInput
                           value={dispatchQuantities[itm.material_id] || ''}
                           onChangeText={(val) => setDispatchQuantities({ ...dispatchQuantities, [itm.material_id]: val })}
@@ -6203,11 +6144,12 @@ export default function InventoryScreen() {
               ))}
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Remarks / Notes</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Remarks / Notes</Text>
                 <TextInput
                   value={approveRemarks}
                   onChangeText={setApproveRemarks}
                   placeholder="Approve remarks or reason for rejection/variance"
+                  accessibilityLabel="Remarks"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800"
                   style={{ minHeight: 44 }}
                 />
@@ -6267,7 +6209,7 @@ export default function InventoryScreen() {
           <View className="bg-white w-[90%] md:w-[60%] rounded-3xl p-6 shadow-2xl max-h-[90%]">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-base font-black text-slate-900">Verify & Receive: {selectedDispatch?.dispatch_number}</Text>
-              <Pressable onPress={() => setIsReceiveModalOpen(false)}>
+              <Pressable onPress={() => setIsReceiveModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close" hitSlop={12}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
@@ -6280,15 +6222,15 @@ export default function InventoryScreen() {
                 )}
               </View>
 
-              <Text className="text-[10px] font-black text-slate-500 uppercase mt-2 mb-1">Verify physical weights / counts</Text>
+              <Text className="text-xs font-black text-slate-500 uppercase mt-2 mb-1">Verify physical weights / counts</Text>
               
               {dispItemsList.map((itm) => (
                 <View key={itm.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2">
                   <Text className="text-xs font-bold text-slate-800">{itm.material_name}</Text>
-                  <Text className="text-[10px] text-slate-400 font-semibold mb-2">Dispatched: {itm.dispatched_quantity} {itm.unit_short_name}</Text>
+                  <Text className="text-xs text-slate-400 font-semibold mb-2">Dispatched: {itm.dispatched_quantity} {itm.unit_short_name}</Text>
                   
                   <View className="gap-1">
-                    <Text className="text-[9px] font-black text-slate-500 uppercase">Received Quantity</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Received Quantity</Text>
                     <TextInput
                       value={receivedQuantities[itm.id] || ''}
                       onChangeText={(val) => setReceivedQuantities({ ...receivedQuantities, [itm.id]: val })}
@@ -6301,11 +6243,12 @@ export default function InventoryScreen() {
               ))}
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Variance Reason (If discrepancy)</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Variance Reason (If discrepancy)</Text>
                 <TextInput
                   value={receiveRemarks}
                   onChangeText={setReceiveRemarks}
                   placeholder="e.g. 1 unit damaged in transit"
+                  accessibilityLabel="Variance reason"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800"
                   style={{ minHeight: 44 }}
                 />
@@ -6338,7 +6281,7 @@ export default function InventoryScreen() {
           <View className="bg-white w-[90%] md:w-[50%] rounded-3xl p-6 shadow-2xl max-h-[80%]">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-base font-black text-slate-900">Audit Trail: {selectedRequestForEvents?.request_number}</Text>
-              <Pressable onPress={() => setIsEventsModalOpen(false)}>
+              <Pressable onPress={() => setIsEventsModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close" hitSlop={12}>
                 <X size={20} color="#64748b" />
               </Pressable>
             </View>
@@ -6364,12 +6307,12 @@ export default function InventoryScreen() {
                       <View className="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-3">
                         <View className="flex-row justify-between items-center mb-1 flex-wrap gap-1">
                           <Text className="text-xs font-black text-slate-800">{evt.event_type}</Text>
-                          <Text className="text-[9px] text-slate-400">
+                          <Text className="text-xs text-slate-400">
                             {new Date(evt.created_at).toLocaleDateString()} {new Date(evt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </Text>
                         </View>
                         <Text className="text-xs text-slate-600">{evt.notes}</Text>
-                        <Text className="text-[9px] text-slate-400 mt-2 font-bold uppercase">Performed by: {evt.performed_by}</Text>
+                        <Text className="text-xs text-slate-400 mt-2 font-bold uppercase">Performed by: {evt.performed_by}</Text>
                       </View>
                     </View>
                   ))
@@ -6408,6 +6351,9 @@ export default function InventoryScreen() {
                   setIsImportModalOpen(false);
                   setImportSummary(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -6417,19 +6363,19 @@ export default function InventoryScreen() {
             {importSummary && (
               <View className="flex-row gap-3 mb-4 flex-wrap">
                 <View className="flex-1 min-w-[100px] bg-slate-50 border border-slate-100 rounded-2xl p-3 items-center">
-                  <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Rows</Text>
+                  <Text className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Rows</Text>
                   <Text className="text-lg font-black text-slate-800 mt-1">{importSummary.totalRows}</Text>
                 </View>
                 <View className="flex-1 min-w-[100px] bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3 items-center">
-                  <Text className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">To Create</Text>
+                  <Text className="text-xs font-black text-emerald-600 uppercase tracking-widest">To Create</Text>
                   <Text className="text-lg font-black text-emerald-700 mt-1">{importSummary.createCount}</Text>
                 </View>
                 <View className="flex-1 min-w-[100px] bg-blue-50/70 border border-blue-100 rounded-2xl p-3 items-center">
-                  <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest">To Update</Text>
+                  <Text className="text-xs font-black text-blue-600 uppercase tracking-widest">To Update</Text>
                   <Text className="text-lg font-black text-blue-700 mt-1">{importSummary.updateCount}</Text>
                 </View>
                 <View className="flex-1 min-w-[100px] bg-rose-50/70 border border-rose-100 rounded-2xl p-3 items-center">
-                  <Text className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Errors</Text>
+                  <Text className="text-xs font-black text-rose-600 uppercase tracking-widest">Errors</Text>
                   <Text className="text-lg font-black text-rose-700 mt-1">{importSummary.errorRows}</Text>
                 </View>
               </View>
@@ -6444,7 +6390,7 @@ export default function InventoryScreen() {
                     Import Warnings Notification
                   </Text>
                 </View>
-                <Text className="text-[11px] text-amber-700 font-medium">
+                <Text className="text-xs text-amber-700 font-medium">
                   Missing categories & units will be auto-created during execution. Suppliers will NOT be auto-created; rows referencing missing suppliers will be imported without supplier associations.
                 </Text>
               </View>
@@ -6457,13 +6403,13 @@ export default function InventoryScreen() {
                   
                   {/* Table Header */}
                   <View className="flex-row border-b border-slate-200 pb-2 mb-2 px-2">
-                    <View style={{ width: '28%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Name</Text></View>
-                    <View style={{ width: '15%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Category</Text></View>
-                    <View style={{ width: '10%' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Unit</Text></View>
-                    <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Reorder</Text></View>
-                    <View style={{ width: '12%', alignItems: 'flex-end' }} className="pr-3"><Text className="text-[9px] font-black text-slate-400 uppercase">Cost</Text></View>
-                    <View style={{ width: '15%' }} className="pl-3"><Text className="text-[9px] font-black text-slate-400 uppercase">Supplier</Text></View>
-                    <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-[9px] font-black text-slate-400 uppercase">Action</Text></View>
+                    <View style={{ width: '28%' }}><Text className="text-xs font-black text-slate-400 uppercase">Name</Text></View>
+                    <View style={{ width: '15%' }}><Text className="text-xs font-black text-slate-400 uppercase">Category</Text></View>
+                    <View style={{ width: '10%' }}><Text className="text-xs font-black text-slate-400 uppercase">Unit</Text></View>
+                    <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-xs font-black text-slate-400 uppercase">Reorder</Text></View>
+                    <View style={{ width: '12%', alignItems: 'flex-end' }} className="pr-3"><Text className="text-xs font-black text-slate-400 uppercase">Cost</Text></View>
+                    <View style={{ width: '15%' }} className="pl-3"><Text className="text-xs font-black text-slate-400 uppercase">Supplier</Text></View>
+                    <View style={{ width: '10%', alignItems: 'center' }}><Text className="text-xs font-black text-slate-400 uppercase">Action</Text></View>
                   </View>
 
                   {/* Table Body */}
@@ -6490,7 +6436,7 @@ export default function InventoryScreen() {
                               {row.materialName || 'N/A'}
                             </Text>
                             {isError && row.errors.map((e, eIdx) => (
-                              <Text key={eIdx} className="text-[9px] text-rose-600 font-bold mt-0.5">
+                              <Text key={eIdx} className="text-xs text-rose-600 font-bold mt-0.5">
                                 • {e}
                               </Text>
                             ))}
@@ -6499,7 +6445,7 @@ export default function InventoryScreen() {
                             <Text className="text-xs text-slate-600 font-medium">{row.categoryName || 'N/A'}</Text>
                             {!row.categoryId && !!row.categoryName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
-                                <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
+                                <Text className="text-[11px] text-amber-700 font-extrabold">Auto-create</Text>
                               </View>
                             ) : null}
                           </View>
@@ -6507,7 +6453,7 @@ export default function InventoryScreen() {
                             <Text className="text-xs text-slate-600 font-medium">{row.unitName || 'N/A'}</Text>
                             {!row.unitId && !!row.unitName ? (
                               <View className="bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md self-start mt-0.5 animate-pulse">
-                                <Text className="text-[8px] text-amber-700 font-extrabold">Auto-create</Text>
+                                <Text className="text-[11px] text-amber-700 font-extrabold">Auto-create</Text>
                               </View>
                             ) : null}
                           </View>
@@ -6521,13 +6467,13 @@ export default function InventoryScreen() {
                             <Text className="text-xs text-slate-600 font-medium truncate">{row.preferredSupplierName || 'N/A'}</Text>
                             {!row.supplierId && !!row.preferredSupplierName ? (
                               <View className="bg-rose-50 border border-rose-100 px-1 py-0.5 rounded-md self-start mt-0.5">
-                                <Text className="text-[8px] text-rose-700 font-extrabold">Not Found</Text>
+                                <Text className="text-[11px] text-rose-700 font-extrabold">Not Found</Text>
                               </View>
                             ) : null}
                           </View>
                           <View style={{ width: '10%', alignItems: 'center' }}>
                             <View className={`px-2 py-0.5 rounded-full border ${actionBadgeColor}`}>
-                              <Text className="text-[9px] font-black uppercase">{actionBadgeText}</Text>
+                              <Text className="text-xs font-black uppercase">{actionBadgeText}</Text>
                             </View>
                           </View>
                         </View>
@@ -6585,13 +6531,16 @@ export default function InventoryScreen() {
           <View className="bg-white w-[85%] md:w-[60%] lg:w-[45%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
               <Text className="text-base font-black text-slate-900">
-                {editingMaterial ? 'Edit Raw Ingredient' : 'Register New Raw Material'}
+                {editingMaterial ? 'Edit material' : 'Add raw material'}
               </Text>
               <Pressable
                 onPress={() => {
                   setIsMaterialModalOpen(false);
                   setModalError(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -6612,30 +6561,31 @@ export default function InventoryScreen() {
             >
               {/* SECTION 1: GENERAL DETAILS */}
               <View className="mb-4 bg-slate-50/50 border border-slate-100 p-4 rounded-2xl gap-3" style={{ zIndex: isFormCategoryDropdownOpen ? 100 : 30, position: 'relative' }}>
-                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">General Details</Text>
+                <Text className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">General Details</Text>
                 
                 <View className="gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Material Name*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Material Name*</Text>
                   <TextInput
                     value={formMatName}
                     onChangeText={setFormMatName}
                     placeholder="e.g., Premium Tahini Paste"
+                    accessibilityLabel="Material name"
                     className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
-                    style={{ minHeight: 38 }}
+                    style={{ minHeight: 44 }}
                   />
                 </View>
 
                 <View className="flex-row gap-3 flex-wrap">
                   {/* Category Selector */}
                   <View className="flex-1 min-w-[140px] gap-1 relative">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Category*</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Category*</Text>
                     <Pressable
                       ref={categoryTriggerRef}
                       onPress={() => {
                         setIsFormCategoryDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     >
                       <Text className="text-xs text-slate-800 font-medium">
                         {categories.find(c => c.id === formMatCategory)?.category_name || 'Select Category'}
@@ -6659,22 +6609,23 @@ export default function InventoryScreen() {
 
                 <View className="flex-row gap-3 flex-wrap">
                   <View className="flex-1 min-w-[120px] gap-1">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Code</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Code</Text>
                     <TextInput
                       value={formMatCode}
                       editable={false}
                       className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-500 font-bold"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     />
                   </View>
                   <View className="flex-1 min-w-[120px] gap-1">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">SKU Barcode</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Barcode</Text>
                     <TextInput
                       value={formMatBarcode}
                       onChangeText={setFormMatBarcode}
                       placeholder="e.g., 89012345..."
+                      accessibilityLabel="Barcode"
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-800 font-medium"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     />
                   </View>
                 </View>
@@ -6682,22 +6633,22 @@ export default function InventoryScreen() {
 
               {/* SECTION 2: MEASUREMENT & UNITS */}
               <View className="mb-4 bg-slate-50/50 border border-slate-100 p-4 rounded-2xl gap-3" style={{ zIndex: (isFormUnitDropdownOpen || isFormPrimaryUnitDropdownOpen) ? 100 : 20, position: 'relative' }}>
-                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Measurement & Units</Text>
+                <Text className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Measurement & Units</Text>
 
                 <View className="flex-row gap-3 flex-wrap">
                   {/* Secondary Unit Selector */}
                   <View className="flex-1 min-w-[140px] gap-1 relative">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Secondary Unit (Stock / Recipes)*</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Stock unit*</Text>
                     <Pressable
                       ref={unitTriggerRef}
                       onPress={() => {
                         setIsFormUnitDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     >
                       <Text className="text-xs text-slate-800 font-medium">
-                        {units.find(u => u.id === formMatUnit) ? `${units.find(u => u.id === formMatUnit)?.unit_name} (${units.find(u => u.id === formMatUnit)?.short_name})` : 'Select Base Unit'}
+                        {units.find(u => u.id === formMatUnit) ? `${units.find(u => u.id === formMatUnit)?.unit_name} (${units.find(u => u.id === formMatUnit)?.short_name})` : 'Select stock unit'}
                       </Text>
                       <ChevronDown size={14} color="#64748b" />
                     </Pressable>
@@ -6709,7 +6660,7 @@ export default function InventoryScreen() {
                       onSelect={(u) => setFormMatUnit(u.id)}
                       getOptionLabel={(u) => `${u.unit_name} (${u.short_name})`}
                       getOptionValue={(u) => u.id}
-                      title="Select Base Unit"
+                      title="Select stock unit"
                       placeholder="Search units..."
                       triggerRef={unitTriggerRef}
                     />
@@ -6717,24 +6668,24 @@ export default function InventoryScreen() {
 
                   {/* Primary Unit Selector */}
                   <View className="flex-1 min-w-[140px] gap-1 relative">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Primary Unit (Purchase)</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Bought in</Text>
                     <Pressable
                       ref={primaryUnitTriggerRef}
                       onPress={() => {
                         setIsFormPrimaryUnitDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     >
                       <Text className="text-xs text-slate-800 font-medium">
-                        {formMatPrimaryUnit ? `${units.find(u => u.id === formMatPrimaryUnit)?.unit_name} (${units.find(u => u.id === formMatPrimaryUnit)?.short_name})` : 'Same as Secondary Unit'}
+                        {formMatPrimaryUnit ? `${units.find(u => u.id === formMatPrimaryUnit)?.unit_name} (${units.find(u => u.id === formMatPrimaryUnit)?.short_name})` : 'Same as stock unit'}
                       </Text>
                       <ChevronDown size={14} color="#64748b" />
                     </Pressable>
                     <SearchableDropdown
                       visible={isFormPrimaryUnitDropdownOpen}
                       onClose={() => setIsFormPrimaryUnitDropdownOpen(false)}
-                      options={[{ id: '', unit_name: 'Same as Secondary Unit', short_name: '' }, ...units]}
+                      options={[{ id: '', unit_name: 'Same as stock unit', short_name: '' }, ...units]}
                       selectedValue={formMatPrimaryUnit}
                       onSelect={(u) => setFormMatPrimaryUnit(u.id)}
                       getOptionLabel={(u) => u.short_name ? `${u.unit_name} (${u.short_name})` : u.unit_name}
@@ -6747,84 +6698,89 @@ export default function InventoryScreen() {
                 </View>
 
                 <View className="gap-1 mt-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Conversion Factor</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Units per pack</Text>
                   <TextInput
                     value={formMatConversionFactor}
                     onChangeText={setFormMatConversionFactor}
                     placeholder="e.g. 1.5"
+                    accessibilityLabel="Units per pack"
                     keyboardType="numeric"
                     className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
-                    style={{ minHeight: 38 }}
+                    style={{ minHeight: 44 }}
                   />
-                  <Text className="text-[9px] font-medium text-slate-400">
-                    Number of stocking/base units contained in one primary purchase pack (e.g. 1.5 if bought as 1.5 kg packet).
+                  <Text className="text-xs font-medium text-slate-400">
+                    How many stock units one purchase pack holds, e.g. 1.5 for a 1.5 kg packet.
                   </Text>
                 </View>
               </View>
 
               {/* SECTION 3: STOCK & PROCUREMENT */}
               <View className="mb-4 bg-slate-50/50 border border-slate-100 p-4 rounded-2xl gap-3" style={{ zIndex: isFormSupplierDropdownOpen ? 100 : 10, position: 'relative' }}>
-                <Text className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Stock & Procurement</Text>
+                <Text className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">Stock & Procurement</Text>
 
                 <View className="flex-row gap-3 flex-wrap">
                   <View className="flex-1 min-w-[90px] gap-1">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Reorder Level*</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Reorder Level*</Text>
                     <TextInput
                       value={formMatReorder}
                       onChangeText={setFormMatReorder}
                       placeholder="10"
+                      accessibilityLabel="Reorder level"
                       keyboardType="numeric"
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     />
                   </View>
                   <View className="flex-1 min-w-[90px] gap-1">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Opening Stock*</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Opening Stock*</Text>
                     <TextInput
                       value={formMatOpening}
                       onChangeText={setFormMatOpening}
+                      accessibilityLabel="Opening stock"
                       placeholder="0"
                       keyboardType="numeric"
                       editable={!editingMaterial}
                       className={`border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-medium ${editingMaterial ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-800'}`}
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     />
                   </View>
                   <View className="flex-1 min-w-[90px] gap-1">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Avg Cost (₹)*</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Cost per unit (₹)*</Text>
                     <TextInput
                       value={formMatAvgCost}
                       onChangeText={setFormMatAvgCost}
+                      accessibilityLabel="Cost per unit"
                       placeholder="0"
                       keyboardType="numeric"
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     />
                   </View>
                 </View>
 
                 <View className="flex-row gap-3 flex-wrap">
                   <View className="flex-1 min-w-[120px] gap-1">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">HSN Code</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">HSN Code</Text>
                     <TextInput
                       value={formMatHsn}
                       onChangeText={setFormMatHsn}
                       placeholder="e.g., 2103"
+                      accessibilityLabel="HSN code"
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 font-medium"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     />
                   </View>
 
                   {/* Preferred Supplier Selector */}
                   <View className="flex-1 min-w-[140px] gap-1 relative">
-                    <Text className="text-[10px] font-black text-slate-500 uppercase">Preferred Supplier</Text>
+                    <Text className="text-xs font-black text-slate-500 uppercase">Preferred Supplier</Text>
                     <Pressable
                       ref={supplierTriggerRef}
                       onPress={() => {
                         setIsFormSupplierDropdownOpen(true);
                       }}
                       className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex-row justify-between items-center"
-                      style={{ minHeight: 38 }}
+                      style={{ minHeight: 44 }}
                     >
                       <Text className="text-xs text-slate-800 font-medium">
                         {suppliers.find(s => s.id === formMatSupplier)?.supplier_name || 'Select Supplier'}
@@ -6868,6 +6824,9 @@ export default function InventoryScreen() {
                   setIsSupplierModalOpen(false);
                   setModalError(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -6882,32 +6841,35 @@ export default function InventoryScreen() {
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Supplier Legal Name*</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Supplier name*</Text>
                 <TextInput
                   value={formSupName}
                   onChangeText={setFormSupName}
                   placeholder="e.g., Le Jardin Farms Ltd."
+                  accessibilityLabel="Supplier name"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Supplier Code*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Supplier Code*</Text>
                   <TextInput
                     value={formSupCode}
                     onChangeText={setFormSupCode}
                     placeholder="e.g., SUP03"
+                    accessibilityLabel="Supplier code"
                     editable={!editingSupplier}
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Contact Person</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Contact Person</Text>
                   <TextInput
                     value={formSupContact}
                     onChangeText={setFormSupContact}
                     placeholder="e.g., Anand Rao"
+                    accessibilityLabel="Contact person"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
@@ -6915,20 +6877,22 @@ export default function InventoryScreen() {
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Phone Number*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Phone Number*</Text>
                   <TextInput
                     value={formSupPhone}
                     onChangeText={setFormSupPhone}
                     placeholder="e.g., +91 9999999999"
+                    accessibilityLabel="Phone number"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Email Address</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Email Address</Text>
                   <TextInput
                     value={formSupEmail}
                     onChangeText={setFormSupEmail}
                     placeholder="e.g., sales@lejardinfarms.in"
+                    accessibilityLabel="Email address"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
@@ -6936,24 +6900,25 @@ export default function InventoryScreen() {
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">GST Number</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">GST Number</Text>
                   <TextInput
                     value={formSupGst}
                     onChangeText={setFormSupGst}
                     placeholder="e.g., 29BBBBB..."
+                    accessibilityLabel="GST number"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Payment Terms</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                  <Text className="text-xs font-black text-slate-500 uppercase">Payment Terms</Text>
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                     {['Net 15', 'Net 30', 'Cash on Delivery', 'Advance'].map((term) => (
                       <Pressable
                         key={term}
                         onPress={() => setFormSupTerms(term)}
                         className={`p-2 rounded mb-1 ${formSupTerms === term ? 'bg-blue-100' : ''}`}
                       >
-                        <Text className="text-[10px] font-bold">{term}</Text>
+                        <Text className="text-xs font-bold">{term}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -6961,11 +6926,12 @@ export default function InventoryScreen() {
               </View>
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Supplier Notes</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Supplier Notes</Text>
                 <TextInput
                   value={formSupNotes}
                   onChangeText={setFormSupNotes}
                   placeholder="Payment details, alternate contacts..."
+                  accessibilityLabel="Supplier notes"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
@@ -6985,12 +6951,15 @@ export default function InventoryScreen() {
         <View className="flex-1 bg-black/50 justify-center items-center p-6">
           <View className="bg-white w-[85%] md:w-[40%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
-              <Text className="text-base font-black text-slate-900">Record Spoils & Wastage</Text>
+              <Text className="text-base font-black text-slate-900">Record wastage</Text>
               <Pressable
                 onPress={() => {
                   setIsWastageModalOpen(false);
                   setModalError(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -7005,16 +6974,16 @@ export default function InventoryScreen() {
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Choose Ingredient*</Text>
-                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                <Text className="text-xs font-black text-slate-500 uppercase">Material*</Text>
+                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                   {materials.map((m) => (
                     <Pressable
                       key={m.id}
                       onPress={() => setWastageMaterialId(m.id)}
                       className={`p-2 rounded mb-1 ${wastageMaterialId === m.id ? 'bg-blue-100' : ''}`}
                     >
-                      <Text className="text-[10px] font-bold">
-                        {m.material_name} ({m.current_stock} left)
+                      <Text className="text-xs font-bold">
+                        {m.material_name} ({m.current_stock} {m.unit_short_name} left)
                       </Text>
                     </Pressable>
                   ))}
@@ -7023,52 +6992,40 @@ export default function InventoryScreen() {
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Quantity Lost*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Quantity*</Text>
                   <TextInput
                     value={wastageQty}
                     onChangeText={setWastageQty}
                     placeholder="e.g., 2.5"
+                    accessibilityLabel="Quantity lost"
                     keyboardType="numeric"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
-                </View>
-                <View className="flex-1 min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Location Source</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => setWastageLocation(loc)}
-                        className={`p-2 rounded mb-1 ${wastageLocation === loc ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
                 </View>
               </View>
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Wastage Reason*</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                  <Text className="text-xs font-black text-slate-500 uppercase">Reason*</Text>
+                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                     {(['Expired', 'Spoiled', 'Kitchen Waste', 'Damage', 'Theft', 'Other'] as const).map((r) => (
                       <Pressable
                         key={r}
                         onPress={() => setWastageReason(r)}
                         className={`p-2 rounded mb-1 ${wastageReason === r ? 'bg-blue-100' : ''}`}
                       >
-                        <Text className="text-[10px] font-bold">{r}</Text>
+                        <Text className="text-xs font-bold">{r}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                 </View>
                 <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Recorded By</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Recorded By</Text>
                   <TextInput
                     value={wastageRecorder}
                     onChangeText={setWastageRecorder}
-                    placeholder="e.g., Chef Amit"
+                    placeholder="Who is recording this"
+                    accessibilityLabel="Recorded by"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
@@ -7076,7 +7033,7 @@ export default function InventoryScreen() {
             </ScrollView>
 
             <Pressable onPress={handleRecordWastage} className="bg-rose-600 py-3 rounded-2xl items-center mt-5">
-              <Text className="text-xs font-bold text-white">Log Wastage Cost Impact</Text>
+              <Text className="text-xs font-bold text-white">Save wastage</Text>
             </Pressable>
           </View>
         </View>
@@ -7087,12 +7044,15 @@ export default function InventoryScreen() {
         <View className="flex-1 bg-black/50 justify-center items-center p-6">
           <View className="bg-white w-[85%] md:w-[40%] rounded-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center border-b border-slate-100 pb-4 mb-4">
-              <Text className="text-base font-black text-slate-900">Manual Inventory Stock Adjustment</Text>
+              <Text className="text-base font-black text-slate-900">Adjust stock</Text>
               <Pressable
                 onPress={() => {
                   setIsAdjustmentModalOpen(false);
                   setModalError(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -7107,16 +7067,16 @@ export default function InventoryScreen() {
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Choose Ingredient*</Text>
-                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
+                <Text className="text-xs font-black text-slate-500 uppercase">Material*</Text>
+                <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[220px] p-2">
                   {materials.map((m) => (
                     <Pressable
                       key={m.id}
                       onPress={() => setAdjMaterialId(m.id)}
                       className={`p-2 rounded mb-1 ${adjMaterialId === m.id ? 'bg-blue-100' : ''}`}
                     >
-                      <Text className="text-[10px] font-bold">
-                        {m.material_name} ({m.current_stock} left)
+                      <Text className="text-xs font-bold">
+                        {m.material_name} ({m.current_stock} {m.unit_short_name} left)
                       </Text>
                     </Pressable>
                   ))}
@@ -7125,7 +7085,7 @@ export default function InventoryScreen() {
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Adjustment Type*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Adjustment Type*</Text>
                   <View className="flex-row gap-2 mt-1">
                     <Pressable
                       onPress={() => setAdjType('Add')}
@@ -7135,7 +7095,7 @@ export default function InventoryScreen() {
                           : 'bg-slate-50 border-slate-200'
                       }`}
                     >
-                      <Text className="text-[10px] font-bold">Add (+)</Text>
+                      <Text className="text-xs font-bold">Add (+)</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => setAdjType('Deduct')}
@@ -7145,16 +7105,17 @@ export default function InventoryScreen() {
                           : 'bg-slate-50 border-slate-200'
                       }`}
                     >
-                      <Text className="text-[10px] font-bold">Deduct (-)</Text>
+                      <Text className="text-xs font-bold">Deduct (-)</Text>
                     </Pressable>
                   </View>
                 </View>
                 <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Quantity*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Quantity*</Text>
                   <TextInput
                     value={adjQty}
                     onChangeText={setAdjQty}
                     placeholder="e.g., 5.0"
+                    accessibilityLabel="Quantity"
                     keyboardType="numeric"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
@@ -7163,43 +7124,31 @@ export default function InventoryScreen() {
 
               <View className="flex-row justify-between mb-3 flex-wrap gap-2">
                 <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Adjustment Location</Text>
-                  <ScrollView className="bg-slate-50 border border-slate-200 rounded-xl max-h-[80px] p-2">
-                    {['Dry Storage', 'Freezer', 'Central Kitchen'].map((loc) => (
-                      <Pressable
-                        key={loc}
-                        onPress={() => setAdjLocation(loc)}
-                        className={`p-2 rounded mb-1 ${adjLocation === loc ? 'bg-blue-100' : ''}`}
-                      >
-                        <Text className="text-[10px] font-bold">{loc}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-                <View className="flex-grow min-w-[140px] gap-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase">Reason*</Text>
+                  <Text className="text-xs font-black text-slate-500 uppercase">Reason*</Text>
                   <TextInput
                     value={adjReason}
                     onChangeText={setAdjReason}
                     placeholder="e.g., Physical Stock Audit"
+                    accessibilityLabel="Reason"
                     className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                   />
                 </View>
               </View>
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Remarks</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Remarks</Text>
                 <TextInput
                   value={adjRemarks}
                   onChangeText={setAdjRemarks}
                   placeholder="Record why this change was logged manually..."
+                  accessibilityLabel="Remarks"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
             </ScrollView>
 
             <Pressable onPress={handleRecordAdjustment} className="bg-blue-600 py-3 rounded-2xl items-center mt-5">
-              <Text className="text-xs font-bold text-white">Record Adjust Movement</Text>
+              <Text className="text-xs font-bold text-white">Save adjustment</Text>
             </Pressable>
           </View>
         </View>
@@ -7218,6 +7167,9 @@ export default function InventoryScreen() {
                   setIsCategoryModalOpen(false);
                   setModalError(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -7232,32 +7184,35 @@ export default function InventoryScreen() {
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Category Name*</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Category Name*</Text>
                 <TextInput
                   value={formCatName}
                   onChangeText={setFormCatName}
                   placeholder="e.g., Dairy & Milks"
+                  accessibilityLabel="Category name"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Category Code (Short)*</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Category code*</Text>
                 <TextInput
                   value={formCatCode}
                   onChangeText={setFormCatCode}
                   placeholder="e.g., CAT04"
+                  accessibilityLabel="Category code"
                   editable={!editingCategory}
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Description</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Description</Text>
                 <TextInput
                   value={formCatDesc}
                   onChangeText={setFormCatDesc}
                   placeholder="Record what materials fit this category..."
+                  accessibilityLabel="Description"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
@@ -7283,6 +7238,9 @@ export default function InventoryScreen() {
                   setIsUnitModalOpen(false);
                   setModalError(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
               >
                 <X size={20} color="#64748b" />
               </Pressable>
@@ -7297,32 +7255,35 @@ export default function InventoryScreen() {
 
             <ScrollView className="max-h-[400px] pr-2 gap-4">
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Unit Name*</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Unit Name*</Text>
                 <TextInput
                   value={formUnitName}
                   onChangeText={setFormUnitName}
                   placeholder="e.g., Kilograms"
+                  accessibilityLabel="Unit name"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Unit Code (System)*</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Unit code*</Text>
                 <TextInput
                   value={formUnitCode}
                   onChangeText={setFormUnitCode}
                   placeholder="e.g., KG"
+                  accessibilityLabel="Unit code"
                   editable={!editingUnit}
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>
 
               <View className="gap-1 mb-3">
-                <Text className="text-[10px] font-black text-slate-500 uppercase">Short Name (Display)*</Text>
+                <Text className="text-xs font-black text-slate-500 uppercase">Short name*</Text>
                 <TextInput
                   value={formUnitShort}
                   onChangeText={setFormUnitShort}
                   placeholder="e.g., kg"
+                  accessibilityLabel="Short name"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs"
                 />
               </View>

@@ -52,3 +52,15 @@ scratch/
 
 # test artifacts
 coverage/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Impeccable decision-page state (transient)
+/.impeccable/questions/
+/.impeccable/build/
+/.impeccable/review/

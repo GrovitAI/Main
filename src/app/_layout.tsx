@@ -6,9 +6,10 @@ import { ActivityIndicator, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { ApprovalProvider } from '@/lib/approval/ApprovalContext';
-import { getDefaultHrefForRole } from '@/lib/pos/tab-config';
+import { getDefaultHrefForSession } from '@/lib/pos/tab-config';
 import { BREAKPOINTS } from '@/lib/pos/useResponsive';
 import { useSupabaseAutoRefresh } from '@/lib/pos/use-supabase-auto-refresh';
+import { TestDatabaseBanner } from '@/components/ui/TestDatabaseBanner';
 
 // A render error in an installed app would otherwise close it; this shows the message instead.
 export { ErrorBoundary } from 'expo-router';
@@ -52,10 +53,10 @@ export default function RootLayout() {
     }
 
     // Already inside the app (e.g. a web deep link) — keep the requested screen.
-    if (currentGroup === '(app)' && segments.length > 1) return;
+    if ((currentGroup === '(app)' || currentGroup === 'central-kitchen') && segments.length > 1) return;
 
     // Land on the role + device specific default screen (never on a hidden tab).
-    const target = session ? getDefaultHrefForRole(session.role, isPhone) : '/(app)';
+    const target = session ? getDefaultHrefForSession(session, isPhone) : '/(app)';
     router.replace(target as never);
   }, [isAuthenticated, isRestoring]);
 
@@ -64,11 +65,14 @@ export default function RootLayout() {
       <ApprovalProvider>
         <StatusBar style="dark" />
         <View style={{ flex: 1 }}>
+          {/* Only on the staging copy of the database; nothing on the live one. */}
+          <TestDatabaseBanner />
           {/* Routes mount only after session restore so screens never fetch without tenant context. */}
           {!isRestoring && (
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
+              <Stack.Screen name="central-kitchen" />
             </Stack>
           )}
           {isRestoring && (

@@ -1,7 +1,11 @@
 # Finance Ledger — Plan
 
 > **Status**: steps 1 to 3 of §10 are built and live (2026-09-15 and 2026-09-16).
-> Steps 4 and 5 (partners, month-end Excel) are still to do.
+> Step 4 (partners) is still to do. §12, the Central Kitchen's flows with
+> Inventory (task 110), and §13, everyday use and the month-end workbook
+> (tasks 111 to 116, which include step 5), are built and wait on staging for
+> the owner's test before their migrations go to production
+> (docs/STAGING.md).
 > **Written**: 2026-09-15, from the owner's requirements of the same day.
 > **Scope for now**: the central kitchen's books, with branches and the
 > partnership able to use the same ledger later.
@@ -255,3 +259,154 @@ Each step ships on its own; nothing waits for the last.
 Receipt photos (no storage decided), budgets, recurring entries, approvals,
 multi-currency, and the POS-sales income feed. All can be added without
 changing what is above.
+
+## 12. The Central Kitchen's flows with Inventory (2026-09-27, task 110)
+
+> From the owner's requirement of 2026-09-26: the finance module is the
+> Central Kitchen's books first. The branches are acting hands: they receive
+> goods from the kitchen, they sometimes pay a vendor on the kitchen's behalf,
+> and the owner of all controls every account. What matters is what the
+> kitchen has outstanding, what it spent, what it owes and what it is owed.
+> Built in `supabase/migrations/20260927000100_finance_inventory_links.sql`.
+
+Every figure below comes from one inventory document, so the ledger and the
+inventory module can never disagree about a purchase or a dispatch. The
+entry remembers its document (`source_type`, `source_id`; one live entry per
+document), is posted only by the database functions, and shows "Posted from a
+purchase / dispatch in Inventory" on the Ledger tab.
+
+**Purchases (vendor → kitchen).** `record_purchase()` writes the header, the
+lines, the material averages, the stock level, the stock ledger and the
+finance entry in one transaction, numbered `PO-CK-0001` from the branch
+counter. Paid at once (cash, UPI, bank, card) it is an **expense** in the
+kitchen's account under Raw Materials, mode cash or bank. "Pay later" makes
+it a **payable** to the supplier; settling it in the Ledger (in full or in
+parts) records the payment and marks the purchase paid in Inventory. The
+purchases list reads paid / pending / overdue from that entry. A branch that
+pays the kitchen's supplier settles the payable *paid from* its own account,
+exactly as before: the cost stays with the kitchen and a position "Central
+Kitchen owes Velachery" builds up.
+
+**Dispatches (kitchen → branch).** `create_dispatch()` snapshots each line's
+unit cost (the kitchen's average cost) and posts a **receivable** in the
+kitchen's account with the branch as `counterparty_account_id`, under Branch
+Supplies, for the goods at cost. `receive_dispatch()` brings it down to what
+actually arrived, or voids it when nothing did. When the branch pays, the
+receivable is settled and becomes **income** for the kitchen. Nothing is
+written in the branch's own books; the branch admin can read the entry
+(`finance_can_read` covers the counterparty) and sees "Owed by Kolathur" on it.
+
+**Between accounts.** `finance_interaccount_positions()` now nets two things
+per pair: what one account paid for another (as before) and what one account
+still owes another on open payables and receivables. So "Velachery owes
+Central Kitchen ₹7,000" already reflects the ₹12,000 of goods sent minus the
+₹5,000 vendor bill Velachery paid for the kitchen.
+
+**Offset.** A receivable from a branch can be settled with mode **offset**
+instead of cash or bank: the income row is "paid from" the branch with no
+cash moving, which cancels the paid-for position, and the database caps it
+at what the kitchen owes that branch from money already moved between the
+two (`finance_pair_position`: vendor bills the branch paid, transfers,
+earlier offsets), never counting the open receivable itself.
+Settle → Offset appears only for the owner (positions are the owner's) and
+only when something is owed. Offsets count as income in the kitchen's books,
+like any other settlement of the receivable.
+
+**Categories the system posts into** carry a `system_key` ('purchases' →
+Raw Materials, 'branch_supplies' → Branch Supplies) so renaming them never
+breaks posting. Neither is a built-in category: both count in profit.
+
+**Still to do** after §13: wastage and adjustments post through database
+functions like purchases do; step 4 above (partners) when the owner is ready.
+
+The unreachable Expenses tab, its form, its store area and its service
+functions were deleted in task 118. The `expenses` and `expense_categories`
+tables stay in the database, empty and unread.
+
+## 13. Everyday use and a clear picture (2026-10-01, tasks 111 to 116)
+
+> Agreed with the owner on 2026-10-01 after the walkthrough of the flows in
+> §12. Built on the branch `feat/finance-inventory-links`, tried on staging
+> first (docs/STAGING.md). Six migrations, `20261001000100` to `…000600`.
+
+**One set of books (111).** The Overview, the Cash Book and Day Close read
+`finance_entries`, the rows the Ledger tab shows. The Overview's expenses are
+the branch accounts' recorded expense entries, built-in categories left out.
+Purchases are no longer subtracted a second time: a purchase is a ledger
+expense once paid and a payable until then. Ledger income is added as "Other
+income"; with every branch in view, income from one of our own accounts is
+internal and left out. With one branch in view the profit and loss charges it
+"Supplies from the kitchen": the goods billed to it in the range. Cash
+figures count what physically moved, so a partner's drawing counts and an
+opening balance does not; the built-in categories carry `system_key`
+'opening_balance' and 'partners'.
+
+**Due dates (112).** A payable or receivable may carry `due_date`. The
+Outstanding card shows what is to pay and to collect as of today
+(`finance_dues_summary`), with what is overdue or due this week, and opens
+the list of open dues sorted by due date. That list ignores the date range:
+what is owed is owed whatever period the screen is on.
+
+**One name per vendor (112).** "Paid to / Received from" offers the names
+already in the ledger, the suppliers and the staff
+(`finance_counterparty_names`), merged without regard to case. New names are
+still allowed. The ledger filters by category and by that name.
+
+**Quick actions (112).** Paid a bill, Received money, We owe, Owed to us and
+Moved money open the entry sheet with the kind chosen and four fields:
+amount, how, what and who. Everything else is behind "More details".
+
+**Statements (113).** Every bill, payment and offset with one vendor or
+customer, or between two of our accounts, oldest first with a running
+balance. Opened from the Ledger toolbar, from an entry, or from a Between
+accounts line. Arithmetic in `finance-statement-utils.ts`; the closing balance
+of a pair equals its Between accounts position.
+
+**Cash count (113).** Count on a balance card compares the cash box or the
+bank statement with what the ledger expects (`finance_record_cash_count`) and
+can post the difference under Cash Over / Short (`system_key`
+'cash_difference'), tied to the count (`source_type` 'cash_count').
+
+**Purchases (114).** `record_purchase()` takes the account that paid, for a
+branch paying the kitchen's vendor, and a pay-by date for a purchase on
+credit. A pending purchase has Pay now, which opens its payable in Finance.
+Typing a Raw Materials entry into the ledger offers "Record as a purchase
+instead", because an entry typed there never reaches stock.
+
+**The branch's side (114).** A branch reads every due with its own account
+on the other side and what the system posted into its books, whoever entered
+it. It sees "You owe Central Kitchen ₹X" and can record that it paid, in
+cash or through the bank. Offsets stay the owner's. An entry a document
+posted keeps that document's amount, kind, accounts, mode and date; by hand
+it can be annotated or, by the owner, voided.
+
+**Regulars (115).** An entry can be saved as a regular
+(`finance_entry_templates`). Regulars lists them with the amount last used;
+what has not been recorded this month is ticked, ready to record. A payable
+made from one takes its due date from the template's day of the month.
+
+**Opening balances (115).** Settings → Finance sets each account's opening
+cash and bank (`finance_accounts.opening_*_paise`, the owner's alone). The
+Opening Balance category remains for entries already made with it; an amount
+set in both places would count twice.
+
+**Month-end workbook (115).** "Month end" on the Ledger downloads one Excel
+file per account per month: Summary by category with the balances at the
+start and end, Transactions with who entered each, and Outstanding. Built in
+the browser from `finance-workbook.ts`; the web app only, as with the other
+Excel files.
+
+**Today and the bill (116).** The Overview opens with the kitchen's cash,
+bank and dues as of now. An entry can carry a photo or PDF of its bill in the
+private bucket `finance-receipts` at `<tenant>/<entry>/<file>`; whoever may
+read the entry may open it, through a link that lasts five minutes.
+
+**Decisions carried from the walkthrough, unchanged:** a dispatch is valued
+at the kitchen's average cost; the receivable is created at dispatch and
+reduced at receipt; nothing is written in a branch's own books when it pays
+for the kitchen.
+
+**Known limit.** A branch account's cash and bank in the ledger move only
+when the branch pays for something through the ledger. POS takings do not
+feed the ledger (decision of 2026-09-15), so a branch's ledger balance is not
+its till. The kitchen's balances are complete.

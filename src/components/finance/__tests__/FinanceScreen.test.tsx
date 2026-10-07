@@ -44,11 +44,10 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { emptyFinanceSummary } from '@/lib/pos/finance-utils';
-import type { Expense, FinanceSchemaStatus } from '@/lib/pos/finance-types';
+import type { FinanceSchemaStatus } from '@/lib/pos/finance-types';
 import { FinanceScreen } from '../FinanceScreen';
 import { PhoneFinanceScreen } from '../PhoneFinanceScreen';
 import { FinanceOverviewTab } from '../FinanceOverviewTab';
-import { ExpensesTab } from '../ExpensesTab';
 import { CashBookTab } from '../CashBookTab';
 import { DayCloseTab } from '../DayCloseTab';
 
@@ -71,9 +70,9 @@ const ACCOUNTS = [
 ];
 
 const CATALOG = [
-  { id: 'cat-util', level: 'category' as const, parent_id: null, name: 'Utilities', default_kind: 'expense' as const, sort_order: 1, is_system: false, is_active: true },
-  { id: 'sub-elec', level: 'subcategory' as const, parent_id: 'cat-util', name: 'Electricity', default_kind: null, sort_order: 1, is_system: false, is_active: true },
-  { id: 'par-eb', level: 'particular' as const, parent_id: 'sub-elec', name: 'EB bill', default_kind: null, sort_order: 1, is_system: false, is_active: true },
+  { id: 'cat-util', level: 'category' as const, parent_id: null, name: 'Utilities', default_kind: 'expense' as const, sort_order: 1, is_system: false, system_key: null, is_active: true },
+  { id: 'sub-elec', level: 'subcategory' as const, parent_id: 'cat-util', name: 'Electricity', default_kind: null, sort_order: 1, is_system: false, system_key: null, is_active: true },
+  { id: 'par-eb', level: 'particular' as const, parent_id: 'sub-elec', name: 'EB bill', default_kind: null, sort_order: 1, is_system: false, system_key: null, is_active: true },
 ];
 
 function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry> = {}): import('@/lib/pos/finance-types').FinanceEntry {
@@ -89,6 +88,7 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
     transfer_from: null,
     transfer_to: null,
     transaction_date: '2026-09-15',
+    due_date: null,
     entered_at: '2026-09-15T04:30:00.000Z',
     entered_by: 'staff-1',
     entered_by_name: 'Owner',
@@ -99,6 +99,10 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
     counterparty: 'TANGEDCO',
     reference_no: null,
     notes: null,
+    receipt_path: null,
+    counterparty_account_id: null,
+    source_type: null,
+    source_id: null,
     settles_entry_id: null,
     settled: 0,
     settled_at: null,
@@ -111,8 +115,6 @@ function makeEntry(over: Partial<import('@/lib/pos/finance-types').FinanceEntry>
 }
 
 const FULL_SCHEMA: FinanceSchemaStatus = {
-  expensesExtended: true,
-  categoriesTable: true,
   dayClosuresTable: true,
   refundsExtended: true,
   summaryRpc: true,
@@ -154,31 +156,6 @@ const SESSION = {
   jwtExpiresAt: '',
   lastActivityAt: '',
 };
-
-function makeExpense(over: Partial<Expense> = {}): Expense {
-  return {
-    id: 'e1',
-    tenant_id: 'tenant-1',
-    branch_id: 'branch-1',
-    amount: 1500,
-    amount_paise: 150000,
-    category: 'Rent',
-    description: 'September rent',
-    expense_date: '2026-09-05',
-    payment_method: 'cash',
-    payee: 'Landlord',
-    reference_no: 'REF-1',
-    notes: null,
-    receipt_url: null,
-    status: 'recorded',
-    void_reason: null,
-    voided_at: null,
-    created_by: null,
-    created_at: '2026-09-05T10:00:00.000Z',
-    updated_at: null,
-    ...over,
-  };
-}
 
 /** Every visible string in the rendered tree, flattened into one haystack. */
 function textOf(tree: ReactTestRenderer): string {
@@ -240,16 +217,14 @@ beforeEach(() => {
   mockedLedger.fetchEntryRevisions.mockResolvedValue({ data: [], error: null });
   mockedLedger.fetchInterAccountPositions.mockResolvedValue({ data: [], error: null });
   mockedLedger.fetchLedgerSummary.mockResolvedValue({ data: [], error: null });
+  mockedLedger.fetchDuesSummary.mockResolvedValue({ data: [], error: null });
+  mockedLedger.fetchCounterpartyNames.mockResolvedValue({ data: [], error: null });
   (useSessionStore as unknown as jest.Mock).mockImplementation(
     (selector: (s: { session: typeof SESSION }) => unknown) => selector({ session: SESSION }),
   );
   Object.assign(useSessionStore, { getState: () => ({ session: SESSION }) });
 
   mocked.detectFinanceSchema.mockResolvedValue(FULL_SCHEMA);
-  mocked.fetchExpenseCategories.mockResolvedValue({
-    data: [{ id: 'c1', tenant_id: 'tenant-1', name: 'Rent', sort_order: 10, is_active: true }],
-    error: null,
-  });
   mocked.fetchFinanceOverview.mockResolvedValue({
     data: {
       summary: {
@@ -267,10 +242,6 @@ beforeEach(() => {
       series: [{ date: '2026-09-05', revenue: 120000, orders: 42, expenses: 30000, net: 90000 }],
       degraded: false,
     },
-    error: null,
-  });
-  mocked.fetchExpenses.mockResolvedValue({
-    data: { rows: [makeExpense()], total: 1, page: 0, pageSize: 50 },
     error: null,
   });
   mocked.fetchLedger.mockResolvedValue({
@@ -324,6 +295,29 @@ describe('FinanceScreen', () => {
     expect(textOf(tree)).toContain('Sign in to view finance');
     unmountTree(tree);
   });
+
+  test('does not load revenue for a ledger-only accountant while Ledger is deferred', async () => {
+    const accountant = { ...SESSION, role: 'accountant' as const };
+    (useSessionStore as unknown as jest.Mock).mockImplementation(
+      (selector: (s: { session: typeof accountant }) => unknown) => selector({ session: accountant }),
+    );
+    const tree = renderTree(<FinanceScreen />);
+    await act(async () => { await Promise.resolve(); });
+    expect(textOf(tree)).toContain('Finance tools for this role are not enabled yet.');
+    expect(mocked.detectFinanceSchema).not.toHaveBeenCalled();
+    expect(mocked.fetchFinanceOverview).not.toHaveBeenCalled();
+    expect(mockedLedger.fetchLedgerEntries).not.toHaveBeenCalled();
+    unmountTree(tree);
+  });
+
+  test('returns an existing deferred tab selection to Overview without mounting Ledger', async () => {
+    useFinanceStore.setState({ activeTab: 'ledger' });
+    const tree = renderTree(<FinanceScreen />);
+    await act(async () => { await Promise.resolve(); });
+    expect(useFinanceStore.getState().activeTab).toBe('overview');
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' })).toHaveLength(0);
+    unmountTree(tree);
+  });
 });
 
 describe('PhoneFinanceScreen', () => {
@@ -348,20 +342,23 @@ describe('PhoneFinanceScreen', () => {
     );
   }
 
-  test('shows the branch, the active range and all four tabs', () => {
+  test('shows the branch, active range and enabled Finance tabs', () => {
     const tree = renderPhone();
     const text = textOf(tree);
     expect(text).toContain('All branches');
     expect(text).toContain('1 Sep – 7 Sep 2026');
-    for (const label of ['Overview', 'Ledger', 'Cash Book', 'Day Close']) {
+    for (const label of ['Overview', 'Day Close']) {
       expect(text).toContain(label);
+    }
+    for (const label of ['Ledger', 'Cash Book', 'Catalog']) {
+      expect(tree.root.findAllByProps({ accessibilityRole: 'tab', accessibilityLabel: label })).toHaveLength(0);
     }
     // The presets live in the sheet, which is closed until asked for.
     expect(text).not.toContain('This Month');
     unmountTree(tree);
   });
 
-  test('the quick-add button switches to the Ledger and asks for a blank form', () => {
+  test('hides the quick-add shortcut while Ledger is deferred', () => {
     const onTab = jest.fn();
     const tree = renderTree(
       <PhoneFinanceScreen
@@ -378,13 +375,9 @@ describe('PhoneFinanceScreen', () => {
         onRefresh={noop}
       />,
     );
-    const [button] = tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' });
-    const { onPress } = button.props as { onPress: () => void };
-    act(() => {
-      onPress();
-    });
-    expect(onTab).toHaveBeenCalledWith('ledger');
-    expect(useLedgerStore.getState().newEntryRequested).toBe(true);
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' })).toHaveLength(0);
+    expect(onTab).not.toHaveBeenCalled();
+    expect(useLedgerStore.getState().newEntryRequested).toBe(false);
     unmountTree(tree);
   });
 
@@ -412,8 +405,10 @@ describe('Overview tab', () => {
     expect(text).toContain('Collected revenue');
     expect(text).toContain('₹1,20,000');
     expect(text).toContain('Net cash flow');
-    // 120000 − 30000 expenses − 20000 purchases
-    expect(text).toContain('+₹70,000');
+    // 120000 − 30000 ledger expenses. The 20000 of purchase invoices is
+    // information: a purchase is inside the ledger's expenses once it is paid.
+    expect(text).toContain('+₹90,000');
+    expect(text).toContain('Expenses (ledger)');
     unmountTree(tree);
   });
 
@@ -426,33 +421,6 @@ describe('Overview tab', () => {
     const text = textOf(tree);
     expect(text).toContain('Unable to load the finance overview.');
     expect(text).toContain('Retry');
-    unmountTree(tree);
-  });
-});
-
-describe('Expenses tab', () => {
-  test('lists expenses returned by the service', async () => {
-    useFinanceStore.setState({ schema: FULL_SCHEMA });
-    await act(async () => {
-      await useFinanceStore.getState().loadExpenses(0);
-    });
-    const tree = renderTree(<ExpensesTab />);
-    const text = textOf(tree);
-    expect(text).toContain('Rent');
-    expect(text).toContain('September rent');
-    expect(text).toContain('₹1,500');
-    unmountTree(tree);
-  });
-
-  test('shows an empty state with a call to action', async () => {
-    mocked.fetchExpenses.mockResolvedValue({ data: { rows: [], total: 0, page: 0, pageSize: 50 }, error: null });
-    await act(async () => {
-      await useFinanceStore.getState().loadExpenses(0);
-    });
-    const tree = renderTree(<ExpensesTab />);
-    const text = textOf(tree);
-    expect(text).toContain('No expenses in this range');
-    expect(text).toContain('Add first expense');
     unmountTree(tree);
   });
 });

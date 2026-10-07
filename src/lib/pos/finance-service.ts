@@ -20,11 +20,6 @@ import type {
   DayCloseComputation,
   DayClosure,
   DayClosureInput,
-  Expense,
-  ExpenseCategory,
-  ExpenseInput,
-  ExpenseListFilters,
-  ExpensePage,
   FinanceDailyPoint,
   FinanceFilters,
   FinanceSchemaStatus,
@@ -34,14 +29,12 @@ import type {
   ServiceResult,
 } from './finance-types';
 import {
-  DEFAULT_EXPENSE_CATEGORIES,
   addDays,
   buildDailySeries,
   computeCashVariance,
   computeExpectedCash,
   emptyFinanceSummary,
   fromPaise,
-  isExpensePaymentMethod,
   toPaise,
 } from './finance-utils';
 
@@ -49,10 +42,8 @@ import {
 
 type PgError = { code?: string; message?: string } | null;
 
-const isMissingColumn = (e: PgError): boolean => e?.code === '42703' || e?.code === 'PGRST204';
 const isMissingTable = (e: PgError): boolean => e?.code === 'PGRST205' || e?.code === '42P01';
 const isMissingFunction = (e: PgError): boolean => e?.code === 'PGRST202' || e?.code === '42883';
-const isUniqueViolation = (e: PgError): boolean => e?.code === '23505';
 
 function toNumber(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -87,11 +78,6 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
-}
-
-/** Escapes a free-text search term for use inside a PostgREST `or()` filter. */
-function sanitizeSearch(term: string): string {
-  return term.replace(/[%,()"'\\]/g, ' ').trim();
 }
 
 type Scope = {
@@ -161,9 +147,7 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
   try {
     const { tenant_id } = getTenantContext();
     const probeTs = new Date(0).toISOString();
-    const [expensesExtended, categoriesTable, dayClosuresTable, refundsExtended, rpcProbe] = await Promise.all([
-      probeColumn('expenses', 'status'),
-      probeColumn('expense_categories', 'id'),
+    const [dayClosuresTable, refundsExtended, rpcProbe] = await Promise.all([
       probeColumn('finance_day_closures', 'id'),
       probeColumn('refunds', 'amount'),
       supabase.rpc('get_finance_summary', {
@@ -176,8 +160,6 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
       }),
     ]);
     schemaCache = {
-      expensesExtended,
-      categoriesTable,
       dayClosuresTable,
       refundsExtended,
       summaryRpc: !rpcProbe.error,
@@ -186,8 +168,6 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
     // A probe that failed (no session yet, network down) must NOT be cached:
     // caching it would pin the module in degraded mode for the whole app run.
     return {
-      expensesExtended: false,
-      categoriesTable: false,
       dayClosuresTable: false,
       refundsExtended: false,
       summaryRpc: false,
@@ -198,38 +178,6 @@ export async function detectFinanceSchema(force = false): Promise<FinanceSchemaS
 
 export function getCachedFinanceSchema(): FinanceSchemaStatus | null {
   return schemaCache;
-}
-
-// ─── Expense mapping ──────────────────────────────────────────────────────────
-
-const EXPENSE_BASE_COLUMNS = 'id, tenant_id, branch_id, amount, category, description, date, created_by, created_at';
-const EXPENSE_EXT_COLUMNS = `${EXPENSE_BASE_COLUMNS}, amount_paise, payment_method, payee, reference_no, notes, receipt_url, status, void_reason, voided_at, updated_at`;
-
-function mapExpense(row: Record<string, unknown>): Expense {
-  const amount = toNumber(row.amount);
-  const paymentRaw = toText(row.payment_method, 'cash').toLowerCase();
-  const statusRaw = toText(row.status, 'recorded');
-  return {
-    id: toText(row.id),
-    tenant_id: toText(row.tenant_id),
-    branch_id: toText(row.branch_id),
-    amount,
-    amount_paise: row.amount_paise === undefined || row.amount_paise === null ? toPaise(amount) : toNumber(row.amount_paise),
-    category: toText(row.category, 'Uncategorised') || 'Uncategorised',
-    description: toStringOrNull(row.description),
-    expense_date: toText(row.date).slice(0, 10),
-    payment_method: isExpensePaymentMethod(paymentRaw) ? paymentRaw : 'other',
-    payee: toStringOrNull(row.payee),
-    reference_no: toStringOrNull(row.reference_no),
-    notes: toStringOrNull(row.notes),
-    receipt_url: toStringOrNull(row.receipt_url),
-    status: statusRaw === 'void' ? 'void' : 'recorded',
-    void_reason: toStringOrNull(row.void_reason),
-    voided_at: toStringOrNull(row.voided_at),
-    created_by: toStringOrNull(row.created_by),
-    created_at: toText(row.created_at),
-    updated_at: toStringOrNull(row.updated_at),
-  };
 }
 
 // ─── Overview (summary + daily series) ────────────────────────────────────────
@@ -266,6 +214,9 @@ function mapSummary(raw: unknown): FinanceSummary {
     refundsCount: toNumber(raw.refundsCount),
     expensesTotal: toNumber(raw.expensesTotal),
     expensesCount: toNumber(raw.expensesCount),
+    otherIncome: toNumber(raw.otherIncome),
+    otherIncomeCount: toNumber(raw.otherIncomeCount),
+    suppliesFromKitchen: toNumber(raw.suppliesFromKitchen),
     purchasesTotal: toNumber(raw.purchasesTotal),
     purchasesCount: toNumber(raw.purchasesCount),
     cashIn: toNumber(raw.cashIn),
@@ -383,23 +334,135 @@ async function fetchSettlementsForBills(scope: Scope, billIds: readonly string[]
   return { settlements, error: null };
 }
 
-async function fetchExpensesInRange(scope: Scope, startDate: string, endDate: string, extended: boolean): Promise<{ expenses: Expense[]; error: PgError }> {
-  const columns = extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS;
+// ─── Ledger money (finance_entries) ──────────────────────────────────────────
+// The Overview, the Cash Book and Day Close read the same rows the Ledger tab
+// shows, so the three can never disagree about what was spent.
+
+/** One recorded income or expense entry, placed against the branch accounts in view. */
+type LedgerMoney = {
+  id: string;
+  kind: 'income' | 'expense';
+  amount: number;
+  /** 'cash' | 'bank' | 'offset' */
+  mode: string;
+  /** YYYY-MM-DD transaction date. */
+  date: string;
+  particulars: string;
+  counterparty: string | null;
+  reference_no: string | null;
+  entered_at: string;
+  category: string;
+  /** A built-in category (Opening Balance, Partners): never profit or loss. */
+  system: boolean;
+  /** The Opening Balance category: seeds a balance, moves nothing. */
+  opening: boolean;
+  /** The entry is for one of the accounts in view: that branch's cost or income. */
+  forScope: boolean;
+  /** The money left or reached one of the accounts in view. */
+  movedInScope: boolean;
+  /** With one of our own accounts on the other side: internal when every branch is in view. */
+  internal: boolean;
+};
+
+/** The finance accounts of the branch in view, or of every branch. */
+async function fetchScopeAccountIds(scope: Scope): Promise<{ ids: string[]; error: PgError }> {
+  let q = supabase.from('finance_accounts').select('id').eq('tenant_id', scope.tenant_id).eq('kind', 'branch');
+  if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
+  const { data, error } = await q;
+  if (error) return { ids: [], error };
+  return { ids: asRecords(data).map((r) => toText(r.id)).filter((id) => id.length > 0), error: null };
+}
+
+async function fetchLedgerMoneyInRange(scope: Scope, startDate: string, endDate: string): Promise<{ rows: LedgerMoney[]; accountIds: string[]; error: PgError }> {
+  const accounts = await fetchScopeAccountIds(scope);
+  if (accounts.error) {
+    // A database from before the ledger has no accounts: nothing was recorded.
+    if (isMissingTable(accounts.error)) return { rows: [], accountIds: [], error: null };
+    return { rows: [], accountIds: [], error: accounts.error };
+  }
+  if (accounts.ids.length === 0) return { rows: [], accountIds: [], error: null };
+  const inScope = new Set(accounts.ids);
+  const idList = accounts.ids.join(',');
+
+  const catalogRes = await supabase
+    .from('finance_catalog')
+    .select('id, name, is_system, system_key')
+    .eq('tenant_id', scope.tenant_id)
+    .eq('level', 'category');
+  if (catalogRes.error) return { rows: [], accountIds: accounts.ids, error: catalogRes.error };
+  const categories = new Map<string, { name: string; system: boolean; opening: boolean }>();
+  for (const c of asRecords(catalogRes.data)) {
+    const name = toText(c.name).trim();
+    categories.set(toText(c.id), {
+      name: name || 'Uncategorised',
+      system: c.is_system === true,
+      opening: toText(c.system_key) === 'opening_balance' || (c.is_system === true && name.toLowerCase() === 'opening balance'),
+    });
+  }
+
   const { rows, error } = await fetchAllRows(async (from, to) => {
-    let q = supabase
-      .from('expenses')
-      .select(columns)
+    const res = await supabase
+      .from('finance_entries')
+      .select('id, account_id, paid_from_account_id, counterparty_account_id, kind, mode, amount_paise, transaction_date, particulars, counterparty, reference_no, entered_at, category_id')
       .eq('tenant_id', scope.tenant_id)
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date', { ascending: false })
+      .eq('status', 'recorded')
+      .in('kind', ['income', 'expense'])
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .or(`account_id.in.(${idList}),paid_from_account_id.in.(${idList})`)
+      .order('transaction_date', { ascending: false })
+      .order('id', { ascending: true })
       .range(from, to);
-    if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-    if (extended) q = q.eq('status', 'recorded');
-    const res = await q;
     return { data: res.data, error: res.error };
   });
-  return { expenses: rows.map(mapExpense), error };
+  if (error) return { rows: [], accountIds: accounts.ids, error };
+
+  const money: LedgerMoney[] = rows.map((r) => {
+    const accountId = toText(r.account_id);
+    const payingId = toStringOrNull(r.paid_from_account_id) ?? accountId;
+    const category = categories.get(toText(r.category_id));
+    return {
+      id: toText(r.id),
+      kind: toText(r.kind) === 'income' ? 'income' : 'expense',
+      amount: fromPaise(toNumber(r.amount_paise)),
+      mode: toText(r.mode, 'cash').toLowerCase(),
+      date: toText(r.transaction_date).slice(0, 10),
+      particulars: toText(r.particulars),
+      counterparty: toStringOrNull(r.counterparty),
+      reference_no: toStringOrNull(r.reference_no),
+      entered_at: toText(r.entered_at),
+      category: category?.name ?? 'Uncategorised',
+      system: category?.system ?? false,
+      opening: category?.opening ?? false,
+      forScope: inScope.has(accountId),
+      movedInScope: inScope.has(payingId),
+      internal: toStringOrNull(r.counterparty_account_id) !== null,
+    };
+  });
+  return { rows: money, accountIds: accounts.ids, error: null };
+}
+
+/** Goods billed to the branch in view by another of our accounts, in rupees. */
+async function fetchSuppliesFromKitchen(scope: Scope, accountIds: readonly string[], startDate: string, endDate: string): Promise<{ total: number; error: PgError }> {
+  if (!scope.branch_id || accountIds.length === 0) return { total: 0, error: null };
+  const { rows, error } = await fetchAllRows(async (from, to) => {
+    const res = await supabase
+      .from('finance_entries')
+      .select('amount_paise')
+      .eq('tenant_id', scope.tenant_id)
+      .eq('kind', 'receivable')
+      .in('status', ['open', 'settled'])
+      .in('counterparty_account_id', [...accountIds])
+      .gte('transaction_date', startDate)
+      .lte('transaction_date', endDate)
+      .order('id', { ascending: true })
+      .range(from, to);
+    return { data: res.data, error: res.error };
+  });
+  if (error) return { total: 0, error };
+  let paise = 0;
+  for (const r of rows) paise += toNumber(r.amount_paise);
+  return { total: fromPaise(paise), error: null };
 }
 
 type RefundLite = { amount: number; refund_method: string; created_at: string; bill_id: string | null; reason: string | null; id: string };
@@ -463,16 +526,24 @@ async function fetchOverviewFallback(scope: Scope, filters: FinanceFilters, star
   const paidBills = bills.filter((b) => b.status === 'paid' && !b.is_comp);
   const settledAtByBill = new Map(paidBills.map((b) => [b.id, b.settled_at ?? b.created_at]));
 
-  const [{ settlements, error: settlementsError }, { expenses, error: expensesError }, purchases, refundsResult] = await Promise.all([
+  const [{ settlements, error: settlementsError }, ledgerMoney, purchases, refundsResult] = await Promise.all([
     fetchSettlementsForBills(scope, paidBills.map((b) => b.id)),
-    fetchExpensesInRange(scope, filters.startDate, filters.endDate, schema.expensesExtended),
+    fetchLedgerMoneyInRange(scope, filters.startDate, filters.endDate),
     fetchPurchasesInRange(scope, filters.startDate, filters.endDate),
     schema.refundsExtended ? fetchRefundsInRange(scope, startTs, endTs) : Promise.resolve({ refunds: [] as RefundLite[], error: null as PgError }),
   ]);
   if (settlementsError) return { data: null, error: 'Unable to load settlements for the finance summary.' };
-  if (expensesError) return { data: null, error: 'Unable to load expenses.' };
+  if (ledgerMoney.error) return { data: null, error: 'Unable to load expenses.' };
   if (purchases.error) return { data: null, error: 'Unable to load purchase spend.' };
   if (refundsResult.error) return { data: null, error: 'Unable to load refunds.' };
+  const supplies = await fetchSuppliesFromKitchen(scope, ledgerMoney.accountIds, filters.startDate, filters.endDate);
+  if (supplies.error) return { data: null, error: 'Unable to load the supplies billed by the kitchen.' };
+
+  // With every branch in view, income from one of our own accounts is internal.
+  const allBranches = scope.branch_id === null;
+  const expenses = ledgerMoney.rows.filter((r) => r.kind === 'expense' && r.forScope && !r.system);
+  const otherIncome = ledgerMoney.rows.filter((r) => r.kind === 'income' && r.forScope && !r.system && !(allBranches && r.internal));
+  const cashMoves = ledgerMoney.rows.filter((r) => r.mode === 'cash' && r.movedInScope && !r.opening);
 
   const summary = emptyFinanceSummary();
   let grossPaise = 0;
@@ -517,16 +588,26 @@ async function fetchOverviewFallback(scope: Scope, filters: FinanceFilters, star
 
   const categoryMap = new Map<string, { paise: number; count: number }>();
   let expensesPaise = 0;
-  let cashOutPaise = 0;
   for (const e of expenses) {
     const paise = toPaise(e.amount);
     expensesPaise += paise;
-    if (e.payment_method === 'cash') cashOutPaise += paise;
     const entry = categoryMap.get(e.category) ?? { paise: 0, count: 0 };
     entry.paise += paise;
     entry.count += 1;
     categoryMap.set(e.category, entry);
   }
+  let cashOutPaise = 0;
+  let cashIncomePaise = 0;
+  for (const m of cashMoves) {
+    if (m.kind === 'expense') cashOutPaise += toPaise(m.amount);
+    else if (!(allBranches && m.internal)) cashIncomePaise += toPaise(m.amount);
+  }
+  let otherIncomePaise = 0;
+  for (const i of otherIncome) otherIncomePaise += toPaise(i.amount);
+  summary.cashIn = fromPaise(cashInPaise + cashIncomePaise);
+  summary.otherIncome = fromPaise(otherIncomePaise);
+  summary.otherIncomeCount = otherIncome.length;
+  summary.suppliesFromKitchen = supplies.total;
   summary.expensesTotal = fromPaise(expensesPaise);
   summary.expensesCount = expenses.length;
   summary.expensesByCategory = [...categoryMap.entries()]
@@ -553,9 +634,10 @@ async function fetchOverviewFallback(scope: Scope, filters: FinanceFilters, star
       amount: s.amount,
       occurred_at: settledAtByBill.get(s.bill_id) ?? s.created_at,
     })),
-    expenses.map((e) => ({ expense_date: e.expense_date, amount: e.amount, status: e.status })),
+    expenses.map((e) => ({ expense_date: e.date, amount: e.amount, status: 'recorded' })),
     filters.startDate,
     filters.endDate,
+    otherIncome.map((i) => ({ income_date: i.date, amount: i.amount })),
   );
 
   return { data: { summary, series, degraded: true }, error: null };
@@ -582,257 +664,15 @@ export async function fetchFinanceOverview(filters: FinanceFilters): Promise<Ser
   }
 }
 
-// ─── Expenses ─────────────────────────────────────────────────────────────────
-
-export async function fetchExpenses(filters: ExpenseListFilters): Promise<ServiceResult<ExpensePage>> {
-  try {
-    const scope = resolveScope(filters.branchId);
-    const schema = await detectFinanceSchema();
-    const pageSize = Math.max(1, Math.min(200, filters.pageSize));
-    const page = Math.max(0, filters.page);
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-
-    const run = async (extended: boolean) => {
-      let q = supabase
-        .from('expenses')
-        .select(extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS, { count: 'exact' })
-        .eq('tenant_id', scope.tenant_id)
-        .gte('date', filters.startDate)
-        .lte('date', filters.endDate)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(from, to);
-      if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-      if (filters.category) q = q.eq('category', filters.category);
-      if (extended) {
-        if (!filters.includeVoid) q = q.eq('status', 'recorded');
-        if (filters.paymentMethod) q = q.eq('payment_method', filters.paymentMethod);
-      }
-      const term = sanitizeSearch(filters.search);
-      if (term.length > 0) {
-        const like = `%${term}%`;
-        const clauses = [`description.ilike.${like}`, `category.ilike.${like}`];
-        if (extended) clauses.push(`payee.ilike.${like}`, `reference_no.ilike.${like}`);
-        q = q.or(clauses.join(','));
-      }
-      return q;
-    };
-
-    let res = await run(schema.expensesExtended);
-    if (res.error && schema.expensesExtended && isMissingColumn(res.error)) {
-      schemaCache = { ...schema, expensesExtended: false };
-      res = await run(false);
-    }
-    if (res.error) return { data: null, error: 'Unable to load expenses.' };
-
-    return {
-      data: { rows: asRecords(res.data).map(mapExpense), total: res.count ?? 0, page, pageSize },
-      error: null,
-    };
-  } catch {
-    return { data: null, error: 'Unable to load expenses.' };
-  }
-}
-
-function buildExpensePayload(input: ExpenseInput, extended: boolean): Record<string, unknown> {
-  const base: Record<string, unknown> = {
-    amount: input.amount,
-    category: input.category,
-    description: input.description,
-    date: input.expense_date,
-  };
-  if (!extended) return base;
-  return {
-    ...base,
-    amount_paise: toPaise(input.amount),
-    payment_method: input.payment_method,
-    payee: input.payee,
-    reference_no: input.reference_no,
-    notes: input.notes,
-  };
-}
-
-/** Creates an expense for the caller's branch (owners/admins may pass a branch). */
-export async function createExpense(input: ExpenseInput, branchId?: string | null): Promise<ServiceResult<Expense>> {
-  try {
-    const scope = resolveScope(branchId);
-    const schema = await detectFinanceSchema();
-    const identity = {
-      tenant_id: scope.tenant_id,
-      branch_id: scope.writeBranchId,
-      created_by: currentStaffId(),
-    };
-
-    const run = async (extended: boolean) =>
-      supabase
-        .from('expenses')
-        .insert({ ...identity, ...buildExpensePayload(input, extended), ...(extended ? { status: 'recorded' } : {}) })
-        .select(extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS)
-        .single();
-
-    let res = await run(schema.expensesExtended);
-    if (res.error && schema.expensesExtended && isMissingColumn(res.error)) {
-      schemaCache = { ...schema, expensesExtended: false };
-      res = await run(false);
-    }
-    if (res.error || !isRecord(res.data)) return { data: null, error: 'Unable to save the expense.' };
-    return { data: mapExpense(res.data), error: null };
-  } catch {
-    return { data: null, error: 'Unable to save the expense.' };
-  }
-}
-
-export async function updateExpense(id: string, input: ExpenseInput): Promise<ServiceResult<Expense>> {
-  try {
-    const scope = resolveScope(null);
-    const schema = await detectFinanceSchema();
-
-    const run = async (extended: boolean) => {
-      let q = supabase
-        .from('expenses')
-        .update(buildExpensePayload(input, extended))
-        .eq('id', id)
-        .eq('tenant_id', scope.tenant_id);
-      if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-      if (extended) q = q.eq('status', 'recorded');
-      return q.select(extended ? EXPENSE_EXT_COLUMNS : EXPENSE_BASE_COLUMNS).maybeSingle();
-    };
-
-    let res = await run(schema.expensesExtended);
-    if (res.error && schema.expensesExtended && isMissingColumn(res.error)) {
-      schemaCache = { ...schema, expensesExtended: false };
-      res = await run(false);
-    }
-    if (res.error) return { data: null, error: 'Unable to update the expense.' };
-    if (!isRecord(res.data)) return { data: null, error: 'This expense can no longer be edited.' };
-    return { data: mapExpense(res.data), error: null };
-  } catch {
-    return { data: null, error: 'Unable to update the expense.' };
-  }
-}
-
-/** Soft-void: expenses are never deleted so the audit trail survives. */
-export async function voidExpense(id: string, reason: string): Promise<ServiceResult<Expense>> {
-  try {
-    const scope = resolveScope(null);
-    const schema = await detectFinanceSchema();
-    if (!schema.expensesExtended) {
-      return { data: null, error: 'Voiding expenses needs the finance schema migration to be applied first.' };
-    }
-    const trimmed = reason.trim();
-    if (trimmed.length === 0) return { data: null, error: 'A reason is required to void an expense.' };
-
-    let q = supabase
-      .from('expenses')
-      .update({
-        status: 'void',
-        void_reason: trimmed,
-        voided_at: new Date().toISOString(),
-        voided_by: currentStaffId(),
-      })
-      .eq('id', id)
-      .eq('tenant_id', scope.tenant_id)
-      .eq('status', 'recorded');
-    if (scope.branch_id) q = q.eq('branch_id', scope.branch_id);
-    const { data, error } = await q.select(EXPENSE_EXT_COLUMNS).maybeSingle();
-    if (error) return { data: null, error: 'Unable to void the expense.' };
-    if (!isRecord(data)) return { data: null, error: 'This expense was already voided.' };
-    return { data: mapExpense(data), error: null };
-  } catch {
-    return { data: null, error: 'Unable to void the expense.' };
-  }
-}
-
-// ─── Expense categories ───────────────────────────────────────────────────────
-
-function defaultCategories(tenantId: string): ExpenseCategory[] {
-  return DEFAULT_EXPENSE_CATEGORIES.map((name, index) => ({
-    id: `default:${name}`,
-    tenant_id: tenantId,
-    name,
-    sort_order: (index + 1) * 10,
-    is_active: true,
-  }));
-}
-
-export async function fetchExpenseCategories(): Promise<ServiceResult<ExpenseCategory[]>> {
-  try {
-    const { tenant_id } = getTenantContext();
-    const schema = await detectFinanceSchema();
-    if (!schema.categoriesTable) return { data: defaultCategories(tenant_id), error: null };
-
-    const { data, error } = await supabase
-      .from('expense_categories')
-      .select('id, tenant_id, name, sort_order, is_active')
-      .eq('tenant_id', tenant_id)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
-    if (error) {
-      if (isMissingTable(error)) {
-        schemaCache = { ...schema, categoriesTable: false };
-        return { data: defaultCategories(tenant_id), error: null };
-      }
-      return { data: null, error: 'Unable to load expense categories.' };
-    }
-    const rows = asRecords(data).map((r) => ({
-      id: toText(r.id),
-      tenant_id: toText(r.tenant_id),
-      name: toText(r.name),
-      sort_order: toNumber(r.sort_order),
-      is_active: r.is_active !== false,
-    }));
-    return { data: rows.length > 0 ? rows : defaultCategories(tenant_id), error: null };
-  } catch {
-    return { data: null, error: 'Unable to load expense categories.' };
-  }
-}
-
-export async function createExpenseCategory(name: string): Promise<ServiceResult<ExpenseCategory>> {
-  try {
-    const { tenant_id } = getTenantContext();
-    const schema = await detectFinanceSchema();
-    const trimmed = name.trim();
-    if (trimmed.length === 0 || trimmed.length > 60) {
-      return { data: null, error: 'Enter a category name up to 60 characters.' };
-    }
-    if (!schema.categoriesTable) {
-      return { data: null, error: 'Custom categories need the finance schema migration to be applied first.' };
-    }
-    const { data, error } = await supabase
-      .from('expense_categories')
-      .insert({ tenant_id, name: trimmed, sort_order: 1000 })
-      .select('id, tenant_id, name, sort_order, is_active')
-      .single();
-    if (error) {
-      if (isUniqueViolation(error)) return { data: null, error: 'A category with this name already exists.' };
-      return { data: null, error: 'Unable to create the category.' };
-    }
-    if (!isRecord(data)) return { data: null, error: 'Unable to create the category.' };
-    return {
-      data: {
-        id: toText(data.id),
-        tenant_id: toText(data.tenant_id),
-        name: toText(data.name),
-        sort_order: toNumber(data.sort_order),
-        is_active: data.is_active !== false,
-      },
-      error: null,
-    };
-  } catch {
-    return { data: null, error: 'Unable to create the category.' };
-  }
-}
-
 // ─── Cash book / ledger ───────────────────────────────────────────────────────
 
 const LEDGER_SETTLEMENT_LIMIT = 1000;
 
 /**
- * Chronological money movements in range: settlements (in), recorded expenses
- * (out) and completed refunds (out). Zero-amount settlements (complimentary
- * bills) are omitted because they move no money.
+ * Chronological money movements in range: settlements (in), the ledger's
+ * income (in) and expenses (out) that moved cash or bank in the accounts in
+ * view, and completed refunds (out). Zero-amount settlements (complimentary
+ * bills), offsets and opening balances are omitted because they move no money.
  */
 export async function fetchLedger(filters: FinanceFilters): Promise<ServiceResult<LedgerEntry[]>> {
   try {
@@ -851,13 +691,13 @@ export async function fetchLedger(filters: FinanceFilters): Promise<ServiceResul
       .limit(LEDGER_SETTLEMENT_LIMIT);
     if (scope.branch_id) settlementsQuery = settlementsQuery.eq('branch_id', scope.branch_id);
 
-    const [settlementsRes, expensesResult, refundsResult] = await Promise.all([
+    const [settlementsRes, ledgerMoney, refundsResult] = await Promise.all([
       settlementsQuery,
-      fetchExpensesInRange(scope, filters.startDate, filters.endDate, schema.expensesExtended),
+      fetchLedgerMoneyInRange(scope, filters.startDate, filters.endDate),
       schema.refundsExtended ? fetchRefundsInRange(scope, startTimestamp, endTimestamp) : Promise.resolve({ refunds: [] as RefundLite[], error: null as PgError }),
     ]);
     if (settlementsRes.error) return { data: null, error: 'Unable to load settlements for the cash book.' };
-    if (expensesResult.error) return { data: null, error: 'Unable to load expenses for the cash book.' };
+    if (ledgerMoney.error) return { data: null, error: 'Unable to load the ledger for the cash book.' };
     if (refundsResult.error) return { data: null, error: 'Unable to load refunds for the cash book.' };
 
     const settlementRows = asRecords(settlementsRes.data);
@@ -891,18 +731,20 @@ export async function fetchLedger(filters: FinanceFilters): Promise<ServiceResul
         reference: toStringOrNull(r.reference_no),
       });
     }
-    for (const e of expensesResult.expenses) {
+    for (const m of ledgerMoney.rows) {
+      // Only what moved cash or bank in the accounts in view.
+      if (!m.movedInScope || m.opening || m.mode === 'offset') continue;
       entries.push({
-        id: `expense:${e.id}`,
-        kind: 'expense',
-        occurred_at: e.created_at,
-        business_date: e.expense_date,
-        title: e.category,
-        subtitle: e.description ?? e.payee,
-        payment_method: e.payment_method,
-        amount: e.amount,
-        direction: 'out',
-        reference: e.reference_no,
+        id: `ledger:${m.id}`,
+        kind: m.kind,
+        occurred_at: m.entered_at,
+        business_date: m.date,
+        title: m.particulars || m.category,
+        subtitle: [m.category, m.counterparty].filter(Boolean).join(' · ') || null,
+        payment_method: m.mode,
+        amount: m.amount,
+        direction: m.kind === 'income' ? 'in' : 'out',
+        reference: m.reference_no,
       });
     }
     for (const rf of refundsResult.refunds) {
@@ -983,18 +825,12 @@ export async function computeDayClose(businessDate: string, branchId: string | n
       return { data: res.data, error: res.error };
     });
 
-    const expensesPromise = fetchAllRows(async (from, to) => {
-      let q = supabase
-        .from('expenses')
-        .select(schema.expensesExtended ? 'amount, payment_method, status' : 'amount')
-        .eq('tenant_id', scope.tenant_id)
-        .eq('branch_id', branch)
-        .eq('date', businessDate)
-        .range(from, to);
-      if (schema.expensesExtended) q = q.eq('status', 'recorded').eq('payment_method', 'cash');
-      const res = await q;
-      return { data: res.data, error: res.error };
-    });
+    // Cash that left this branch's account on the day, whatever it was for: a
+    // partner's drawing from the till counts, an opening balance does not.
+    const expensesPromise = fetchLedgerMoneyInRange({ ...scope, branch_id: branch }, businessDate, businessDate).then((res) => ({
+      rows: res.rows.filter((m) => m.kind === 'expense' && m.mode === 'cash' && m.movedInScope && !m.opening),
+      error: res.error,
+    }));
 
     const refundsPromise = schema.refundsExtended
       ? fetchAllRows(async (from, to) => {

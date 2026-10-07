@@ -62,7 +62,7 @@ export function PhoneFinanceScreen({
     <View className="flex-1 bg-surface-tint">
       <PhoneScreenHeader
         title="Finance"
-        subtitle={branchLabel ?? 'Revenue, expenses, cash book and day close'}
+        subtitle={branchLabel ?? 'Revenue, expenses and day close'}
         onMenuPress={onMenuPress}
         rightActions={
           <Pressable
@@ -113,7 +113,7 @@ export function PhoneFinanceScreen({
       </View>
       ) : null}
 
-      {/* Day close and the expense forms carry text inputs, so the body lifts
+      {/* Day close and the ledger filters carry text inputs, so the body lifts
           clear of the iOS keyboard. */}
       <KeyboardAvoider>
         <View className="flex-1 px-3 pt-3">
@@ -129,7 +129,7 @@ export function PhoneFinanceScreen({
       {/* Recording an entry is the one thing done on a phone several times a
           day, so it is one tap from every tab. The Ledger tab has its own
           button in the toolbar. Sits above the app tab bar. */}
-      {activeTab !== 'ledger' ? (
+      {tabs.some((tab) => tab.key === 'ledger') && activeTab !== 'ledger' ? (
         // The wrapper carries the placement as a plain style object: on web,
         // css-interop drops an inline offset given next to a positioning class.
         <View pointerEvents="box-none" style={{ position: 'absolute', right: 16, bottom: 72 + insets.bottom }}>

@@ -12,6 +12,24 @@ export type ApiResult<T> = { data: T | null; error: string | null; status: numbe
 
 function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location) {
+    // Expo does not serve Vercel functions. The staging launcher runs those
+    // separately on loopback; production web requests remain same-origin.
+    const stagingApi = process.env.EXPO_PUBLIC_API_BASE_URL;
+    if (process.env.EXPO_PUBLIC_APP_ENV === 'staging' && stagingApi) {
+      try {
+        const url = new URL(stagingApi);
+        if (
+          url.protocol === 'http:' &&
+          (url.hostname === 'localhost' || url.hostname === '127.0.0.1') &&
+          !url.username && !url.password && url.pathname === '/' &&
+          !url.search && !url.hash
+        ) {
+          return url.origin;
+        }
+      } catch {
+        // An invalid override must never redirect the caller's access token.
+      }
+    }
     return window.location.origin;
   }
   return process.env.EXPO_PUBLIC_API_BASE_URL || 'https://www.leleban.grovitai.com';

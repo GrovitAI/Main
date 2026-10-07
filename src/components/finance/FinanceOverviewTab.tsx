@@ -6,8 +6,10 @@ import {
   Banknote,
   BarChart3,
   BookOpen,
+  CalendarCheck,
   Clock,
   CreditCard,
+  Landmark,
   Percent,
   PieChart,
   Receipt,
@@ -21,7 +23,7 @@ import { useResponsive } from '@/lib/pos/useResponsive';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { isFinanceOwner } from '@/lib/pos/finance-ledger-utils';
+import { isFinanceOwner, summarizeDues } from '@/lib/pos/finance-ledger-utils';
 import { computeProfitAndLoss, formatINR, formatPaymentMethod, formatPercent } from '@/lib/pos/finance-utils';
 import { FinanceKpiCard } from './FinanceKpiCard';
 import { DonutChart, HorizontalBars, RevenueExpenseBars, type DonutSegment } from './FinanceCharts';
@@ -64,6 +66,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   const balances = useLedgerStore((s) => s.balances);
   const ledgerSummary = useLedgerStore((s) => s.summary);
   const positions = useLedgerStore((s) => s.positions);
+  const dues = useLedgerStore((s) => s.dues);
 
   useEffect(() => {
     if (isOwner && session) void initializeLedger();
@@ -98,6 +101,23 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   );
   const showBooks = isOwner && ledgerInitialized && balances.length > 0;
 
+  // Today, for the books the ledger is kept for first: the cash box, the bank,
+  // and what falls due. As of now, whatever date range the tab is showing.
+  const primary = useMemo(() => {
+    const active = accounts.filter((a) => a.is_active);
+    return active.find((a) => a.counts_in_partner_profit) ?? active[0] ?? null;
+  }, [accounts]);
+  const primaryBalance = primary ? balances.find((b) => b.account_id === primary.id) ?? null : null;
+  const dueTotals = useMemo(() => summarizeDues(dues), [dues]);
+  const dueHint = (totals: { overdue: number; week: number; entries: number }, nothing: string) =>
+    totals.overdue > 0
+      ? `Overdue ${formatINR(totals.overdue, { compact: true })}`
+      : totals.week > 0
+        ? `${formatINR(totals.week, { compact: true })} due this week`
+        : totals.entries > 0
+          ? `${totals.entries} open, none due this week`
+          : nothing;
+
   const pnl = useMemo(() => (summary ? computeProfitAndLoss(summary) : null), [summary]);
 
   const paymentSegments: DonutSegment[] = useMemo(
@@ -116,6 +136,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
   const isEmpty =
     summary !== null &&
     summary.collectedRevenue === 0 &&
+    summary.otherIncome === 0 &&
     summary.expensesTotal === 0 &&
     summary.purchasesTotal === 0 &&
     summary.pendingCollections === 0;
@@ -126,6 +147,50 @@ export function FinanceOverviewTab({ compact = false }: Props) {
     <ScrollView className="flex-1" contentContainerStyle={financeContentPadding(compact)} showsVerticalScrollIndicator={false}>
       {error ? <FinanceErrorView message={error} onRetry={loadOverview} /> : null}
       {loading && summary ? <FinanceLoadingView inline label="Refreshing…" /> : null}
+
+      {/* Today: the kitchen's cash, bank and dues, before anything about the range */}
+      {showBooks && primary ? (
+        <FinanceSectionCard
+          title={`Today · ${primary.name}`}
+          subtitle="Cash and bank as the ledger has them now, and what is due"
+          icon={<CalendarCheck size={16} color={colors.primary} />}
+          className="mb-4"
+        >
+          <View className="flex-row flex-wrap gap-3">
+            <FinanceKpiCard
+              label="Cash in hand"
+              value={primaryBalance ? formatINR(primaryBalance.cash, { compact: compactMoney }) : '—'}
+              hint="Recorded cash balance"
+              icon={Banknote}
+              tone="primary"
+              compact
+            />
+            <FinanceKpiCard
+              label="Bank"
+              value={primaryBalance ? formatINR(primaryBalance.bank, { compact: compactMoney }) : '—'}
+              hint="UPI, card and transfers"
+              icon={Landmark}
+              compact
+            />
+            <FinanceKpiCard
+              label="To pay"
+              value={formatINR(dueTotals.payables.total, { compact: compactMoney })}
+              hint={dueHint(dueTotals.payables, 'Nothing to pay')}
+              icon={ArrowUpFromLine}
+              tone={dueTotals.payables.overdue > 0 ? 'negative' : 'warning'}
+              compact
+            />
+            <FinanceKpiCard
+              label="To collect"
+              value={formatINR(dueTotals.receivables.total, { compact: compactMoney })}
+              hint={dueHint(dueTotals.receivables, 'Nothing to collect')}
+              icon={ArrowDownToLine}
+              tone="positive"
+              compact
+            />
+          </View>
+        </FinanceSectionCard>
+      ) : null}
 
       {summary && pnl ? (
         <>
@@ -166,7 +231,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             <FinanceKpiCard
               label="Purchases"
               value={formatINR(summary.purchasesTotal, { compact: compactMoney })}
-              hint={`${summary.purchasesCount} supplier invoices`}
+              hint={`${summary.purchasesCount} supplier invoices · in expenses once paid`}
               icon={ShoppingBag}
               compact={compact}
             />
@@ -213,12 +278,13 @@ export function FinanceOverviewTab({ compact = false }: Props) {
               <PnlRow label="Collected revenue" value={pnl.collectedRevenue} />
               <PnlRow label="Refunds" value={-pnl.refundsTotal} muted />
               <PnlRow label="Net revenue" value={pnl.netRevenue} strong />
-              <PnlRow label="Expenses" value={-pnl.expensesTotal} muted />
-              <PnlRow label="Purchases" value={-pnl.purchasesTotal} muted />
+              {pnl.otherIncome !== 0 ? <PnlRow label="Other income (ledger)" value={pnl.otherIncome} /> : null}
+              <PnlRow label="Expenses (ledger)" value={-pnl.expensesTotal} muted />
+              {pnl.suppliesFromKitchen !== 0 ? <PnlRow label="Supplies from the kitchen" value={-pnl.suppliesFromKitchen} muted /> : null}
               <View className="my-2 h-px bg-border-soft" />
               <PnlRow label="Net cash flow" value={pnl.netCashFlow} strong tone={netTone} />
               <Text className="mt-2 text-[11px] text-text-secondary">
-                Margin {formatPercent(pnl.margin)} of net revenue. Purchases come from inventory supplier invoices.
+                Margin {formatPercent(pnl.margin)} of income. Recorded expenses count once paid; unpaid purchases sit in To pay.
               </Text>
             </FinanceSectionCard>
 
@@ -328,7 +394,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
                 </View>
               ) : null}
               <Text className="mt-2 text-[11px] text-text-secondary">
-                Opening balances and partner entries are left out of income and expenses. Full detail is on the Ledger tab.
+                Opening balances and partner entries are left out of income and expenses.
               </Text>
             </FinanceSectionCard>
           ) : null}
@@ -341,7 +407,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             className="mb-4"
           >
             <View className="flex-row flex-wrap gap-3">
-              <FinanceKpiCard label="Cash in" value={formatINR(summary.cashIn, { compact: compactMoney })} hint="Cash settlements" icon={ArrowDownToLine} tone="positive" compact />
+              <FinanceKpiCard label="Cash in" value={formatINR(summary.cashIn, { compact: compactMoney })} hint="Cash settlements & ledger income" icon={ArrowDownToLine} tone="positive" compact />
               <FinanceKpiCard label="Cash out" value={formatINR(summary.cashOut, { compact: compactMoney })} hint="Cash expenses & refunds" icon={ArrowUpFromLine} tone="negative" compact />
               <FinanceKpiCard
                 label="Net cash"

@@ -1,4 +1,4 @@
-import { Tabs, router, useSegments, usePathname } from 'expo-router';
+import { Redirect, Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView , ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,14 +10,22 @@ import type { PosSession } from '@/lib/pos/session-context';
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
+import { DailyWorkNavigation } from '@/components/layout/DailyWorkNavigation';
+import { DesktopDailyWorkBar } from '@/components/layout/DesktopDailyWorkBar';
+import {
+  getDailyWorkTabs, getDailyWorkGroups, getDailyWorkPhoneTabs,
+  getDailyWorkDesktopTabs, getDesktopNavigationSelection,
+  getPhoneNavigationSelection, usesDailyWorkNavigation,
+} from '@/lib/pos/daily-work-navigation';
 
 import { MapPin, User } from 'lucide-react-native';
 import {
   APP_TAB_ROUTE_NAMES,
   AppTabRouteName,
+  KITCHEN_HOME,
+  isCentralKitchenSession,
   getInitialRouteNameForRole,
   getTabConfigForRoute,
-  getTabsForRole,
 } from '@/lib/pos/tab-config';
 
 function getCurrentTabNameNormalized(segments: string[], pathname: string): AppTabRouteName {
@@ -66,6 +74,7 @@ const TAB_ROUTE_MAP: Record<AppTabRouteName, string> = {
   branches: '/branches',
   billing: '/billing',
   menu: '/menu',
+  more: '/more',
 };
 
 type CustomTabBarProps = BottomTabBarProps & {
@@ -365,8 +374,10 @@ export default function AppTabLayout() {
   const isTablet = width >= 768;
   const isPhone = !isTablet;
 
-  // Compute role-based tabs (safe: getTabsForRole handles null/undefined gracefully)
-  const roleTabs = session ? getTabsForRole(session.role, isPhone) : [];
+  const roleTabs = session ? getDailyWorkTabs(session.role, isPhone) : [];
+  const dailyWorkNavigation = session ? usesDailyWorkNavigation(session.role) : false;
+  const dailyWorkDesktop = dailyWorkNavigation && isTablet && Platform.OS === 'web';
+  const dailyWorkSidebar = dailyWorkNavigation && isTablet && Platform.OS !== 'web';
 
   // Tab bar visibility state (screens can still toggle via useTabBarHidden)
   const [tabBarHidden, setTabBarHidden] = useState(false);
@@ -406,14 +417,22 @@ export default function AppTabLayout() {
       // We are allowed to switch tabs! Prevent default browser behaviors (such as back/forward in page history)
       e.preventDefault();
 
-      // Read actual navigation tab names in rendered order
-      const activeTabNames = APP_TAB_ROUTE_NAMES.filter(name =>
-        roleTabs.some(tab => tab.name === name)
-      );
+      // Cycle the destinations visible in this layout, including the Kitchen shortcut.
+      const visibleTabs = dailyWorkNavigation && session
+        ? (dailyWorkDesktop ? getDailyWorkDesktopTabs(session.role) : dailyWorkSidebar
+          ? getDailyWorkGroups(session.role, false).flatMap(group => group.tabs)
+          : getDailyWorkPhoneTabs(session.role))
+        : APP_TAB_ROUTE_NAMES.flatMap(name => roleTabs.filter(tab => tab.name === name));
+      const activeTabNames = visibleTabs.map(tab => tab.name);
 
       if (activeTabNames.length <= 1) return;
 
-      const currentTabName = getCurrentTabNameNormalized(segmentsRef.current, pathnameRef.current);
+      const normalizedTabName = getCurrentTabNameNormalized(segmentsRef.current, pathnameRef.current);
+      const currentTabName = dailyWorkDesktop && session
+        ? getDesktopNavigationSelection(session.role, normalizedTabName)
+        : dailyWorkNavigation && !dailyWorkSidebar
+        ? getPhoneNavigationSelection(normalizedTabName)
+        : normalizedTabName;
       let currentIndex = activeTabNames.indexOf(currentTabName);
 
       console.log('[AppTabLayout Debug]', {
@@ -437,7 +456,10 @@ export default function AppTabLayout() {
       }
 
       const targetTabName = activeTabNames[nextIndex];
-      const targetTabPath = TAB_ROUTE_MAP[targetTabName];
+      const targetTabPath = dailyWorkNavigation
+        ? visibleTabs[nextIndex]?.href.replace(/[/]index$/, '')
+        : TAB_ROUTE_MAP[targetTabName as AppTabRouteName];
+      if (!targetTabPath) return;
       console.log('[AppTabLayout] Navigating to tab:', targetTabName, 'via path:', targetTabPath);
       router.push(targetTabPath as Parameters<typeof router.push>[0]);
     };
@@ -446,12 +468,15 @@ export default function AppTabLayout() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
-  }, [roleTabs]);
+  }, [roleTabs, dailyWorkNavigation, dailyWorkDesktop, dailyWorkSidebar, session]);
 
   const userRole = session?.role || 'cashier';
   const initialRouteName = getInitialRouteNameForRole(userRole, isPhone);
   // Show the global header for owners and admins on tablet/desktop
   const showHeader = session && isTablet && (session.role === 'owner' || session.role === 'admin');
+
+  // The Central Kitchen login has its own screens and none of these tabs.
+  if (session && isCentralKitchenSession(session)) return <Redirect href={KITCHEN_HOME as never} />;
 
   return (
     <UIContext.Provider value={{ tabBarHidden, setTabBarHidden }}>
@@ -463,9 +488,14 @@ export default function AppTabLayout() {
         <View style={{ flex: 1 }}>
           <Tabs
             initialRouteName={initialRouteName}
-            tabBar={(props) => <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
+            tabBar={(props) => dailyWorkDesktop
+              ? <DesktopDailyWorkBar {...props} role={userRole} hidden={tabBarHidden} />
+              : dailyWorkNavigation
+              ? <DailyWorkNavigation {...props} role={userRole} sidebar={dailyWorkSidebar} hidden={tabBarHidden} />
+              : <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
             screenOptions={{
               headerShown: false,
+              tabBarPosition: dailyWorkSidebar ? 'left' : 'bottom',
             }}
           >
             {APP_TAB_ROUTE_NAMES.map((routeName) => {

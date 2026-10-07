@@ -97,7 +97,7 @@ export function CashBookTab({ compact = false }: Props) {
           <FinanceLoadingView />
         ) : error ? null : (
           <View className="mt-4">
-            <FinanceEmptyView title="No money movement in this range" subtitle="Settlements, expenses and refunds are listed here in the order they happened." />
+            <FinanceEmptyView title="No money movement in this range" subtitle="Settlements, the ledger's income and expenses, and refunds are listed here in the order they happened." />
           </View>
         )
       }

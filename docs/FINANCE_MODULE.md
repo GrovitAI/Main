@@ -1,26 +1,36 @@
 # FINANCE_MODULE.md — Grovit Finance
 
-> **Status**: built, tested, and **live as the Finance tab** since 2026-09-13.
-> **Last Updated**: 2026-09-13
+> **Status**: built; standalone Finance deferred on the staging feature branch.
+> **Last Updated**: 2026-10-07
 
 The finance module is a self-contained unit: data layer, business logic,
 state, and UI for tablet/desktop and phone. The route
-`src/app/(app)/finance.tsx` mounts it and the tab appears for owners, admins
-and managers on every platform: the web app at any width, and the installed
-app on phones and tablets.
+`src/app/(app)/finance.tsx` is retained for restoration. The branch currently
+redirects this route to the role/device home without mounting Finance.
 
 ---
 
 ## 1. What it does
 
-Four tabs, all scoped by date range and branch.
+On the staging feature branch, the whole standalone Finance module is deferred,
+including Overview and Day Close. `FINANCE_MODULE_ENABLED` in `tab-config.ts`
+controls its navigation, route entry, Finance settings, and the inventory
+shortcut to the ledger. Accountant logins land on Settings. Components,
+services, data and existing role permissions remain for future use; nothing
+is deleted and Central Kitchen bookkeeping and inventory posting are unchanged.
+The earlier Ledger, Cash Book and Catalog deferral remains configured in
+`DEFERRED_FINANCE_TABS` in `FinanceTabBar.tsx`; restoring the main module will
+not silently restore those tools or broaden permissions.
+
+Five tabs. All but the Catalog are scoped by date range and branch.
 
 | Tab | Answers |
 | :--- | :--- |
 | **Overview** | What did we earn, what did we spend, what is left? KPI grid, cash-basis P&L, revenue vs expenses per business day, payment split, expenses by category, cash position. |
-| **Expenses** | Record and review money going out. Create, edit, void (never delete), filter by category, payment method and free text, paginate, export the page to CSV on web. |
-| **Cash Book** | Every money movement in order: settlements in, expenses and refunds out, grouped under business-day headers with running totals. |
+| **Ledger** | Record and review income, expenses, payables, receivables and transfers. See docs/FINANCE_LEDGER_PLAN.md. It replaced the original Expenses tab, whose code was deleted in task 118. |
+| **Cash Book** | Every money movement in order: settlements in, ledger income in, ledger expenses and refunds out, grouped under business-day headers with running totals. |
 | **Day Close** | Reconcile the till. Opening float plus cash sales minus cash refunds and cash expenses gives the expected cash; the user enters the counted cash and the variance is classified as balanced, surplus or shortage. Saves a draft or closes the day. |
+| **Catalog** | The categories, sub-categories and particulars the Ledger offers. Owners and admins only. |
 
 Money is never invented. Revenue comes from `settlements` rows attached to
 paid, non-complimentary bills. Complimentary bills are reported separately as
@@ -35,7 +45,7 @@ food value given away, exactly as the analytics RPCs already treat them.
 | File | Role |
 | :--- | :--- |
 | `finance-types.ts` | Every contract in the module. No logic. |
-| `finance-utils.ts` | Pure functions: Indian money formatting, business-date presets, expense validation, P&L, daily series, ledger totals, day-close arithmetic, CSV. Paise conversion is re-exported from `money-utils.ts` so finance rounds identically to `settle_order()`. |
+| `finance-utils.ts` | Pure functions: Indian money formatting, business-date presets, amount parsing, P&L, daily series, cash-book totals, day-close arithmetic. Paise conversion is re-exported from `money-utils.ts` so finance rounds identically to `settle_order()`. |
 | `finance-service.ts` | All Supabase access. Every function is try/catch, returns `ServiceResult<T>`, filters on `tenant_id` (and `branch_id` unless the caller is an owner/admin viewing all branches), and never leaks a raw database error. |
 | `use-finance-store.ts` | Zustand store. Owns filters, per-area loading and error state, and request sequencing so a slow response cannot overwrite a newer one. |
 
@@ -43,10 +53,10 @@ food value given away, exactly as the analytics RPCs already treat them.
 
 `FinanceScreen.tsx` is the entry point. It picks the desktop layout or
 `PhoneFinanceScreen.tsx` from `useResponsive()`. The tab bodies
-(`FinanceOverviewTab`, `ExpensesTab`, `CashBookTab`, `DayCloseTab`) are shared
-by both and take a `compact` flag. `FinanceStateViews`, `FinanceKpiCard`,
-`FinanceCharts`, `FinanceFilterBar` and `FinanceTabBar` are the building blocks.
-`ExpenseFormModal` is the create/edit form.
+(`FinanceOverviewTab`, `LedgerTab`, `CashBookTab`, `DayCloseTab`, `CatalogTab`)
+are shared by both and take a `compact` flag. `FinanceStateViews`,
+`FinanceKpiCard`, `FinanceCharts`, `FinanceFilterBar` and `FinanceTabBar` are
+the building blocks. `EntryFormModal` is the Ledger's create/edit form.
 
 Every list uses `FlatList`, every touchable is a `Pressable` at least 44px
 tall, colours come from `brand.ts`, and loading, error and empty states are
@@ -71,10 +81,8 @@ handled on all four tabs.
   the tab bar shares the title row on desktop widths and drops to its own row
   on a tablet held upright. Every scrolling body leaves room for the app tab
   bar, and the forms lift clear of the iOS keyboard.
-- Recording an expense on a phone is one tap from any finance tab: a
-  floating "Expense" button opens the form on the Expenses tab with the
-  amount focused and the keypad up. "Save & add another" keeps the form open
-  for a run of receipts, and a green line confirms each save.
+- Recording an entry on a phone is one tap from any finance tab: a floating
+  "Entry" button switches to the Ledger tab and opens its form.
 
 ---
 
@@ -139,9 +147,12 @@ breaking:
 
 - Totals are computed on the device by paging through the base tables. Accurate,
   just slower, and the Overview tab says so.
-- Expenses save against the base columns only.
-- Voiding an expense, custom categories and saving a day close are disabled with
-  an explanation. Day-close **figures** are still live and correct.
+- Saving a day close is disabled with an explanation. Day-close **figures** are
+  still live and correct.
+
+Since task 118 the probe covers only the day-close table, the refund columns
+and the summary function. The `expenses` and `expense_categories` tables are
+no longer probed or read.
 
 A banner at the top of the module names exactly which features are waiting on
 the migration.
@@ -174,11 +185,11 @@ npx jest src/lib/pos/__tests__/finance-utils.test.ts
 npx jest src/components/finance
 ```
 
-27 logic tests cover money formatting, business-day preset anchoring, expense
-validation, category grouping, P&L, the daily series (including two settlements
-on one bill counting as one order), ledger totals, day-close arithmetic and CSV
-quoting. 9 render tests mount every screen with the service layer mocked and
-assert the loading, error, empty and data states.
+The logic tests cover money formatting, business-day preset anchoring, amount
+parsing, P&L, the daily series (including two settlements on one bill counting
+as one order), cash-book totals and day-close arithmetic. The render tests
+mount every screen with the service layer mocked and assert the loading, error,
+empty and data states.
 
 ---
 
@@ -186,10 +197,18 @@ assert the loading, error, empty and data states.
 
 - **Refunds are read-only.** The module reports them; nothing creates one yet.
   Issuing a refund belongs with the bill in the orders flow.
-- **Purchases are read-only.** Supplier spend is pulled from
-  `inventory_purchase_headers` for the P&L; purchase entry stays in Inventory.
-- **No accrual accounting.** The P&L is cash basis. There are no payables,
-  receivables or a chart of accounts.
+- **Purchases post to the ledger** (since 2026-09-27, task 110): recording a
+  purchase in Inventory writes the kitchen's expense, or a payable to the
+  supplier, in the same database transaction; settling the payable in the
+  Ledger marks the purchase paid. See docs/FINANCE_LEDGER_PLAN.md §12.
+- **The Overview, Cash Book and Day Close read the ledger** (task 111): their
+  expense and cash figures come from `finance_entries`, not from the old
+  `expenses` table, which is empty and no longer read. The original Expenses
+  tab, its form, its store area and its service functions were deleted in
+  task 118; the `expenses` and `expense_categories` tables remain in the
+  database, unused. See docs/FINANCE_LEDGER_PLAN.md §13.
+- **The P&L is cash basis.** Payables and receivables live in the Ledger tab
+  and count when they are paid.
 - **CSV export is web only**, matching the existing analytics export. Native
   sharing needs `expo-file-system` and `expo-sharing`.
 - **Day close does not lock anything.** Closing a day records the count; it does

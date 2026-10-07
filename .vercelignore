@@ -1,0 +1,17 @@
+# Deployment uploads must never include local credentials or test state.
+.env
+.env.*
+!.env.example
+.git
+.vercel
+.expo
+node_modules
+dist
+web-build
+scratch
+playwright/.auth
+playwright-report
+test-results
+coverage
+.impeccable
+.claude

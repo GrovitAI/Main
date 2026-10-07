@@ -1,0 +1,5 @@
+# Migrations that staging has and production does not have yet, in order.
+# scripts/staging-clone.ps1 applies these after copying production, so a
+# refreshed staging gets them back. Remove a line once the file is applied
+# to production. All ten listed migrations were applied and verified on
+# 2026-10-07. No staging-only migrations remain pending.
