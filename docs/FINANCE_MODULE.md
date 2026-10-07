@@ -13,6 +13,17 @@ app on phones and tablets.
 
 ## 1. What it does
 
+On the staging feature branch, as of 2026-10-07, only **Overview** and
+**Day Close** are shown in Finance. Ledger, Cash Book and Catalog are deferred
+at the client's request while Central Kitchen handles the current kitchen
+bookkeeping. Their components, services and data are retained. The phone's
+Ledger entry shortcut is also hidden. `DEFERRED_FINANCE_TABS` in
+`FinanceTabBar.tsx` controls restoration, subject to the existing role rules.
+An accountant, whose sole permitted Finance tab is Ledger, sees an unavailable
+message while it is deferred; no additional permissions are granted.
+Overview and Day Close keep their existing calculations and data sources.
+The main app navigation remains unchanged pending review of the previews.
+
 Five tabs. All but the Catalog are scoped by date range and branch.
 
 | Tab | Answers |

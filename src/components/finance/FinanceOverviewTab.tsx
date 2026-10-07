@@ -160,7 +160,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
             <FinanceKpiCard
               label="Cash in hand"
               value={primaryBalance ? formatINR(primaryBalance.cash, { compact: compactMoney }) : '—'}
-              hint="Count it from the Ledger tab"
+              hint="Recorded cash balance"
               icon={Banknote}
               tone="primary"
               compact
@@ -284,7 +284,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
               <View className="my-2 h-px bg-border-soft" />
               <PnlRow label="Net cash flow" value={pnl.netCashFlow} strong tone={netTone} />
               <Text className="mt-2 text-[11px] text-text-secondary">
-                Margin {formatPercent(pnl.margin)} of income. Expenses are the entries on the Ledger tab, so a purchase counts once it is paid; an unpaid one sits in To pay.
+                Margin {formatPercent(pnl.margin)} of income. Recorded expenses count once paid; unpaid purchases sit in To pay.
               </Text>
             </FinanceSectionCard>
 
@@ -394,7 +394,7 @@ export function FinanceOverviewTab({ compact = false }: Props) {
                 </View>
               ) : null}
               <Text className="mt-2 text-[11px] text-text-secondary">
-                Opening balances and partner entries are left out of income and expenses. Full detail is on the Ledger tab.
+                Opening balances and partner entries are left out of income and expenses.
               </Text>
             </FinanceSectionCard>
           ) : null}

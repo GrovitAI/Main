@@ -60,7 +60,7 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
     // The tab is settled before the store loads, so an accountant's session
     // never fetches the revenue figures behind Overview.
     if (!allowedTab && tabs.length > 0) setTab(tabs[0].key);
-    if (session && !initialized) void initialize();
+    if (session && tabs.length > 0 && !initialized) void initialize();
   }, [session, initialized, initialize, allowedTab, tabs, setTab]);
 
   // Only the owner may switch branch or see them all; an admin sees their own.
@@ -78,10 +78,20 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
     );
   }
 
+  if (tabs.length === 0) {
+    return (
+      <View className="flex-1 items-center justify-center bg-surface-tint px-6">
+        <Text className="text-sm font-semibold text-text-secondary">Finance tools for this role are not enabled yet.</Text>
+      </View>
+    );
+  }
+
+  const visibleTab = allowedTab ? activeTab : tabs[0]?.key ?? 'overview';
+
   if (isPhone) {
     return (
       <PhoneFinanceScreen
-        activeTab={allowedTab ? activeTab : tabs[0]?.key ?? 'ledger'}
+        activeTab={visibleTab}
         tabs={tabs}
         filters={filters}
         branches={branches}
@@ -113,19 +123,19 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
             <View className="flex-1">
               <Text className="text-2xl font-extrabold tracking-tight text-text-primary">Finance</Text>
               <Text className="text-xs text-text-secondary" numberOfLines={1}>
-                Revenue, expenses, cash book and day close · {session.tenantName}
+                Revenue, expenses and day close · {session.tenantName}
               </Text>
             </View>
           </View>
-          {isDesktop && tabs.length > 1 ? <FinanceTabBar active={activeTab} onChange={setTab} tabs={tabs} /> : null}
+          {isDesktop && tabs.length > 1 ? <FinanceTabBar active={visibleTab} onChange={setTab} tabs={tabs} /> : null}
         </View>
         {!isDesktop && tabs.length > 1 ? (
           <View className="mb-4">
-            <FinanceTabBar active={activeTab} onChange={setTab} tabs={tabs} />
+            <FinanceTabBar active={visibleTab} onChange={setTab} tabs={tabs} />
           </View>
         ) : null}
 
-        {activeTab !== 'catalog' ? (
+        {visibleTab !== 'catalog' ? (
           <FinanceFilterBar
             filters={filters}
             branches={branches}
@@ -141,11 +151,11 @@ export function FinanceScreen({ onMenuPress }: FinanceScreenProps) {
         <FinanceSchemaNotice schema={schema} />
 
         <View className="flex-1" style={isDesktop ? { maxWidth: 1400, width: '100%', alignSelf: 'center' } : undefined}>
-          {activeTab === 'overview' ? <FinanceOverviewTab /> : null}
-          {activeTab === 'ledger' ? <LedgerTab /> : null}
-          {activeTab === 'cashbook' ? <CashBookTab /> : null}
-          {activeTab === 'dayclose' ? <DayCloseTab /> : null}
-          {activeTab === 'catalog' ? <CatalogTab /> : null}
+          {visibleTab === 'overview' ? <FinanceOverviewTab /> : null}
+          {visibleTab === 'ledger' ? <LedgerTab /> : null}
+          {visibleTab === 'cashbook' ? <CashBookTab /> : null}
+          {visibleTab === 'dayclose' ? <DayCloseTab /> : null}
+          {visibleTab === 'catalog' ? <CatalogTab /> : null}
         </View>
       </View>
     </View>

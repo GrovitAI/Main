@@ -9,7 +9,7 @@ import { isFinanceOwner } from '@/lib/pos/finance-ledger-utils';
 
 export type FinanceTabDef = { key: FinanceTab; label: string; icon: LucideIcon };
 
-export const FINANCE_TABS: FinanceTabDef[] = [
+const ALL_FINANCE_TABS: FinanceTabDef[] = [
   { key: 'overview', label: 'Overview', icon: LayoutDashboard },
   { key: 'ledger', label: 'Ledger', icon: NotebookPen },
   { key: 'cashbook', label: 'Cash Book', icon: BookOpen },
@@ -17,11 +17,14 @@ export const FINANCE_TABS: FinanceTabDef[] = [
   { key: 'catalog', label: 'Catalog', icon: Tags },
 ];
 
+// Temporarily out of the client workflow. Keep the implementations and role
+// rules intact; remove a key here when that feature is ready to return.
+const DEFERRED_FINANCE_TABS: ReadonlySet<FinanceTab> = new Set(['ledger', 'cashbook', 'catalog']);
+export const FINANCE_TABS = ALL_FINANCE_TABS.filter((tab) => !DEFERRED_FINANCE_TABS.has(tab.key));
+
 /**
- * The tabs a role may open. Owners and admins get everything, including the
- * Catalog, which is theirs to manage. Managers get the tills' view and the
- * ledger. An accountant exists for the ledger alone and never sees revenue,
- * the cash book or day close.
+ * Intersect the enabled features with the existing role permissions. Deferring
+ * the ledger does not give accountants access to revenue or day close.
  */
 export function financeTabsForRole(role: UserRole | null | undefined): FinanceTabDef[] {
   if (isFinanceOwner(role)) return FINANCE_TABS;

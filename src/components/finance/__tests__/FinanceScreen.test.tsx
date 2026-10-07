@@ -295,6 +295,29 @@ describe('FinanceScreen', () => {
     expect(textOf(tree)).toContain('Sign in to view finance');
     unmountTree(tree);
   });
+
+  test('does not load revenue for a ledger-only accountant while Ledger is deferred', async () => {
+    const accountant = { ...SESSION, role: 'accountant' as const };
+    (useSessionStore as unknown as jest.Mock).mockImplementation(
+      (selector: (s: { session: typeof accountant }) => unknown) => selector({ session: accountant }),
+    );
+    const tree = renderTree(<FinanceScreen />);
+    await act(async () => { await Promise.resolve(); });
+    expect(textOf(tree)).toContain('Finance tools for this role are not enabled yet.');
+    expect(mocked.detectFinanceSchema).not.toHaveBeenCalled();
+    expect(mocked.fetchFinanceOverview).not.toHaveBeenCalled();
+    expect(mockedLedger.fetchLedgerEntries).not.toHaveBeenCalled();
+    unmountTree(tree);
+  });
+
+  test('returns an existing deferred tab selection to Overview without mounting Ledger', async () => {
+    useFinanceStore.setState({ activeTab: 'ledger' });
+    const tree = renderTree(<FinanceScreen />);
+    await act(async () => { await Promise.resolve(); });
+    expect(useFinanceStore.getState().activeTab).toBe('overview');
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' })).toHaveLength(0);
+    unmountTree(tree);
+  });
 });
 
 describe('PhoneFinanceScreen', () => {
@@ -319,20 +342,23 @@ describe('PhoneFinanceScreen', () => {
     );
   }
 
-  test('shows the branch, the active range and all four tabs', () => {
+  test('shows the branch, active range and enabled Finance tabs', () => {
     const tree = renderPhone();
     const text = textOf(tree);
     expect(text).toContain('All branches');
     expect(text).toContain('1 Sep – 7 Sep 2026');
-    for (const label of ['Overview', 'Ledger', 'Cash Book', 'Day Close']) {
+    for (const label of ['Overview', 'Day Close']) {
       expect(text).toContain(label);
+    }
+    for (const label of ['Ledger', 'Cash Book', 'Catalog']) {
+      expect(tree.root.findAllByProps({ accessibilityRole: 'tab', accessibilityLabel: label })).toHaveLength(0);
     }
     // The presets live in the sheet, which is closed until asked for.
     expect(text).not.toContain('This Month');
     unmountTree(tree);
   });
 
-  test('the quick-add button switches to the Ledger and asks for a blank form', () => {
+  test('hides the quick-add shortcut while Ledger is deferred', () => {
     const onTab = jest.fn();
     const tree = renderTree(
       <PhoneFinanceScreen
@@ -349,13 +375,9 @@ describe('PhoneFinanceScreen', () => {
         onRefresh={noop}
       />,
     );
-    const [button] = tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' });
-    const { onPress } = button.props as { onPress: () => void };
-    act(() => {
-      onPress();
-    });
-    expect(onTab).toHaveBeenCalledWith('ledger');
-    expect(useLedgerStore.getState().newEntryRequested).toBe(true);
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Record an entry' })).toHaveLength(0);
+    expect(onTab).not.toHaveBeenCalled();
+    expect(useLedgerStore.getState().newEntryRequested).toBe(false);
     unmountTree(tree);
   });
 

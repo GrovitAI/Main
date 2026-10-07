@@ -1,7 +1,7 @@
 import { FinanceScreen } from '@/components/finance/FinanceScreen';
 
 /**
- * Finance tab: overview, expenses, cash book and day close.
+ * Finance tab: overview and day close; deferred tools remain available in code.
  *
  * The screen picks its own phone or tablet layout, so the route only mounts it.
  */
