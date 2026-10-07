@@ -20,11 +20,12 @@ describe('Daily work navigation', () => {
     onWeb(() => {
       expect(getDailyWorkPhoneTabs(role).map((tab) => tab.name)).toEqual(['analytics', 'central-kitchen', 'inventory', 'more']);
       const secondary = getMoreGroups(role, true).flatMap((group) => group.tabs.map((tab) => tab.name));
-      expect(secondary).toEqual(['finance', 'menu', 'staff', 'branches', 'settings']);
+      expect(secondary).toEqual(['menu', 'staff', 'branches', 'settings']);
       const mounted = getDailyWorkTabs(role, true).map((tab) => tab.name);
       secondary.forEach((name) => expect(mounted).toContain(name));
       expect(mounted).not.toContain('index');
       expect(mounted).not.toContain('orders');
+      expect(mounted).not.toContain('finance');
     });
   });
 
@@ -44,14 +45,15 @@ describe('Daily work navigation', () => {
 
   it('keeps owner daily tasks in the desktop bottom bar and secondary tools under More', () => onWeb(() => {
     expect(getDailyWorkDesktopTabs('owner').map(tab => tab.name)).toEqual(['orders', 'inventory', 'analytics', 'central-kitchen', 'more']);
-    expect(getMoreGroups('owner', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['finance', 'menu', 'staff', 'branches', 'settings']);
-    expect(getDesktopNavigationSelection('owner', 'finance')).toBe('more');
+    expect(getMoreGroups('owner', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['menu', 'staff', 'branches', 'settings']);
+    expect(getDailyWorkTabs('owner', false).map(tab => tab.name)).not.toContain('finance');
+    expect(getDesktopNavigationSelection('owner', 'menu')).toBe('more');
     expect(getDesktopNavigationSelection('owner', 'orders')).toBe('orders');
   }));
 
   it('retains admin POS in the compact bar without exposing desktop Branches', () => onWeb(() => {
     expect(getDailyWorkDesktopTabs('admin').map(tab => tab.name)).toEqual(['index', 'orders', 'inventory', 'analytics', 'central-kitchen', 'more']);
-    expect(getMoreGroups('admin', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['finance', 'menu', 'staff', 'settings']);
+    expect(getMoreGroups('admin', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['menu', 'staff', 'settings']);
   }));
 
   it.each<UserRole>(['cashier', 'manager', 'kitchen', 'accountant'])('leaves %s navigation and access unchanged', (role) => onWeb(() => {
@@ -65,7 +67,7 @@ describe('Daily work navigation', () => {
   }));
 
   it('highlights More while a secondary screen is open', () => {
-    ['finance', 'menu', 'staff', 'branches', 'settings', 'more'].forEach((name) => {
+    ['menu', 'staff', 'branches', 'settings', 'more'].forEach((name) => {
       expect(getPhoneNavigationSelection(name)).toBe('more');
     });
     expect(getPhoneNavigationSelection('analytics')).toBe('analytics');

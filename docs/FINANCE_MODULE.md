@@ -1,31 +1,26 @@
 # FINANCE_MODULE.md — Grovit Finance
 
-> **Status**: built, tested, and **live as the Finance tab** since 2026-09-13.
-> **Last Updated**: 2026-09-13
+> **Status**: built; standalone Finance deferred on the staging feature branch.
+> **Last Updated**: 2026-10-07
 
 The finance module is a self-contained unit: data layer, business logic,
 state, and UI for tablet/desktop and phone. The route
-`src/app/(app)/finance.tsx` mounts it and the tab appears for owners, admins
-and managers on every platform: the web app at any width, and the installed
-app on phones and tablets.
+`src/app/(app)/finance.tsx` is retained for restoration. The branch currently
+redirects this route to the role/device home without mounting Finance.
 
 ---
 
 ## 1. What it does
 
-On the staging feature branch, as of 2026-10-07, only **Overview** and
-**Day Close** are shown in Finance. Ledger, Cash Book and Catalog are deferred
-at the client's request while Central Kitchen handles the current kitchen
-bookkeeping. Their components, services and data are retained. The phone's
-Ledger entry shortcut is also hidden. `DEFERRED_FINANCE_TABS` in
-`FinanceTabBar.tsx` controls restoration, subject to the existing role rules.
-An accountant, whose sole permitted Finance tab is Ledger, sees an unavailable
-message while it is deferred; no additional permissions are granted.
-Overview and Day Close keep their existing calculations and data sources.
-The approved Daily work navigation places Finance under Business in the
-owner/admin desktop web More popover, and under More on phones. Wide native
-management devices retain the grouped sidebar. Other roles retain their
-existing navigation and Finance permissions.
+On the staging feature branch, the whole standalone Finance module is deferred,
+including Overview and Day Close. `FINANCE_MODULE_ENABLED` in `tab-config.ts`
+controls its navigation, route entry, Finance settings, and the inventory
+shortcut to the ledger. Accountant logins land on Settings. Components,
+services, data and existing role permissions remain for future use; nothing
+is deleted and Central Kitchen bookkeeping and inventory posting are unchanged.
+The earlier Ledger, Cash Book and Catalog deferral remains configured in
+`DEFERRED_FINANCE_TABS` in `FinanceTabBar.tsx`; restoring the main module will
+not silently restore those tools or broaden permissions.
 
 Five tabs. All but the Catalog are scoped by date range and branch.
 

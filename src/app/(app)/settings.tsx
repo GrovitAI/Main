@@ -3,7 +3,7 @@ import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollVi
 import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark, ChefHat } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { colors, brand } from '@/lib/pos/brand';
-import { KITCHEN_HOME } from '@/lib/pos/tab-config';
+import { FINANCE_MODULE_ENABLED, KITCHEN_HOME } from '@/lib/pos/tab-config';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
@@ -29,6 +29,9 @@ export default function SettingsScreen() {
   // Finance rules apply to the whole business, so only the owner sets them.
   const isOwner = session?.role === 'owner';
   const [activeTab, setActiveTab] = useState<SettingsTab>('system');
+  useEffect(() => {
+    if (!FINANCE_MODULE_ENABLED && activeTab === 'finance') setActiveTab('system');
+  }, [activeTab]);
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -246,7 +249,7 @@ export default function SettingsScreen() {
               { key: 'system' as SettingsTab, label: 'System', icon: Settings },
               { key: 'printers' as SettingsTab, label: 'Printers', icon: PrinterIcon },
               ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approvals', icon: ShieldCheck }] : []),
-              ...(isOwner ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
+              ...(isOwner && FINANCE_MODULE_ENABLED ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
             ].map((tab) => {
               const isSel = activeTab === tab.key;
               const Icon = tab.icon;
@@ -276,7 +279,7 @@ export default function SettingsScreen() {
                   { key: 'system' as SettingsTab, label: 'System Settings', icon: Settings },
                   { key: 'printers' as SettingsTab, label: 'Printer Configuration', icon: PrinterIcon },
                   ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approval Policies', icon: ShieldCheck }] : []),
-                  ...(isOwner ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
+                  ...(isOwner && FINANCE_MODULE_ENABLED ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
                 ].map((tab) => {
                   const isSel = activeTab === tab.key;
                   const Icon = tab.icon;
@@ -646,7 +649,7 @@ export default function SettingsScreen() {
               </View>
             </View>
           </ScrollView>
-        ) : activeTab === 'finance' ? (
+        ) : activeTab === 'finance' && FINANCE_MODULE_ENABLED ? (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
             <FinanceAccountsCard />
             <FinanceRulesCard />

@@ -74,6 +74,9 @@ figures to be right, and matching is offered only as a convenience.
 - Roles: owner, admin, manager, cashier, kitchen, accountant. The `kitchen`
   role is the Central Kitchen login: it sees the kitchen module and nothing
   else; the owner and admins may open the module too.
+- Standalone Finance, including Day Close, is deferred at the client's request
+  (2026-10-07). Its code and records are retained, and its navigation, settings
+  and route entry are disabled. Central Kitchen bookkeeping remains available.
 - Kitchen module (migration `20261004000100_central_kitchen.sql`): items with a
   stock figure and an optional selling price; branches and vendors as typed
   names; entries of seven kinds (sent, received, bought, paid, spent, made,

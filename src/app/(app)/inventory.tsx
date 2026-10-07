@@ -146,6 +146,7 @@ import { confirmAction, notify } from '@/lib/pos/dialogs';
 import { fetchFinanceAccounts } from '@/lib/pos/finance-ledger-service';
 import type { FinanceAccount } from '@/lib/pos/finance-types';
 import { useFinanceStore } from '@/lib/pos/use-finance-store';
+import { FINANCE_MODULE_ENABLED } from '@/lib/pos/tab-config';
 import { useLedgerStore } from '@/lib/pos/use-ledger-store';
 import {
   validateImportRows,
@@ -2971,6 +2972,7 @@ export default function InventoryScreen() {
               {/* Payment lives in the ledger: settling the supplier's payable marks it paid here.
                   A purchase still on credit goes straight to that payable in Finance. */}
               {(() => {
+                if (!FINANCE_MODULE_ENABLED) return null;
                 const item = purchases.find((p) => p.id === purOpenActionIdx);
                 const entryId = item?.finance_entry_id ?? null;
                 const unpaid = item?.finance_entry?.kind === 'payable' && item.finance_entry.status === 'open';

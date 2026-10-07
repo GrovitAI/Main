@@ -6,7 +6,7 @@
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 
 import { Platform } from 'react-native';
-import { getDefaultHrefForRole, getDefaultHrefForSession, getTabsForRole, isCentralKitchenSession, usesManagementTabs, MOBILE_TABS } from '../tab-config';
+import { getDefaultHrefForRole, getDefaultHrefForSession, getInitialRouteNameForRole, getTabsForRole, isCentralKitchenSession, usesManagementTabs } from '../tab-config';
 import type { UserRole } from '../session-context';
 
 /**
@@ -38,7 +38,7 @@ const nativeTabletNames = (role: UserRole): string[] =>
 
 describe('getTabsForRole on phones', () => {
   it('gives owners and admins the full mobile tab set', () => {
-    const expected = MOBILE_TABS.map((tab) => tab.name);
+    const expected = ['analytics', 'inventory', 'menu', 'staff', 'branches', 'settings'];
     expect(webNames('owner', true)).toEqual(expected);
     expect(webNames('admin', true)).toEqual(expected);
   });
@@ -53,13 +53,13 @@ describe('getTabsForRole on phones', () => {
   );
 
   it('still gives managers and cashiers somewhere to work', () => {
-    expect(webNames('manager', true)).toEqual(['analytics', 'finance', 'inventory', 'menu', 'settings']);
+    expect(webNames('manager', true)).toEqual(['analytics', 'inventory', 'menu', 'settings']);
     expect(webNames('cashier', true)).toEqual(['analytics', 'inventory', 'menu', 'settings']);
   });
 
-  it('keeps finance away from cashiers, who work the till and not the books', () => {
+  it('defers finance on phones for managers as well as cashiers', () => {
     expect(webNames('cashier', true)).not.toContain('finance');
-    expect(webNames('manager', true)).toContain('finance');
+    expect(webNames('manager', true)).not.toContain('finance');
   });
 
   it('leaves the kitchen role on its own two tabs', () => {
@@ -67,10 +67,18 @@ describe('getTabsForRole on phones', () => {
     expect(webNames('kitchen', false)).toEqual(['kitchen', 'settings']);
   });
 
-  it('gives an accountant the ledger and settings, nothing else, on every device', () => {
-    expect(webNames('accountant', true)).toEqual(['finance', 'settings']);
-    expect(webNames('accountant', false)).toEqual(['finance', 'settings']);
-    expect(nativeTabletNames('accountant')).toEqual(['finance', 'settings']);
+  it('keeps accountants on Settings while finance is deferred, with a valid home on every device', () => {
+    expect(webNames('accountant', true)).toEqual(['settings']);
+    expect(webNames('accountant', false)).toEqual(['settings']);
+    expect(nativeTabletNames('accountant')).toEqual(['settings']);
+    for (const os of ['web', 'ios', 'android'] as const) {
+      onPlatform(os, () => {
+        for (const isPhone of [true, false]) {
+          expect(getDefaultHrefForRole('accountant', isPhone)).toBe('/(app)/settings');
+          expect(getInitialRouteNameForRole('accountant', isPhone)).toBe('settings');
+        }
+      });
+    }
   });
 
   it('excludes POS and orders for every role, which phones do not carry', () => {
@@ -102,9 +110,11 @@ describe('getTabsForRole on tablets and desktop browsers', () => {
     expect(webNames('owner', false)).not.toContain('index');
   });
 
-  it('offers finance to every management role and to nobody else', () => {
-    for (const role of ['owner', 'admin', 'manager'] as UserRole[]) {
-      expect(webNames(role, false)).toContain('finance');
+  it('omits deferred finance from every role and platform', () => {
+    for (const role of ['owner', 'admin', 'manager', 'accountant', 'cashier', 'kitchen'] as UserRole[]) {
+      expect(webNames(role, false)).not.toContain('finance');
+      expect(webNames(role, true)).not.toContain('finance');
+      expect(nativeTabletNames(role)).not.toContain('finance');
     }
     expect(webNames('cashier', false)).not.toContain('finance');
     expect(webNames('kitchen', false)).not.toContain('finance');
@@ -121,8 +131,8 @@ describe('getTabsForRole in the installed app', () => {
   });
 
   it('gives an iPad the same management tabs a phone gets', () => {
-    expect(nativeTabletNames('owner')).toEqual(MOBILE_TABS.map((tab) => tab.name));
-    expect(nativeTabletNames('manager')).toEqual(['analytics', 'finance', 'inventory', 'menu', 'settings']);
+    expect(nativeTabletNames('owner')).toEqual(['analytics', 'inventory', 'menu', 'staff', 'branches', 'settings']);
+    expect(nativeTabletNames('manager')).toEqual(['analytics', 'inventory', 'menu', 'settings']);
   });
 
   it('still routes a restaurant kitchen login to the kitchen display', () => {

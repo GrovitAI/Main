@@ -375,7 +375,7 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 ## Daily work navigation (owner and admin)
 
 The approved main app navigation uses four phone tabs: Analytics, Kitchen,
-Inventory and More. More groups Finance and Menu under Business, and Staff,
+Inventory and More. More groups Menu under Business, and Staff,
 Branches and Settings under Administration, filtered by existing role access.
 Secondary screens highlight More while open. Kitchen opens the existing
 Central Kitchen module with its own five tabs.
@@ -399,6 +399,12 @@ remains at least 44 px tall. Short windows constrain and scroll the list.
 Wide native management devices retain the 184 px sidebar and omit till screens.
 Other staff roles retain their existing navigation. The Central Kitchen's
 own navigation remains separate from the main app bar.
+
+The standalone Finance module, including Day Close and its Settings controls,
+is deferred. It has no navigation link; old Finance URLs redirect to the
+role/device home without mounting its screen. Accountant logins land on
+Settings while it is deferred. Code and records remain for future restoration;
+Central Kitchen bookkeeping and inventory posting keep their existing behavior.
 
 ## Central Kitchen desktop browser density
 

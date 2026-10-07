@@ -18,6 +18,9 @@ import {
 
 import type { PosSession, UserRole } from './session-context';
 
+/** Deferred at the client's request. Keep its UI, services and data for later. */
+export const FINANCE_MODULE_ENABLED: boolean = false;
+
 export type TabConfig = {
   name: string;
   href: string;
@@ -167,7 +170,7 @@ export function usesManagementTabs(isPhone: boolean): boolean {
   return isPhone || Platform.OS !== 'web';
 }
 
-export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
+function getConfiguredTabsForRole(role: UserRole, isPhone: boolean): TabConfig[] {
   if (role === 'kitchen') return KITCHEN_TABS;
   if (usesManagementTabs(isPhone)) {
     if (role === 'accountant') return ACCOUNTANT_TABS;
@@ -193,7 +196,12 @@ export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
   }
 }
 
+export function getTabsForRole(role: UserRole, isPhone = false): TabConfig[] {
+  return getConfiguredTabsForRole(role, isPhone).filter(tab => tab.name !== 'finance' || FINANCE_MODULE_ENABLED);
+}
+
 export function getDefaultScreenForRole(role: UserRole, isPhone = false): string {
+  if (role === 'accountant' && !FINANCE_MODULE_ENABLED) return '/(app)/settings';
   if (role === 'kitchen') return '/(app)/kitchen';
   if (usesManagementTabs(isPhone)) {
     if (role === 'accountant') return '/(app)/finance';
