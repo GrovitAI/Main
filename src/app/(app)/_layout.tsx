@@ -11,8 +11,10 @@ import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { DailyWorkNavigation } from '@/components/layout/DailyWorkNavigation';
+import { DesktopDailyWorkBar } from '@/components/layout/DesktopDailyWorkBar';
 import {
   getDailyWorkTabs, getDailyWorkGroups, getDailyWorkPhoneTabs,
+  getDailyWorkDesktopTabs, getDesktopNavigationSelection,
   getPhoneNavigationSelection, usesDailyWorkNavigation,
 } from '@/lib/pos/daily-work-navigation';
 
@@ -374,7 +376,8 @@ export default function AppTabLayout() {
 
   const roleTabs = session ? getDailyWorkTabs(session.role, isPhone) : [];
   const dailyWorkNavigation = session ? usesDailyWorkNavigation(session.role) : false;
-  const dailyWorkSidebar = dailyWorkNavigation && isTablet;
+  const dailyWorkDesktop = dailyWorkNavigation && isTablet && Platform.OS === 'web';
+  const dailyWorkSidebar = dailyWorkNavigation && isTablet && Platform.OS !== 'web';
 
   // Tab bar visibility state (screens can still toggle via useTabBarHidden)
   const [tabBarHidden, setTabBarHidden] = useState(false);
@@ -416,7 +419,7 @@ export default function AppTabLayout() {
 
       // Cycle the destinations visible in this layout, including the Kitchen shortcut.
       const visibleTabs = dailyWorkNavigation && session
-        ? (dailyWorkSidebar
+        ? (dailyWorkDesktop ? getDailyWorkDesktopTabs(session.role) : dailyWorkSidebar
           ? getDailyWorkGroups(session.role, false).flatMap(group => group.tabs)
           : getDailyWorkPhoneTabs(session.role))
         : APP_TAB_ROUTE_NAMES.flatMap(name => roleTabs.filter(tab => tab.name === name));
@@ -425,7 +428,9 @@ export default function AppTabLayout() {
       if (activeTabNames.length <= 1) return;
 
       const normalizedTabName = getCurrentTabNameNormalized(segmentsRef.current, pathnameRef.current);
-      const currentTabName = dailyWorkNavigation && !dailyWorkSidebar
+      const currentTabName = dailyWorkDesktop && session
+        ? getDesktopNavigationSelection(session.role, normalizedTabName)
+        : dailyWorkNavigation && !dailyWorkSidebar
         ? getPhoneNavigationSelection(normalizedTabName)
         : normalizedTabName;
       let currentIndex = activeTabNames.indexOf(currentTabName);
@@ -463,7 +468,7 @@ export default function AppTabLayout() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
-  }, [roleTabs, dailyWorkNavigation, dailyWorkSidebar, session]);
+  }, [roleTabs, dailyWorkNavigation, dailyWorkDesktop, dailyWorkSidebar, session]);
 
   const userRole = session?.role || 'cashier';
   const initialRouteName = getInitialRouteNameForRole(userRole, isPhone);
@@ -483,7 +488,9 @@ export default function AppTabLayout() {
         <View style={{ flex: 1 }}>
           <Tabs
             initialRouteName={initialRouteName}
-            tabBar={(props) => dailyWorkNavigation
+            tabBar={(props) => dailyWorkDesktop
+              ? <DesktopDailyWorkBar {...props} role={userRole} hidden={tabBarHidden} />
+              : dailyWorkNavigation
               ? <DailyWorkNavigation {...props} role={userRole} sidebar={dailyWorkSidebar} hidden={tabBarHidden} />
               : <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
             screenOptions={{

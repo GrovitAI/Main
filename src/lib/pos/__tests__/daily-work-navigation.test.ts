@@ -6,6 +6,7 @@ import { getTabsForRole } from '@/lib/pos/tab-config';
 import {
   getDailyWorkGroups, getDailyWorkPhoneTabs, getDailyWorkTabs, getMoreGroups,
   getPhoneNavigationSelection, usesDailyWorkNavigation,
+  getDailyWorkDesktopTabs, getDesktopNavigationSelection,
 } from '@/lib/pos/daily-work-navigation';
 
 function onWeb(body: () => void): void {
@@ -41,12 +42,25 @@ describe('Daily work navigation', () => {
     expect(names).not.toContain('branches');
   }));
 
+  it('keeps owner daily tasks in the desktop bottom bar and secondary tools under More', () => onWeb(() => {
+    expect(getDailyWorkDesktopTabs('owner').map(tab => tab.name)).toEqual(['orders', 'inventory', 'analytics', 'central-kitchen', 'more']);
+    expect(getMoreGroups('owner', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['finance', 'menu', 'staff', 'branches', 'settings']);
+    expect(getDesktopNavigationSelection('owner', 'finance')).toBe('more');
+    expect(getDesktopNavigationSelection('owner', 'orders')).toBe('orders');
+  }));
+
+  it('retains admin POS in the compact bar without exposing desktop Branches', () => onWeb(() => {
+    expect(getDailyWorkDesktopTabs('admin').map(tab => tab.name)).toEqual(['index', 'orders', 'inventory', 'analytics', 'central-kitchen', 'more']);
+    expect(getMoreGroups('admin', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['finance', 'menu', 'staff', 'settings']);
+  }));
+
   it.each<UserRole>(['cashier', 'manager', 'kitchen', 'accountant'])('leaves %s navigation and access unchanged', (role) => onWeb(() => {
     expect(usesDailyWorkNavigation(role)).toBe(false);
     expect(getDailyWorkTabs(role, false)).toEqual(getTabsForRole(role, false));
     expect(getDailyWorkTabs(role, true)).toEqual(getTabsForRole(role, true));
     expect(getDailyWorkGroups(role, false)).toEqual([]);
     expect(getDailyWorkPhoneTabs(role)).toEqual([]);
+    expect(getDailyWorkDesktopTabs(role)).toEqual([]);
     expect(getMoreGroups(role, true)).toEqual([]);
   }));
 

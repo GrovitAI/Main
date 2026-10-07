@@ -380,11 +380,15 @@ Branches and Settings under Administration, filtered by existing role access.
 Secondary screens highlight More while open. Kitchen opens the existing
 Central Kitchen module with its own five tabs.
 
-At widths of 768 px and above, a persistent 184 px left sidebar replaces the
-main app bottom bar. Daily work contains the authorized POS/Orders destinations,
-Inventory, Analytics and Central Kitchen; Business and Administration follow.
-Destinations keep 44 px targets and labeled icons. Other staff roles retain
-their existing navigation. Native management devices still omit the till.
+Desktop web (768 px+) uses a centered compact bottom bar: Orders, Inventory,
+Analytics, Kitchen and More for owners, with POS also retained for admins.
+More opens a 288 px grouped list directly above the bar. It closes after a
+selection, outside click or Escape; arrow keys move through the list and
+Escape returns focus to More. Secondary screens highlight More. Every target
+remains at least 44 px tall. Short windows constrain and scroll the list.
+Wide native management devices retain the 184 px sidebar and omit till screens.
+Other staff roles retain their existing navigation. The Central Kitchen's
+own navigation remains separate from the main app bar.
 
 ## Central Kitchen desktop browser density
 

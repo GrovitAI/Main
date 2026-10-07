@@ -60,8 +60,8 @@ figures to be right, and matching is offered only as a convenience.
 - Two Supabase projects: production and a staging copy for trying changes.
   Web is deployed on Vercel; native builds go through EAS and the stores.
 - Owner/admin navigation (approved 2026-10-07): Daily work. Phones use
-  Analytics, Kitchen, Inventory and More; desktop uses a grouped left sidebar.
-  More holds Business and Administration tools. Existing role access and
+  Analytics, Kitchen, Inventory and More; desktop web uses a compact bottom
+  bar with More opening Business and Administration tools above it. Existing role access and
   the Central Kitchen module's five tabs remain in force.
 
 ## Capabilities and Constraints

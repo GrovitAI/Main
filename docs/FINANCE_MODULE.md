@@ -23,8 +23,9 @@ An accountant, whose sole permitted Finance tab is Ledger, sees an unavailable
 message while it is deferred; no additional permissions are granted.
 Overview and Day Close keep their existing calculations and data sources.
 The approved Daily work navigation places Finance under Business in the
-owner/admin desktop sidebar, and under More on phones. Other roles retain
-their existing navigation and Finance permissions.
+owner/admin desktop web More popover, and under More on phones. Wide native
+management devices retain the grouped sidebar. Other roles retain their
+existing navigation and Finance permissions.
 
 Five tabs. All but the Catalog are scoped by date range and branch.
 

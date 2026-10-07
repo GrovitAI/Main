@@ -57,6 +57,19 @@ export function getDailyWorkPhoneTabs(role: UserRole): TabConfig[] {
   ];
 }
 
+export function getDailyWorkDesktopTabs(role: UserRole): TabConfig[] {
+  if (!usesDailyWorkNavigation(role)) return [];
+  const dailyWork = getDailyWorkGroups(role, false).find(group => group.title === 'Daily work');
+  return [
+    ...(dailyWork?.tabs ?? []).map(tab => tab.name === 'central-kitchen' ? { ...tab, label: 'Kitchen' } : tab),
+    MORE_TAB,
+  ];
+}
+
+export function getDesktopNavigationSelection(role: UserRole, routeName: string): string {
+  return getDailyWorkDesktopTabs(role).some(tab => tab.name === routeName) ? routeName : 'more';
+}
+
 export function getPhoneNavigationSelection(routeName: string): string {
   return PHONE_PRIMARY_NAMES.has(routeName) ? routeName : 'more';
 }
