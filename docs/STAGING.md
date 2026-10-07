@@ -199,7 +199,12 @@ payment mode the ledger requires (fixed in task 121). Stop the server with
 
 ## 6. What is waiting
 
-Migrations on staging and not yet on production, as of 2026-10-02, in order:
+All ten migrations below were applied to production on 2026-10-07, in order,
+with each verified before the next. No migrations currently remain pending.
+The table is retained as the release history. The number-allocation and
+kitchen-access guards also preserve fail-closed checks for missing staff
+identities; these were verified on staging and production without retaining
+test writes. See `CENTRAL_KITCHEN_RELEASE_2026-10-07.md`.
 
 | File | What it does |
 | :--- | :--- |
