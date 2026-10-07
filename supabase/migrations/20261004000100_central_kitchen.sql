@@ -31,8 +31,11 @@ CREATE OR REPLACE FUNCTION public.kitchen_can_use(p_tenant_id uuid, p_branch_id 
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
 AS $$
-  SELECT public.auth_can_access_branch(p_tenant_id, p_branch_id)
-     AND public.auth_role() IN ('kitchen', 'owner', 'admin');
+  SELECT coalesce(
+    public.auth_can_access_branch(p_tenant_id, p_branch_id)
+    AND public.auth_role() IN ('kitchen', 'owner', 'admin'),
+    false
+  );
 $$;
 REVOKE ALL ON FUNCTION public.kitchen_can_use(uuid, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.kitchen_can_use(uuid, uuid) TO authenticated, service_role;

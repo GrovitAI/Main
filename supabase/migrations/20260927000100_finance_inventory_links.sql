@@ -686,9 +686,10 @@ BEGIN
     RAISE EXCEPTION 'SEQ_INVALID_KIND' USING ERRCODE = '22023';
   END IF;
 
-  -- Callers must belong to the branch (cron/worker paths run without auth.uid()
-  -- and are allowed through because auth.uid() is NULL there).
-  IF auth.uid() IS NOT NULL AND NOT public.auth_can_access_branch(p_tenant_id, p_branch_id) THEN
+  -- Preserve the fail-closed guard from 20260921000200: a missing staff row
+  -- must refuse API callers. Cron/worker paths without a JWT remain allowed.
+  IF (auth.uid() IS NOT NULL OR coalesce(auth.role(), '') IN ('anon', 'authenticated'))
+     AND public.auth_can_access_branch(p_tenant_id, p_branch_id) IS NOT TRUE THEN
     RAISE EXCEPTION 'SEQ_FORBIDDEN' USING ERRCODE = '42501';
   END IF;
 
