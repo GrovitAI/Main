@@ -14,9 +14,9 @@ The owner approved production deployment of the staging feature branch, includin
 
 ## Deployment state
 
-Production database `pyikrlqduampooncpzri` is ready. The web release is being built at an isolated Vercel URL with production settings before assigning the live domain.
+Production database `pyikrlqduampooncpzri` is ready. The web release is built with production settings, verified before the final merge, and published through the existing GitHub-main → Vercel release process. The final deployment ID, checks and smoke-test results are recorded on [release PR #2](https://github.com/GrovitAI/Main/pull/2).
 
-GitHub CLI currently identifies as `Ladman349`, which has pull permission but no push permission on `GrovitAI/Main`. PR creation was refused with "must be a collaborator". Publishing and merging this branch still require the repository owner's `GrovitAI` account or another account with write access. Do not redeploy the older GitHub main branch over the new release before syncing the approved commits.
+The saved `GrovitAI` repository-owner login in Git Credential Manager was verified to have push/admin permission and used to push the approved branch and create PR #2. The unrelated `Ladman349` CLI login has read-only repository permission, so release commands use the owner credential explicitly without exposing it. The checkout's Git credential username is scoped to `GrovitAI` for future pushes.
 
 ## Rollback
 

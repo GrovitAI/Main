@@ -173,8 +173,8 @@ Will be replaced by auth session after Task 7.
 ⬜ Task 4: Orders screen with live Supabase data
 ⬜ Task 5: KOT generation + Kitchen display
 ⬜ Task 6: Settlement flow
-✅ Task 7: Finance module built; standalone Finance and Day Close deferred on the staging feature branch since 2026-10-07. Code and records are retained; Central Kitchen bookkeeping remains available. See docs/FINANCE_MODULE.md.
-🟡 Tasks 131–134: Central Kitchen module (built on feat/central-kitchen; production database migrations applied and verified 2026-10-07; web release in progress. See docs/CENTRAL_KITCHEN_RELEASE_2026-10-07.md. PRODUCT.md holds the product record, DESIGN.md the look.)
+✅ Task 7: Finance module built; standalone Finance and Day Close deferred in the approved 2026-10-07 release. Code and records are retained; Central Kitchen bookkeeping remains available. See docs/FINANCE_MODULE.md.
+✅ Tasks 131–134: Central Kitchen module (built on feat/central-kitchen; production release approved 2026-10-07 via GitHub PR #2. All ten database migrations applied and verified. See docs/CENTRAL_KITCHEN_RELEASE_2026-10-07.md for the release and rollback record. PRODUCT.md holds the product record, DESIGN.md the look.)
 ⬜ Task 8: Analytics screen
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
