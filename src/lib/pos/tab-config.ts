@@ -150,6 +150,7 @@ export const APP_TAB_ROUTE_NAMES = [
   'branches',
   'billing',
   'menu',
+  'more',
 ] as const;
 
 export type AppTabRouteName = (typeof APP_TAB_ROUTE_NAMES)[number];

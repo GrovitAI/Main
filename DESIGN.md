@@ -372,7 +372,21 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 - **Don't** combine `className` with a Pressable's function style: NativeWind drops the function. Class-styled controls use `active:opacity-*`; legacy controls with function styles keep their plain style objects.
 - **Don't** add a second type family, a weight below 600, or letter-spaced capitals outside the Label role.
 
-## Desktop browser density
+## Daily work navigation (owner and admin)
+
+The approved main app navigation uses four phone tabs: Analytics, Kitchen,
+Inventory and More. More groups Finance and Menu under Business, and Staff,
+Branches and Settings under Administration, filtered by existing role access.
+Secondary screens highlight More while open. Kitchen opens the existing
+Central Kitchen module with its own five tabs.
+
+At widths of 768 px and above, a persistent 184 px left sidebar replaces the
+main app bottom bar. Daily work contains the authorized POS/Orders destinations,
+Inventory, Analytics and Central Kitchen; Business and Administration follow.
+Destinations keep 44 px targets and labeled icons. Other staff roles retain
+their existing navigation. Native management devices still omit the till.
+
+## Central Kitchen desktop browser density
 
 At browser widths of 1024 px and above, keep the same colours, content and
 workflows with a more compact layout:
