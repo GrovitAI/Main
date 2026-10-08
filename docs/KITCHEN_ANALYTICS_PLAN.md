@@ -1,8 +1,9 @@
 # Central Kitchen analytics — staging design review
 
-Status: interactive design previews, 2026-10-08. No application or database
-changes have been applied for this requirement. Work is isolated on
-`codex/kitchen-analytics`; production remains the October 7 release.
+Status: Report workspace selected by the user and implemented in staging,
+2026-10-08 (task 157). Work is isolated on `codex/kitchen-analytics`;
+production remains the October 7 release. See
+`KITCHEN_ANALYTICS_STAGING.md` for implementation, validation and release limits.
 
 ## Client requirement
 
@@ -17,9 +18,10 @@ and Day Close modules remain deferred.
   existing kitchen tabs. Desktop can offer the same shortcut without changing
   the main app's approved floating bottom navigation.
 - Give a vendor a default purchase category; allow an override for a purchase.
-  This is an assumption for the previews pending client confirmation. If an
-  invoice needs several categories, use line-level categorization instead;
-  confirm that before defining the migration.
+  The build follows the approved preview's one-category-per-purchase behavior.
+  A separate optional clarification about category granularity is unanswered;
+  line-level categories are not implemented. Confirm that requirement before
+  adding multiple categories to an invoice.
 - Store the purchase category ID and name snapshot on the purchase. Renaming,
   archiving, or changing a vendor default must not recategorize old entries.
   Corrections should keep the existing void-and-replace audit trail. Historical
@@ -55,12 +57,12 @@ recipe cost allocation are not yet modeled.
 
 ## Architecture findings and staged implementation
 
-`kitchen_parties` has no vendor category. `kitchen_categories` currently serves
-Spent expenses. `kitchen_entries.category` currently stores Spent category text;
-`kitchen_post_entry` clears it for buys. Entry lines already store per-item
-quantity and price, sufficient for branch item-sales reporting.
+The original schema had no vendor category. `kitchen_categories` and
+`kitchen_entries.category` continue to serve Spent expenses. Staging now has
+`kitchen_purchase_categories`, a vendor default and purchase ID/name snapshots.
+Entry lines retain their existing quantity and price fields for sales reports.
 
-After design and category scope are confirmed:
+Implemented staging sequence (production promotion still requires review):
 
 1. Add a scoped purchase category list, vendor default reference, and purchase
    snapshot fields in one idempotent migration with RLS and explicit grants.

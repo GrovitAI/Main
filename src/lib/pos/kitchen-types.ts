@@ -35,6 +35,7 @@ export type KitchenItemInput = {
 
 export type KitchenParty = {
   id: string;
+  purchase_category_id?: string | null;
   kind: KitchenPartyKind;
   name: string;
   phone: string | null;
@@ -45,6 +46,7 @@ export type KitchenParty = {
 
 export type KitchenPartyInput = {
   kind: KitchenPartyKind;
+  purchase_category_id?: string | null;
   name: string;
   phone?: string | null;
   /** Left out: unchanged. */
@@ -69,6 +71,8 @@ export type KitchenEntryLine = {
 
 export type KitchenEntry = {
   id: string;
+  purchase_category_id?: string | null;
+  purchase_category_name?: string | null;
   type: KitchenEntryType;
   entry_date: string;
   party_id: string | null;
@@ -127,7 +131,7 @@ export type CoverInput = { entry_id: string; amount: number };
 
 export type PostEntryInput =
   | { type: 'sent'; party_id: string; entry_date?: string; lines: PostLineInput[]; note?: string | null }
-  | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null }
+  | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null; purchase_category_id?: string | null }
   | { type: 'received' | 'paid'; party_id: string; entry_date?: string; amount: number; mode: KitchenMode; note?: string | null; covers?: CoverInput[] }
   | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode; category: string; note?: string | null }
   | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null };

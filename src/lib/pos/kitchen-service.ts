@@ -86,9 +86,9 @@ function actorName(): string {
 }
 
 const ITEM_COLUMNS = 'id, name, unit, sell_price_paise, stock, is_active, updated_at';
-const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise';
+const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise, purchase_category_id';
 const ENTRY_COLUMNS =
-  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, note, created_by, created_at, voided_at, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
+  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_at, voided_at, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
 const UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
 const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count'];
@@ -109,6 +109,7 @@ function mapItem(row: Record<string, unknown>): KitchenItem {
 
 function mapParty(row: Record<string, unknown>): KitchenParty {
   return {
+    purchase_category_id: toStringOrNull(row.purchase_category_id),
     id: String(row.id),
     kind: row.kind === 'vendor' ? 'vendor' : 'branch',
     name: String(row.name ?? ''),
@@ -134,6 +135,8 @@ function mapEntry(row: Record<string, unknown>): KitchenEntry {
   const mode = MODES.find((m) => m === row.mode) ?? null;
   const lines = Array.isArray(row.lines) ? row.lines.map(mapLine).filter((l): l is KitchenEntryLine => l !== null) : [];
   return {
+    purchase_category_id: toStringOrNull(row.purchase_category_id),
+    purchase_category_name: toStringOrNull(row.purchase_category_name),
     id: String(row.id),
     type,
     entry_date: String(row.entry_date ?? ''),
@@ -231,6 +234,7 @@ export async function saveKitchenParty(input: KitchenPartyInput, id?: string): P
     const name = input.name.trim();
     if (!name) return { data: null, error: 'Type a name first.' };
     const fields: Record<string, unknown> = { name, phone: input.phone?.trim() || null };
+    if (input.purchase_category_id !== undefined) fields.purchase_category_id = input.kind === 'vendor' ? input.purchase_category_id : null;
     if (input.opening !== undefined) fields.opening_paise = toPaise(input.opening);
     const query = id
       ? supabase.from('kitchen_parties').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
@@ -428,6 +432,7 @@ function entryPayload(input: PostEntryInput): Record<string, unknown> {
       payload.party_id = input.party_id;
       payload.lines = input.lines.map((l) => ({ item_id: l.item_id, qty: l.qty, price_paise: toPaise(l.price) }));
       if (input.type === 'bought') {
+        if (input.purchase_category_id !== undefined) payload.purchase_category_id = input.purchase_category_id;
         payload.paid = input.paid;
         payload.mode = input.paid ? input.mode ?? null : null;
       }

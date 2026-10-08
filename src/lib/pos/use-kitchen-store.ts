@@ -14,6 +14,7 @@ import {
   fetchKitchenParties,
 } from './kitchen-service';
 import { localDateKey } from './kitchen-utils';
+import { fetchKitchenPurchaseCategories } from '@/lib/pos/kitchen-analytics-service';
 import type { KitchenCategory, KitchenEntry, KitchenItem, KitchenParty, KitchenPartyBalance } from './kitchen-types';
 
 /** How far back the home and history look without asking for more. */
@@ -29,6 +30,7 @@ type KitchenState = {
   items: KitchenItem[];
   parties: KitchenParty[];
   categories: KitchenCategory[];
+  purchaseCategories: KitchenCategory[];
   balances: KitchenPartyBalance[];
   entries: KitchenEntry[];
   loaded: boolean;
@@ -43,7 +45,7 @@ type KitchenState = {
   reset: () => void;
 };
 
-const EMPTY = { items: [], parties: [], categories: [], balances: [], entries: [], loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
+const EMPTY = { items: [], parties: [], categories: [], purchaseCategories: [], balances: [], entries: [], loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
 
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -57,18 +59,20 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
   load: async (silent = false) => {
     if (get().loading) return;
     set({ loading: true, error: silent ? get().error : null });
-    const [items, parties, categories, balances, entries] = await Promise.all([
+    const [items, parties, categories, balances, entries, purchaseCategories] = await Promise.all([
       fetchKitchenItems(),
       fetchKitchenParties(),
       fetchKitchenCategories(),
       fetchKitchenBalances(),
       fetchKitchenEntries({ from: daysAgoKey(RECENT_DAYS), includeVoided: true }),
+      fetchKitchenPurchaseCategories(true),
     ]);
-    const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error;
+    const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error ?? purchaseCategories.error;
     set({
       items: items.data ?? get().items,
       parties: parties.data ?? get().parties,
       categories: categories.data ?? get().categories,
+      purchaseCategories: purchaseCategories.data ?? get().purchaseCategories,
       balances: balances.data ?? get().balances,
       entries: entries.data ?? get().entries,
       loaded: true,

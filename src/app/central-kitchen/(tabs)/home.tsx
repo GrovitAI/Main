@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus, ArrowLeft } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus, ArrowLeft, BarChart3 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
@@ -90,6 +90,9 @@ export default function KitchenHome() {
         }
       />
 
+      <View className="mb-3 self-start">
+        <GhostButton small icon={BarChart3} label="Analytics" onPress={() => router.push('/central-kitchen/analytics')} />
+      </View>
       {data.error ? <Notice text={data.error} action={<LinkButton label="Retry" onPress={() => void data.load()} />} /> : null}
 
       {!data.loaded ? (

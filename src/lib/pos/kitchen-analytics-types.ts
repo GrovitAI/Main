@@ -1,0 +1,42 @@
+export type KitchenReportKind = 'sales' | 'purchases' | 'cash';
+export type ReportOption = { id: string; label: string };
+export type KitchenReportFilter = {
+  month: string;
+  report: KitchenReportKind;
+  partyId?: string | null;
+  itemId?: string | null;
+  category?: string | null;
+  includeExpenses?: boolean;
+  detail?: boolean;
+  page?: number;
+};
+export type KitchenReportRow = {
+  key: string;
+  kind: 'sale' | 'category' | 'entry' | 'cash';
+  entry_id: string | null;
+  date: string | null;
+  party_id: string | null;
+  party: string;
+  item_id: string | null;
+  item: string | null;
+  unit: string | null;
+  quantity: number | null;
+  price_paise: number | null;
+  amount_paise: number;
+  documents: number;
+  category: string | null;
+  source: string;
+  payment: string | null;
+  mode: string | null;
+  money_in_paise: number;
+  money_out_paise: number;
+};
+export type KitchenReport = {
+  summary: { sales_paise: number; purchases_paise: number; expenses_paise: number; cash_in_paise: number; cash_out_paise: number };
+  total_rows: number;
+  filtered_paise: number;
+  filtered_in_paise: number;
+  filtered_out_paise: number;
+  rows: KitchenReportRow[];
+  options: { branches: ReportOption[]; items: ReportOption[]; vendors: ReportOption[]; categories: ReportOption[] };
+};
