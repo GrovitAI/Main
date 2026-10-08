@@ -5,9 +5,9 @@ import { colors } from '@/lib/pos/brand';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
 import { SearchBox } from '@/components/kitchen/ui';
 
-export function ReportSelect({ label, value, options, onChange, emptyLabel = 'All', selectedLabel }: {
+export function ReportSelect({ label, value, options, onChange, emptyLabel = 'All', selectedLabel, compact = false }: {
   label: string; value: string | null; options: readonly ReportOption[];
-  onChange: (id: string | null) => void; emptyLabel?: string; selectedLabel?: string;
+  onChange: (id: string | null) => void; emptyLabel?: string; selectedLabel?: string; compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -16,10 +16,13 @@ export function ReportSelect({ label, value, options, onChange, emptyLabel = 'Al
   const close = () => { setOpen(false); setSearch(''); };
   return (
     <View className="min-w-0 flex-1 gap-1">
-      <Text className="text-xs font-bold text-text-secondary">{label}</Text>
+      {!compact ? <Text className="text-xs font-bold text-text-secondary">{label}</Text> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + selected} onPress={() => setOpen(true)}
         className="min-h-12 flex-row items-center justify-between gap-2 rounded-xl bg-surface-tint px-3 py-2 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary">
-        <Text className="flex-1 text-sm font-semibold text-text-primary">{selected}</Text>
+        <View className="min-w-0 flex-1">
+          {compact ? <Text className="text-xs font-bold leading-4 text-text-secondary">{label}</Text> : null}
+          <Text className="text-sm font-semibold leading-5 text-text-primary">{selected}</Text>
+        </View>
         <ChevronDown size={16} color={colors.primary} />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>

@@ -192,6 +192,36 @@ The independent documenter confirmed the existing tokens and design rules;
 DESIGN.md and its sidecar are preserved for this local refinement.
 Native hardware remains unverified. No service, database or production changes.
 
+## Home-like report density (task 161)
+
+The user requested less vertical space, using Home as the spacing reference.
+The repeated Analytics title and kitchen subtitle are removed; the selected
+kitchen navigation tab supplies the page identity. Month controls and Refresh
+start the page, with Info and the reporting period sharing the wide desktop
+row. Kitchen context remains available in Info. Safe-area top padding remains.
+Desktop report tabs, report heading and Export share a row. Inline filter
+labels sit inside their controls; purchase-category management is a labelled
+icon beside those filters. Phones retain accessible filter disclosure and put
+Info beside the report heading and Export. Report tabs expose selected state.
+
+Report rows follow Home's 52px minimum height with 8px vertical padding rather
+than 16px. Wrapped content grows naturally. Measured desktop Sales rows are
+52.8px and purchase categories 60.8px. At the actual 1480x668 viewport, the
+first Sales row begins at 308.8px, roughly 92px earlier than the previous view.
+Four desktop Sales columns, exact figures and opaque hover are preserved.
+
+Browser evidence covers 1480x668, 1024x768, 390x844 and 320x568, plus September
+at 320px. The reviewer requested one toolbar fit correction for long month
+names: the month group/label now shrink within the row while all targets remain
+48px. September's Refresh right edge is 288px, retaining the phone gutter.
+The reviewer scored that correction resolved and returned **ship**.
+Final ignored captures are `.impeccable/review/dense-*.png`.
+Typecheck, targeted lint and 18 route-load checks passed; detector had no
+findings. Browser filter access and empty-month recovery were verified.
+The documenter confirmed the local refinement against Home/shared UI and the
+existing tokens, preserving DESIGN.md and its sidecar.
+Native hardware remains unverified; no service, database or production change.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate
