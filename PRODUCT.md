@@ -62,7 +62,9 @@ figures to be right, and matching is offered only as a convenience.
 - Owner/admin navigation (approved 2026-10-07): Daily work. Phones use
   Analytics, Kitchen, Inventory and More; desktop web uses a floating bottom
   bar with More opening Business and Administration tools above it. Existing role access and
-  the Central Kitchen module's five tabs remain in force.
+  the Central Kitchen module remains separate. Its 2026-10-08 refinement adds
+  Analytics directly to the kitchen rail; phones use Home, Analytics, Items,
+  History and More, with Branches and Vendors in More.
 
 ## Capabilities and Constraints
 

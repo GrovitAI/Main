@@ -98,7 +98,7 @@ src/
       settings.tsx           → Settings (hidden from tabs)
     central-kitchen/         → The Central Kitchen's own app (role `kitchen`; owner/admin via Settings)
       _layout.tsx            → Role gate + stack; forms below are stack screens
-      (tabs)/                → home, items, branches, vendors, history
+      (tabs)/                → home, analytics, items, branches, vendors, history
       send.tsx, received.tsx, bought.tsx, spent.tsx, item-form.tsx, party-form.tsx, item/[id].tsx, party/[id].tsx
   lib/
     pos/
@@ -153,7 +153,8 @@ Settings: full access to everything
 At a restaurant branch: the KOT display. Tabs: Kitchen | Settings.
 At the Central Kitchen (or a warehouse) branch: the Central Kitchen's own
 screens. Default screen /central-kitchen/home; no tab of the main app.
-Tabs: Home | Items | Branches | Vendors | History (a rail on tablets).
+Desktop/tablet rail: Home | Analytics | Items | Branches | Vendors | History.
+Phone bar: Home | Analytics | Items | History | More (Branches and Vendors).
 Sees only the kitchen's own books (tables kitchen_*; see
 supabase/migrations/20261004000100_central_kitchen.sql and
 20261004000200_kitchen_categories_and_edit.sql). Owner and admin may open the
@@ -179,6 +180,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 156: Production Central Kitchen data reset completed on 2026-10-08 after the user reviewed and approved the exact scope. Kitchen history, items and party lists are empty; expense categories, staff accounts, actual branches, other modules and staging are preserved. A verified local backup is Git-ignored. See docs/CENTRAL_KITCHEN_RESET_2026-10-08.md.
 ✅ Task 157: Report workspace and vendor purchase categories built in staging on `codex/kitchen-analytics`. Home → Analytics opens monthly Sales/Purchases/Cash with branch/item/category/vendor filters, entry drilldown and on-demand CSV. Vendor defaults and purchase overrides retain historical snapshots through rename/archive/edit. Four migrations are staging-only in supabase/staging-pending.txt; production is unchanged. See docs/KITCHEN_ANALYTICS_STAGING.md for verification and remaining browser-download/native checks. Staging runs with npm run staging on localhost:8081 (API 8083).
 ✅ Task 158: Kitchen Analytics responsive viewing refined in staging: centered desktop workspace, columns in smaller browser panels, expandable phone filters, paired quantity/value rows, exact large summary figures and 48px controls. Browser checks cover desktop, phone, small phone and landscape picker; typecheck, targeted lint and 18 route-load checks passed. Independent review scored its touch-target correction resolved/ship. Native hardware and soft-keyboard checks remain pending; no database or production changes. See docs/KITCHEN_ANALYTICS_STAGING.md.
+✅ Task 159: Kitchen Analytics header compacted in staging: one desktop toolbar, slim monthly totals, expandable report explanations and bounded report controls. Analytics is directly accessible in the kitchen rail and phone bar; phone More retains Branches and Vendors. The public Analytics URL is unchanged. Browser checks include the user's 1370x731 view and phones down to 320px; typecheck, targeted lint and 18 route-load checks passed. Independent finish review returned ship with no material fixes. Native device checks remain pending; no database or production changes. See docs/KITCHEN_ANALYTICS_STAGING.md.
 ⬜ Task 8: Analytics screen
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)

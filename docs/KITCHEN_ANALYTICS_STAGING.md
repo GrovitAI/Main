@@ -140,6 +140,38 @@ incumbent palette, type and component rules; DESIGN.md and its sidecar were
 preserved. Existing sidecar/layout and shared-input focus descriptions remain
 outside this refinement's scope.
 
+## Compact report and navigation refinement (task 159)
+
+The user's screenshot showed too much space devoted to controls before the
+report. Analytics now uses a compact toolbar for title, month, info and refresh
+from 840px of measured report width. Monthly figures occupy a slim separator
+strip instead of a large card. Explanations retain their original wording behind
+the labelled About these reports control. Desktop report tabs have bounded
+widths; category management shares the report-heading row. On phones, Export
+sits beside the report title so three report selectors fit even at 320px.
+Breakpoints use the actual report layout width after sidebar/phone frame space.
+
+Analytics is now a kitchen tab, retaining the same public
+`/central-kitchen/analytics` URL. The desktop/tablet rail includes Home,
+Analytics, Items, Branches, Vendors and History. Phones have five controls:
+Home, Analytics, Items, History and More. More opens Branches and Vendors above
+the bar; Close, Escape on web and Android Back dismiss it. The Home-page
+Analytics shortcut was removed. Role gates and the main app bar are unchanged.
+
+Browser checks cover 1440x900, the supplied screenshot's 1370x731 size,
+1024x768, 390x844 and 320x568. Verified Home-to-Analytics navigation, stable
+direct URL/reload, phone More-to-Branches-to-Analytics, Escape dismissal,
+report explanation disclosure and unchanged staging totals. Final captures are
+`.impeccable/review/compact-*.png`; these are QA evidence, not shipping assets.
+Typecheck, targeted lint and 18 native route-load checks passed. Detector
+returned no findings. Native hardware and Android Back behavior have not been
+verified on a device. No service/query, database, polling or production change.
+Independent finish review returned **ship**, with no material fixes. At the
+user's 1370x731 viewport, report content begins around 393px and the first
+category appears around 450px. The independent documenter updated only the
+authorized navigation descriptions in DESIGN.md and its sidecar, preserving
+the existing design tokens and unrelated documentation drift.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate

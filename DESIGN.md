@@ -223,7 +223,7 @@ This file records the Central Kitchen world (`src/components/kitchen/ui.tsx` and
 - Pale blue canvas, white cards, hairline borders; flat, no shadows, no gradients
 - System sans, weights 600 to 800, tabular numerals, 28 px titles, 22 px figures, 15 px rows, 12 px floor
 - 16 to 18 px corners on cards and controls, 999 px chips for every choice
-- Phone-first single column (max 480 px on the web, 720 px on a tablet) with the five tabs as a bottom bar or a left rail
+- Phone-first single column (max 480 px on the web, 720 px on a tablet), with five phone controls and six direct sections in the left rail
 
 ## Colors
 
@@ -288,7 +288,7 @@ Vertical rhythm: 18 px above a section heading, 8 px between the heading and its
 
 Every touch target is at least 44 pt on iOS and the web and 48 dp on Android (`TARGET` in `ui.tsx`). The primary button is 52 px, the text field 48 px (64 px for the big amount input), the search box 46 px, chips and segments and the small ghost button exactly the target height. Pinned footers (a total beside the save button) sit in a white strip with a hairline top above the tab bar.
 
-Navigation: five tabs (Home, Items, Branches, Vendors, History) as a 52 px-tall bottom bar on a phone, with the safe-area bottom added; on a tablet the same five stack in an 88 px white rail down the left with a hairline right edge, each tab a 72 px-wide button. Sheets are full-width from the bottom edge on a phone (24 px top corners, 88% max height) and a centred 520 px dialog with all four corners rounded on a tablet.
+Navigation: phones show Home, Analytics, Items, History and More in a bottom bar with 52 px minimum-height controls and safe-area bottom padding. More reveals Branches and Vendors in a white, hairline-edged list above the bar. Tablets show Home, Analytics, Items, Branches, Vendors and History directly in an 88 px white rail with a hairline right edge and 72 px-wide buttons. Desktop web uses the compact 176 px rail described below. Sheets are full-width from the bottom edge on a phone (24 px top corners, 88% max height) and a centred 520 px dialog with all four corners rounded on a tablet.
 
 ## Elevation & Depth
 
@@ -342,8 +342,9 @@ Every choice (branch, vendor, payment mode, item category, history filter) is a 
 - **Tick** (`Tick`): a 26 px square, 8 px radius, 2 px border; fills Le Laban blue with a 16 px white check when on.
 
 ### Navigation
-- **Bottom bar (phone):** white, 1 px Hairline top, 6 px padding; five equal tabs 52 px tall, each a 21 px icon in a 44x30 pill (Blue Wash when active) above a 12 px label (Le Laban blue at 800 when active, Ink Muted at 600 otherwise). Pressed dims to 0.6.
-- **Rail (tablet, 768 px+):** the same five tabs stacked in an 88 px white column with a Hairline right edge, 72 px wide each, 6 px apart, starting 12 px below the safe area.
+- **Bottom bar (phone):** white, 1 px Hairline top, 6 px padding; Home, Analytics, Items, History and More share five equal controls with a 52 px minimum height. Each has a 21 px icon in a 44x30 pill (Blue Wash when active) above a 12 px label (Le Laban blue at 800 for the active direct tab, Ink Muted at 600 otherwise). More's pill is Blue Wash while expanded or while Branches/Vendors is active; its label remains Ink Muted at 600. Pressed dims to 0.6.
+- **More (phone):** Branches and Vendors appear in a white list above the bar, with a Hairline top, 12 px padding, 48 px minimum-height rows and a 48x48 Close control. Selecting a section, Close, Escape on web or Android Back dismisses it. Both sections retain their existing tab routes.
+- **Rail (tablet, 768 px+):** Home, Analytics, Items, Branches, Vendors and History stack in an 88 px white column with a Hairline right edge, 72 px wide each, 6 px apart, starting 12 px below the safe area. At desktop web widths the six sections use the compact 176 px rail, 18 px icons beside 13 px labels, 48 px minimum-height controls and a Blue Wash fill across the active control.
 - **Header:** no native header; `KHeader` draws the title (Display on a tab root, Headline with a 26 px back chevron in a 44 px circle on a pushed screen), a 13 px/600 muted subtitle, and an optional right slot.
 
 ### Sheet and Toast (signature)
@@ -378,7 +379,7 @@ The approved main app navigation uses four phone tabs: Analytics, Kitchen,
 Inventory and More. More groups Menu under Business, and Staff,
 Branches and Settings under Administration, filtered by existing role access.
 Secondary screens highlight More while open. Kitchen opens the existing
-Central Kitchen module with its own five tabs.
+Central Kitchen module with its own five phone controls and six rail sections.
 
 Desktop web (768 px+) uses a centered floating bottom bar: Orders, Inventory,
 Analytics, Kitchen and More for owners, with POS also retained for admins.
@@ -415,7 +416,7 @@ workflows with a more compact layout:
   44 px tall. Phone tabs and the tablet rail retain their existing layout.
 - Root headings are 24/28 px; form headings are 18/24 px. Summary figures are
   20/24 px and list titles are 14 px.
-- All five tab surfaces share a left-aligned content frame of up to 1120 px;
+- The five original tab surfaces share a left-aligned content frame of up to 1120 px;
   entry forms keep their 720 px cap. Items, Branches and Vendors use a fixed
   320 px list pane beside a flexible detail pane.
 - Cards use a 12 px radius and 12 px padding. Action tiles use a horizontal

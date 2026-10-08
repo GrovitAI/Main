@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, Share, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Settings2 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2 } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -10,8 +10,7 @@ import { fetchKitchenReport, KITCHEN_REPORT_PAGE_SIZE } from '@/lib/pos/kitchen-
 import { kitchenMonthLabel, kitchenReportCsv, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
 import { formatMoney } from '@/lib/pos/kitchen-utils';
-import { backToKitchen } from '@/lib/pos/kitchen-nav';
-import { Card, Empty, KHeader, KScreen, Notice } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, Notice } from '@/components/kitchen/ui';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 
 const money = (paise: number): string => formatMoney(paise / 100);
@@ -21,10 +20,13 @@ const tabs: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales'
 
 export function AnalyticsWorkspace() {
   const { width } = useWindowDimensions();
-  // Use the report's available width, including narrower desktop app panels.
-  const desktop = Platform.OS === 'web' && width >= 700;
-  const inlineFilters = width >= 640;
+  const [reportWidth, setReportWidth] = useState(width);
+  // The sidebar and phone frame reduce the actual space available to reports.
+  const desktop = Platform.OS === 'web' && reportWidth >= 700;
+  const toolbar = Platform.OS === 'web' && reportWidth >= 840;
+  const inlineFilters = reportWidth >= 640;
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const session = useSessionStore(state => state.session);
   const { tenant_id } = getTenantContext();
   const branchId = kitchenBranch().id;
@@ -109,7 +111,7 @@ export function AnalyticsWorkspace() {
     { label: 'Other expenses', value: summary?.expenses_paise },
   ];
   // Keep exact large amounts readable instead of shrinking them to fit a phone column.
-  const stackedMetrics = !desktop && metrics.some(metric => metric.value !== undefined && money(metric.value).length * 11 > (width - 88) / 3);
+  const stackedMetrics = !desktop && metrics.some(metric => metric.value !== undefined && money(metric.value).length * 11 > (reportWidth - 88) / 3);
   const activeFilters = Number(partyId !== null) + Number(itemId !== null) + Number(category !== null) + Number(kind === 'purchases' && includeExpenses);
   const filterSummary = [
     kind === 'purchases' && includeExpenses ? 'Purchases + other expenses' : null,
@@ -117,61 +119,76 @@ export function AnalyticsWorkspace() {
     itemId ? filterOptions.items.find(option => option.id === itemId)?.label : null,
     category,
   ].filter(Boolean).join(' · ');
-  const listHeader = (
-    <View className="gap-3">
-      <KHeader title="Analytics" subtitle={kitchenBranch().name} onBack={() => backToKitchen()} right={
+  const monthControls = <View className="flex-row items-center justify-between gap-1">
+    <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => changeMonth(shiftKitchenMonth(month, -1))} className={controls}><ChevronLeft size={18} color={colors.primary} /></Pressable>
+    <Text className="min-w-[128px] text-center text-sm font-bold text-text-primary">{kitchenMonthLabel(month)}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(shiftKitchenMonth(month, 1))} className={controls}><ChevronRight size={18} color={colors.primary} /></Pressable>
+  </View>;
+  const headerActions = <View className="flex-row gap-1">
+        <Pressable accessibilityRole="button" accessibilityLabel="About these reports" accessibilityState={{ expanded: notesOpen }} onPress={() => setNotesOpen(value => !value)} className={controls}>
+          <Info size={18} color={colors.primary} />
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh reports" disabled={loading} onPress={() => setRefresh(value => value + 1)} className={controls + (loading ? ' opacity-40' : '')}>
           <RefreshCw size={18} color={colors.primary} />
         </Pressable>
-      } />
-      <View className={desktop ? 'flex-row items-center justify-between gap-3' : 'gap-2'}>
-        <View className="flex-row items-center gap-2">
-          <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => changeMonth(shiftKitchenMonth(month, -1))} className={controls}><ChevronLeft size={18} color={colors.primary} /></Pressable>
-          <Text className="min-w-0 flex-1 text-center text-base font-bold text-text-primary">{kitchenMonthLabel(month)}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(shiftKitchenMonth(month, 1))} className={controls}><ChevronRight size={18} color={colors.primary} /></Pressable>
-        </View>
-        <View className="flex-row items-center justify-between gap-2">
+  </View>;
+  const exportButton = <Pressable accessibilityRole="button" accessibilityLabel="Export report CSV" disabled={loading || exporting || !report?.total_rows} onPress={() => void exportCsv()}
+    className={controls + ((loading || exporting || !report?.total_rows) ? ' opacity-40' : '')}>
+    {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <Download size={17} color={colors.primary} />}
+    <Text className="text-sm font-bold text-primary">{desktop ? 'Export CSV' : Platform.OS === 'web' ? 'CSV' : 'Share'}</Text>
+  </Pressable>;
+  const listHeader = (
+    <View className="gap-2">
+      {toolbar ? <View className="flex-row items-center justify-between gap-4 pt-2">
+        <View className="min-w-0 flex-1"><Text accessibilityRole="header" className="text-lg font-bold text-text-primary">Analytics</Text><Text className="text-xs text-text-secondary">{kitchenBranch().name}</Text></View>
+        {monthControls}{headerActions}
+      </View> : <KHeader title="Analytics" subtitle={kitchenBranch().name} large={false} right={headerActions} />}
+      <View className={toolbar ? 'flex-row flex-wrap items-center justify-end gap-2' : 'gap-1'}>
+        {!toolbar ? monthControls : null}
+        <View className="flex-row flex-wrap items-center justify-between gap-1">
           <Text className="text-xs text-text-secondary">{month === today.slice(0, 7) ? 'Month to date · through ' + today : 'Full calendar month'} · India time</Text>
           {month !== today.slice(0, 7) ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-sm font-bold text-primary">This month</Text></Pressable> : null}
         </View>
       </View>
-      <Card>
-        <View className={stackedMetrics ? 'gap-2' : 'flex-row gap-3'}>
-          {metrics.map(metric => <View key={metric.label} className={stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'min-w-0 flex-1'}>
+        <View className={'border-y border-border-soft py-2 ' + (stackedMetrics ? 'gap-1' : 'flex-row gap-3')}>
+          {metrics.map(metric => <View key={metric.label} className={stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'min-w-0 flex-1 ' + (desktop ? 'flex-row flex-wrap items-center gap-2' : '')}>
             <Text className={'text-xs font-bold text-text-secondary ' + (!desktop && !stackedMetrics ? 'min-h-8 leading-4' : '')}>{metric.label}</Text>
-            <Text className="mt-0.5 text-xl font-extrabold text-text-primary" style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
+            <Text className="text-lg font-bold text-text-primary" style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
           </View>)}
         </View>
-        <Text className="mt-3 text-xs leading-5 text-text-secondary">Goods supplied are kitchen sales. Purchases include credit buys; these figures do not represent profit.</Text>
-      </Card>
-      <View className="flex-row gap-2">
+      {notesOpen ? <View className="gap-1 rounded-xl bg-surface-elevated p-3">
+        <Text className="text-xs leading-5 text-text-secondary">Goods supplied are kitchen sales. Purchases include credit buys; these figures do not represent profit.</Text>
+        <Text className="text-xs leading-5 text-text-secondary">{kind === 'cash'
+          ? 'Cash, UPI and bank movements by entry date. Opening balances are excluded.'
+          : kind === 'sales' ? 'Quantities keep their own units. Select a row to see its send entries.'
+          : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
+      </View> : null}
+      <View className="rounded-xl bg-surface-elevated px-3 py-2">
+      <View className="flex-row items-center justify-between gap-2">
+      <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-1')}>
         {tabs.map(tab => (
           <Pressable key={tab.id} accessibilityRole="tab" accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
-            className={'min-h-12 flex-1 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (kind === tab.id ? 'bg-primary' : 'bg-surface-elevated hover:bg-accent-soft')}>
+            className={'min-h-12 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[96px] ' : 'flex-1 ') + (kind === tab.id ? 'bg-primary' : 'bg-surface-elevated hover:bg-accent-soft')}>
             <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')}>{tab.label}</Text>
           </Pressable>
         ))}
       </View>
-      <View className="rounded-xl bg-surface-elevated p-4">
-        <View className="flex-row items-start justify-between gap-2">
-          <Text className="min-w-0 flex-1 text-lg font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Export report CSV" disabled={loading || exporting || !report?.total_rows} onPress={() => void exportCsv()}
-            className={controls + ((loading || exporting || !report?.total_rows) ? ' opacity-40' : '')}>
-            {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <Download size={17} color={colors.primary} />}
-            <Text className="text-sm font-bold text-primary">{desktop ? 'Export CSV' : Platform.OS === 'web' ? 'CSV' : 'Share'}</Text>
-          </Pressable>
+          {desktop ? exportButton : null}
         </View>
-        <Text className="mt-1 text-xs leading-5 text-text-secondary">{kind === 'cash'
-          ? 'Cash, UPI and bank movements by entry date. Opening balances are excluded.'
-          : kind === 'sales' ? 'Quantities keep their own units. Select a row to see its send entries.'
-          : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
+        <View className="flex-row flex-wrap items-center justify-between gap-2">
+          <Text className="min-w-0 flex-1 text-base font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text>
+          {!desktop ? exportButton : null}
+          {kind === 'purchases' && inlineFilters ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls}>
+            <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
+          </Pressable> : null}
+        </View>
         {!inlineFilters && kind !== 'cash' ? <>
           <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls + ' mt-2 self-start'}>
             <Settings2 size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">{filtersOpen ? 'Hide filters' : 'Filters'}{activeFilters ? ' (' + activeFilters + ')' : ''}</Text>
           </Pressable>
           {filterSummary ? <Text className="mt-1 text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
         </> : null}
-        {(inlineFilters || filtersOpen) && kind !== 'cash' ? <View className={'mt-3 gap-3 ' + (inlineFilters ? 'flex-row' : '')}>
+        {(inlineFilters || filtersOpen) && kind !== 'cash' ? <View className={'mt-1 gap-3 ' + (inlineFilters ? 'flex-row' : '')}>
           {kind === 'sales' ? <>
             <ReportSelect label="Branch" value={partyId} options={filterOptions.branches} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All branches" />
             <ReportSelect label="Item" value={itemId} options={filterOptions.items} onChange={id => { setItemId(id); setPage(0); }} emptyLabel="All items" />
@@ -181,11 +198,11 @@ export function AnalyticsWorkspace() {
             <ReportSelect label="Vendor" value={partyId} options={filterOptions.vendors} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All vendors" />
           </> : null}
         </View> : null}
-        {kind === 'purchases' && (inlineFilters || filtersOpen) ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-2 self-start'}>
+        {kind === 'purchases' && filtersOpen && !inlineFilters ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-1 self-start'}>
           <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
         </Pressable> : null}
         {detail ? <Pressable accessibilityRole="button" onPress={closeDetail} className={controls + ' mt-2 self-start'}><ChevronLeft size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">Back to breakdown</Text></Pressable> : null}
-        {report ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-3">
+        {report ? <View className="mt-2 flex-row flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-2">
           <Text className="text-sm font-bold text-text-primary" style={tabular}>{kind === 'cash'
             ? <><Text style={{ color: semantic.success }}>{'Received ' + money(report.filtered_in_paise)}</Text>{' · '}<Text style={{ color: semantic.danger }}>{'Paid ' + money(report.filtered_out_paise)}</Text></>
             : 'Filtered total ' + money(report.filtered_paise)}</Text>
@@ -205,6 +222,7 @@ export function AnalyticsWorkspace() {
   return (
     <KScreen scroll={false}>
       <FlatList data={report?.rows ?? []} keyExtractor={row => row.key} className={'w-full flex-1 self-center px-4 ' + (desktop ? 'max-w-[1120px]' : 'max-w-[720px]')}
+        onLayout={event => setReportWidth(event.nativeEvent.layout.width)}
         ListHeaderComponent={listHeader} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
         ListEmptyComponent={!loading && !error ? <View className="rounded-xl bg-surface-elevated"><Empty title="No entries for this selection" body="Choose another month or clear the filters. New kitchen entries will appear here after you refresh." action={<Pressable accessibilityRole="button" onPress={resetFilters} className={controls}><Text className="font-bold text-primary">Clear filters</Text></Pressable>} /></View> : null}
         renderItem={({ item }) => <ReportRow row={item} desktop={desktop} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}
