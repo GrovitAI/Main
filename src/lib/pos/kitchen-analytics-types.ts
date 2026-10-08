@@ -2,6 +2,8 @@ export type KitchenReportKind = 'sales' | 'purchases' | 'cash';
 export type ReportOption = { id: string; label: string };
 export type KitchenReportFilter = {
   month: string;
+  startDate?: string;
+  endDate?: string;
   report: KitchenReportKind;
   partyId?: string | null;
   itemId?: string | null;

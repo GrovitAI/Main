@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
+import { kitchenReportRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenCategory, ServiceResult } from '@/lib/pos/kitchen-types';
 import type { KitchenReport, KitchenReportFilter, KitchenReportRow, ReportOption } from '@/lib/pos/kitchen-analytics-types';
 
@@ -47,13 +48,15 @@ export function parseKitchenReport(value: unknown): KitchenReport {
 /** One consistent DB snapshot per report/export; never infer totals from the recent-entry store. */
 export async function fetchKitchenReport(filter: KitchenReportFilter, signal?: AbortSignal, exporting = false): Promise<ServiceResult<KitchenReport>> {
   try {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(filter.month) || !Number.isSafeInteger(filter.page ?? 0) || (filter.page ?? 0) < 0) {
-      return { data: null, error: 'Choose a valid month.' };
+    if (!Number.isSafeInteger(filter.page ?? 0) || (filter.page ?? 0) < 0) {
+      return { data: null, error: 'Choose a valid report page.' };
     }
+    let range;
+    try { range = kitchenReportRange(filter); } catch { return { data: null, error: 'Choose a valid start and end date.' }; }
     const { tenant_id } = getTenantContext();
     const branch_id = kitchenBranch().id;
-    const request = supabase.rpc('kitchen_monthly_report', {
-      p_tenant_id: tenant_id, p_branch_id: branch_id, p_month: filter.month + '-01', p_report: filter.report,
+    const request = supabase.rpc('kitchen_range_report', {
+      p_tenant_id: tenant_id, p_branch_id: branch_id, p_start_date: range.startDate, p_end_date: range.endDate, p_report: filter.report,
       p_party_id: filter.partyId ?? null, p_item_id: filter.itemId ?? null, p_category: filter.category ?? null,
       p_include_expenses: filter.includeExpenses ?? false, p_detail: filter.detail ?? false,
       p_offset: (filter.page ?? 0) * KITCHEN_REPORT_PAGE_SIZE, p_limit: KITCHEN_REPORT_PAGE_SIZE, p_export: exporting,

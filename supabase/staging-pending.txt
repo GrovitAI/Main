@@ -7,3 +7,4 @@
 20261008061650_kitchen_monthly_reports.sql
 20261008064237_kitchen_reports_month_to_date.sql
 20261008065451_kitchen_spending_category_totals.sql
+20261008152218_kitchen_report_date_range.sql

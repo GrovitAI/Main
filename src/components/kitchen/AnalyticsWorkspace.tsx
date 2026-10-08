@@ -2,17 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, Share, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2, Package, ShoppingBasket, Receipt } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { fetchKitchenReport, KITCHEN_REPORT_PAGE_SIZE } from '@/lib/pos/kitchen-analytics-service';
-import { kitchenMonthLabel, kitchenReportCsv, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
+import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
+import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
 import { formatMoney } from '@/lib/pos/kitchen-utils';
 import { Empty, KScreen, Notice } from '@/components/kitchen/ui';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
+import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 
 const money = (paise: number): string => formatMoney(paise / 100);
 const tabular = { fontVariant: ['tabular-nums' as const] };
@@ -33,7 +35,8 @@ export function AnalyticsWorkspace() {
   const { tenant_id } = getTenantContext();
   const branchId = kitchenBranch().id;
   const today = kitchenToday();
-  const [month, setMonth] = useState(today.slice(0, 7));
+  const [dateRange, setDateRange] = useState<KitchenDateRange>(() => kitchenMonthRange(today.slice(0, 7), today));
+  const month = dateRange.startDate.slice(0, 7);
   const [kind, setKind] = useState<KitchenReportKind>('sales');
   const [partyId, setPartyId] = useState<string | null>(null);
   const [itemId, setItemId] = useState<string | null>(null);
@@ -51,7 +54,7 @@ export function AnalyticsWorkspace() {
   const [exporting, setExporting] = useState(false);
   const exportController = useRef<AbortController | null>(null);
   const drillBase = useRef<{ partyId: string | null; itemId: string | null; category: string | null } | null>(null);
-  const filter = useMemo<KitchenReportFilter>(() => ({ month, report: kind, partyId, itemId, category, includeExpenses, detail, page }), [month, kind, partyId, itemId, category, includeExpenses, detail, page]);
+  const filter = useMemo<KitchenReportFilter>(() => ({ month, ...dateRange, report: kind, partyId, itemId, category, includeExpenses, detail, page }), [month, dateRange, kind, partyId, itemId, category, includeExpenses, detail, page]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError(null); setExportError(null); setReport(null);
@@ -69,7 +72,11 @@ export function AnalyticsWorkspace() {
   }, [filter, tenant_id, branchId]);
 
   const resetFilters = () => { setPartyId(null); setItemId(null); setCategory(null); setPage(0); setDetail(false); drillBase.current = null; };
-  const changeMonth = (next: string) => { resetFilters(); setFilterOptions({ branches: [], items: [], vendors: [], categories: [] }); setMonth(next); };
+  const changeDates = (next: KitchenDateRange) => {
+    if (next.startDate === dateRange.startDate && next.endDate === dateRange.endDate) return;
+    resetFilters(); setFilterOptions({ branches: [], items: [], vendors: [], categories: [] }); setDateRange(next);
+  };
+  const changeMonth = (next: string) => changeDates(kitchenMonthRange(next, today));
   const chooseReport = (next: KitchenReportKind) => { resetFilters(); setKind(next); };
   const inspect = (row: KitchenReportRow) => {
     if (detail || kind === 'cash') return;
@@ -96,10 +103,10 @@ export function AnalyticsWorkspace() {
         // Use the same browser download mechanism as the main Analytics module.
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
         const link = document.createElement('a');
-        link.href = url; link.download = 'kitchen-' + kind + '-' + month + '.csv';
+        link.href = url; link.download = 'kitchen-' + kind + '-' + dateRange.startDate + '-to-' + dateRange.endDate + '.csv';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else await Share.share({ title: 'Kitchen ' + kind + ' ' + month, message: csv });
+      } else await Share.share({ title: 'Kitchen ' + kind + ' ' + kitchenRangeLabel(dateRange), message: csv });
     } catch {
       if (!controller.signal.aborted) setExportError('Unable to export. Please try again.');
     } finally {
@@ -109,12 +116,12 @@ export function AnalyticsWorkspace() {
   const title = kind === 'sales' ? 'Item sales to branches' : kind === 'purchases' ? includeExpenses ? 'All spending by category' : 'Purchases by category' : 'Money received and paid';
   const summary = report?.summary;
   const metrics = [
-    { label: 'Sales to branches', value: summary?.sales_paise },
-    { label: 'Purchases', value: summary?.purchases_paise },
-    { label: 'Other expenses', value: summary?.expenses_paise },
+    { label: 'Sales to branches', value: summary?.sales_paise, Icon: Package },
+    { label: 'Purchases', value: summary?.purchases_paise, Icon: ShoppingBasket },
+    { label: 'Other expenses', value: summary?.expenses_paise, Icon: Receipt },
   ];
   // Keep exact large amounts readable instead of shrinking them to fit a phone column.
-  const stackedMetrics = !desktop && metrics.some(metric => metric.value !== undefined && money(metric.value).length * 11 > (reportWidth - 88) / 3);
+  const stackedMetrics = !desktop && metrics.some(metric => metric.value !== undefined && money(metric.value).length * 11 > (reportWidth - 110) / 3);
   const activeFilters = Number(partyId !== null) + Number(itemId !== null) + Number(category !== null) + Number(kind === 'purchases' && includeExpenses);
   const filterSummary = [
     kind === 'purchases' && includeExpenses ? 'Purchases + other expenses' : null,
@@ -122,15 +129,17 @@ export function AnalyticsWorkspace() {
     itemId ? filterOptions.items.find(option => option.id === itemId)?.label : null,
     category,
   ].filter(Boolean).join(' · ');
-  const monthControls = <View className="min-w-0 max-w-[240px] flex-1 flex-row items-center justify-between gap-1">
+  const datePicker = <ReportDateRange value={dateRange} onChange={changeDates} />;
+  const monthControls = <View className="min-w-0 max-w-[380px] flex-row items-center gap-1">
     <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => changeMonth(shiftKitchenMonth(month, -1))} className={controls}><ChevronLeft size={18} color={colors.primary} /></Pressable>
-    <Text className="min-w-0 flex-1 text-center text-sm font-bold text-text-primary">{kitchenMonthLabel(month)}</Text>
-    <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(shiftKitchenMonth(month, 1))} className={controls}><ChevronRight size={18} color={colors.primary} /></Pressable>
+    <View className="min-w-0 shrink">{datePicker}</View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Next month" accessibilityState={{ disabled: month >= today.slice(0, 7) }} disabled={month >= today.slice(0, 7)} onPress={() => changeMonth(shiftKitchenMonth(month, 1))} className={controls + (month >= today.slice(0, 7) ? ' opacity-40' : '')}><ChevronRight size={18} color={colors.primary} /></Pressable>
   </View>;
   const infoButton = <Pressable accessibilityRole="button" accessibilityLabel="About these reports" accessibilityState={{ expanded: notesOpen }} onPress={() => setNotesOpen(value => !value)} className={controls}>
           <Info size={18} color={colors.primary} />
         </Pressable>;
   const headerActions = <View className="flex-row gap-1">
+        {toolbar && (dateRange.startDate !== today.slice(0, 7) + '-01' || dateRange.endDate !== today) ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-xs font-bold text-primary">This month</Text></Pressable> : null}
         {desktop ? infoButton : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh reports" disabled={loading} onPress={() => setRefresh(value => value + 1)} className={controls + (loading ? ' opacity-40' : '')}>
           <RefreshCw size={18} color={colors.primary} />
@@ -141,19 +150,24 @@ export function AnalyticsWorkspace() {
     {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <Download size={17} color={colors.primary} />}
     <Text className="text-sm font-bold text-primary">{desktop ? 'Export CSV' : Platform.OS === 'web' ? 'CSV' : 'Share'}</Text>
   </Pressable>;
-  const period = <Text className="text-xs text-text-secondary">{month === today.slice(0, 7) ? 'Month to date · through ' + today : 'Full calendar month'} · India time</Text>;
+  const currentRange = kitchenMonthRange(today.slice(0, 7), today);
+  const currentMonth = dateRange.startDate === currentRange.startDate && dateRange.endDate === currentRange.endDate;
+  const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Month to date · through ' + today : kitchenRangeLabel(dateRange)} · India time</Text>;
   const listHeader = (
     <View className="gap-1" style={{ paddingTop: Math.max(insets.top, 8) }}>
-      <View className="flex-row items-center justify-between gap-1">
+      {inlineFilters ? <View className="flex-row items-center justify-between gap-1">
         {monthControls}{toolbar ? period : null}{headerActions}
-      </View>
-      {!toolbar || month !== today.slice(0, 7) ? <View className="flex-row flex-wrap items-center justify-between gap-1">
-        {!toolbar ? period : null}
-        {month !== today.slice(0, 7) ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-sm font-bold text-primary">This month</Text></Pressable> : null}
       </View> : null}
-        <View className={'border-y border-border-soft py-1 ' + (stackedMetrics ? 'gap-1' : 'flex-row gap-3')}>
-          {metrics.map(metric => <View key={metric.label} className={stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'min-w-0 flex-1 ' + (desktop ? 'flex-row flex-wrap items-center gap-2' : '')}>
-            <Text className={'text-xs font-bold text-text-secondary ' + (!desktop && !stackedMetrics ? (reportWidth < 350 ? 'min-h-8 leading-4' : 'leading-4') : '')}>{metric.label}</Text>
+      {inlineFilters && !toolbar ? <View className="flex-row flex-wrap items-center justify-between gap-1">
+        {!toolbar ? period : null}
+        {!currentMonth ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-sm font-bold text-primary">This month</Text></Pressable> : null}
+      </View> : null}
+        <View className={'mb-1 ' + (stackedMetrics ? 'gap-2' : 'flex-row gap-2')}>
+          {metrics.map(metric => <View key={metric.label} className={'min-w-0 rounded-xl border border-border-soft bg-surface-elevated px-3 py-2 ' + (stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'flex-1 gap-1')}>
+            <View className={'gap-1 ' + (desktop || stackedMetrics ? 'flex-row items-center' : '')}>
+              <metric.Icon size={15} color={colors.primary} />
+              <Text className={'text-xs font-semibold leading-4 text-text-secondary ' + (!desktop && !stackedMetrics ? 'min-h-8' : '')}>{metric.label}</Text>
+            </View>
             <Text className="text-base font-bold text-text-primary" style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
           </View>)}
         </View>
@@ -180,12 +194,16 @@ export function AnalyticsWorkspace() {
         </View>
         {!desktop ? <View className="flex-row items-center justify-between gap-1">
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text>
-          {infoButton}{exportButton}
+          {infoButton}{!inlineFilters ? headerActions : null}{exportButton}
         </View> : null}
-        {!inlineFilters && kind !== 'cash' ? <>
-          <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls + ' mt-2 self-start'}>
+        {!inlineFilters ? <>
+          <View className="flex-row items-center justify-between gap-1">
+          <View className="min-w-0 shrink">{datePicker}</View>
+          {kind !== 'cash' ? <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls + ' shrink-0'}>
             <Settings2 size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">{filtersOpen ? 'Hide filters' : 'Filters'}{activeFilters ? ' (' + activeFilters + ')' : ''}</Text>
-          </Pressable>
+          </Pressable> : null}
+          </View>
+          <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Through ' + today + ' · India time' : 'Inclusive dates · India time'}</Text>
           {filterSummary ? <Text className="mt-1 text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
         </> : null}
         {(inlineFilters || filtersOpen) && kind !== 'cash' ? <View className={'mt-1 gap-3 ' + (inlineFilters ? 'flex-row' : '')}>

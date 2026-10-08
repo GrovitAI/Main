@@ -6,15 +6,16 @@ Production application/database and its completed data reset are unchanged.
 
 ## Try it
 
-Run `npm run staging` and open `http://localhost:8081/central-kitchen/home`.
-Home → Analytics opens `/central-kitchen/analytics`. The local API runs on
+Run `npm run staging` and open `http://localhost:8081/central-kitchen/analytics`.
+Analytics is directly available in the kitchen navigation. The local API runs on
 8083. The staging banner must say TEST DATABASE. Kitchen staff and owner/admin
 use the existing kitchen role/scope gate. No new staff permissions are granted.
 
-Analytics has Sales, Purchases and Cash reports. Month navigation uses the
-India calendar; current month excludes entries dated after today. Past and
-future selected months cover their calendar month. Opening balances are not
-period activity. The summary strip covers the whole period; **Filtered total**
+Analytics has Sales, Purchases and Cash reports. The date picker uses the
+India calendar and inclusive start/end dates through today. This month defaults
+to month to date; past-month arrows cover the calendar month. Cross-month and
+single-day ranges are supported. Opening balances are not period activity.
+The compact KPI cards cover the whole selected period; **Filtered total**
 covers the active report/filter selection.
 
 - Sales: supplied item quantity and value by branch/item. Units remain per item.
@@ -56,6 +57,8 @@ Applied sequentially and verified on staging project `inbxezmtuytpalqvlcsm`:
    cutoff and bounded export materialization.
 4. `20261008065451_kitchen_spending_category_totals.sql`: combine matching
    category labels across purchase/expense sources so row drilldowns reconcile.
+5. `20261008152218_kitchen_report_date_range.sql`: inclusive security-invoker
+   date-range report RPC, preserving the old monthly RPC for earlier clients.
 
 These files are in `supabase/staging-pending.txt` so a staging clone restores
 them. No migration was applied to production. Every service read/write/RPC
@@ -222,12 +225,53 @@ The documenter confirmed the local refinement against Home/shared UI and the
 existing tokens, preserving DESIGN.md and its sidecar.
 Native hardware remains unverified; no service, database or production change.
 
+## Task 162 — KPI cards and date ranges
+
+Phones place the month/range picker beside Filters, using the space under the
+report controls. Compact KPI cards have small package, basket and receipt
+icons, aligned values and exact rupee amounts. Desktop keeps the date controls
+in its top toolbar and the same dense report columns/rows.
+
+The bounded calendar edits a draft start/end date, with an explicit Apply,
+Cancel and This month reset. Both boundaries are inclusive; calendar arrows
+permit cross-month ranges. Future dates and reversed ranges cannot apply.
+Only Apply fetches a new report, clearing report-specific filters and paging;
+switching Sales/Purchases/Cash retains the selected range. Filters, drilldown
+and CSV share the new `kitchen_range_report` RPC. The older monthly RPC is kept
+for older clients. Range predicates reuse the existing scoped active-date
+index; no additional polling, subscription or separate KPI fetch is added.
+
+Validation: typecheck and targeted lint passed; nine report/date/export unit
+tests and 18 native route-load checks passed. Staging authenticated rollback
+fixtures in `supabase/tests/kitchen_range_reports.sql` passed cross-month
+inclusive bounds, single day, leap day, KPI reconciliation, paging/export,
+default monthly compatibility and wrong tenant/branch denial. The range RPC
+is stable, security-invoker, with fixed search path and no anon execution.
+Security advisors returned no ERROR or findings naming the range RPC; existing
+unrelated warnings remain outside this change.
+
+Browser checks cover 1440x900 desktop, 390x844 and 320x700 phones, and the user's
+actual 427x668 panel. Final captures are ignored `.impeccable/review/range-*.png`.
+Cross-month selection, cancellation, Escape, invalid-range blocking, exact
+range labels and a real CSV download were verified. The download's header,
+two entries and total match Sep 21–Oct 8 (₹2,250). Date buttons measured at least
+44px tall on web. Native appearance, gestures and device testing remain pending.
+The static detector returned no findings on the changed UI.
+The fresh independent finish reviewer returned **ship**, with no material fixes,
+for this staging browser extension. It verified all eight final captures against
+the contract, preserving the existing design system. Its verdict does not cover
+native appearance, gestures, font scaling or hardware behavior.
+The independent documenter checked the finished surface against the incumbent
+tokens, Home/shared kitchen controls and PRODUCT.md, updating only the local
+surface contract. DESIGN.md and its sidecar remain unchanged; unrelated
+pre-existing design drift was left untouched.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate
-release: apply the four reviewed migrations in order and verify each before
+release: apply the five reviewed migrations in order and verify each before
 deploying this application version, because its kitchen reads require the new
-columns/table. Roll back the app to the previous release if needed; retain the
+columns/table and range RPC. Roll back the app to the previous release if needed; retain the
 additive columns/categories rather than dropping user category history. For
 RPC rollback, use the previous post/edit definitions from migration
 `20261004000200_kitchen_categories_and_edit.sql`; no destructive schema rollback
