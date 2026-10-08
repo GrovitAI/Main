@@ -109,6 +109,37 @@ completed Blob download event/file, so real-browser file-save is not certified.
 Native routes load in Jest; iOS/Android device rendering and native Share have
 not been tested on hardware. No production-readiness claim follows from web QA.
 
+## Responsive viewing refinement (task 158)
+
+The report workspace is centered with a maximum width of 1120px. Web report
+columns begin at 700px, so smaller desktop app panels retain aligned quantities
+and amounts. Filters stay inline from 640px. Narrow phones initially collapse
+the filters behind a 48px control, with active count and selection summary;
+expanding it exposes every filter and purchase-category management. Phone rows
+pair labelled quantity and value to reduce scrolling. Helper text spans the
+report width. Long summary amounts switch to labelled rows instead of shrinking
+their font. Picker content can shrink and scroll in short viewports, with native
+keyboard avoidance. Month arrows and refresh have 48px minimum width and height.
+
+Browser evidence covers 1440x900 desktop, the actual 752x668 app panel,
+390x844 phone and 320x568 small phone, plus an 844x390 landscape picker.
+Sales, Purchases, Cash, filter search/no-match recovery, combined spending
+(500 + 146 = 646 rupees), and empty-month recovery were exercised. Existing
+financial data was not edited. Captures are QA evidence in the ignored
+`.impeccable/review/responsive-*.png` files, not application image assets.
+Typecheck, targeted ESLint and 18 native route-load smoke tests passed.
+The static detector returned no findings. Native hardware, soft-keyboard
+rendering, cross-browser behavior and large-value fixture rendering remain
+unverified; these browser captures do not certify those behaviors.
+The layout refinement adds no database queries, polling or subscriptions.
+The independent responsive review requested one correction: minimum target
+width for the month arrows and refresh. After the 48px fix and nine matching
+recaptures, its verdict was **ship**, scoring that correction resolved.
+The independent documenter confirmed the responsive refinement matches the
+incumbent palette, type and component rules; DESIGN.md and its sidecar were
+preserved. Existing sidecar/layout and shared-input focus descriptions remain
+outside this refinement's scope.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate

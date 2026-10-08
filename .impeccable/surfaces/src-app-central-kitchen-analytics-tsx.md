@@ -15,7 +15,7 @@ OWN-WORLD: Inherit DESIGN.md and the existing kitchen controls: one Le Laban act
 
 STORY: Open Analytics from Home, choose a month and report, narrow a branch/item or category/vendor, inspect recorded entries, then export the same filtered report.
 
-FIRST VIEWPORT: Kitchen back header and month navigation; compact monthly totals strip; Sales, Purchases and Cash tabs; a flat filter row and full-width report. Desktop rows align in columns; phones stack labelled values and filters. Export sits beside the report heading. Category selection reveals purchase entries inline.
+FIRST VIEWPORT: Kitchen back header and month navigation; compact monthly totals strip; Sales, Purchases and Cash tabs; a bounded, centered report. Web report columns begin at 700px, inline filters at 640px. Narrow phones expose filters through a labelled expandable control with active count and selection summary; quantity and value share a labelled row. Large summary amounts retain their exact value without shrinking. Export sits beside the report heading, with help text spanning the content width below. Category selection reveals purchase entries inline.
 
 FORM: User-selected Report workspace from the existing code-led HTML preview, October 8. No seed applies to this precisely specified extension. Signature interaction is a category row becoming a filtered purchase-entry view without losing month context; standard push navigation and short state feedback only.
 

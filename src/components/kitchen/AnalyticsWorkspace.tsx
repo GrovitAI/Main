@@ -16,13 +16,15 @@ import { ReportSelect } from '@/components/kitchen/ReportSelect';
 
 const money = (paise: number): string => formatMoney(paise / 100);
 const tabular = { fontVariant: ['tabular-nums' as const] };
-const controls = 'min-h-12 flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 hover:bg-accent-soft active:opacity-60 focus:border focus:border-primary';
+const controls = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 hover:bg-accent-soft active:opacity-60 focus:border focus:border-primary';
 const tabs: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales', label: 'Sales' }, { id: 'purchases', label: 'Purchases' }, { id: 'cash', label: 'Cash' }];
 
 export function AnalyticsWorkspace() {
   const { width } = useWindowDimensions();
-  // Report columns fit in a tablet-sized browser panel without changing the app's density rules.
-  const desktop = Platform.OS === 'web' && width >= 768;
+  // Use the report's available width, including narrower desktop app panels.
+  const desktop = Platform.OS === 'web' && width >= 700;
+  const inlineFilters = width >= 640;
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const session = useSessionStore(state => state.session);
   const { tenant_id } = getTenantContext();
   const branchId = kitchenBranch().id;
@@ -101,6 +103,20 @@ export function AnalyticsWorkspace() {
   };
   const title = kind === 'sales' ? 'Item sales to branches' : kind === 'purchases' ? includeExpenses ? 'All spending by category' : 'Purchases by category' : 'Money received and paid';
   const summary = report?.summary;
+  const metrics = [
+    { label: 'Sales to branches', value: summary?.sales_paise },
+    { label: 'Purchases', value: summary?.purchases_paise },
+    { label: 'Other expenses', value: summary?.expenses_paise },
+  ];
+  // Keep exact large amounts readable instead of shrinking them to fit a phone column.
+  const stackedMetrics = !desktop && metrics.some(metric => metric.value !== undefined && money(metric.value).length * 11 > (width - 88) / 3);
+  const activeFilters = Number(partyId !== null) + Number(itemId !== null) + Number(category !== null) + Number(kind === 'purchases' && includeExpenses);
+  const filterSummary = [
+    kind === 'purchases' && includeExpenses ? 'Purchases + other expenses' : null,
+    partyId ? [...filterOptions.branches, ...filterOptions.vendors].find(option => option.id === partyId)?.label : null,
+    itemId ? filterOptions.items.find(option => option.id === itemId)?.label : null,
+    category,
+  ].filter(Boolean).join(' · ');
   const listHeader = (
     <View className="gap-3">
       <KHeader title="Analytics" subtitle={kitchenBranch().name} onBack={() => backToKitchen()} right={
@@ -120,14 +136,10 @@ export function AnalyticsWorkspace() {
         </View>
       </View>
       <Card>
-        <View className="flex-row gap-3">
-          {[
-            { label: 'Sales to branches', value: summary?.sales_paise },
-            { label: 'Purchases', value: summary?.purchases_paise },
-            { label: 'Other expenses', value: summary?.expenses_paise },
-          ].map(metric => <View key={metric.label} className="min-w-0 flex-1">
-            <Text className={'text-xs font-bold text-text-secondary ' + (desktop ? '' : 'min-h-8 leading-4')}>{metric.label}</Text>
-            <Text className="mt-0.5 text-xl font-extrabold text-text-primary" style={tabular} numberOfLines={1} adjustsFontSizeToFit>{metric.value === undefined ? '—' : money(metric.value)}</Text>
+        <View className={stackedMetrics ? 'gap-2' : 'flex-row gap-3'}>
+          {metrics.map(metric => <View key={metric.label} className={stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'min-w-0 flex-1'}>
+            <Text className={'text-xs font-bold text-text-secondary ' + (!desktop && !stackedMetrics ? 'min-h-8 leading-4' : '')}>{metric.label}</Text>
+            <Text className="mt-0.5 text-xl font-extrabold text-text-primary" style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
           </View>)}
         </View>
         <Text className="mt-3 text-xs leading-5 text-text-secondary">Goods supplied are kitchen sales. Purchases include credit buys; these figures do not represent profit.</Text>
@@ -142,20 +154,24 @@ export function AnalyticsWorkspace() {
       </View>
       <View className="rounded-xl bg-surface-elevated p-4">
         <View className="flex-row items-start justify-between gap-2">
-          <View className="min-w-0 flex-1">
-            <Text className="text-lg font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text>
-            <Text className="mt-1 text-xs leading-5 text-text-secondary">{kind === 'cash'
-              ? 'Cash, UPI and bank movements by entry date. Opening balances are excluded.'
-              : kind === 'sales' ? 'Quantities keep their own units. Select a row to see its send entries.'
-              : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
-          </View>
+          <Text className="min-w-0 flex-1 text-lg font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Export report CSV" disabled={loading || exporting || !report?.total_rows} onPress={() => void exportCsv()}
             className={controls + ((loading || exporting || !report?.total_rows) ? ' opacity-40' : '')}>
             {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <Download size={17} color={colors.primary} />}
             <Text className="text-sm font-bold text-primary">{desktop ? 'Export CSV' : Platform.OS === 'web' ? 'CSV' : 'Share'}</Text>
           </Pressable>
         </View>
-        <View className={'mt-4 gap-3 ' + (desktop ? 'flex-row' : '')}>
+        <Text className="mt-1 text-xs leading-5 text-text-secondary">{kind === 'cash'
+          ? 'Cash, UPI and bank movements by entry date. Opening balances are excluded.'
+          : kind === 'sales' ? 'Quantities keep their own units. Select a row to see its send entries.'
+          : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
+        {!inlineFilters && kind !== 'cash' ? <>
+          <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls + ' mt-2 self-start'}>
+            <Settings2 size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">{filtersOpen ? 'Hide filters' : 'Filters'}{activeFilters ? ' (' + activeFilters + ')' : ''}</Text>
+          </Pressable>
+          {filterSummary ? <Text className="mt-1 text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
+        </> : null}
+        {(inlineFilters || filtersOpen) && kind !== 'cash' ? <View className={'mt-3 gap-3 ' + (inlineFilters ? 'flex-row' : '')}>
           {kind === 'sales' ? <>
             <ReportSelect label="Branch" value={partyId} options={filterOptions.branches} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All branches" />
             <ReportSelect label="Item" value={itemId} options={filterOptions.items} onChange={id => { setItemId(id); setPage(0); }} emptyLabel="All items" />
@@ -164,8 +180,8 @@ export function AnalyticsWorkspace() {
             <ReportSelect label="Category" value={category} options={filterOptions.categories} onChange={id => { setCategory(id); setPage(0); }} emptyLabel="All categories" />
             <ReportSelect label="Vendor" value={partyId} options={filterOptions.vendors} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All vendors" />
           </> : null}
-        </View>
-        {kind === 'purchases' ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-2 self-start'}>
+        </View> : null}
+        {kind === 'purchases' && (inlineFilters || filtersOpen) ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-2 self-start'}>
           <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
         </Pressable> : null}
         {detail ? <Pressable accessibilityRole="button" onPress={closeDetail} className={controls + ' mt-2 self-start'}><ChevronLeft size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">Back to breakdown</Text></Pressable> : null}
@@ -173,7 +189,7 @@ export function AnalyticsWorkspace() {
           <Text className="text-sm font-bold text-text-primary" style={tabular}>{kind === 'cash'
             ? <><Text style={{ color: semantic.success }}>{'Received ' + money(report.filtered_in_paise)}</Text>{' · '}<Text style={{ color: semantic.danger }}>{'Paid ' + money(report.filtered_out_paise)}</Text></>
             : 'Filtered total ' + money(report.filtered_paise)}</Text>
-          <Text className="text-xs text-text-secondary">{report.total_rows} {detail || kind === 'cash' ? 'rows' : kind === 'sales' ? 'item / branch combinations' : 'categories'}</Text>
+          <Text className="text-xs text-text-secondary">{report.total_rows} {detail || kind === 'cash' ? report.total_rows === 1 ? 'row' : 'rows' : kind === 'sales' ? report.total_rows === 1 ? 'item / branch combination' : 'item / branch combinations' : report.total_rows === 1 ? 'category' : 'categories'}</Text>
         </View> : null}
       </View>
       {exportError ? <Notice text={exportError} /> : null}
@@ -181,14 +197,14 @@ export function AnalyticsWorkspace() {
       {loading ? <View className="flex-row items-center gap-3 rounded-xl bg-surface-elevated p-5" accessibilityLiveRegion="polite"><ActivityIndicator color={colors.primary} /><Text className="text-sm text-text-secondary">Loading report…</Text></View> : null}
       {desktop && report?.rows.length ? <View className="flex-row gap-4 rounded-t-xl bg-surface-elevated px-4 pt-4">
         <Text className="flex-1 text-xs font-bold text-text-secondary">{detail || kind === 'cash' ? 'Entry / source' : kind === 'sales' ? 'Branch / item' : 'Category / source'}</Text>
-        <Text className="w-36 text-right text-xs font-bold text-text-secondary">{kind === 'sales' ? 'Quantity' : 'Entries'}</Text>
-        <Text className="w-44 text-right text-xs font-bold text-text-secondary">{kind === 'cash' ? 'Received / paid' : 'Value'}</Text>
+        <Text className="w-28 text-right text-xs font-bold text-text-secondary">{kind === 'sales' ? 'Quantity' : 'Entries'}</Text>
+        <Text className="w-32 text-right text-xs font-bold text-text-secondary">{kind === 'cash' ? 'Received / paid' : 'Value'}</Text>
       </View> : null}
     </View>
   );
   return (
     <KScreen scroll={false}>
-      <FlatList data={report?.rows ?? []} keyExtractor={row => row.key} className={'w-full flex-1 px-4 ' + (desktop ? 'max-w-[1120px] self-start' : 'max-w-[720px] self-center')}
+      <FlatList data={report?.rows ?? []} keyExtractor={row => row.key} className={'w-full flex-1 self-center px-4 ' + (desktop ? 'max-w-[1120px]' : 'max-w-[720px]')}
         ListHeaderComponent={listHeader} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
         ListEmptyComponent={!loading && !error ? <View className="rounded-xl bg-surface-elevated"><Empty title="No entries for this selection" body="Choose another month or clear the filters. New kitchen entries will appear here after you refresh." action={<Pressable accessibilityRole="button" onPress={resetFilters} className={controls}><Text className="font-bold text-primary">Clear filters</Text></Pressable>} /></View> : null}
         renderItem={({ item }) => <ReportRow row={item} desktop={desktop} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}
@@ -214,14 +230,16 @@ function ReportRow({ row, desktop, detail, reportKind, total, onPress }: { row: 
         <Text className="mt-1 text-xs leading-5 text-text-secondary">{subtitle}</Text>
         {row.kind === 'category' ? <View className="mt-2 h-1.5 max-w-[240px] overflow-hidden rounded-full bg-surface-tint"><View className="h-full rounded-full bg-primary" style={{ width: total > 0 ? Math.min(100, row.amount_paise / total * 100) + '%' as `${number}%` : '0%' }} /></View> : null}
       </View>
-      <View className={desktop ? 'w-36 items-end' : ''}>
+      <View className={'flex-row gap-4 ' + (desktop ? 'items-center' : 'flex-wrap items-end justify-between')}>
+      <View className={desktop ? 'w-28 items-end' : 'min-w-0 flex-1'}>
         {!desktop && row.quantity !== null ? <Text className="text-xs text-text-secondary">Quantity</Text> : null}
         <Text className="text-sm text-text-secondary" style={tabular}>{secondary}</Text>
       </View>
-      <View className={desktop ? 'w-44 items-end' : ''}>
+      <View className={desktop ? 'w-32 items-end' : 'min-w-0 items-end'}>
         {!desktop && reportKind !== 'cash' ? <Text className="text-xs text-text-secondary">Value</Text> : null}
         <Text className="text-sm font-bold" style={{ ...tabular, color: reportKind === 'cash' ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{value}</Text>
         {row.kind === 'category' ? <Text className="mt-1 text-xs text-text-secondary" style={tabular}>{total > 0 ? (row.amount_paise / total * 100).toFixed(1) : '0.0'}% of selection</Text> : null}
+      </View>
       </View>
     </>
   );
