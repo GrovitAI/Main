@@ -38,6 +38,7 @@ export function AnalyticsWorkspace() {
   const [category, setCategory] = useState<string | null>(null);
   const [includeExpenses, setIncludeExpenses] = useState(false);
   const [detail, setDetail] = useState(false);
+  const salesColumns = desktop && kind === 'sales' && !detail;
   const [page, setPage] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [report, setReport] = useState<KitchenReport | null>(null);
@@ -213,9 +214,10 @@ export function AnalyticsWorkspace() {
       {error ? <Notice text={error} action={<Pressable accessibilityRole="button" onPress={() => setRefresh(value => value + 1)} className={controls}><Text className="font-bold text-primary">Retry</Text></Pressable>} /> : null}
       {loading ? <View className="flex-row items-center gap-3 rounded-xl bg-surface-elevated p-5" accessibilityLiveRegion="polite"><ActivityIndicator color={colors.primary} /><Text className="text-sm text-text-secondary">Loading report…</Text></View> : null}
       {desktop && report?.rows.length ? <View className="flex-row gap-4 rounded-t-xl bg-surface-elevated px-4 pt-4">
-        <Text className="flex-1 text-xs font-bold text-text-secondary">{detail || kind === 'cash' ? 'Entry / source' : kind === 'sales' ? 'Branch / item' : 'Category / source'}</Text>
-        <Text className="w-28 text-right text-xs font-bold text-text-secondary">{kind === 'sales' ? 'Quantity' : 'Entries'}</Text>
-        <Text className="w-32 text-right text-xs font-bold text-text-secondary">{kind === 'cash' ? 'Received / paid' : 'Value'}</Text>
+        <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">{salesColumns ? 'Branch' : detail || kind === 'cash' ? 'Entry / source' : 'Category / source'}</Text>
+        {salesColumns ? <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">Item</Text> : null}
+        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-28') + ' text-right text-xs font-bold text-text-secondary'}>{kind === 'sales' ? 'Quantity' : 'Entries'}</Text>
+        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-32') + ' text-right text-xs font-bold text-text-secondary'}>{kind === 'cash' ? 'Received / paid' : 'Value'}</Text>
       </View> : null}
     </View>
   );
@@ -237,30 +239,33 @@ export function AnalyticsWorkspace() {
 
 function ReportRow({ row, desktop, detail, reportKind, total, onPress }: { row: KitchenReportRow; desktop: boolean; detail: boolean; reportKind: KitchenReportKind; total: number; onPress: () => void }) {
   const interactive = !detail && reportKind !== 'cash';
+  const salesColumns = desktop && reportKind === 'sales' && !detail;
   const title = row.kind === 'category' ? row.category ?? 'Uncategorized' : row.item ? row.party + ' · ' + row.item : row.party;
   const subtitle = [row.date, row.source, row.category && row.kind !== 'category' ? row.category : null, row.payment, row.mode?.toUpperCase()].filter(Boolean).join(' · ');
   const secondary = row.quantity !== null ? row.quantity.toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' ' + (row.unit ?? '') : row.documents + ' ' + (row.documents === 1 ? 'entry' : 'entries');
   const value = reportKind === 'cash' ? (row.money_in_paise > 0 ? 'Received ' + money(row.money_in_paise) : 'Paid ' + money(row.money_out_paise)) : money(row.amount_paise);
+  const figures = <>
+    <View className={desktop ? (salesColumns ? 'min-w-0 flex-1 items-end' : 'w-28 items-end') : 'min-w-0 flex-1'}>
+      {!desktop && row.quantity !== null ? <Text className="text-xs text-text-secondary">Quantity</Text> : null}
+      <Text className="text-sm text-text-secondary" style={tabular}>{secondary}</Text>
+    </View>
+    <View className={desktop ? (salesColumns ? 'min-w-0 flex-1 items-end' : 'w-32 items-end') : 'min-w-0 items-end'}>
+      {!desktop && reportKind !== 'cash' ? <Text className="text-xs text-text-secondary">Value</Text> : null}
+      <Text className="text-sm font-bold" style={{ ...tabular, color: reportKind === 'cash' ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{value}</Text>
+      {row.kind === 'category' ? <Text className="mt-1 text-xs text-text-secondary" style={tabular}>{total > 0 ? (row.amount_paise / total * 100).toFixed(1) : '0.0'}% of selection</Text> : null}
+    </View>
+  </>;
   const body = (
     <>
       <View className="min-w-0 flex-1">
-        <Text className="text-sm font-bold text-text-primary">{title}</Text>
-        <Text className="mt-1 text-xs leading-5 text-text-secondary">{subtitle}</Text>
+        <Text className="text-sm font-bold text-text-primary">{salesColumns ? row.party : title}</Text>
+        {!salesColumns ? <Text className="mt-1 text-xs leading-5 text-text-secondary">{subtitle}</Text> : null}
         {row.kind === 'category' ? <View className="mt-2 h-1.5 max-w-[240px] overflow-hidden rounded-full bg-surface-tint"><View className="h-full rounded-full bg-primary" style={{ width: total > 0 ? Math.min(100, row.amount_paise / total * 100) + '%' as `${number}%` : '0%' }} /></View> : null}
       </View>
-      <View className={'flex-row gap-4 ' + (desktop ? 'items-center' : 'flex-wrap items-end justify-between')}>
-      <View className={desktop ? 'w-28 items-end' : 'min-w-0 flex-1'}>
-        {!desktop && row.quantity !== null ? <Text className="text-xs text-text-secondary">Quantity</Text> : null}
-        <Text className="text-sm text-text-secondary" style={tabular}>{secondary}</Text>
-      </View>
-      <View className={desktop ? 'w-32 items-end' : 'min-w-0 items-end'}>
-        {!desktop && reportKind !== 'cash' ? <Text className="text-xs text-text-secondary">Value</Text> : null}
-        <Text className="text-sm font-bold" style={{ ...tabular, color: reportKind === 'cash' ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{value}</Text>
-        {row.kind === 'category' ? <Text className="mt-1 text-xs text-text-secondary" style={tabular}>{total > 0 ? (row.amount_paise / total * 100).toFixed(1) : '0.0'}% of selection</Text> : null}
-      </View>
-      </View>
+      {salesColumns ? <View className="min-w-0 flex-1"><Text className="text-sm font-bold text-text-primary">{row.item}</Text><Text className="mt-1 text-xs leading-5 text-text-secondary">{subtitle}</Text></View> : null}
+      {desktop ? figures : <View className="flex-row flex-wrap items-end justify-between gap-4">{figures}</View>}
     </>
   );
-  const classes = 'min-h-12 gap-3 border-b border-border-soft bg-surface-elevated px-4 py-4 ' + (desktop ? 'flex-row items-center' : '');
-  return interactive ? <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={'View entries for ' + title} className={classes + ' hover:bg-surface-tint active:opacity-70 focus:border focus:border-primary'}>{body}</Pressable> : <View className={classes}>{body}</View>;
+  const classes = 'min-h-12 border-b border-border-soft bg-surface-elevated px-4 py-4 ' + (desktop ? 'flex-row items-center gap-4' : 'gap-3');
+  return interactive ? <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={'View entries for ' + title} className={classes + ' hover:bg-accent-soft active:bg-accent-soft focus:border focus:border-primary'}>{body}</Pressable> : <View className={classes}>{body}</View>;
 }

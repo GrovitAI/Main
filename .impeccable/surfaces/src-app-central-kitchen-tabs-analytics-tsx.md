@@ -19,6 +19,8 @@ FIRST VIEWPORT: At 840px of available report width, title, month arrows, info an
 
 FORM: User-selected Report workspace from the existing code-led HTML preview, October 8. No seed applies to this precisely specified extension. Signature interaction is a category row becoming a filtered purchase-entry view without losing month context; standard push navigation and short state feedback only.
 
+ROW REFINEMENT: Desktop Sales overview separates Branch, Item, Quantity and Value into four equal flexible columns with matching headings. Phones retain the combined branch/item label and paired quantity/value row. Interactive Sales and Purchases rows use the solid Accent Soft token for hover and press, without fading their content. Entry-detail and Cash semantics remain unchanged.
+
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
 
 Vendor default category with an individual purchase override follows the preview; old purchase snapshots remain unchanged. Existing purchases stay Uncategorized. Staging only. Native hardware evidence is unavailable on this Windows host; browser checks must be labelled web evidence.

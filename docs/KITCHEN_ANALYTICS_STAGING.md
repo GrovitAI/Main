@@ -172,6 +172,26 @@ category appears around 450px. The independent documenter updated only the
 authorized navigation descriptions in DESIGN.md and its sidecar, preserving
 the existing design tokens and unrelated documentation drift.
 
+## Report row refinement (task 160)
+
+Interactive Sales and Purchases rows now use opaque Accent Soft for hover and
+press, replacing the canvas-like hover tint and pressed opacity fade. Desktop
+Sales overview separates Branch, Item, Quantity and Value into four equal
+flexible columns, matching the headings. Phone rows retain the combined label
+and paired figures; detail and Cash keep their existing data presentation.
+
+Browser checks cover the actual 1159x668 view, 1370x731 and 1024x768 desktop,
+390x844 phone and 320x568 small phone (top and scrolled row). Real pointer hover
+on both reports computed an opaque blue background with opacity 1; Sales had
+four equal 217.4px columns at 1159px and no document horizontal overflow.
+Sales and Purchases entry drilldown and return worked with unchanged totals.
+Captures are ignored QA files under `.impeccable/review/balanced-*.png`.
+Typecheck and targeted ESLint passed; the detector returned no findings.
+Independent finish review returned **ship**, with no material fixes.
+The independent documenter confirmed the existing tokens and design rules;
+DESIGN.md and its sidecar are preserved for this local refinement.
+Native hardware remains unverified. No service, database or production changes.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate
