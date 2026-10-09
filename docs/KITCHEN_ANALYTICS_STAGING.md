@@ -266,6 +266,49 @@ tokens, Home/shared kitchen controls and PRODUCT.md, updating only the local
 surface contract. DESIGN.md and its sidecar remain unchanged; unrelated
 pre-existing design drift was left untouched.
 
+## Task 164 — Report first layout
+
+The user selected **Report first (layout B)** from the task 163 alternatives on
+9 October 2026 and requested desktop and mobile layout review. Staging now
+reads Sales/Purchases/Cash selector → date/filter pane → compact period-wide
+KPI cards → report heading, filtered total and rows. Filters initially collapse
+on both desktop and phone; expanded fields stay above every KPI, inline at
+640px of available report width and stacked below that. All branch/item and
+spending/category/vendor choices and purchase-category management remain
+available. Desktop Info and Refresh sit in the selector bar; phone Info,
+Refresh and CSV/Share sit beside the report heading. Export remains beside
+the report heading on desktop. Quick desktop month arrows, draft Apply/Cancel
+and This month behavior, exact amounts, opaque row feedback and existing
+columns/drilldown are retained. Controls keep 48px minimum source heights;
+rows keep 52px minimum heights and grow for wrapping.
+
+Eleven ignored `report-first-*.png` captures cover 1440x900 and 1024x768
+desktop, 390x844 and 320x700 phones, and the user's actual 390x668 panel.
+Sales, Purchases with expanded filters, Cash, the narrow calendar and a custom
+range were reviewed. The collapsed 390x668 view shows the selector, date pane,
+all three KPIs, heading and first result. No horizontal document overflow was
+found at 320px or 390px; actual-panel buttons/tabs measured at least 44px high.
+Expanded phone purchase filters remain scrollable above the KPIs.
+
+Read-only staging checks confirmed ₹2,250 Sales, ₹500 Purchases and ₹146 Other
+expenses; Cash shows ₹2,250 received and ₹646 paid across five rows. Applying
+the inclusive Sep 21–Oct 8 range, switching report tabs and returning from
+entry drilldown retained the range. Choosing This month in the calendar draft
+then Cancel preserved it. A real downloaded CSV included the matching range
+metadata and two entries (₹1,800 + ₹450 = ₹2,250). The session was restored to
+current-month Sales with collapsed filters.
+
+Typecheck, targeted lint and 27 existing report/native route-load tests passed.
+The layout detector ran once on the changed UI and returned no findings.
+The fresh independent finish review returned **ship**, with no material fixes,
+for the staging browser composition. The documenter reconciled the local
+Analytics surface brief, preview selection notes and this staging record
+against the implemented components and incumbent tokens. `DESIGN.md`, its
+sidecar and shared tokens remain unchanged; pre-existing drift was preserved.
+No service/query, database, polling or production change was made. Native
+hardware appearance, gestures, soft keyboards and OS font scaling remain
+unverified; the route-load tests are compatibility evidence only.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate

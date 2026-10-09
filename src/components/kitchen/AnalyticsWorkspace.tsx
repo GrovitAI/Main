@@ -139,7 +139,6 @@ export function AnalyticsWorkspace() {
           <Info size={18} color={colors.primary} />
         </Pressable>;
   const headerActions = <View className="flex-row gap-1">
-        {toolbar && (dateRange.startDate !== today.slice(0, 7) + '-01' || dateRange.endDate !== today) ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-xs font-bold text-primary">This month</Text></Pressable> : null}
         {desktop ? infoButton : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh reports" disabled={loading} onPress={() => setRefresh(value => value + 1)} className={controls + (loading ? ' opacity-40' : '')}>
           <RefreshCw size={18} color={colors.primary} />
@@ -154,15 +153,47 @@ export function AnalyticsWorkspace() {
   const currentMonth = dateRange.startDate === currentRange.startDate && dateRange.endDate === currentRange.endDate;
   const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Month to date · through ' + today : kitchenRangeLabel(dateRange)} · India time</Text>;
   const listHeader = (
-    <View className="gap-1" style={{ paddingTop: Math.max(insets.top, 8) }}>
-      {inlineFilters ? <View className="flex-row items-center justify-between gap-1">
-        {monthControls}{toolbar ? period : null}{headerActions}
-      </View> : null}
-      {inlineFilters && !toolbar ? <View className="flex-row flex-wrap items-center justify-between gap-1">
-        {!toolbar ? period : null}
-        {!currentMonth ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-sm font-bold text-primary">This month</Text></Pressable> : null}
-      </View> : null}
-        <View className={'mb-1 ' + (stackedMetrics ? 'gap-2' : 'flex-row gap-2')}>
+    <View className="gap-2" style={{ paddingTop: Math.max(insets.top, 8) }}>
+      <View testID="kitchen-report-selector" className="flex-row items-center justify-between gap-2 rounded-xl bg-surface-elevated p-1">
+        <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-1')}>
+          {tabs.map(tab => (
+            <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
+              className={'min-h-12 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] ' : 'flex-1 ') + (kind === tab.id ? 'bg-primary' : 'bg-surface-elevated hover:bg-accent-soft')}>
+              <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')}>{tab.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {desktop ? headerActions : null}
+      </View>
+      <View testID="kitchen-report-period" className="gap-1 rounded-xl border border-border-soft bg-surface-elevated px-3 py-1">
+        <View className="flex-row items-center justify-between gap-1">
+          <View className="min-w-0 shrink">{inlineFilters ? monthControls : datePicker}</View>
+          {toolbar ? <View className="min-w-0 shrink">{period}</View> : null}
+          <View className="shrink-0 flex-row items-center gap-1">
+            {inlineFilters && !currentMonth ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-xs font-bold text-primary">This month</Text></Pressable> : null}
+            {kind !== 'cash' ? <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls}>
+              <Settings2 size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">{filtersOpen ? 'Hide filters' : 'Filters'}{activeFilters ? ' (' + activeFilters + ')' : ''}</Text>
+            </Pressable> : null}
+          </View>
+        </View>
+        {!toolbar ? <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Through ' + today + ' · India time' : 'Inclusive dates · India time'}</Text> : null}
+        {filtersOpen && filterSummary ? <Text className="text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
+        {filtersOpen && kind !== 'cash' ? <View className={'mt-1 gap-2 ' + (inlineFilters ? 'flex-row' : '')}>
+          {kind === 'sales' ? <>
+            <ReportSelect compact={inlineFilters} label="Branch" value={partyId} options={filterOptions.branches} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All branches" />
+            <ReportSelect compact={inlineFilters} label="Item" value={itemId} options={filterOptions.items} onChange={id => { setItemId(id); setPage(0); }} emptyLabel="All items" />
+          </> : kind === 'purchases' ? <>
+            <ReportSelect compact={inlineFilters} label="Spending" value={includeExpenses ? 'all' : null} options={[{ id: 'all', label: 'Purchases + other expenses' }]} emptyLabel="Purchases only" onChange={id => { setIncludeExpenses(id === 'all'); setCategory(null); setPage(0); }} />
+            <ReportSelect compact={inlineFilters} label="Category" value={category} options={filterOptions.categories} onChange={id => { setCategory(id); setPage(0); }} emptyLabel="All categories" />
+            <ReportSelect compact={inlineFilters} label="Vendor" value={partyId} options={filterOptions.vendors} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All vendors" />
+            {inlineFilters ? <Pressable accessibilityRole="button" accessibilityLabel="Manage purchase categories" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' self-center'}><Settings2 size={18} color={colors.primary} /></Pressable> : null}
+          </> : null}
+        </View> : null}
+        {kind === 'purchases' && filtersOpen && !inlineFilters ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-1 self-start'}>
+          <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
+        </Pressable> : null}
+      </View>
+        <View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
           {metrics.map(metric => <View key={metric.label} className={'min-w-0 rounded-xl border border-border-soft bg-surface-elevated px-3 py-2 ' + (stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'flex-1 gap-1')}>
             <View className={'gap-1 ' + (desktop || stackedMetrics ? 'flex-row items-center' : '')}>
               <metric.Icon size={15} color={colors.primary} />
@@ -180,46 +211,10 @@ export function AnalyticsWorkspace() {
           : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
       </View> : null}
       <View className="gap-1 rounded-xl bg-surface-elevated px-3 py-2">
-      <View className="flex-row items-center justify-between gap-2">
-      <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-1')}>
-        {tabs.map(tab => (
-          <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
-            className={'min-h-12 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] ' : 'flex-1 ') + (kind === tab.id ? 'bg-primary' : 'bg-surface-elevated hover:bg-accent-soft')}>
-            <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')}>{tab.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-          {desktop ? <Text accessibilityRole="header" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text> : null}
-          {desktop ? exportButton : null}
-        </View>
-        {!desktop ? <View className="flex-row items-center justify-between gap-1">
+        <View className="flex-row items-center justify-between gap-1">
           <Text accessibilityRole="header" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{detail ? 'Recorded entries' : title}</Text>
-          {infoButton}{!inlineFilters ? headerActions : null}{exportButton}
-        </View> : null}
-        {!inlineFilters ? <>
-          <View className="flex-row items-center justify-between gap-1">
-          <View className="min-w-0 shrink">{datePicker}</View>
-          {kind !== 'cash' ? <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls + ' shrink-0'}>
-            <Settings2 size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">{filtersOpen ? 'Hide filters' : 'Filters'}{activeFilters ? ' (' + activeFilters + ')' : ''}</Text>
-          </Pressable> : null}
-          </View>
-          <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Through ' + today + ' · India time' : 'Inclusive dates · India time'}</Text>
-          {filterSummary ? <Text className="mt-1 text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
-        </> : null}
-        {(inlineFilters || filtersOpen) && kind !== 'cash' ? <View className={'mt-1 gap-3 ' + (inlineFilters ? 'flex-row' : '')}>
-          {kind === 'sales' ? <>
-            <ReportSelect compact={inlineFilters} label="Branch" value={partyId} options={filterOptions.branches} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All branches" />
-            <ReportSelect compact={inlineFilters} label="Item" value={itemId} options={filterOptions.items} onChange={id => { setItemId(id); setPage(0); }} emptyLabel="All items" />
-          </> : kind === 'purchases' ? <>
-            <ReportSelect compact={inlineFilters} label="Spending" value={includeExpenses ? 'all' : null} options={[{ id: 'all', label: 'Purchases + other expenses' }]} emptyLabel="Purchases only" onChange={id => { setIncludeExpenses(id === 'all'); setCategory(null); setPage(0); }} />
-            <ReportSelect compact={inlineFilters} label="Category" value={category} options={filterOptions.categories} onChange={id => { setCategory(id); setPage(0); }} emptyLabel="All categories" />
-            <ReportSelect compact={inlineFilters} label="Vendor" value={partyId} options={filterOptions.vendors} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All vendors" />
-            {inlineFilters ? <Pressable accessibilityRole="button" accessibilityLabel="Manage purchase categories" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' self-center'}><Settings2 size={18} color={colors.primary} /></Pressable> : null}
-          </> : null}
-        </View> : null}
-        {kind === 'purchases' && filtersOpen && !inlineFilters ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-1 self-start'}>
-          <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
-        </Pressable> : null}
+          {!desktop ? <>{infoButton}{headerActions}</> : null}{exportButton}
+        </View>
         {detail ? <Pressable accessibilityRole="button" onPress={closeDetail} className={controls + ' mt-2 self-start'}><ChevronLeft size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">Back to breakdown</Text></Pressable> : null}
         {report ? <View className="mt-1 flex-row flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-2">
           <Text className="text-sm font-bold text-text-primary" style={tabular}>{kind === 'cash'

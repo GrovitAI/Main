@@ -1,6 +1,6 @@
 # Kitchen Analytics layout proposals
 
-Exploration completed 9 October 2026. The standalone [interactive preview](kitchen-analytics-layouts.html) explores placing KPI cards below the date/filter pane on desktop and phone. All three options preserve that order. **No option has been selected by the user.** Period first is the preview's recommendation, not an approved application change.
+Exploration completed 9 October 2026. The standalone [interactive preview](kitchen-analytics-layouts.html) explores placing KPI cards below the date/filter pane on desktop and phone. All three options preserve that order. **The user selected Report first (layout B) on 9 October 2026; task 164 implemented it in staging.** Period first remains the preview's original recommendation. See [the staging record](../KITCHEN_ANALYTICS_STAGING.md#task-164--report-first-layout) for application verification and the release boundary.
 
 ## Open and compare
 
@@ -27,7 +27,7 @@ All figures are illustrative and local. The samples fall within 1–8 October 20
 
 ## Scope and evidence
 
-This task creates an HTML exploration and its documentation only. Application screens, services, database, staging data and production are unchanged. The approved Report workspace remains the incumbent. These proposals do not replace its surface brief or establish a new visual system.
+Task 163 created an HTML exploration and its documentation only; application screens, services, database, staging data and production were unchanged by that task. Task 164 subsequently implemented the selected Report first composition in the staging application and updated its local surface brief. The approved Report workspace and incumbent visual system remain in place. The preview checks below cover the historical HTML exploration, not that later application implementation.
 
 Playwright with installed Chrome passed all six layout/device combinations (three layouts at 1120×820 and 390×820), plus Period first at 320 and 427 px. Checks covered date-before-KPI order, report overflow, real iframe viewport switching, filters, report switching, range Apply/Cancel, reversed-range blocking, sample CSV contents, empty states and browser script errors. The corrected calendar labels were rechecked across December 2025–January 2026, including cancellation and application. Fourteen final browser captures were inspected.
 
@@ -39,4 +39,4 @@ Local screenshots, the QA/server helpers and detector output live under Git-igno
 
 The finished HTML was compared with `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json`, the current `AnalyticsWorkspace.tsx` and the layout direction contract. It retains the Kitchen Ledger palette, system sans, tabular money, flat white surfaces on Canvas Tint, blue selected controls, solid Blue Wash hover and compact report separators. Its 12 px cards and 52 px desktop rows follow the existing compact workspace direction.
 
-The detector ran once and returned only font-size advisories (14, 19, 11, 16 and 10 px). Smaller phone notes/navigation and other off-ramp type values are preview drift, not new tokens or approved exceptions to the documented 12 px floor. Static navigation geometry and other provisional composition details are not shared component specifications. Existing system/sidecar drift also remains outside this task. `DESIGN.md` and `.impeccable/design.json` were preserved; none of these deviations or unselected layouts was canonized or repaired as a system change.
+The preview detector ran once and returned only font-size advisories (14, 19, 11, 16 and 10 px). Smaller phone notes/navigation and other off-ramp type values are preview drift, not new tokens or approved exceptions to the documented 12 px floor. Static navigation geometry and other provisional composition details are not shared component specifications. Existing system/sidecar drift also remains outside this task. `DESIGN.md` and `.impeccable/design.json` were preserved; none of these deviations or unselected layouts was canonized or repaired as a system change. Task 164's Report first order is a local Analytics composition decision, not a system-wide layout rule.
