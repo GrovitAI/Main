@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kitchen Analytics — layout previews</title>
+  <style>
+    /* Preview tokens mirror DESIGN.md; this file does not style the application. */
+    :root { color-scheme: light; --blue:#0066b2; --deep:#004a8d; --canvas:#e8f2fa; --white:#ffffff; --wash:#dbeafe; --stroke:#c5d9eb; --ink:#0f2744; --muted:#5b6b7c; --in:#15803d; --out:#b91c1c; --buy:#b45309; --scrim:rgba(0,74,141,.45); }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--canvas); color:var(--ink); font:14px/1.4 system-ui,-apple-system,Roboto,sans-serif; }
+    button,input,select { font:inherit; color:inherit; }
+    button,a,select,input { -webkit-tap-highlight-color:transparent; }
+    button { cursor:pointer; touch-action:manipulation; }
+    button:disabled { cursor:default; opacity:.55; }
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+    ::selection { background:var(--wash); color:var(--ink); }
+    * { scrollbar-color:var(--stroke) var(--canvas); scrollbar-width:thin; }
+    svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+    h1,h2,p { margin:0; } h1 { font-size:20px; line-height:1.25; letter-spacing:-.4px; } h2 { font-size:17px; line-height:1.3; }
+    .muted { color:var(--muted); } .money { font-variant-numeric:tabular-nums; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; border:1px solid var(--stroke); border-radius:12px; background:var(--white); padding:8px 12px; font-weight:650; text-decoration:none; }
+    @media (hover:hover) { .btn:hover,.row-action:hover { background:var(--wash); } }
+    .btn[aria-pressed="true"],.btn.primary { background:var(--blue); color:var(--white); border-color:var(--blue); }
+    .icon-btn { min-width:44px; padding:8px; border:0; }
+    .preview-controls { max-width:1200px; margin:auto; padding:20px 20px 12px; }
+    .preview-intro { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:center; margin-bottom:12px; }
+    .preview-intro p { margin-top:4px; font-size:13px; }
+    .options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .option { text-align:left; align-items:flex-start; justify-content:flex-start; flex-direction:column; gap:4px; padding:12px; }
+    .option span { font-size:12px; font-weight:400; }
+    .device-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+    .device-controls a { margin-left:auto; color:var(--blue); text-underline-offset:3px; min-height:44px; display:flex; align-items:center; }
+    .stage { overflow-x:auto; padding:0 20px 20px; }
+    .frame-wrap { width:1120px; margin:0 auto; }
+    iframe { display:block; width:100%; height:820px; border:1px solid var(--stroke); border-radius:16px; background:var(--canvas); }
+    .stage-label { display:flex; justify-content:space-between; padding:8px 0; font-size:12px; color:var(--muted); }
+    .preview-footer { max-width:1200px; margin:auto; padding:0 20px 20px; font-size:13px; }
+    .app { display:flex; min-height:100vh; }
+    .rail { width:156px; flex-shrink:0; padding:20px 12px; border-right:1px solid var(--stroke); background:var(--white); }
+    .brand { font-weight:800; font-size:17px; } .brand small { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-top:2px; }
+    .rail ul { list-style:none; margin:24px 0 0; padding:0; display:grid; gap:6px; }
+    .rail li { display:flex; align-items:center; gap:8px; min-height:44px; padding:10px; border-radius:12px; color:var(--muted); font-size:13px; }
+    .rail .selected { background:var(--blue); color:var(--white); font-weight:700; }
+    main { width:100%; max-width:1160px; min-width:0; padding:16px; margin:0 auto; }
+    .period-pane { background:var(--white); border:1px solid var(--stroke); border-radius:12px; padding:4px 8px; margin-bottom:12px; }
+    .period-top { display:flex; align-items:center; gap:8px; }
+    .date-btn { border:0; padding:8px; color:var(--blue); flex-shrink:0; }
+    .period-caption { font-size:12px; color:var(--muted); margin-left:4px; }
+    .filter-trigger { margin-left:auto; }
+    .filter-fields { display:flex; gap:8px; padding:8px 4px 4px; border-top:1px solid var(--stroke); }
+    .field { display:grid; gap:4px; flex:1; font-size:12px; color:var(--muted); }
+    select,input { width:100%; min-height:44px; border:1px solid var(--stroke); border-radius:8px; padding:8px; background:var(--canvas); font-size:14px; }
+    .filter-fields[hidden], [hidden] { display:none !important; }
+    .kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+    .kpi { background:var(--white); border:1px solid var(--stroke); border-radius:12px; padding:10px 12px; min-width:0; }
+    .kpi-label { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
+    .kpi-label svg { width:16px; height:16px; color:var(--blue); }
+    .kpi strong { display:block; margin-top:4px; font-size:19px; font-weight:800; overflow-wrap:anywhere; }
+    .report { background:var(--white); border-radius:12px; padding:0 12px; min-width:0; }
+    .report-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; border-bottom:1px solid var(--stroke); }
+    .report-tabs { display:flex; gap:4px; }
+    .report-tabs .btn { border:0; min-width:84px; padding:8px 12px; }
+    .report-title { display:flex; align-items:center; justify-content:space-between; min-height:48px; gap:8px; }
+    .report-title .muted { font-size:12px; }
+    .totals { font-size:12px; display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--stroke); }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th { text-align:left; color:var(--muted); font-size:12px; font-weight:650; height:36px; }
+    td { padding:0; border-top:1px solid var(--stroke); height:52px; overflow-wrap:anywhere; }
+    th,td { padding-right:12px; width:25%; } th:last-child,td:last-child { padding-right:0; }
+    td.numeric,th.numeric { text-align:right; }
+    td small { display:block; color:var(--muted); font-size:12px; }
+    .row-action { min-height:44px; display:block; padding:8px 4px; margin-left:-4px; border:0; border-radius:8px; background:transparent; text-align:left; width:100%; font-weight:650; }
+    @media (hover:hover) { tbody tr:hover { background:var(--wash); } }
+    .phone-rows { display:none; }
+    .phone-row { display:block; width:100%; border:0; border-bottom:1px solid var(--stroke); border-radius:0; padding:10px 0; background:var(--white); min-height:64px; text-align:left; }
+    .phone-row-title { display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:650; }
+    .phone-row-title svg { width:14px; color:var(--blue); }
+    .phone-row-detail { display:flex; justify-content:space-between; margin-top:6px; font-size:12px; color:var(--muted); gap:8px; }
+    .phone-row-detail strong { color:var(--ink); font-weight:650; }
+    @media (hover:hover) { .phone-row:hover { background:var(--wash); } }
+    .notes { font-size:12px; color:var(--muted); padding:12px 0; max-width:75ch; }
+    .empty { text-align:center; padding:32px 12px; color:var(--muted); }
+    .phone-nav { display:none; }
+    .layout-b .top-tabs { margin-bottom:8px; }
+    .layout-b .top-tabs .report-tabs { background:var(--white); border-radius:12px; padding:4px; }
+    .layout-b .report { padding-top:4px; }
+    .layout-c .work-area { display:grid; grid-template-columns:186px minmax(0,1fr); gap:12px; align-items:start; }
+    .layout-c .kpis { grid-template-columns:1fr; }
+    .layout-c .kpi { padding:14px 12px; }
+    dialog { border:0; border-radius:16px; padding:16px; color:var(--ink); width:min(372px,calc(100% - 24px)); max-height:92vh; overflow-y:auto; background:var(--white); }
+    dialog::backdrop { background:var(--scrim); }
+    .dialog-head,.month-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .date-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0; }
+    .date-field { display:flex; flex-direction:column; align-items:flex-start; gap:3px; font-size:12px; }
+    .date-field strong { font-size:14px; }
+    .weekdays,.calendar { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; }
+    .weekdays span { text-align:center; color:var(--muted); font-size:12px; padding:8px 0; }
+    .day { border:0; border-radius:8px; padding:0; min-height:44px; background:var(--white); font-variant-numeric:tabular-nums; }
+    .day.between { background:var(--wash); } .day.selected { background:var(--blue); color:var(--white); }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+    .error { color:var(--out); font-size:12px; margin-top:8px; }
+    .detail-values { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0; } .detail-values dt { color:var(--muted); font-size:12px; } .detail-values dd { margin:4px 0 0; font-weight:700; }
+    @media (max-width:699px) {
+      .rail { display:none; } main { padding:12px 12px 76px; }
+      .period-top { gap:4px; flex-wrap:wrap; }
+      .period-caption { order:4; flex-basis:100%; padding:0 4px 4px; margin:0; font-size:11px; }
+      .date-btn { font-size:13px; padding:8px 4px; gap:6px; }
+      .filter-trigger { padding:8px; font-size:13px; gap:6px; }
+      .filter-fields { flex-direction:column; padding-bottom:8px; }
+      .refresh { display:none; }
+      .kpi { padding:8px; } .kpi-label { align-items:flex-start; flex-direction:column; gap:4px; line-height:16px; min-height:52px; }
+      .kpi strong { font-size:16px; margin-top:2px; }
+      .report { padding:0 10px; }
+      .report-toolbar { flex-wrap:wrap; }
+      .report-tabs { flex:1; } .report-tabs .btn { flex:1; min-width:0; padding:8px; font-size:13px; }
+      .export { border:0; padding:8px; min-width:44px; } .export span { display:none; }
+      .report-title h2 { font-size:15px; }
+      table { display:none; } .phone-rows { display:block; }
+      .notes { font-size:11px; }
+      .layout-c .work-area { display:block; } .layout-c .kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } .layout-c .kpi { padding:8px; }
+      .phone-nav { display:flex; justify-content:space-around; position:fixed; bottom:8px; left:12px; right:12px; background:var(--white); border:1px solid var(--stroke); border-radius:16px; padding:4px; }
+      .phone-nav span { display:flex; align-items:center; flex-direction:column; justify-content:center; gap:3px; font-size:10px; color:var(--muted); min-height:48px; flex:1; }
+      .phone-nav .selected { background:var(--blue); color:var(--white); border-radius:12px; }
+      .preview-controls { padding:14px 12px 8px; } .options { grid-template-columns:1fr; gap:6px; }
+      .option { flex-direction:row; align-items:center; justify-content:space-between; padding:8px 10px; gap:8px; }
+      .option strong { font-size:13px; } .option span { font-size:11px; max-width:48%; }
+      .preview-intro p { font-size:12px; } .device-controls { gap:6px; margin-top:8px; }
+      .device-controls a { margin-left:0; font-size:12px; } .stage { padding:0 12px 12px; } .preview-footer { padding:0 12px 16px; font-size:12px; }
+    }
+    @media (prefers-reduced-motion:no-preference) { button { transition:background-color 120ms ease-out; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    'use strict';
+    const root = document.getElementById('root');
+    const params = new URLSearchParams(location.search);
+    const paths = {
+      calendar:'<path d="M8 2v4m8-4v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/>',
+      filters:'<path d="M4 7h6m4 0h6M4 17h10m4 0h2"/><circle cx="12" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
+      package:'<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5"/>',
+      basket:'<path d="m9 3-5 7m11-7 5 7M3 10h18l-2 11H5L3 10Zm6 4v3m6-3v3"/>',
+      receipt:'<path d="M4 3l2 2 2-2 2 2 2-2 2 2 2-2 2 2 2-2v18l-2-2-2 2-2-2-2 2-2-2-2 2-2-2-2 2V3Zm4 6h8m-8 4h6"/>',
+      download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+      chart:'<path d="M3 3v18h18M7 16v-5m5 5V7m5 9v-3"/>',
+      home:'<path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3V10Z"/>',
+      history:'<path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7m2-4v5l3 2"/>',
+      store:'<path d="M3 10v11h18V10M2 3h20l-2 7H4L2 3Zm6 18v-7h8v7"/>',
+      truck:'<path d="M1 3h14v13H1V3Zm14 5h4l4 5v3h-8"/><circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/>',
+      more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+      left:'<path d="m15 18-6-6 6-6"/>', right:'<path d="m9 18 6-6-6-6"/>', close:'<path d="m6 6 12 12M6 18 18 6"/>', refresh:'<path d="M20 7a9 9 0 1 0 1 8M20 3v5h-5"/>'
+    };
+    const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+    const money = value => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(value);
+    const options = {
+      a:['Period first','Recommended · familiar report workspace','Date and filters → KPI cards → report. The clearest reading order on both screen sizes.'],
+      b:['Report first','Choose Sales, Purchases or Cash first','Report tabs → date and filters → KPI cards → rows. Useful when switching reports often.'],
+      c:['Summary beside report','More report rows visible on desktop','Date and filters → a summary column beside the report. On phones, the cards return to a row above the report.']
+    };
+    if (params.get('screen') !== '1') {
+      let layout = Object.hasOwn(options,params.get('layout')) ? params.get('layout') : 'a';
+      let device = params.get('device') === 'phone' ? 'phone' : params.get('device') === 'desktop' ? 'desktop' : innerWidth < 700 ? 'phone' : 'desktop';
+      root.innerHTML = `<header class="preview-controls"><div class="preview-intro"><div><h1>Kitchen Analytics layouts</h1><p class="muted">Date pane first, KPI cards below. Sample data; no database connection.</p></div></div><div class="options" aria-label="Choose a layout">${Object.entries(options).map(([id,copy])=>`<button class="btn option" data-layout="${id}" aria-pressed="${layout===id}"><strong>${copy[0]}</strong><span>${copy[1]}</span></button>`).join('')}</div><div class="device-controls"><button class="btn" data-device="desktop" aria-pressed="${device==='desktop'}">Desktop</button><button class="btn" data-device="phone" aria-pressed="${device==='phone'}">Phone</button><a id="full-size" target="_blank" rel="noopener">Open layout in a full tab</a></div></header><div class="stage"><div class="frame-wrap"><div class="stage-label"><span id="dimensions"></span><span>Interactive preview</span></div><iframe title="Analytics preview"></iframe></div></div><footer class="preview-footer"><p id="description"></p><p class="muted" style="margin-top:6px">Try the calendar, Filters, Sales / Purchases / Cash, a report row, or Export. Export downloads sample data only. Navigation is shown for context.</p></footer>`;
+      const frame = root.querySelector('iframe');
+      const update = () => {
+        const url = `${location.pathname}?screen=1&layout=${layout}`;
+        if (frame.getAttribute('src') !== url) frame.src = url;
+        root.querySelector('.frame-wrap').style.width = device==='phone' ? '390px' : '1120px';
+        root.querySelector('#dimensions').textContent = `${options[layout][0]} · ${device==='phone'?'Phone · 390 px':'Desktop · 1120 px · scroll sideways on a narrow window'}`;
+        root.querySelector('#description').textContent = options[layout][2];
+        root.querySelector('#full-size').href = url;
+        root.querySelectorAll('[data-layout]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.layout===layout)));
+        root.querySelectorAll('[data-device]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.device===device)));
+      };
+      root.querySelectorAll('[data-layout]').forEach(button=>button.addEventListener('click',()=>{layout=button.dataset.layout;update();}));
+      root.querySelectorAll('[data-device]').forEach(button=>button.addEventListener('click',()=>{device=button.dataset.device;update();}));
+      update();
+    } else {
+      const layout = Object.hasOwn(options,params.get('layout')) ? params.get('layout') : 'a';
+      let kind='sales', branch='', item='', category='', vendor='', filtersOpen=false;
+      let start='2026-10-01', end='2026-10-08', draftStart=start, draftEnd=end, activeDate='start', calendarMonth='2026-10';
+      const sales = [
+        {party:'Branch 1',item:'Chocolate brownie',qty:90,unit:'pcs',value:13500,date:'2026-10-02'},
+        {party:'Branch 2',item:'Milk pudding',qty:105,unit:'cups',value:12600,date:'2026-10-04'},
+        {party:'Branch 1',item:'Milk pudding',qty:90,unit:'cups',value:13500,date:'2026-10-06'},
+        {party:'Branch 2',item:'Chocolate brownie',qty:60,unit:'pcs',value:9000,date:'2026-10-08'}
+      ];
+      const purchases = [
+        {party:'Flour supplier',category:'Dry ingredients',qty:4,value:9500,date:'2026-10-02'},
+        {party:'Dairy supplier',category:'Dairy',qty:3,value:8750,date:'2026-10-04'},
+        {party:'Chocolate supplier',category:'Chocolate',qty:2,value:6800,date:'2026-10-06'},
+        {party:'Packaging supplier',category:'Packaging',qty:2,value:2400,date:'2026-10-08'}
+      ];
+      const cash = [{party:'Branch 1',category:'Received',qty:2,value:18400,date:'2026-10-03'},{party:'Branch 2',category:'Received',qty:1,value:9000,date:'2026-10-07'},{party:'Dairy supplier',category:'Paid',qty:1,value:8750,date:'2026-10-05'},{party:'Flour supplier',category:'Paid',qty:1,value:9500,date:'2026-10-08'}];
+      const expenses = [{value:1400,date:'2026-10-03'},{value:1800,date:'2026-10-07'}];
+      const inPeriod = row => row.date>=start && row.date<=end;
+      const total = rows => rows.reduce((sum,row)=>sum+row.value,0);
+      const dateLabel = date => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'});
+      const fullDateLabel = date => `${dateLabel(date)} ${date.slice(0,4)}`;
+      const rangeLabel = () => start.slice(0,4)===end.slice(0,4) ? `${dateLabel(start)} – ${fullDateLabel(end)}` : `${fullDateLabel(start)} – ${fullDateLabel(end)}`;
+      const tabs = () => `<div class="report-tabs" aria-label="Report type">${['sales','purchases','cash'].map(id=>`<button class="btn" data-kind="${id}" aria-pressed="${kind===id}">${id[0].toUpperCase()+id.slice(1)}</button>`).join('')}</div>`;
+      const filtered = () => (kind==='sales'?sales:kind==='purchases'?purchases:cash).filter(inPeriod).filter(row=>kind==='sales'?(!branch||row.party===branch)&&(!item||row.item===item):kind==='purchases'?(!category||row.category===category)&&(!vendor||row.party===vendor):true);
+      const field = (label,key,values,value) => `<label class="field">${label}<select data-filter="${key}" aria-label="${label}"><option value="">All ${label==='Category'?'categories':label.toLowerCase()+'s'}</option>${values.map(text=>`<option ${text===value?'selected':''}>${text}</option>`).join('')}</select></label>`;
+      function render() {
+        const focused=document.activeElement;
+        const focusKey=focused?.dataset?.kind ? `[data-kind="${focused.dataset.kind}"]` : focused?.dataset?.filter ? `[data-filter="${focused.dataset.filter}"]` : focused?.id==='apply' ? '#dates' : focused?.id && root.contains(focused) ? `#${focused.id}` : null;
+        const rows=filtered();
+        const heading=kind==='sales'?'Sales to branches':kind==='purchases'?'Purchases by category':'Cash movements';
+        const pane=`<section class="period-pane" aria-label="Date and filters"><div class="period-top"><button class="btn date-btn" id="dates">${icon('calendar')}<span>${rangeLabel()}</span>${icon('right')}</button><span class="period-caption">Both dates included · India time</span>${kind!=='cash'?`<button class="btn filter-trigger" id="filters" aria-expanded="${filtersOpen}">${icon('filters')} Filters${branch||item||category||vendor?' · Active':''}</button>`:''}<button class="btn icon-btn refresh" id="reset" aria-label="Reset preview">${icon('refresh')}</button></div><div class="filter-fields" ${!filtersOpen||kind==='cash'?'hidden':''}>${kind==='sales'?field('Branch','branch',['Branch 1','Branch 2'],branch)+field('Item','item',['Chocolate brownie','Milk pudding'],item):field('Category','category',purchases.map(row=>row.category),category)+field('Vendor','vendor',purchases.map(row=>row.party),vendor)}<button class="btn" id="clear-filters">Clear filters</button></div></section>`;
+        const kpis=`<section class="kpis" aria-label="Period totals">${[['Sales to branches','package',total(sales.filter(inPeriod))],['Purchases','basket',total(purchases.filter(inPeriod))],['Other expenses','receipt',total(expenses.filter(inPeriod))]].map(([label,glyph,value])=>`<div class="kpi"><div class="kpi-label">${icon(glyph)}<span>${label}</span></div><strong class="money">${money(value)}</strong></div>`).join('')}</section>`;
+        const headers=kind==='sales'?['Branch','Item','Quantity','Value']:kind==='purchases'?['Category','Vendor','Entries','Value']:['Direction','Party','Entries','Value'];
+        const report=`<section class="report" aria-label="Report"><div class="report-toolbar">${layout==='b'?`<h2>${heading}</h2>`:tabs()}<button class="btn export" id="export" aria-label="Export sample CSV">${icon('download')}<span>Export CSV</span></button></div>${layout!=='b'?`<div class="report-title"><h2>${heading}</h2><span class="muted">${rangeLabel()}</span></div>`:''}<div class="totals"><strong class="money">${kind==='cash'?'Received '+money(total(rows.filter(row=>row.category==='Received')))+' · Paid '+money(total(rows.filter(row=>row.category==='Paid'))):'Filtered total '+money(total(rows))}</strong><span>${rows.length} ${kind==='sales'?'items':kind==='purchases'?'categories':'entries'}</span></div>${rows.length?`<table aria-label="${heading}"><thead><tr>${headers.map((label,i)=>`<th scope="col" class="${i>=2?'numeric':''}">${label}</th>`).join('')}</tr></thead><tbody>${rows.map((row,i)=>`<tr><td><button class="row-action" data-row="${i}">${kind==='sales'?row.party:row.category}</button></td><td>${kind==='sales'?row.item:row.party}</td><td class="numeric money">${row.qty}${row.unit?' '+row.unit:''}</td><td class="numeric money"><strong>${money(row.value)}</strong></td></tr>`).join('')}</tbody></table><div class="phone-rows">${rows.map((row,i)=>`<button class="phone-row" data-row="${i}"><span class="phone-row-title">${kind==='sales'?row.item:row.category}${icon('right')}</span><span class="muted" style="font-size:12px">${row.party}</span><span class="phone-row-detail"><span>${kind==='sales'?'Quantity':'Entries'} <strong>${row.qty}${row.unit?' '+row.unit:''}</strong></span><span>Value <strong class="money">${money(row.value)}</strong></span></span></button>`).join('')}</div>`:`<div class="empty">No sample entries match this period and these filters.<br>Choose 1–8 October or clear the filters.</div>`}<p class="notes">KPI cards show all activity for this period; filters narrow the report below. Goods supplied are kitchen sales. Purchases include credit buys. These figures do not represent profit.</p></section>`;
+        root.innerHTML=`<div class="app layout-${layout}"><aside class="rail" aria-label="Kitchen navigation context"><div class="brand">Le Laban<small>Central Kitchen</small></div><ul>${[['Home','home'],['Analytics','chart'],['Items','package'],['Branches','store'],['Vendors','truck'],['History','history']].map(([name,glyph])=>`<li ${name==='Analytics'?'class="selected" aria-current="page"':''}>${icon(glyph)}${name}</li>`).join('')}</ul></aside><main aria-label="Kitchen analytics">${layout==='b'?`<div class="top-tabs">${tabs()}</div>`:''}${pane}<div class="work-area">${kpis}${report}</div><p class="notes">Illustrative data · layout preview only · no live database requests</p></main><nav class="phone-nav" aria-label="Kitchen navigation context">${[['Home','home'],['Analytics','chart'],['Items','package'],['History','history'],['More','more']].map(([name,glyph])=>`<span ${name==='Analytics'?'class="selected" aria-current="page"':''}>${icon(glyph)}${name}</span>`).join('')}</nav></div><dialog id="calendar-dialog" aria-labelledby="calendar-title"></dialog><dialog id="detail-dialog" aria-labelledby="detail-title"></dialog>`;
+        root.querySelectorAll('[data-kind]').forEach(button=>button.addEventListener('click',()=>{kind=button.dataset.kind;branch=item=category=vendor='';render();}));
+        root.querySelector('#dates').addEventListener('click',()=>{draftStart=start;draftEnd=end;activeDate='start';calendarMonth=start.slice(0,7);renderCalendar();root.querySelector('#calendar-dialog').showModal();});
+        root.querySelector('#filters')?.addEventListener('click',()=>{filtersOpen=!filtersOpen;render();});
+        root.querySelector('#reset').addEventListener('click',()=>{start='2026-10-01';end='2026-10-08';branch=item=category=vendor='';render();});
+        root.querySelector('#clear-filters').addEventListener('click',()=>{branch=item=category=vendor='';render();});
+        root.querySelectorAll('[data-filter]').forEach(select=>select.addEventListener('change',()=>{if(select.dataset.filter==='branch')branch=select.value;if(select.dataset.filter==='item')item=select.value;if(select.dataset.filter==='category')category=select.value;if(select.dataset.filter==='vendor')vendor=select.value;render();}));
+        root.querySelectorAll('[data-row]').forEach(button=>button.addEventListener('click',()=>{const row=rows[Number(button.dataset.row)];const dialog=root.querySelector('#detail-dialog');dialog.innerHTML=`<div class="dialog-head"><h2 id="detail-title">Sample entry</h2><button class="btn icon-btn" id="detail-close" aria-label="Close entry">${icon('close')}</button></div><dl class="detail-values"><div><dt>${kind==='sales'?'Branch':'Party'}</dt><dd>${row.party}</dd></div><div><dt>${kind==='sales'?'Item':'Category'}</dt><dd>${row.item||row.category}</dd></div><div><dt>Date</dt><dd>${fullDateLabel(row.date)}</dd></div><div><dt>Value</dt><dd class="money">${money(row.value)}</dd></div></dl><p class="muted">Illustrative entry for this preview.</p>`;dialog.querySelector('#detail-close').addEventListener('click',()=>dialog.close());dialog.showModal();}));
+        root.querySelector('#export').disabled=rows.length===0;
+        root.querySelector('#export').addEventListener('click',()=>{const content=[['Sample data only',start,end],headers,...rows.map(row=>[kind==='sales'?row.party:row.category,kind==='sales'?row.item:row.party,row.qty,row.value])].map(row=>row.map(value=>'"'+String(value).replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=`sample-kitchen-${kind}-${start}-${end}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+        if (focusKey) root.querySelector(focusKey)?.focus();
+      }
+      function renderCalendar() {
+        const dialog=root.querySelector('#calendar-dialog');
+        const focused=document.activeElement;
+        const focusKey=focused?.dataset?.date ? `[data-date="${focused.dataset.date}"]` : focused?.dataset?.endpoint ? `[data-endpoint="${focused.dataset.endpoint}"]` : focused?.dataset?.month ? `[data-month="${focused.dataset.month}"]` : null;
+        const year=Number(calendarMonth.slice(0,4)), month=Number(calendarMonth.slice(5))-1;
+        const first=new Date(Date.UTC(year,month,1)).getUTCDay(), days=new Date(Date.UTC(year,month+1,0)).getUTCDate();
+        const invalid=draftEnd<draftStart;
+        dialog.innerHTML=`<div class="dialog-head"><h2 id="calendar-title">Reporting period</h2><button class="btn icon-btn" id="calendar-close" aria-label="Close calendar">${icon('close')}</button></div><p class="notes">Choose the start, then the end. Sample entries are in 1–8 October 2026.</p><div class="date-fields"><button class="btn date-field" data-endpoint="start" aria-pressed="${activeDate==='start'}">Start<strong>${fullDateLabel(draftStart)}</strong></button><button class="btn date-field" data-endpoint="end" aria-pressed="${activeDate==='end'}">End<strong>${fullDateLabel(draftEnd)}</strong></button></div><div class="month-nav"><button class="btn icon-btn" data-month="-1" aria-label="Previous calendar month">${icon('left')}</button><strong>${new Date(Date.UTC(year,month,1)).toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}</strong><button class="btn icon-btn" data-month="1" aria-label="Next calendar month" ${calendarMonth>='2026-10'?'disabled':''}>${icon('right')}</button></div><div class="weekdays">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(day=>`<span>${day}</span>`).join('')}</div><div class="calendar">${'<span></span>'.repeat(first)}${Array.from({length:days},(_,i)=>{const date=`${calendarMonth}-${String(i+1).padStart(2,'0')}`;return `<button class="day ${date===draftStart||date===draftEnd?'selected':date>draftStart&&date<draftEnd?'between':''}" data-date="${date}" aria-label="${fullDateLabel(date)}" ${date>'2026-10-09'?'disabled':''}>${i+1}</button>`;}).join('')}</div>${invalid?'<p class="error" role="alert">End date must be on or after the start date.</p>':''}<div class="dialog-actions"><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="apply" ${invalid?'disabled':''}>Apply dates</button></div>`;
+        dialog.querySelectorAll('[data-endpoint]').forEach(button=>button.addEventListener('click',()=>{activeDate=button.dataset.endpoint;renderCalendar();}));
+        dialog.querySelectorAll('[data-date]').forEach(button=>button.addEventListener('click',()=>{if(activeDate==='start'){draftStart=button.dataset.date;activeDate='end';}else draftEnd=button.dataset.date;renderCalendar();}));
+        dialog.querySelectorAll('[data-month]').forEach(button=>button.addEventListener('click',()=>{const next=new Date(Date.UTC(year,month+Number(button.dataset.month),1));calendarMonth=next.toISOString().slice(0,7);renderCalendar();}));
+        dialog.querySelector('#calendar-close').addEventListener('click',()=>dialog.close());dialog.querySelector('#cancel').addEventListener('click',()=>dialog.close());
+        dialog.querySelector('#apply').addEventListener('click',()=>{if(draftEnd<draftStart)return;start=draftStart;end=draftEnd;branch=item=category=vendor='';dialog.close();render();});
+        if (dialog.open && focusKey) dialog.querySelector(focusKey)?.focus();
+      }
+      render();
+    }
+  </script>
+</body>
+</html>
