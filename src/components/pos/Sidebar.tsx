@@ -24,9 +24,10 @@ import {
   IceCream,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SidebarSurface } from '@/components/ui/SidebarSurface';
 
 import type { Category } from '@/lib/pos/products-service';
-import { colors } from '@/lib/pos/brand';
+import { colors, gradients } from '@/lib/pos/brand';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -83,27 +84,6 @@ function getCategoryIcon(name: string, isActive: boolean) {
 }
 
 // ─── Decoration ──────────────────────────────────────────────────────────────────
-
-function SidebarDecoration() {
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: 180,
-        opacity: 0.08,
-        overflow: 'hidden',
-      }}
-    >
-      <View style={{ position: 'absolute', bottom: -60, left: -30, height: 150, width: 150, borderRadius: 75, borderWidth: 1, borderColor: colors.textOnPrimary }} />
-      <View style={{ position: 'absolute', bottom: -30, right: -60, height: 120, width: 120, borderRadius: 60, borderWidth: 1, borderColor: colors.textOnPrimary }} />
-      <View style={{ position: 'absolute', bottom: 30, left: -45, height: 130, width: 130, borderRadius: 65, borderWidth: 2, borderColor: colors.textOnPrimary }} />
-    </View>
-  );
-}
 
 // ─── Smooth label wrapper ─────────────────────────────────────────────────────────
 
@@ -222,11 +202,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
     >
       <Animated.View style={drawerStyle}>
         {/* Background gradient */}
-        <LinearGradient
-          colors={['#0251b8', '#013b8c', '#012f70']}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-        />
-        <SidebarDecoration />
+        <SidebarSurface />
 
         {/* Logo area */}
         <View
@@ -311,7 +287,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
               >
                 {isActive && (
                   <LinearGradient
-                    colors={['rgba(58,120,220,0.95)', 'rgba(35,95,190,0.95)']}
+                    colors={gradients.posSidebarSelected}
                     style={{
                       position: 'absolute',
                       top: 0, left: 0, right: 0, bottom: 0,

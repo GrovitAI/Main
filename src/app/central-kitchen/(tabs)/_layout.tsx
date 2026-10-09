@@ -8,6 +8,7 @@ import { Home, Boxes, Store, Truck, History, BarChart3, Ellipsis, X, type Lucide
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
+import { SidebarSelection, SidebarSurface } from '@/components/ui/SidebarSurface';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
 
@@ -27,7 +28,7 @@ function TabButton({ tab, focused, onPress, rail }: { tab: KitchenTab; focused: 
   const { isDesktop } = useResponsive();
   const compact = Platform.OS === 'web' && isDesktop && rail;
   const Icon = tab.icon;
-  const color = focused ? colors.primary : colors.textSecondary;
+  const color = rail ? focused ? colors.textOnPrimary : colors.sidebarTextMuted : focused ? colors.primary : colors.textSecondary;
   return (
     <Pressable
       onPress={onPress}
@@ -35,9 +36,10 @@ function TabButton({ tab, focused, onPress, rail }: { tab: KitchenTab; focused: 
       accessibilityState={{ selected: focused }}
       aria-selected={focused}
       accessibilityLabel={tab.label}
-      className={`items-center rounded-xl active:opacity-60 hover:bg-surface-tint focus:border focus:border-primary ${compact ? `min-h-12 w-full flex-row justify-start gap-2 px-3 py-1.5 ${focused ? 'bg-accent-soft' : ''}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
+      className={`items-center active:opacity-80 ${rail ? `overflow-hidden rounded-[14px] border border-transparent focus:border-text-on-primary ${focused ? '' : 'hover:bg-sidebar-hover'}` : 'rounded-xl hover:bg-surface-tint focus:border focus:border-primary'} ${compact ? 'min-h-12 w-full flex-row justify-start gap-2 px-3 py-1.5' : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
     >
-      <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused ? 'bg-accent-soft' : ''}`}`}>
+      {rail && focused ? <SidebarSelection /> : null}
+      <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused && !rail ? 'bg-accent-soft' : ''}`}`}>
         <Icon size={compact ? 18 : 21} color={color} />
       </View>
       <Text className={`${focused ? 'font-extrabold' : 'font-semibold'} ${compact ? 'text-[13px]' : 'mt-0.5 text-xs'}`} style={{ color }} numberOfLines={1}>
@@ -114,24 +116,30 @@ function Rail({ state, navigation }: BarProps) {
   const { isDesktop } = useResponsive();
   const compact = Platform.OS === 'web' && isDesktop;
   return (
-    <View className={`items-center gap-1.5 border-r border-border-soft bg-surface-elevated ${compact ? 'w-44 px-2' : 'w-[88px]'}`} style={{ paddingTop: insets.top + 12 }}>
-      {KITCHEN_TABS.map((tab) => {
-        const route = state.routes.find((r) => r.name === tab.name);
-        if (!route) return null;
-        const focused = state.routes[state.index]?.name === tab.name;
-        return (
-          <TabButton
-            key={tab.name}
-            tab={tab}
-            focused={focused}
-            rail
-            onPress={() => {
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
-            }}
-          />
-        );
-      })}
+    <View testID="kitchen-navigation-rail" className={`relative items-center gap-1.5 overflow-hidden ${compact ? 'w-44 px-2' : 'w-[88px] px-2'}`} style={{ paddingTop: insets.top + 12 }}>
+      <SidebarSurface />
+      <View className={`w-full border-b border-sidebar-divider pb-3 ${compact ? 'px-3' : 'items-center'}`}>
+        <Text className={`font-bold text-text-on-primary ${compact ? 'text-xl' : 'text-xs'}`} numberOfLines={1}>Le Laban</Text>
+      </View>
+      <FlatList
+        className="min-h-0 w-full flex-1"
+        data={KITCHEN_TABS}
+        keyExtractor={tab => tab.name}
+        extraData={state.index}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 6 }}
+        ItemSeparatorComponent={() => <View className="h-1.5" />}
+        renderItem={({ item: tab }) => {
+          const route = state.routes.find(entry => entry.name === tab.name);
+          if (!route) return null;
+          const focused = state.routes[state.index]?.name === tab.name;
+          return <TabButton tab={tab} focused={focused} rail onPress={() => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+          }} />;
+        }}
+      />
+      {compact ? <View className="mt-auto w-full border-t border-sidebar-divider px-3 py-4"><Text className="text-xs font-semibold text-sidebar-muted">Central Kitchen</Text></View> : null}
     </View>
   );
 }
@@ -145,7 +153,7 @@ export default function KitchenTabsLayout() {
   return (
     <PhoneWebFrame active={!isTablet}>
       <Tabs
-        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.surfaceTint } }}
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.kitchenCanvas } }}
         tabBar={(props) =>
           isTablet ? null : <BottomBar {...props} />
         }

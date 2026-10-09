@@ -19,6 +19,17 @@ export const colors = {
   background: '#ffffff',
   /** App canvas — faint blue wash like logo surround */
   surfaceTint: '#e8f2fa',
+  /** Approved Blue frame canvas for the Central Kitchen workspace. */
+  kitchenCanvas: '#e3ecf5',
+  /** Existing POS sidebar palette, shared with the kitchen rail. */
+  sidebarTop: '#0251b8',
+  sidebarMiddle: '#013b8c',
+  sidebarBottom: '#012f70',
+  sidebarSelectedTop: 'rgba(58, 120, 220, 0.95)',
+  sidebarSelectedBottom: 'rgba(35, 95, 190, 0.95)',
+  sidebarTextMuted: 'rgba(255, 255, 255, 0.8)',
+  sidebarHover: 'rgba(255, 255, 255, 0.08)',
+  sidebarDivider: 'rgba(255, 255, 255, 0.12)',
   surfaceElevated: '#ffffff',
   textPrimary: '#0f2744',
   textSecondary: '#5b6b7c',
@@ -31,6 +42,9 @@ export const colors = {
 } as const;
 
 export const gradients = {
+  /** Exact incumbent POS sidebar and selected-row treatments. */
+  posSidebar: [colors.sidebarTop, colors.sidebarMiddle, colors.sidebarBottom] as const,
+  posSidebarSelected: [colors.sidebarSelectedTop, colors.sidebarSelectedBottom] as const,
   /** Logo radial feel: deep → vibrant center */
   primary: [colors.primaryMid, colors.primaryDeep] as const,
   /** Lighter CTA / add buttons */

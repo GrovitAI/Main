@@ -1,10 +1,15 @@
 # Kitchen background and detail previews — task 171
 
 The user requested a professional background/detail refresh and then asked to
-see all three suggested directions before selecting one. These are provisional
-previews of Central Kitchen Home and Analytics. No direction has been selected
-or applied to the app. Neutral workspace is the recommendation and initial
-picker selection, not an approval.
+see all three suggested directions before selecting one. These were provisional
+previews of Central Kitchen Home and Analytics. Neutral workspace was the
+recommendation and initial picker selection, not an approval. The user selected
+Blue frame on 2026-10-09 and explicitly requested the existing POS left-sidebar
+colour scheme and design. Task 172 applies that scoped selection in staging;
+see [the implementation record](../KITCHEN_BLUE_FRAME.md). The picker and its
+original captures remain selection history, including the mock solid-navy rail
+and white selected row; the final app instead shares the exact POS gradient and
+translucent selected row. Neutral and Warm off-white remain unselected.
 
 Start the local comparison server with:
 
@@ -31,8 +36,11 @@ separators, plus clearer desktop rail identity: the text “Le Laban” and a
 | Warm off-white | Softer page and warm edges, with the same blue actions | `#f5f2ed` | `#ede8df` | `#e3ded5` | `#cec7bc` | `#605e5a` |
 | Blue frame | Navy desktop navigation against a richer blue ground | `#e3ecf5` | `#002d5a` | `#cddcea` | `#b7ccdf` | `#506781` |
 
-These values describe the temporary preview treatments. They are not app
-tokens or a new global design system. Report rows remain white with quiet
+These values describe the temporary preview treatments. They were not app
+tokens or a new global design system at preview time. Task 172 adopts the
+Blue frame canvas as a separate Kitchen token and the user-requested existing
+POS rail treatment; it does not adopt this table's proposed separator, stroke
+or muted-text substitutions. Report rows remain white with quiet
 separators; the preview does not demonstrate alternating row stripes.
 
 ## Provenance and controls
@@ -80,15 +88,15 @@ static; only the labelled picker controls are interactive.
 
 Detailed capture and picker results, scripts and QA images are Git-ignored in
 `.impeccable/review/`, including `background-capture-results.json` and
-`background-picker-results.json`. No app source, shared token, service, database,
+`background-picker-results.json`. For task 171, no app source, shared token, service, database,
 migration or production deployment changed. Native iOS/Android appearance,
 hardware interaction and text scaling remain unverified.
 
 ## Design authority and references
 
 `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json` and the existing app surface
-briefs remain the incumbent authority. An unselected comparison does not
-establish a new visual world. The picker has its own Operate surface brief at
+briefs hold the authority, including the scoped task 172 Blue frame extension.
+An unselected comparison does not establish a new visual world. The picker has its own Operate surface brief at
 `.impeccable/surfaces/docs-previews-kitchen-backgrounds-html.md`; its browser
 controls are comparison tooling, not a new app component specification.
 

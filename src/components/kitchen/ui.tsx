@@ -77,7 +77,7 @@ export function KScreen({ children, scroll = true, refreshing = false, onRefresh
     </View>
   );
   return (
-    <View className="flex-1 bg-surface-tint">
+    <View className="flex-1 bg-kitchen-canvas">
       {scroll ? (
         <ScrollView
           className="flex-1"

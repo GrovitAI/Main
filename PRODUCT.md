@@ -105,6 +105,13 @@ figures to be right, and matching is offered only as a convenience.
 - The kitchen module keeps the same blue and feel as the rest of the app
   (owner, 2026-10-04): one family of screens, the kitchen a quieter and
   simpler member of it.
+- Kitchen Blue frame (owner, 2026-10-09, task 172): the user selected the task
+  171 direction and explicitly required the existing POS left-sidebar colour
+  scheme and design. Kitchen desktop/tablet navigation shares that POS blue
+  gradient, translucent selected row and quiet ring detail, with Le Laban and
+  Central Kitchen identity. Its workspace gets a separate blue canvas; white
+  working surfaces, action blue and semantic money colours retain their roles.
+  This scoped commitment does not adopt the neutral or warm preview palettes.
 - Voice: plain, from the user's side of the counter; no accounting jargon.
 - Kitchen module structure (owner, 2026-10-04, after a round of seven
   alternatives): the category standard, played straight: totals on top, the

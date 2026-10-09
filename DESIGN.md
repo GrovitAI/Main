@@ -5,6 +5,15 @@ colors:
   laban-blue: "#0066b2"
   laban-blue-deep: "#004a8d"
   canvas-tint: "#e8f2fa"
+  kitchen-canvas: "#e3ecf5"
+  sidebar-top: "#0251b8"
+  sidebar-middle: "#013b8c"
+  sidebar-bottom: "#012f70"
+  sidebar-selected-top: "rgba(58, 120, 220, 0.95)"
+  sidebar-selected-bottom: "rgba(35, 95, 190, 0.95)"
+  sidebar-muted: "rgba(255, 255, 255, 0.8)"
+  sidebar-hover: "rgba(255, 255, 255, 0.08)"
+  sidebar-divider: "rgba(255, 255, 255, 0.12)"
   card-white: "#ffffff"
   blue-wash: "#dbeafe"
   hairline: "#dbeafe"
@@ -82,6 +91,19 @@ spacing:
   gutter: "16px"
   section: "18px"
 components:
+  kitchen-sidebar:
+    backgroundColor: "{colors.sidebar-top}"
+    textColor: "{colors.on-blue}"
+    width: "176px"
+  kitchen-sidebar-tab:
+    textColor: "{colors.sidebar-muted}"
+    rounded: "14px"
+    height: "48px"
+  kitchen-sidebar-tab-selected:
+    backgroundColor: "{colors.sidebar-selected-top}"
+    textColor: "{colors.on-blue}"
+    rounded: "14px"
+    height: "48px"
   button-primary:
     backgroundColor: "{colors.laban-blue}"
     textColor: "{colors.on-blue}"
@@ -214,13 +236,13 @@ components:
 
 A ruled ledger page in Le Laban's blue, held in one hand between batches. The canvas is a faint blue wash; everything written on it sits in a white card with a hairline edge, the way lines sit on a ruled page. Money is coloured by which way it went (green came in, red went out, amber was bought on credit) and only the figures and their small icons carry that colour; every action on every screen, filled or outlined, is Le Laban blue, so the manager never has to ask which button is theirs. The system refuses nothing a kitchen manager already expects from a phone app (big title, a 2x2 of verbs, a list of today, five tabs) and adds nothing they must learn.
 
-Density is moderate and finger-first: 44 pt targets everywhere (48 dp on Android), 15 px rows at 58 px tall, 12 px as the smallest text. Type is the system sans at heavy weights (600 to 800) with tabular numerals on every amount, so columns of rupees line up and a wrong figure is easy to spot. There are no shadows anywhere, no gradients, no decorative motion, no illustration: depth is one white layer on one tinted layer, and the only things that move are the platform's own sheet and fade.
+Density is moderate and finger-first: 44 pt targets everywhere (48 dp on Android), 15 px rows at 58 px tall, 12 px as the smallest text. Type is the system sans at heavy weights (600 to 800) with tabular numerals on every amount, so columns of rupees line up and a wrong figure is easy to spot. There are no shadows anywhere, no decorative motion, no illustration: working-surface depth is one white layer on one tinted layer, and the only things that move are the platform's own sheet and fade. The user-approved Blue frame adds the existing POS gradient and ring detail only to the desktop/tablet navigation rail and its selected row; working cards and controls remain flat.
 
-This file records the Central Kitchen world (`src/components/kitchen/ui.tsx` and `src/app/central-kitchen/**`), which is the committed system for new surfaces in Grovit. The older POS and finance screens (`src/app/(app)/*`, `src/components/ui`, `pos`, `finance`) predate this world, carry their own panel radii, gradients and shadow classes, and are outside this system.
+This file records the Central Kitchen world (`src/components/kitchen/ui.tsx` and `src/app/central-kitchen/**`), which is the committed system for new surfaces in Grovit. The older POS and finance screens (`src/app/(app)/*`, `src/components/ui`, `pos`, `finance`) predate this world, carry their own panel radii, gradients and shadow classes, and are outside this system except for the shared POS sidebar treatment explicitly adopted for the Kitchen rail in task 172 (2026-10-09). This is a scoped extension of The Kitchen Ledger, not a replacement visual world.
 
 **Key Characteristics:**
 - One action colour (Le Laban blue) for every filled and outlined control; semantic colour lives on figures and icon wells only
-- Pale blue canvas, white cards, hairline borders; flat, no shadows, no gradients
+- Kitchen Blue frame canvas, white cards, hairline borders; flat working surfaces, no shadows, POS gradients confined to the rail
 - System sans, weights 600 to 800, tabular numerals, 28 px titles, 22 px figures, 15 px rows, 12 px floor
 - 16 to 18 px corners on cards and controls, 999 px chips for every choice
 - Phone-first single column (max 480 px on the web, 720 px on a tablet), with five phone controls and six direct sections in the left rail
@@ -235,12 +257,16 @@ A single brand blue on a blue-tinted page, with three directional money colours 
 - **Blue Wash** (`blue-wash`): the active tab's 44x30 pill behind the icon, and the soft well behind a blue-toned icon (the "Send" tile, a sent entry's row icon).
 
 ### Neutral
-- **Canvas Tint** (`canvas-tint`): the app background on every screen and the tablet scene, the web gutter, the add-chip's fill, the flat input's well inside a card, the segmented control's track and the stepper's side buttons.
-- **Card White** (`card-white`): every card, tile, chip at rest, input, the bottom tab bar, the rail, the pinned footer, the sheet.
-- **Hairline** (`hairline`): the 1 px edge of every card and tile, the row separator, the dividers between stat cells, the top edge of the tab bar and footer, the right edge of the rail, the skeleton block.
+- **Kitchen Canvas** (`kitchen-canvas`, `colors.kitchenCanvas`, NativeWind `kitchen-canvas`): the Central Kitchen route/scene roots, `KScreen`, Items and PartyList workspace backgrounds. This separate task 172 token leaves `surfaceTint` intact for other modules and controls.
+- **POS Sidebar Blues** (`sidebar-top`, `sidebar-middle`, `sidebar-bottom`): ordered stops of `gradients.posSidebar`, shared by the existing POS sidebar and Kitchen desktop/tablet rail.
+- **POS Sidebar Selection** (`sidebar-selected-top`, `sidebar-selected-bottom`): ordered translucent stops of `gradients.posSidebarSelected` behind the selected rail control.
+- **Sidebar Muted / Hover / Divider** (`sidebar-muted`, `sidebar-hover`, `sidebar-divider`): inactive labels, translucent hover fill and quiet identity separators on the rail. On Blue supplies selected text and the focus border; three existing white outlined circles retain 0.08 opacity.
+- **Canvas Tint** (`canvas-tint`): the retained original `colors.surfaceTint` used by other modules and controls: the add-chip's fill, the flat input's well inside a card, the segmented control's track and the stepper's side buttons.
+- **Card White** (`card-white`): every card, tile, chip at rest, input, the phone bottom tab bar and More list, the pinned footer, the sheet.
+- **Hairline** (`hairline`): the 1 px edge of every card and tile, the row separator, the dividers between stat cells, the top edge of the tab bar and footer, the skeleton block.
 - **Stroke** (`stroke`): the darker 1 px edge on things you type into or choose from: text fields, the search box, unselected chips, ghost buttons, the stepper, the segmented control, the unticked tick, the web phone frame's sides.
 - **Ink** (`ink`): titles, row titles, neutral figures, the toast's background, the tick and stepper glyphs.
-- **Ink Muted** (`ink-muted`): subtitles, captions, section labels, field labels, stat labels, placeholders, the rail's and bar's inactive tabs, the unselected segment, time stamps, voided rows (with strike-through).
+- **Ink Muted** (`ink-muted`): subtitles, captions, section labels, field labels, stat labels, placeholders, the phone bar's inactive tabs, the unselected segment, time stamps, voided rows (with strike-through).
 - **On Blue** (`on-blue`): text and icons on a filled blue control and on the toast.
 - **Scrim** (`scrim`): the backdrop behind a sheet.
 
@@ -251,6 +277,8 @@ A single brand blue on a blue-tinted page, with three directional money colours 
 - **Stock Neutral** (`stock-neutral-soft`): the icon well of a stock-only entry (made, count) and a voided entry. Neutral figures use Ink, not the grey.
 
 ### Named Rules
+**The POS Rail Exception Rule.** Only the desktop/tablet Kitchen navigation rail and its selected row may use the exact shared POS gradients and stationary ring detail. Kitchen working cards, controls and phone navigation keep their flat fills. The neutral/warm candidate colours and mock solid-navy rail are selection history, not design authority.
+
 **The One Blue Rule.** Every control that does something, filled or outlined, is Le Laban blue or Ink on white. Green, red and amber are reserved for figures, entry-row amounts and the 36 px icon wells; a semantic colour on a button is a defect, with the single exception of the red "Void" label on its outlined confirm button.
 
 **The Direction Rule.** A rupee amount is green when money came to the kitchen, red when it left, Ink when it is neither (a send's value, a buy's value, a stock figure). Amber marks a buy's icon only. The colour says which way the money went, never how the manager should feel about it.
@@ -282,17 +310,17 @@ A single brand blue on a blue-tinted page, with three directional money colours 
 
 ## Layout
 
-A single column of stacked cards. The screen gutter is 16 px on every size; on a tablet (viewport 768 px and up) the column is centred at a maximum of 720 px, and the home screen splits into two equal columns (summary left, the four action tiles right) with a 16 px gap. On the owner's web build the phone layout is centred in a 480 px column with Stroke-coloured side edges and the surplus width left as Canvas Tint; a handset browser never sees the frame.
+A single column of stacked cards. The screen gutter is 16 px on every size; on a tablet (viewport 768 px and up) the column is centred at a maximum of 720 px, and the home screen splits into two equal columns (summary left, the four action tiles right) with a 16 px gap. On the owner's web build the phone layout is centred in a 480 px column with Stroke-coloured side edges and the surplus width left as the retained Canvas Tint; a handset browser never sees the frame.
 
 Vertical rhythm: 18 px above a section heading, 8 px between the heading and its card; 16 px above each form field, 6 px between a field's label and its control; 12 px between card groups; 10 px between the tiles of a 2x2 and between the rows of the grid; 8 px between chips, 6 px inside a chip between label and hint. Cards pad 14 px; tiles pad 12 px (stat) or 14 px (action); rows are 58 px minimum with 12 px vertical padding and a 12 px gap between icon, text and amount. The header clears the safe-area top plus 8 px (12 px extra on the web) and is 44 px tall.
 
 Every touch target is at least 44 pt on iOS and the web and 48 dp on Android (`TARGET` in `ui.tsx`). The primary button is 52 px, the text field 48 px (64 px for the big amount input), the search box 46 px, chips and segments and the small ghost button exactly the target height. Pinned footers (a total beside the save button) sit in a white strip with a hairline top above the tab bar.
 
-Navigation: phones show Home, Analytics, Items, History and More in a bottom bar with 52 px minimum-height controls and safe-area bottom padding. More reveals Branches and Vendors in a white, hairline-edged list above the bar. Tablets show Home, Analytics, Items, Branches, Vendors and History directly in an 88 px white rail with a hairline right edge and 72 px-wide buttons. Desktop web uses the compact 176 px rail described below. Sheets are full-width from the bottom edge on a phone (24 px top corners, 88% max height) and a centred 520 px dialog with all four corners rounded on a tablet.
+Navigation: phones show Home, Analytics, Items, History and More in a bottom bar with 52 px minimum-height controls and safe-area bottom padding. More reveals Branches and Vendors in a white, hairline-edged list above the bar. Tablets show Home, Analytics, Items, Branches, Vendors and History directly in an 88 px POS-gradient rail with 72 px-wide buttons. Desktop web uses the compact 176 px rail described below. Sheets are full-width from the bottom edge on a phone (24 px top corners, 88% max height) and a centred 520 px dialog with all four corners rounded on a tablet.
 
 ## Elevation & Depth
 
-Flat. There are no shadows anywhere in the kitchen world: not under cards, not under the tab bar, not under the sheet, and there is no floating action. Depth is two tones (white on Canvas Tint) and one hairline, with the modal scrim (Le Laban Deep at 45%) the only darkening. Inside a card there is never a second box: stat cells are bare cells separated by hairline dividers, an input inside a card is a flat Canvas Tint well with no border, and a slip inside a sheet is hairlines between rows. Pressed controls dim to 0.65 opacity (0.8 for the filled button, 0.6 for tabs); disabled controls sit at 0.45; a loading skeleton is a Hairline-coloured block at 0.7.
+Flat. There are no shadows anywhere in the kitchen world: not under cards, not under the tab bar, not under the sheet, and there is no floating action. Working-surface depth is two tones (white on Kitchen Canvas) and one hairline, with the modal scrim (Le Laban Deep at 45%) the only darkening. Inside a card there is never a second box: stat cells are bare cells separated by hairline dividers, an input inside a card is a flat Canvas Tint well with no border, and a slip inside a sheet is hairlines between rows. Pressed controls dim to 0.65 opacity (0.8 for the filled button, 0.6 for tabs); disabled controls sit at 0.45; a loading skeleton is a Hairline-coloured block at 0.7.
 
 The Tailwind config still carries `shadow-panel`, `shadow-card`, `shadow-glow` and a 28 px `rounded-panel` for the older POS screens; the kitchen world uses none of them.
 
@@ -325,7 +353,7 @@ Every choice (branch, vendor, payment mode, item category, history filter) is a 
 
 ### Cards / Containers
 - **Corner Style:** 18 px (`Card`), 16 px on a pressable stat tile.
-- **Background:** Card White on the Canvas Tint page.
+- **Background:** Card White on the Kitchen Canvas page.
 - **Shadow Strategy:** none (see Elevation).
 - **Border:** 1 px Hairline.
 - **Internal Padding:** 14 px; `padded={false}` with 14 px horizontal padding when the card holds rows, so the row separators run edge to edge inside it.
@@ -344,7 +372,8 @@ Every choice (branch, vendor, payment mode, item category, history filter) is a 
 ### Navigation
 - **Bottom bar (phone):** white, 1 px Hairline top, 6 px padding; Home, Analytics, Items, History and More share five equal controls with a 52 px minimum height. Each has a 21 px icon in a 44x30 pill (Blue Wash when active) above a 12 px label (Le Laban blue at 800 for the active direct tab, Ink Muted at 600 otherwise). More's pill is Blue Wash while expanded or while Branches/Vendors is active; its label remains Ink Muted at 600. Pressed dims to 0.6.
 - **More (phone):** Branches and Vendors appear in a white list above the bar, with a Hairline top, 12 px padding, 48 px minimum-height rows and a 48x48 Close control. Selecting a section, Close, Escape on web or Android Back dismisses it. Both sections retain their existing tab routes.
-- **Rail (tablet, 768 px+):** Home, Analytics, Items, Branches, Vendors and History stack in an 88 px white column with a Hairline right edge, 72 px wide each, 6 px apart, starting 12 px below the safe area. At desktop web widths the six sections use the compact 176 px rail, 18 px icons beside 13 px labels, 48 px minimum-height controls and a Blue Wash fill across the active control.
+- **Rail (tablet, 768 px+):** Home, Analytics, Items, Branches, Vendors and History stack in an 88 px POS-gradient column, 72 px wide each with 52 px minimum heights, 6 px apart, starting 12 px below the safe area. Desktop web (1024 px+) uses the compact 176 px rail, 18 px icons beside 13 px labels and 48 px minimum-height controls. Le Laban heads both rails; Central Kitchen is a quiet desktop footer. A bounded `FlatList` scrolls the six sections in short windows so Vendors and History remain reachable. Selected controls have the exact translucent POS selection gradient and white text/icons; inactive controls use Sidebar Muted, translucent Sidebar Hover and a white keyboard-focus border. The phone bar and More list retain their white treatment.
+- **Shared sidebar surface:** `SidebarSurface` and `SidebarSelection` in `src/components/ui/SidebarSurface.tsx` consume `gradients.posSidebar` and `gradients.posSidebarSelected`. Both POS and Kitchen reuse the exact backdrop, selected fill and three clipped white ring outlines at 0.08 opacity. No sidebar motion or additional illustration is introduced. Frontmatter stores stop colours; gradient ordering and component examples live in the sidecar.
 - **Header:** no native header; `KHeader` draws the title (Display on a tab root, Headline with a 26 px back chevron in a 44 px circle on a pushed screen), a 13 px/600 muted subtitle, and an optional right slot.
 
 ### Sheet and Toast (signature)
@@ -356,7 +385,7 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 - **Do** make every filled or outlined action Le Laban blue (or Ink on white for a neutral ghost); reserve green, red and amber for figures and icon wells (The One Blue Rule).
 - **Do** colour a rupee amount by direction: green in, red out, Ink otherwise; zero is Ink (The Direction Rule, The Zero Is Neutral Rule).
 - **Do** set every amount, quantity and stock figure in tabular numerals at 800.
-- **Do** use white cards with a 1 px Hairline edge at 18 px radius on the Canvas Tint page, and hairline Dividers or Canvas Tint wells for structure inside them.
+- **Do** use white cards with a 1 px Hairline edge at 18 px radius on the Kitchen Canvas page, and hairline Dividers or retained Canvas Tint wells for structure inside them.
 - **Do** offer every choice as 44 px pills, selected = blue fill, and add a search box once a list passes six.
 - **Do** keep one filled `PrimaryButton` per screen, pinned in the footer when the screen has a total.
 - **Do** keep every target at least 44 pt (48 dp on Android) and no text below 12 px.
@@ -364,11 +393,11 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 - **Do** put a screen's one large number (40 px) on a detail page only, with the 22 px figure for everything in a grid.
 
 ### Don't:
-- **Don't** cast a shadow, draw a gradient, or add a floating action; the kitchen world is flat (The No-Shadow Rule).
+- **Don't** cast a shadow or add a floating action. Confine gradients to the approved shared POS rail and its selected row (The No-Shadow Rule, The POS Rail Exception Rule).
 - **Don't** nest a bordered card inside a card or a bordered input inside a card (The No Box-In-Box Rule); use the flat input and Dividers.
 - **Don't** colour a button green, red or amber; the single exception is the red "Void" label on its outlined confirm.
 - **Don't** colour an amount amber: amber marks a buy's icon only.
-- **Don't** reach for `shadow-panel`, `shadow-card`, `shadow-glow` or `rounded-panel` from the Tailwind config, or any of the `gradients` in `brand.ts`; those belong to the older POS screens.
+- **Don't** reach for `shadow-panel`, `shadow-card`, `shadow-glow` or `rounded-panel` from the Tailwind config, or unrelated `gradients` in `brand.ts`; only `posSidebar` and `posSidebarSelected` are approved for the Kitchen rail.
 - **Don't** write a hex value in a kitchen component; every colour is `colors.*` or `semantic.*` from `src/lib/pos/brand.ts` (or its NativeWind mirror).
 - **Don't** combine `className` with a Pressable's function style: NativeWind drops the function. Class-styled controls use `active:opacity-*`; legacy controls with function styles keep their plain style objects.
 - **Don't** add a second type family, a weight below 600, or letter-spaced capitals outside the Label role.
