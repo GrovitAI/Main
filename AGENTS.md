@@ -79,6 +79,17 @@ Never hardcode UUIDs outside tenant-context.ts.
 - Never commit .env file
 - Commit message format: "task N: description"
 
+## Testing and Supabase usage budget
+- Read docs/TESTING_USAGE_BUDGET.md before live database/browser verification.
+- Run relevant local type/lint/unit checks first. Use mocked services or static sample previews for repeated UI iteration; do not connect them to production.
+- Reuse one staging app session. Check the changed flows in one desktop/phone batch, fix material issues, then confirm only affected states. Repeat checks only for a new change, failure or unresolved concern.
+- Keep existing Playwright one-worker/no-retry settings. Do not run the full live E2E suite for an unrelated visual change. Required correctness, tenant/branch and migration checks must still run.
+- Supabase log investigations default to one project, a specific service and an explicit 5–30 minute incident window. Widen only when necessary; never poll logs or repeat an identical scan without new evidence. Use the Usage dashboard for quota checks, not log queries.
+- Check and record a fresh All projects meter before a day's live testing when the previous reading is over 24 hours old; reuse that day's baseline. Dashboard readings can lag, so do not claim exact per-test byte savings or a guaranteed monthly total.
+- At the documented warning threshold, move discretionary UI exploration to local/sample checks and minimize cloud verification. Preserve essential release/security/data correctness checks and report budget risk promptly.
+- Close agent-created live test tabs after verification; preserve tabs the user is actively testing. Do not leave Orders/KOT test sessions polling unattended. Stop only task-owned servers no longer needed; do not stop the user's active staging server without a request.
+- Preserve live refresh speed, stock workers and useful diagnostics. Never suppress failures, alter security logging, pause projects or skip necessary verification just to improve a usage meter.
+
 ## What to do if uncertain
 - Read PROJECT_CONTEXT.md again
 - Check existing service files for patterns
