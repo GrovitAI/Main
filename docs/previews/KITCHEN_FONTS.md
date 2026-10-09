@@ -68,4 +68,7 @@ They are preview assets; they are not registered or imported into the app bundle
 - [IBM Plex Sans](https://www.ibm.com/design/language/typography/typeface/)
 - [Source Sans 3](https://github.com/adobe-fonts/source-sans)
 
-No font family has been selected or approved for application-wide use yet.
+The user selected Source Sans 3 on 2026-10-09. Task 170 applies it to staging
+interface text and text inputs; see [TYPOGRAPHY.md](../TYPOGRAPHY.md). The
+captured original-font baseline remains a historical comparison from before
+that change. Production is unchanged.

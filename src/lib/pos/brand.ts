@@ -49,6 +49,17 @@ export const brand = {
   tagline: 'Restaurant POS',
 } as const;
 
+/** Source Sans 3 was selected from the frontend font comparison (task 170). */
+export const typography = {
+  family: 'SourceSans3',
+  faces: {
+    regular: 'SourceSans3-Regular',
+    medium: 'SourceSans3-Medium',
+    semibold: 'SourceSans3-SemiBold',
+    bold: 'SourceSans3-Bold',
+  },
+} as const;
+
 /**
  * Semantic status colours — money in / money out / attention.
  * Kept here so finance and reporting screens never hardcode hex values.

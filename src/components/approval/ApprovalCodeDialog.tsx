@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from 'react-native';
+import { Modal, View, Pressable, ActivityIndicator } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { ShieldCheck, RefreshCw, X } from 'lucide-react-native';
 import { getErrorMessage } from '../../lib/pos/error-utils';

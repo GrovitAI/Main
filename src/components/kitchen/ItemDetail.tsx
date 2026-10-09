@@ -1,6 +1,7 @@
 import { semantic } from '@/lib/pos/brand';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2 } from 'lucide-react-native';

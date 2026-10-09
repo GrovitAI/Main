@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Pressable } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Menu } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';

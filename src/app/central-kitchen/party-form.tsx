@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Text } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { saveKitchenParty } from '@/lib/pos/kitchen-service';

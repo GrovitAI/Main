@@ -13,7 +13,7 @@ Compact ledger extension (2026-10-09, task 168): The user selected mobile option
 
 THESIS: One working report at a time, separating goods supplied, purchases and cash, with filters, entry detail and reconciled export.
 
-OWN-WORLD: Inherit DESIGN.md and the existing kitchen controls: one Le Laban action blue, pale canvas, flat white surfaces, system type, tabular money and restrained separators. The user's 2026-10-08 refinement promotes Analytics into kitchen navigation; preserve the main app navigation.
+OWN-WORLD: Inherit DESIGN.md and the existing kitchen controls: one Le Laban action blue, pale canvas, flat white surfaces, Source Sans 3 type (selected in task 170), tabular money and restrained separators. The user's 2026-10-08 refinement promotes Analytics into kitchen navigation; preserve the main app navigation.
 
 STORY: Open Analytics directly from the kitchen rail or phone tab, choose Sales, Purchases or Cash first, then set the month or inclusive date range and disclose branch/item or spending/category/vendor filters. Read the period-wide KPI cards, inspect the filtered report and recorded entries, then export the same selection. Changing report retains the selected dates.
 

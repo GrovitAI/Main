@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';

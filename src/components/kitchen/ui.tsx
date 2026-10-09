@@ -8,21 +8,8 @@
  * NativeWind drops that function. Class-styled controls use active variants.
  */
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  type PressableStateCallbackType,
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Search, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';

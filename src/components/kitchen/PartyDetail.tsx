@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2, MessageCircle } from 'lucide-react-native';

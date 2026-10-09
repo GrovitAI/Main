@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  Modal,
-  ScrollView,
-  TextInput,
-} from 'react-native';
+import { View, Pressable, Modal, ScrollView } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Clock } from 'lucide-react-native';
 
 export interface DatePickerModalProps {

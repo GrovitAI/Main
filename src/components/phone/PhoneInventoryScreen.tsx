@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, FlatList, TextInput, ScrollView } from 'react-native';
+import { View, Pressable, FlatList, ScrollView } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { 
   PackageSearch, 
   AlertTriangle, 

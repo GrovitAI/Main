@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { FlatList, Modal, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, FileText, Search, X } from 'lucide-react-native';
 

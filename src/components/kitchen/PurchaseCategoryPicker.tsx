@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import type { KitchenCategory } from '@/lib/pos/kitchen-types';
 import { colors } from '@/lib/pos/brand';
 import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';

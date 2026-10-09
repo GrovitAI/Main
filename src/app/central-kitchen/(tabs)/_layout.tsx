@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { BackHandler, FlatList, Platform, Pressable, Text, View } from 'react-native';
+import { BackHandler, FlatList, Platform, Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Boxes, Store, Truck, History, BarChart3, Ellipsis, X, type LucideIcon } from 'lucide-react-native';

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Modal, View, Text, Pressable, TextInput, FlatList, useWindowDimensions, Platform } from 'react-native';
+import { Modal, View, Pressable, FlatList, useWindowDimensions, Platform } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { Search, X, Check } from 'lucide-react-native';
 import { webTextStyle } from '@/lib/pos/web-style';
 

@@ -1,6 +1,7 @@
 import { Redirect, Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, View, Text, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView , ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { Platform, View, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UIContext } from '@/lib/pos/ui-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';

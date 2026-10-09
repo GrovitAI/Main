@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, View, Platform } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, View, Platform } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 

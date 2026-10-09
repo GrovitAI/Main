@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { Pencil } from 'lucide-react-native';
 import { voidKitchenEntry } from '@/lib/pos/kitchen-service';

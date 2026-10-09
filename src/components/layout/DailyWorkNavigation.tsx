@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FlatList, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router, type Href } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

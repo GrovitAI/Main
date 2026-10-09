@@ -4,7 +4,8 @@
  * mode, the date, and the open slips a payment can be set against.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenStore } from '@/lib/pos/use-kitchen-store';

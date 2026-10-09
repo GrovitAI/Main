@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { Check, ChevronDown, X } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';

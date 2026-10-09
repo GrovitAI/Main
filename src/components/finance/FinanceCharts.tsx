@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 
 import { colors, semantic } from '@/lib/pos/brand';

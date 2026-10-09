@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { ArrowDownLeft, ArrowUpRight, Banknote, RotateCcw, Scale } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';

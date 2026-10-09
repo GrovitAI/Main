@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Animated,
-  Easing,
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import type {
   ImageSourcePropType,
   ImageStyle,

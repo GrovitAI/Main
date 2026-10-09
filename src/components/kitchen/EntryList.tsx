@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, type LucideIcon } from 'lucide-react-native';
 import type { KitchenEntry, KitchenEntryType, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';

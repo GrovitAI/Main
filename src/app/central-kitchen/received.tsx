@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';

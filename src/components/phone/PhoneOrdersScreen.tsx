@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, FlatList, Modal, TextInput, ScrollView, SafeAreaView } from 'react-native';
+import { View, Pressable, FlatList, Modal, ScrollView, SafeAreaView } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { colors } from '@/lib/pos/brand';
 import { 

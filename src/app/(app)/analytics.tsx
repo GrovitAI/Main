@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  Switch,
-  Platform,
-} from 'react-native';
+import { View, Pressable, FlatList, ActivityIndicator, Switch, Platform } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';

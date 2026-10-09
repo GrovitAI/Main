@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import type { GestureResponderEvent, PressableStateCallbackType, StyleProp, ViewStyle } from 'react-native';
 import { Eye } from 'lucide-react-native';
 

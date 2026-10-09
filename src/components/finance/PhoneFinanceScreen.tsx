@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar, Plus, SlidersHorizontal, X } from 'lucide-react-native';
 

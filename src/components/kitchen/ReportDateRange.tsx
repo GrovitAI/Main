@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FlatList, Modal, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Modal, Platform, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, semantic } from '@/lib/pos/brand';

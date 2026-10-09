@@ -1,16 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Modal,
-} from 'react-native';
+import { View, Pressable, FlatList, ActivityIndicator, Alert, Platform, ScrollView, Modal } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Plus,
   Trash2,

@@ -1,4 +1,5 @@
-import { FlatList, Image, Pressable, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich, Sparkles, Layers, IceCream } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 

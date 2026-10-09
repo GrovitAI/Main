@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Share, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Share, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2, Package, ShoppingBasket, Receipt, MoreHorizontal, X } from 'lucide-react-native';

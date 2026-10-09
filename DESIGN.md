@@ -23,45 +23,45 @@ colors:
   stock-neutral-soft: "#f1f5f9"
 typography:
   display:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "28px"
     fontWeight: 800
     lineHeight: "32px"
     letterSpacing: "-0.4px"
   headline:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "20px"
     fontWeight: 800
     lineHeight: "24px"
     letterSpacing: "-0.4px"
   figure:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "22px"
     fontWeight: 800
     letterSpacing: "-0.3px"
     fontFeature: "tnum"
   figure-balance:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "40px"
     fontWeight: 800
     lineHeight: "46px"
     letterSpacing: "-0.8px"
     fontFeature: "tnum"
   title:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "17px"
     fontWeight: 800
   body:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "15px"
     fontWeight: 700
   caption:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "13px"
     fontWeight: 600
     lineHeight: "18px"
   label:
-    fontFamily: "system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "SourceSans3"
     fontSize: "12px"
     fontWeight: 800
     letterSpacing: "0.8px"

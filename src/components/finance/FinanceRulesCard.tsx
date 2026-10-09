@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { CheckCircle2, Landmark } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';

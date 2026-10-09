@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Platform, Share, Text, View } from 'react-native';
+import { Linking, Platform, Share, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { MessageCircle } from 'lucide-react-native';

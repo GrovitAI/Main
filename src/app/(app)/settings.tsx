@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { View, Pressable, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark, ChefHat } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { colors, brand } from '@/lib/pos/brand';

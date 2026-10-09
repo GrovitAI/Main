@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import {
   Coffee,
   Droplets,

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus, ArrowLeft } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';

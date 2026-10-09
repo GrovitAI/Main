@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { router, useFocusEffect } from 'expo-router';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenPurchaseCategories, saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';

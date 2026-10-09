@@ -30,15 +30,15 @@
     <h1>Compare fonts in Kitchen Analytics</h1>
     <p class="intro">Actual frontend captured with Playwright using sample data. Choose a font and screen size; the report layout, text sizes and weights stay the same.</p>
     <div class="fonts" role="group" aria-label="Font family">
-      <button data-font="inter" aria-pressed="true"><span>Inter</span><small>Recommended · clean and neutral</small></button>
+      <button data-font="inter" aria-pressed="true"><span>Inter</span><small>Alternative · clean and neutral</small></button>
       <button data-font="plex" aria-pressed="false"><span>IBM Plex Sans</span><small>Formal, with more character</small></button>
-      <button data-font="source" aria-pressed="false"><span>Source Sans 3</span><small>Softer, restrained and readable</small></button>
-      <button data-font="current" aria-pressed="false"><span>Current font</span><small>Existing browser typography</small></button>
+      <button data-font="source" aria-pressed="false"><span>Source Sans 3</span><small>Selected for the app</small></button>
+      <button data-font="current" aria-pressed="false"><span>Original font</span><small>Before the font change</small></button>
     </div>
     <div class="settings">
       <div class="group" role="group" aria-label="Screen size"><button data-device="phone" aria-pressed="true">Phone</button><button data-device="desktop" aria-pressed="false">Desktop</button></div>
       <div class="group" role="group" aria-label="Report"><button data-report="sales" aria-pressed="true">Sales</button><button data-report="purchases" aria-pressed="false">Purchases</button><button data-report="cash" aria-pressed="false">Cash</button></div>
-      <button id="compare" class="utility" aria-pressed="false">Compare with current</button>
+      <button id="compare" class="utility" aria-pressed="false">Compare with original</button>
       <button id="actual" aria-pressed="false">Actual size</button>
     </div>
     <div class="summary"><strong id="selection" aria-live="polite">Inter · Phone · Sales</strong><p id="size-label">390 × 668 browser viewport</p></div>
@@ -49,7 +49,7 @@
     <section class="stage" aria-label="Frontend font preview">
       <div class="captures phone" id="captures">
         <figure><figcaption><strong id="chosen-name">Inter</strong><a id="full-image" href="assets/font-comparison/inter-phone-sales.png" target="_blank" rel="noopener">Open capture</a></figcaption><img class="capture" id="chosen-image" src="assets/font-comparison/inter-phone-sales.png" width="390" height="668" alt="Kitchen Analytics Sales on a phone using Inter, with illustrative sample figures"><p class="image-error" id="chosen-error" role="alert">This capture could not load. Reload this local preview.</p></figure>
-        <figure id="baseline" hidden><figcaption><strong>Current font</strong><a id="baseline-full" href="assets/font-comparison/current-phone-sales.png" target="_blank" rel="noopener">Open capture</a></figcaption><img class="capture" id="baseline-image" src="assets/font-comparison/current-phone-sales.png" width="390" height="668" alt="The same sample report with the current browser font"></figure>
+        <figure id="baseline" hidden><figcaption><strong>Original font</strong><a id="baseline-full" href="assets/font-comparison/current-phone-sales.png" target="_blank" rel="noopener">Open capture</a></figcaption><img class="capture" id="baseline-image" src="assets/font-comparison/current-phone-sales.png" width="390" height="668" alt="The same sample report with the current browser font"></figure>
       </div>
     </section>
     <section class="specimen" aria-labelledby="specimen-title">
@@ -65,9 +65,9 @@
   </main>
   <footer class="footer">Preview only. No app-wide font change, database connection or deployment. Phone views are browser captures; native iPhone and Android rendering still needs checking after a font is selected.<br>Font sources: <a href="https://rsms.me/inter/">Inter</a> · <a href="https://www.ibm.com/design/language/typography/typeface/">IBM Plex Sans</a> · <a href="https://github.com/adobe-fonts/source-sans">Source Sans 3</a>. Local font files include their SIL Open Font Licenses.</footer>
   <script>
-    const fonts={inter:{name:'Inter',family:'Inter'},plex:{name:'IBM Plex Sans',family:'IBMPlexSans'},source:{name:'Source Sans 3',family:'SourceSans3'},current:{name:'Current font',family:'var(--system)'}};
+    const fonts={inter:{name:'Inter',family:'Inter'},plex:{name:'IBM Plex Sans',family:'IBMPlexSans'},source:{name:'Source Sans 3',family:'SourceSans3'},current:{name:'Original font',family:'var(--system)'}};
     const query=new URLSearchParams(location.search);
-    let font=Object.hasOwn(fonts,query.get('font'))?query.get('font'):'inter';
+    let font=Object.hasOwn(fonts,query.get('font'))?query.get('font'):'source';
     let device=query.get('device')==='desktop'?'desktop':'phone';
     let report=['sales','purchases','cash'].includes(query.get('report'))?query.get('report'):'sales';
     let compare=query.get('compare')==='1',actual=query.get('actual')==='1';

@@ -1,15 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Modal,
-} from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet, Modal } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Building2,
   Plus,
