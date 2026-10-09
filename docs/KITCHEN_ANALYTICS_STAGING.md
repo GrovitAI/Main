@@ -309,6 +309,73 @@ No service/query, database, polling or production change was made. Native
 hardware appearance, gestures, soft keyboards and OS font scaling remain
 unverified; the route-load tests are compatibility evidence only.
 
+## Task 168 — Compact ledger on phones
+
+The user selected **Compact ledger (mobile option A)** from task 167 on
+9 October 2026. Staging source now keeps Sales/Purchases/Cash → date/filter
+pane → all three period-wide KPI cards → combined report heading/total/count
+→ compact rows. Phone cards omit icons and repeated label height, using 12px
+page gutters. Sales pairs item/branch with exact value/unit; Purchases retains
+entry count and percentage of selection without the desktop progress bar.
+Cash keeps date/source/mode, directional amounts and explicit Received/Paid.
+Rows have a 62px minimum and grow for wrapped content. Exact long values move
+to a full-width figure row; the existing conservative KPI fallback also stacks
+cards when needed. The implementation uses 16px KPI figures, retaining the
+application's type scale rather than the sample preview's 15px figures.
+
+One accessible Report actions control opens a labelled menu for Export CSV on
+web or Share report on native, Refresh reports and About these reports. Its
+48px actions retain loading/disabled guards, and close, outside press, Escape
+and platform request-close dismissal. Opening/closing the menu or reading
+About fetches nothing; About retains kitchen context, through-date/India-time
+context and the financial caveats. All Branch/Item/Spending/Category/Vendor
+filters, category management, draft calendar Apply/Cancel/This month,
+drilldown/return, paging, loading/error/empty states and exports remain.
+Desktop retains its toolbar/direct actions, KPI icons, columns, filtered-total
+line, 52px minimum rows and Report first composition. This phone contract
+supersedes the phone icon cards, labelled quantity/value rows and direct
+heading actions described in the historical task 158–164 records above.
+
+Playwright used the actual Expo web component with synthetic local
+authentication and locally fulfilled Supabase responses. At default text size
+and scroll position zero, complete typical Sales rows measured:
+
+| Browser viewport | Complete rows | First row height |
+| --- | ---: | ---: |
+| 390 × 668 | 5 | 62px |
+| 320 × 700 | 4 | 62px |
+| 390 × 844 | 7 | 62px |
+
+The 320px view retains stacked KPI cards; row counts depend on records, text
+size, safe areas and open controls. Desktop checks at 1440 × 900 and
+1024 × 768 confirmed the retained composition. No checked viewport overflowed
+horizontally; report and actions controls retain 48px minimum source heights.
+Checks cover Branch filtering, Purchases with expanded filters, Cash,
+drilldown and return, date drafts without a request and Apply changing the
+range, mocked-range CSV download, actions/Escape dismissal, keyboard actions,
+exact large figures and empty/error recovery. Fourteen final ignored captures
+are `.impeccable/review/compact-ledger-*.png`; measurements and checks are in
+`compact-ledger-results.json`, with a mocked `compact-ledger-sample.csv`.
+The historical comparison is `report-first-user-phone.png`.
+
+Typecheck, targeted lint and 27 existing report/native route-load checks
+passed. The layout detector ran once and returned no findings. The independent
+finish reviewer returned **ship** with no material fixes, covering all fourteen
+captures, browser composition and source. All 21 intercepted Supabase requests
+were fulfilled locally; zero cloud requests were forwarded, and no live
+database verification or log scan was performed for this task. The task-owned
+offline UI test server was stopped after verification. Mock financial
+figures and CSV prove fixture behavior, not live database contents.
+
+The documenter checked the implemented source, selected A preview, measurements
+and phone captures against Home/shared kitchen controls, `brand.ts`,
+`DESIGN.md`, its sidecar and `PRODUCT.md`. Only the local surface contract,
+preview selection record and this staging record were updated. The existing
+design system, shared tokens and pre-existing drift were preserved. No service,
+query, schema, polling or production change was made. Native appearance,
+gestures, soft keyboards, OS font scaling and hardware remain unverified;
+route-load tests provide compatibility evidence only.
+
 ## Release boundary
 
 Client testing in staging comes next. Production promotion is a separate
