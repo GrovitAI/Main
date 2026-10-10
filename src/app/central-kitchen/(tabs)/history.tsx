@@ -64,22 +64,24 @@ export default function HistoryScreen() {
       <View className={'min-w-0 ' + (desktop ? 'w-[220px]' : 'flex-1')}><ReportSelect toolbar allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} triggerText={filters.sort.startsWith('transaction') ? desktop ? 'Transaction date' : 'Transaction' : 'Entry date'} triggerIcon={filters.sort.endsWith('newest') ? ArrowDownWideNarrow : ArrowUpWideNarrow} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} /></View>
       </View>
     </View>
-    {showFilters ? <View testID="kitchen-history-filters" className="gap-2 rounded-xl border border-border-soft bg-surface-elevated p-3">
-      <View className={desktop ? 'flex-row gap-2' : 'gap-2'}>
-      <View className="flex-row gap-2 md:flex-1">
-        <ReportSelect compact label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />
-        <ReportSelect compact label="Status" value={filters.status} options={STATUSES} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />
+    {showFilters ? <View testID="kitchen-history-filters" className={'gap-4 rounded-xl border border-border-soft bg-surface-elevated p-3 ' + (desktop ? 'flex-row' : '')}>
+      <View className={'min-w-0 gap-3 ' + (desktop ? 'flex-1' : '')}>
+        <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Entry details</Text>
+        <View className="gap-3 sm:flex-row">
+          <ReportSelect outlined label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />
+          <ReportSelect outlined label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />
+          <ReportSelect outlined label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />
+        </View>
       </View>
-      <View className="flex-row gap-2 md:flex-1">
-        <ReportSelect compact label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />
-        <ReportSelect compact allowEmpty={false} label="Date filter uses" value={filters.dateBasis} options={DATE_BASES} onChange={value => update('dateBasis', DATE_BASES.find(option => option.id === value)?.id ?? 'transaction')} />
-      </View>
-      </View>
-      <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <ReportDateRange label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} placeholder={filters.range ? undefined : 'Choose date range'} onChange={value => update('range', value)} />
+      <View className={'gap-3 border-border-soft ' + (desktop ? 'w-[400px] shrink-0 border-l pl-4' : 'border-t pt-3')}>
+        <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Dates</Text>
+        <View className="gap-3 sm:flex-row">
+        <ReportSelect outlined allowEmpty={false} label="Date filter uses" value={filters.dateBasis} options={DATE_BASES} onChange={value => update('dateBasis', DATE_BASES.find(option => option.id === value)?.id ?? 'transaction')} />
+        <View className="min-w-0 flex-1 gap-1"><Text className="text-xs font-bold text-text-secondary">Date range</Text><ReportDateRange outlined label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} placeholder={filters.range ? undefined : 'Choose date range'} onChange={value => update('range', value)} /></View>
+        </View>
         {filters.range ? <Pressable accessibilityRole="button" onPress={() => update('range', null)} className={button}><Text className="text-sm font-semibold text-primary">Clear dates</Text></Pressable> : null}
+        <Text className="text-xs leading-4 text-text-secondary">Transaction date: when it happened. Entry date: when it was recorded. India time.</Text>
       </View>
-      <Text className="text-xs leading-4 text-text-secondary">Entry date is when it was recorded. Transaction date is when it happened. Dates use India time.</Text>
     </View> : null}
     <View className="flex-row items-center justify-between gap-2">
       <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-xs leading-4 text-text-secondary">{rows.length} of {data.entries.length} loaded entries · includes edits and voids</Text>

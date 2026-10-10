@@ -2,7 +2,7 @@
 
 Task 174 · 2026-10-10 · staging source only
 
-Latest refinement: task 180 · 2026-10-10 · staging source only
+Latest refinement: task 181 · 2026-10-10 · staging source only
 
 History now shows who recorded an entry, when the transaction happened, when
 it was recorded, and whether it was corrected or voided. The extension keeps
@@ -213,3 +213,49 @@ reported without repair. No new assets, schema, migration or production
 deployment; all eight staging-only migrations remain pending for production.
 The native source did not use the HTML/CSS detector. Native hardware, text
 scaling, soft keyboards, dark appearance and gestures remain unverified.
+
+## Expanded filter groups and web hints (task 181)
+
+Expanded Filters now separates Entry details (Type, Status, Entered by) from
+Dates (date basis and range). Desktop groups sit side by side, with three
+entry fields and two date fields aligned in rows. Tablets stack the groups
+and retain field rows from 640px; phones stack full-width fields. Labels sit
+above white outlined 48px controls. Short status triggers preserve the full
+picker and accessibility wording. `ReportSelect` and `ReportDateRange` expose
+optional `outlined` presentations, defaulting false for existing callers.
+
+`global.css` sets textual web placeholders, including search and picker hints,
+to 14px at weight 400. Entered search text remains 15px on desktop and 16px on
+phones; numeric/decimal input modes and number inputs are excluded. This CSS
+does not change native placeholders. The only changed sources are History,
+the two shared report controls and the global stylesheet. Task 180's toolbar,
+Task 179's rows, date drafts, reset/details, local filter/sort meaning and the
+500-entry/92-transaction-day window remain intact. Services, queries, store
+and polling are unchanged.
+
+Final typecheck, changed-file ESLint and 44 tests in three suites passed
+(kitchen-history, analytics and native-route-smoke, including 23 native route
+imports). The mocked harness `check-kitchen-history-filter-groups.cjs` retained
+23 captures: main, filters, dates, earlier-version detail and no-match at
+1440×900, 800×700, 390×844 and 320×700, plus phone loading/empty/error recovery.
+`history-filter-groups-results.json` records 89 requests fulfilled locally,
+zero forwarded, no writes, page errors, overflow or measured sub-44px targets;
+local filters added no requests. Computed main and picker hints were 14px/400.
+Two focused reads of the existing user's 319×668 staging session are retained
+in `history-filter-groups-live-staging.png` and `history-filter-groups-live-dates.png`;
+entered text was 16px and its hint 14px. No live Refresh, write or log scan was
+performed. The existing same-day usage baseline was reused; zero forwarded
+requests describes the mocked run, not all staging session activity.
+
+The fresh independent reviewer opened all 25 required images, checked source
+and all five contract sections, and returned **Ship** with no material fixes
+or recaptures. The verdict is `.impeccable/review/history-filter-groups-finish-review.md`.
+Comparison with PRODUCT.md, DESIGN.md, `.impeccable/design.json`, brand tokens,
+Typography and shared Kitchen controls preserves Source Sans 3, POS blue,
+Kitchen Canvas and the incumbent system. Design files/tokens remain untouched;
+the existing system-sans/specimen, every-choice chips, older navigation and
+early-contract drift above is reported without repair. No shipping raster,
+schema, migration or production deployment was added; eight migrations remain
+staging-only. The HTML/CSS detector was not applied to React Native source.
+Native hardware, text scaling, soft keyboards, dark appearance and gestures
+remain unverified.

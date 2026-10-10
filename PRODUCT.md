@@ -132,6 +132,15 @@ figures to be right, and matching is offered only as a convenience.
   filtering, loaded scope, audit rows, details and design authority are
   preserved; pre-existing documentation drift remains recorded in
   docs/KITCHEN_HISTORY.md. No new tokens, assets or production deployment.
+- Kitchen History expanded filters (task 181, staging): Entry details groups
+  Type, Status and Entered by separately from Dates (basis and range). Desktop
+  groups sit side by side, tablets stack groups with field rows, and phones
+  stack full-width fields. Labels sit above white outlined 48px controls;
+  concise status triggers preserve full picker/accessibility meaning. Textual
+  web placeholders use smaller regular hints; entered values and numeric input
+  sizes are retained. Shared outlined presentations remain opt-in. Existing
+  toolbar, audit rows, local filtering/sorting and loaded scope are preserved
+  within the incumbent design. See docs/KITCHEN_HISTORY.md.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.

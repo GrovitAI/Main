@@ -11,7 +11,7 @@ const control = 'min-h-12 min-w-12 items-center justify-center rounded-xl px-3 h
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 /** Date selection is a draft: only Apply changes the report and starts a request. */
-export function ReportDateRange({ value, onChange, label = 'Report dates', placeholder }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void; label?: string; placeholder?: string }) {
+export function ReportDateRange({ value, onChange, label = 'Report dates', placeholder, outlined = false }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void; label?: string; placeholder?: string; outlined?: boolean }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const today = kitchenToday();
@@ -53,7 +53,7 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
   </View>;
   return <>
     <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + (placeholder ?? value.startDate + ' through ' + value.endDate)} accessibilityState={{ expanded: open }} onPress={() => { setDraft(value); setChoosing('startDate'); setCalendarMonth(value.startDate.slice(0, 7)); setOpen(true); }}
-      className="min-h-12 min-w-0 flex-row items-center gap-2 rounded-xl bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary">
+      className={'min-h-12 min-w-0 flex-row items-center gap-2 rounded-xl bg-surface-elevated px-3 py-2 hover:bg-accent-soft focus:border focus:border-primary ' + (outlined ? 'border border-border active:bg-accent-soft' : 'active:opacity-70')}>
       <CalendarDays size={16} color={colors.primary} />
       <Text className="min-w-0 shrink text-sm font-bold text-primary">{placeholder ?? (fullMonth ? kitchenMonthLabel(value.startDate.slice(0, 7)) : kitchenRangeLabel(value))}</Text>
     </Pressable>

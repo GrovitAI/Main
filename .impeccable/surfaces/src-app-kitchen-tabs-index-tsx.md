@@ -363,3 +363,55 @@ reported without repair. No new assets, schema, migration or production
 deployment; eight migrations remain staging-only. The HTML/CSS detector was
 not used for this native source. Native hardware, text scaling, soft keyboards,
 dark appearance and gestures remain unverified. See `docs/KITCHEN_HISTORY.md`.
+
+## Task 181 direction contract — expanded History filters and placeholders
+
+Scoped incumbent Operate refinement; no new visual world, comp or concept seed.
+THESIS: Expanded filters read as an organized form, with entry details separate
+from dates and enough width for each choice.
+OWN-WORLD: Source Sans 3, existing POS blue/Canvas and quiet outlined 48px
+controls; the approved toolbar and History rows are preserved.
+STORY: Disclose Filters, combine Type/Status/Entered by with date basis/range,
+then collapse or clear using existing controls. All filtering stays local.
+FIRST VIEWPORT: Desktop uses an Entry details group with three fields beside
+a bounded Dates group with two aligned fields. Tablet groups stack with fields
+in rows; phones stack both groups and full-width fields.
+Field labels sit above their controls instead of inside tinted tiles.
+FORM: Grouped inline panel preserves current immediate filtering and picker
+behavior. Concise status display retains full picker/accessibility wording.
+Textual web placeholders become 14px regular; entered text and numeric inputs
+retain their sizes, including the existing mobile 16px input rule.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the
+finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+Task 181 verdict: **Ship** from the fresh independent finish review, with no
+material fixes or recaptures across all five contract sections. The reviewer
+opened all 25 required images and inspected the four changed sources. Labels
+above white outlined 48px controls organize Entry details and Dates; desktop
+groups sit side by side, tablet groups stack with field rows from 640px, and
+phones stack full-width fields. Concise status triggers preserve full picker/
+accessibility wording. Shared outlined presentations default false. Textual
+web hints are 14px/400; entered search retains 15px desktop/16px phone, numeric
+input modes and number inputs are excluded, and native placeholders remain.
+
+Final typecheck, changed-file ESLint and 44 tests/three suites (23 native route
+imports) passed. Twenty-three mocked captures at 1440×900, 800×700, 390×844 and
+320×700 cover main/filters/dates/earlier-version details/no-match plus phone
+loading/empty/error recovery. The run fulfilled 89 requests locally with zero
+forwarded, no writes/errors/overflow or measured sub-44px targets, and no
+filter requests. Main and picker computed hints were 14px/400. Two read-only
+captures of the existing 319×668 staging session confirm the form, reachable
+Dates and 16px entered text/14px hint, without Refresh, writes or log scans.
+The same-day usage baseline was reused; the mocked request claim does not
+cover all live staging session activity. Evidence: `history-filter-groups-*`
+and `check-kitchen-history-filter-groups.cjs` under `.impeccable/review/`;
+see `history-filter-groups-finish-review.md` and `docs/KITCHEN_HISTORY.md`.
+
+The toolbar, audit rows, local filter/sort/reset/details, 500-entry/92-day
+scope, services, queries, store and polling remain. Source Sans 3, POS blue,
+Kitchen Canvas, DESIGN.md, sidecar and tokens retain incumbent authority;
+existing system-sans/specimen, choice-chip, navigation and early-contract
+drift is reported without repair. No new shipping raster, schema, migration
+or production deployment; eight migrations remain staging-only. The HTML/CSS
+detector was not applied to React Native source. Native hardware, text
+scaling, soft keyboards, dark appearance and gestures remain unverified.

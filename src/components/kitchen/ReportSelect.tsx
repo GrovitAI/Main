@@ -6,10 +6,10 @@ import { colors } from '@/lib/pos/brand';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
 import { SearchBox } from '@/components/kitchen/ui';
 
-export function ReportSelect({ label, value, options, onChange, emptyLabel = 'All', selectedLabel, compact = false, allowEmpty = true, toolbar = false, triggerText, triggerIcon: TriggerIcon }: {
+export function ReportSelect({ label, value, options, onChange, emptyLabel = 'All', selectedLabel, compact = false, allowEmpty = true, toolbar = false, outlined = false, triggerText, triggerIcon: TriggerIcon }: {
   label: string; value: string | null; options: readonly ReportOption[];
   onChange: (id: string | null) => void; emptyLabel?: string; selectedLabel?: string; compact?: boolean; allowEmpty?: boolean;
-  toolbar?: boolean; triggerText?: string; triggerIcon?: LucideIcon;
+  toolbar?: boolean; outlined?: boolean; triggerText?: string; triggerIcon?: LucideIcon;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -20,11 +20,11 @@ export function ReportSelect({ label, value, options, onChange, emptyLabel = 'Al
     <View className="min-w-0 flex-1 gap-1">
       {!compact && !toolbar ? <Text className="text-xs font-bold text-text-secondary">{label}</Text> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + selected} accessibilityState={{ expanded: open }} onPress={() => setOpen(true)}
-        className={'min-h-12 flex-row items-center justify-between gap-2 rounded-xl px-3 py-2 focus:border focus:border-primary ' + (toolbar ? 'border border-border bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft' : 'bg-surface-tint hover:bg-accent-soft active:opacity-70')}>
+        className={'min-h-12 flex-row items-center justify-between gap-2 rounded-xl px-3 py-2 focus:border focus:border-primary ' + (toolbar || outlined ? 'border border-border bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft' : 'bg-surface-tint hover:bg-accent-soft active:opacity-70')}>
         {toolbar && TriggerIcon ? <TriggerIcon size={16} color={colors.primary} /> : null}
         <View className="min-w-0 flex-1">
           {compact && !toolbar ? <Text className="text-xs font-bold leading-4 text-text-secondary">{label}</Text> : null}
-          <Text className="text-sm font-semibold leading-5 text-text-primary">{toolbar ? triggerText ?? selected : selected}</Text>
+          <Text className="text-sm font-semibold leading-5 text-text-primary">{triggerText ?? selected}</Text>
         </View>
         <ChevronDown size={16} color={colors.primary} />
       </Pressable>
