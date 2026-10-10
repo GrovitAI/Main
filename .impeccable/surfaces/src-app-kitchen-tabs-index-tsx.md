@@ -509,3 +509,23 @@ eight migrations remain staging-only. Ignored local QA adds no shipping asset.
 No HTML/CSS detector was used for React Native. Native hardware, text scaling,
 soft keyboards, dark appearance and gestures remain unverified; browser
 44px/6px checks do not establish Android 48dp/8dp conformance.
+
+## Task 184 preview comparison (2026-10-11)
+
+Local conversation exploration only: Balanced grid is the recommended 2×2
+Type/Status/Staff/Date basis arrangement with a full-width date range; Paired
+rows favours long staff names; Filter sheet adds Done/Close disclosure. All
+retain Source Sans 3, POS blue/Canvas and five filter meanings. Sample entries
+and October dates are fixtures; dark mock-host appearance approves no product
+theme. User selection remains pending, with task 183 still implemented.
+
+Evidence: `history-filter-design-results.json` and
+`history-filter-design-previews-finish-review.md` under `.impeccable/review/`;
+artifact path is recorded in `docs/KITCHEN_HISTORY.md`. Twelve local captures
+report zero Supabase requests/errors/blocked requests/overflow/sub-44px targets;
+the initial HTML/CSS detector is empty. **Ship** permits presenting the local
+previews after the sole cross-month/year date-label fix was scored resolved
+with no fix-induced visual regression; it does not certify the whole surface
+or approve implementation/deployment. Mock heights/row counts are not real-app
+measurements. Incumbent design authority, tokens, source and recorded drift
+remain untouched; ignored screenshots add no shipping assets.

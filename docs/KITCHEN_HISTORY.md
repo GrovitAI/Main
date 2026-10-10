@@ -349,3 +349,30 @@ migration or production change; eight migrations remain staging-only. No
 HTML/CSS detector was used for React Native. Native hardware, text scaling,
 soft keyboards, dark appearance and gestures remain unverified; browser
 44px/6px checks do not establish Android 48dp/8dp conformance.
+
+## Compact filter exploration (task 184 · 2026-10-11 · preview only)
+
+The conversation preview offers Balanced grid (recommended: Type/Status/Staff/
+Date basis in 2×2, full-width date range), Paired rows (full-width staff for
+long names) and Filter sheet (2×2 plus dates, Done/Close). Width choices are
+320/370/390px. Source Sans 3, POS blue and Kitchen Canvas retain incumbent
+authority; host-following dark rendering is illustrative only. Four entries
+labelled Sample and October 1–10 dates are static fixtures. User selection is
+pending; task 183 remains the latest implemented refinement.
+
+Artifact: `C:/Users/Might/.codex/visualizations/2026/10/05/01a10c91-a0ad-7b12-9c39-3f9dc9598875/history-filter-designs.html`.
+Ignored local QA in `.impeccable/review/history-filter-design-results.json`
+retains 12 captures and checks selectors, wrapping, date validation/application,
+same/cross-month/year labels, reset/search, carousel, narrow and dark mock
+states. It reports zero Supabase requests, errors, blocked requests, overflow
+or sub-44px controls; fonts were fulfilled locally and three static Unpkg
+requests were allowed. The initial HTML/CSS detector returned `[]`/exit 0.
+`history-filter-design-previews-finish-review.md` records **Ship for presenting
+the previews**: the sole date-label fix is resolved with no fix-induced visual
+regression. This is a fix-list verdict, not fresh whole-surface approval.
+
+Mock panel heights and sample rows establish no real-app height reduction or
+phone capacity. No staging session, application/source/query/schema/deployment
+changed; no app typecheck/full suite was needed. PRODUCT.md, DESIGN.md,
+design.json, brand tokens and documented drift remain untouched. QA screenshots
+are not shipping raster assets; native application behavior remains unverified.
