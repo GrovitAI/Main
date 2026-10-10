@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
-import { kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
+import { kitchenToday, validKitchenDate, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import { ATTENDANCE_OPTIONS } from '@/lib/pos/kitchen-attendance-types';
 import type { AttendanceStatus, KitchenAttendance, KitchenAttendanceDay, KitchenStaffMember } from '@/lib/pos/kitchen-attendance-types';
 import type { ServiceResult } from '@/lib/pos/kitchen-types';
@@ -43,6 +43,36 @@ export async function fetchKitchenAttendance(date: string): Promise<ServiceResul
     if (staff.data.length >= 1000 || day.data.length >= 1000) return { data: null, error: 'This roster needs paging before it can be shown safely. Contact the app administrator.' };
     return { data: { staff: staff.data.filter(record).map(staffRow), attendance: day.data.filter(record).map(dayRow) }, error: null };
   } catch (error) { return { data: null, error: failure(error, 'Unable to load attendance. Retry to load this day.') }; }
+}
+
+/** A complete, scoped month; extra pages are requested only when the previous page is full. */
+export async function fetchKitchenAttendanceMonth(month: string): Promise<ServiceResult<KitchenAttendanceDay>> {
+  try {
+    if (!/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month) || month > kitchenToday().slice(0, 7)) return { data: null, error: 'Choose this month or an earlier month.' };
+    const { tenant_id, branch_id } = scope();
+    const staffQuery = supabase.from('kitchen_staff_roster').select(STAFF_COLUMNS).eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name').limit(1000);
+    const page = (offset: number) => supabase.from('kitchen_attendance').select(DAY_COLUMNS)
+      .eq('tenant_id', tenant_id).eq('branch_id', branch_id)
+      .gte('attendance_date', month + '-01').lt('attendance_date', shiftKitchenMonth(month, 1) + '-01')
+      .lte('attendance_date', kitchenToday()).order('attendance_date').order('id').range(offset, offset + 999);
+    const [staff, first] = await Promise.all([staffQuery, page(0)]);
+    if (staff.error || first.error) return { data: null, error: failure(staff.error ?? first.error, 'Unable to load this month. Retry the month overview.') };
+    if (!Array.isArray(staff.data) || !Array.isArray(first.data)) return { data: null, error: 'Unable to load this month. Retry the month overview.' };
+    if (staff.data.length >= 1000) return { data: null, error: 'This roster needs paging before it can be shown safely. Contact the app administrator.' };
+    const attendance = first.data.filter(record).map(dayRow);
+    let count = first.data.length;
+    let offset = 1000;
+    while (count === 1000) {
+      // A 999-person roster has at most 30,969 unique records in a month.
+      if (offset > 31000) return { data: null, error: 'This month is too large to show safely. Contact the app administrator.' };
+      const next = await page(offset);
+      if (next.error || !Array.isArray(next.data)) return { data: null, error: failure(next.error, 'Unable to load the complete month. Retry the month overview.') };
+      attendance.push(...next.data.filter(record).map(dayRow));
+      count = next.data.length;
+      offset += 1000;
+    }
+    return { data: { staff: staff.data.filter(record).map(staffRow), attendance }, error: null };
+  } catch (error) { return { data: null, error: failure(error, 'Unable to load this month. Retry the month overview.') }; }
 }
 
 export async function saveKitchenStaff(input: { name: string; job_title: string; is_active?: boolean }, id?: string): Promise<ServiceResult<KitchenStaffMember>> {

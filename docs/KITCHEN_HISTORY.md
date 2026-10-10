@@ -2,6 +2,8 @@
 
 Task 174 · 2026-10-10 · staging source only
 
+Latest refinement: task 179 · 2026-10-10 · staging source only
+
 History now shows who recorded an entry, when the transaction happened, when
 it was recorded, and whether it was corrected or voided. The extension keeps
 the existing Kitchen Ledger design and posting behavior. It adds no migration
@@ -136,3 +138,45 @@ choice” wording predates the existing report selectors. These historical
 inconsistencies were reported, not repaired or canonized by this ordinary
 History extension. PRODUCT.md, DESIGN.md and the design sidecar remain the
 incumbent authority; no new visual world, tokens or raster assets were created.
+
+## Row spacing refinement (task 179)
+
+The user requested a smaller gap between desktop particulars and amounts, and
+less clustered phone metadata. `HistoryEntry.tsx` now groups the particular,
+transaction date and amount/status within 58% of the desktop row, with a
+156px amount/status column inside that group. A separate audit column follows
+a hairline vertical divider. Phones pair particulars with amount/status above
+a separated footer for creator, transaction date, recorded IST time and any
+replacement/void audit line. All existing audit meaning is retained.
+
+Only row composition changed. Filters, four sorts, local search, the disclosed
+500-entry/92-transaction-day loaded window, refresh, details and service
+behavior remain as documented above. No query, schema, migration, polling or
+production deployment changed. Incumbent Source Sans 3, POS blue navigation,
+Kitchen Canvas, exact tabular amounts and flat white ledger rows are preserved.
+
+The task 179 rerun retained 19 mocked captures at 1440×900, 800×700, 390×844
+and 320×700, checking filters/sorts, audit and earlier-version details,
+no-match/reset and loading/empty/error recovery. It fulfilled 89 cloud-targeted
+requests locally and forwarded zero, with no reported page errors or
+horizontal overflow. Typical sample rows measured 85px on desktop and 122px
+on phone; longer names, content or audit lines wrap taller. These are observed
+dimensions rather than imposed fixed heights. Evidence is retained in
+`.impeccable/review/history-results.json`, `check-kitchen-history.cjs` and
+`history-*.png`. A focused read of the existing live staging browser panel
+confirmed History loads; `history-live-staging.png` records that read.
+No live records were changed by testing and no new log scan was needed.
+
+Final typecheck, changed-source ESLint and the broader 304-test/33-suite run
+passed, including 23 native route imports. The fresh independent finish
+reviewer returned Ship with no material fixes across all five contract
+sections after inspecting source and retained main/state captures. This is
+browser/source evidence; native hardware, text scaling, soft keyboards, dark
+appearance and gestures remain unverified. The React Native source did not
+use the HTML/CSS detector, and no shipping raster assets were added.
+
+Comparison with PRODUCT.md, DESIGN.md, `.impeccable/design.json`, tokens,
+Typography, shared Kitchen controls and desktop/phone captures preserves the
+incumbent visual authority. Design files and tokens remain untouched. The
+pre-existing system-sans/specimen, every-choice chips, older navigation and
+early surface-contract drift recorded above is reported without repair.

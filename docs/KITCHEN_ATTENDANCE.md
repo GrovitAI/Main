@@ -2,7 +2,7 @@
 
 Task 176 · 2026-10-10 · staging only
 
-Latest refinement: task 178 · 2026-10-10 · staging only
+Latest refinement: task 179 · 2026-10-10 · staging only
 
 Central Kitchen now has a manually maintained staff roster and daily attendance
 register. Attendance is separate from app logins: adding a person does not
@@ -16,7 +16,7 @@ The route is `/central-kitchen/attendance`. Existing Kitchen role access and
 owner/admin entry through Settings remain in force.
 
 The screen opens the Daily register for today in Asia/Kolkata. Underline tabs
-switch between Daily register and Staff; Add staff and Refresh sit beside the
+switch between Daily register, Month overview and Staff; Add staff and Refresh sit beside the
 slim title. Previous/next
 day controls and the calendar select today or an earlier day; future dates
 are disabled and also rejected by the service and database. Today in the
@@ -210,3 +210,83 @@ descriptions. These are reported as pre-existing drift without repair; both
 incumbent design files and global tokens are preserved. This is an existing
 surface refinement, so no new visual world, comp, concept seed or QUALITY BAR
 was needed.
+
+## Month overview (task 179)
+
+The user requested a monthly manual attendance overview. Each staff row now
+shows Present, Absent, Half day, Leave and Unmarked totals for the chosen month.
+Active staff totals count every calendar day in that month through today in
+Asia/Kolkata, including days before the person's roster record was created.
+These are calendar counts, not employment dates, scheduled working days or
+payroll calculations. Missing marks remain Unmarked rather than Absent.
+Archived staff appear only when that month contains their attendance records;
+their totals count recorded days only, including explicitly cleared Unmarked
+records. Only those recorded days can be corrected for archived staff.
+
+Previous/next month and Refresh month attendance load the selected month on
+demand. Future months and future calendar days are unavailable. Staff search
+and selection, calendar selection and draft changes operate locally. Desktop
+pairs the 352px staff list and month controls with a calendar detail pane;
+phones and narrower layouts show the staff list first, then the selected
+person's calendar with Back to month staff. The calendar uses a seven-column
+FlatList rather than a wide 31-day table.
+
+Choose an individual day, select Present, Absent, Half day or Leave, optionally
+enter a note, then use Save day. Cancel edit discards the local draft. Clear
+attendance day confirms an Unmarked record with an empty note through the
+existing upsert; it does not delete a row. There is no bulk month autofill.
+Dirty drafts and in-flight saves block local staff/day/month changes, refresh,
+Back and Attendance pane changes until Save or Cancel. This is protection
+within the attendance workflow, not a global route-navigation guard. Failed
+writes retain the draft, status and note; confirmed writes update the displayed
+record and totals. Latest server editor/time remains visible for saved days.
+
+`MonthlyAttendance.tsx` owns the month interface, with the existing route
+providing the three-pane header. `fetchKitchenAttendanceMonth` in the existing
+attendance service starts with two tenant/branch-scoped reads: roster and the
+first attendance page. Attendance uses an inclusive month start, exclusive
+next-month start and inclusive India-today bound, ordered by date then ID.
+Further 1,000-row pages are read only after a full page; every page retains
+both scope filters. A failed later page or oversized roster fails the complete
+load instead of displaying partial totals. The daily fetch is skipped while
+Month overview is active. Existing tables and scoped day upserts are reused;
+no new polling, subscription, schema, migration or production deployment.
+
+Task 179 verification passed final typecheck, changed-source ESLint and 304
+tests in 33 suites, including 23 native route-load checks. Seven new month
+tests cover leap day/year boundaries, tenant/branch filters on each page,
+deterministic pagination, incomplete-load failure, invalid/future months,
+calendar totals and archive semantics. Route imports are not native visual
+verification.
+
+The mocked Expo browser run retained 20 captures at 1440×900, 800×700,
+390×844 and 320×700. It checked totals/statuses, day editing, local draft
+protection, failed-save input retention, save/clear, earlier months, archived
+correction, calendar, search and loading/empty/error recovery. All captured
+states have no reported page errors or horizontal overflow. It fulfilled 92
+cloud-targeted requests locally, forwarded zero and recorded three mock writes;
+no live records were changed. Evidence is in
+`.impeccable/review/attendance-month-results.json`,
+`check-kitchen-attendance-month.cjs` and `attendance-month-*.png`.
+
+A focused read of the existing live staging session confirmed the current
+month, existing staff and existing attendance mark in the user's 319×668
+browser panel. `attendance-month-live-staging.png` is read-only evidence;
+testing made no live write. The 10 October All projects baseline of 0.618/1 GB
+ingestion and 38.653/100 GB log queries was reused. No fresh log scan was needed.
+
+The fresh independent finish reviewer returned Ship in all five contract
+sections, with no material fixes, after inspecting the scoped source and
+retained main/state captures. The verdict covers this browser/source extension;
+native hardware, text scaling, soft keyboards, dark appearance and gestures
+remain unverified. The HTML/CSS detector does not apply to this React Native
+source. There are no new shipping raster assets.
+
+The documentation comparison checked the month source, History refinement,
+shared Kitchen controls, Typography, brand tokens, incumbent DESIGN.md and
+`.impeccable/design.json`, product context and desktop/phone captures. It
+preserves The Kitchen Ledger, Source Sans 3, POS blue navigation, Kitchen
+Canvas, quiet white rows and hairline dividers. DESIGN.md, its sidecar and
+global tokens remain untouched. Existing system-sans prose/specimens,
+every-choice chips guidance, older navigation descriptions and early surface
+font/canvas/first-viewport wording remain reported drift without repair.

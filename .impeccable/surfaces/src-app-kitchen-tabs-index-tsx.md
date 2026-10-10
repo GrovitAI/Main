@@ -246,3 +246,77 @@ sans, every-choice chips and older navigation guidance. The early surface
 font/canvas/first-viewport contract also predates current authority. These are
 pre-existing documentation drift, reported without repairs. Both incumbent
 design files and global tokens remain untouched.
+
+## Task 179 direction contract — month overview and History refinement
+
+This is a scoped extension of the incumbent Operate surface, not a replacement
+visual world. The user requested monthly manual attendance and less awkward
+History spacing on desktop and mobile. No new comp, seed or QUALITY BAR applies.
+
+THESIS: See a month's attendance per staff member and manually mark individual
+days without implying that unmarked means absent or scheduled work.
+OWN-WORLD: Source Sans 3, incumbent POS blue rail, kitchen canvas, quiet flat
+rows, hairline dividers and shared Kitchen controls; no new tokens or assets.
+STORY: Choose Month overview, navigate the month, select staff and a calendar
+day, choose a status/note and explicitly save. Future days stay unavailable.
+FIRST VIEWPORT: Daily register/Month overview/Staff tabs, bounded month controls,
+then staff totals. Desktop pairs a 352px staff list with the calendar; phone
+opens the selected person's calendar with a Back control. History groups the
+particular and amount before separate audit information.
+FORM: Responsive master/detail calendar instead of a horizontally scrolling
+31-column grid. One local draft is protected until Save day or Cancel edit.
+History retains all audit fields, filters, sorts and detail-sheet behavior.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the
+finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+Task 179 verdict: **Ship**. The fresh independent finish reviewer returned Ship
+in all five contract sections with no material fixes after inspecting the
+scoped source and retained main/state captures. This covers the existing
+browser/source extension; native hardware, text scaling, soft keyboards, dark
+appearance and gestures remain unverified. Existing design authority and task
+178 history remain.
+
+## Task 179 completion record (2026-10-10, staging only)
+
+Month overview shows per-person Present/Absent/Half day/Leave/Unmarked totals.
+Active staff counts include every calendar day through India today, including
+days before roster creation; these are not employment, scheduled-workday or
+payroll figures. Archived staff count existing records only and can correct
+only recorded days. Future dates are disabled. Each individual date uses an
+explicit status/note Save day, Cancel edit or Clear attendance day; clear
+confirms Unmarked rather than deleting. No bulk month autofill. Dirty drafts
+and saves guard local staff/day/month/Back/refresh/pane changes; this is not a
+global route guard.
+
+Desktop month controls/staff list occupy 352px beside calendar detail; phones
+open the selected calendar with Back. The existing scoped day upsert/table is
+reused. Month fetch starts with two scoped reads, adds 1,000-row attendance
+pages only when needed, uses exclusive next-month/inclusive India-today bounds
+and deterministic date/ID ordering, and fails rather than showing partial
+totals. Daily fetch is skipped while monthly; no new polling or schema.
+
+History groups particulars and amount/status within 58% of the desktop row,
+then separates audit information. Phone rows use a divided audit footer with
+creator, transaction date, recorded IST time and replacement/void information.
+Filters, sorts, details, existing service and 500-entry/92-day window remain.
+Typical sample rows are 85px desktop/122px phone; wrapped content grows taller.
+
+Final typecheck, changed-source ESLint and 304 tests in 33 suites passed,
+including 23 native route imports. Twenty month captures and 19 History
+captures cover 1440×900, 800×700, 390×844 and 320×700, main states and recovery,
+with no reported page errors or overflow. Month/History runs fulfilled 92/89
+requests locally and forwarded zero; the three attendance writes were mocked.
+Focused reads of the existing live staging session confirmed both routes in
+the user's 319×668 panel; no live records were changed. The existing 10 October
+usage baseline was reused, with no new log scan. Evidence is under
+`.impeccable/review/attendance-month-*` and `history-*`; see
+`docs/KITCHEN_ATTENDANCE.md` and `docs/KITCHEN_HISTORY.md`.
+
+Comparison checked scoped source, shared Kitchen primitives, Typography, brand
+tokens, PRODUCT.md, DESIGN.md, `.impeccable/design.json` and desktop/phone
+captures. Source Sans 3, POS blue navigation, Kitchen Canvas, quiet white rows
+and hairline dividers remain the incumbent system. DESIGN.md, sidecar and
+tokens remain untouched. Existing system-sans prose/specimens, every-choice
+chips, older navigation and early surface font/canvas/first-viewport drift is
+reported without repair. No new shipping raster assets or production
+deployment. The HTML/CSS detector does not apply to this React Native source.

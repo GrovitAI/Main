@@ -5,6 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { Check, ChevronDown, MessageSquareText, Pencil, Plus, RefreshCw, Search } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
+import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
 import { Empty, GhostButton, IconButton, KScreen, Notice, PrimaryButton, SearchBox, Segmented, TextField, useDesktopDensity } from '@/components/kitchen/ui';
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
@@ -69,7 +70,9 @@ export default function KitchenAttendanceScreen() {
   const desktop = useDesktopDensity();
   const insets = useSafeAreaInsets();
   const [date, setDate] = useState(kitchenToday);
-  const [pane, setPane] = useState<'daily' | 'staff'>('daily');
+  const [pane, setPane] = useState<'daily' | 'monthly' | 'staff'>('daily');
+  const [monthlyLocked, setMonthlyLocked] = useState(false);
+  const monthly = pane === 'monthly';
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -94,7 +97,7 @@ export default function KitchenAttendanceScreen() {
     else { setData(null); setLoadedDate(null); setError(result.error); }
     setLoading(false);
   }, [date]);
-  useFocusEffect(useCallback(() => { focused.current = true; void load(); return () => { focused.current = false; request.current++; }; }, [load]));
+  useFocusEffect(useCallback(() => { focused.current = true; if (!monthly) void load(); return () => { focused.current = false; request.current++; }; }, [load, monthly]));
   const changeDate = (next: string): void => { if (busyRef.current) return; setData(null); setLoadedDate(null); setSaved(null); setDate(next); };
   const counts = useMemo(() => attendanceCounts(data?.staff ?? [], data?.attendance ?? []), [data]);
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
@@ -132,16 +135,19 @@ export default function KitchenAttendanceScreen() {
     setBusy(false);
     busyRef.current = false;
   };
-  const startEditor = (person?: KitchenStaffMember): void => { if (busyRef.current) return; setFormError(null); setEditor(person ? { ...person } : { name: '', job_title: '', is_active: true }); };
-  const header = <View className="gap-2" style={{ paddingTop: Platform.OS === 'web' ? 12 : insets.top + 12 }}>
+  const startEditor = (person?: KitchenStaffMember): void => { if (busyRef.current || monthlyLocked) return; if (monthly) setPane('staff'); setFormError(null); setEditor(person ? { ...person } : { name: '', job_title: '', is_active: true }); };
+  const navigationHeader = <View className="gap-2" style={{ paddingTop: Platform.OS === 'web' ? 12 : insets.top + 12 }}>
     <View className="min-h-12 flex-row items-center gap-1">
       <Text accessibilityRole="header" className="flex-1 text-2xl font-bold text-text-primary">Attendance</Text>
-      <Pressable className={control} accessibilityRole="button" accessibilityLabel="Refresh attendance" disabled={busy || loading} onPress={() => void load()}><RefreshCw size={18} color={colors.primary} /></Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Add kitchen staff" disabled={busy} onPress={() => startEditor()} className="min-h-12 flex-row items-center gap-1 rounded-xl bg-primary px-3 hover:bg-primary-deep focus:border-border active:bg-primary-deep"><Plus size={16} color={colors.textOnPrimary} /><Text className="text-sm font-semibold text-text-on-primary">Add staff</Text></Pressable>
+      {!monthly ? <Pressable className={control} accessibilityRole="button" accessibilityLabel="Refresh attendance" disabled={busy || loading} onPress={() => void load()}><RefreshCw size={18} color={colors.primary} /></Pressable> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel="Add kitchen staff" disabled={busy || monthlyLocked} onPress={() => startEditor()} className="min-h-12 flex-row items-center gap-1 rounded-xl bg-primary px-3 hover:bg-primary-deep focus:border-border active:bg-primary-deep"><Plus size={16} color={colors.textOnPrimary} /><Text className="text-sm font-semibold text-text-on-primary">Add staff</Text></Pressable>
     </View>
-    <View accessibilityRole="tablist" className="flex-row gap-5 border-b border-border">
-      {([{ value: 'daily', label: 'Daily register' }, { value: 'staff', label: 'Staff' }] as const).map(option => <Pressable key={option.value} disabled={busy} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy }} onPress={() => { if (busyRef.current) return; setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className={`min-h-12 justify-center border-b-2 px-1 focus:bg-accent-soft hover:bg-surface-tint ${pane === option.value ? 'border-primary' : 'border-transparent'}`}><Text className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
+    <View accessibilityRole="tablist" className="flex-row gap-3 border-b border-border">
+      {([{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }] as const).map(option => <Pressable key={option.value} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} onPress={() => { if (busyRef.current || monthlyLocked) return; setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className={`min-h-12 justify-center border-b-2 px-1 focus:bg-accent-soft hover:bg-surface-tint ${pane === option.value ? 'border-primary' : 'border-transparent'}`}><Text className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
     </View>
+  </View>;
+  const header = <View className="gap-2">
+    {navigationHeader}
     {editor ? <View pointerEvents={busy ? 'none' : 'auto'} className="gap-3 rounded-2xl border border-border-soft bg-surface-elevated p-3">
       <Text className="text-lg font-bold text-text-primary">{editor.id ? 'Edit staff member' : 'Add staff member'}</Text>
       <Text className="text-xs text-text-secondary">Attendance roster only. This does not create an app login.</Text>
@@ -163,5 +169,6 @@ export default function KitchenAttendanceScreen() {
     {!loading && data ? <View className="flex-row items-center justify-between gap-2 pb-2"><Text className="text-xs text-text-secondary">{rows.length} staff{query || (pane === 'daily' && statusFilter !== 'all') ? ' in this view' : ''}</Text>{pane === 'daily' ? <Text className="text-xs text-text-secondary">{total - counts.unmarked} of {total} marked</Text> : null}</View> : null}
     {desktop && pane === 'daily' && data && rows.length ? <View className="flex-row items-center gap-3 border-y border-border-soft bg-surface-tint px-3 py-2"><Text className="flex-1 text-xs font-semibold text-text-secondary">Staff member</Text><Text className="w-[320px] text-xs font-semibold text-text-secondary">Attendance</Text><Text className="w-[168px] text-xs font-semibold text-text-secondary">Last updated</Text><Text className="w-12 text-xs font-semibold text-text-secondary">Notes</Text></View> : null}
   </View>;
+  if (monthly) return <KScreen scroll={false} wide><MonthlyAttendance header={navigationHeader} onLockChange={setMonthlyLocked} /></KScreen>;
   return <KScreen scroll={false} wide><FlatList className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 1120 }} keyboardShouldPersistTaps="handled" data={loading || loadedDate !== date ? [] : rows} keyExtractor={person => person.id} extraData={{ data, busy }} ListHeaderComponent={header} refreshing={loading} onRefresh={() => { if (!busyRef.current) void load(); }} ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Loading attendance" color={colors.primary} className="my-6" /> : error && !data ? <Empty title="Attendance unavailable" body="Retry to load the register. No attendance has been changed." action={<GhostButton label="Retry attendance" onPress={() => void load()} />} /> : <Empty title={query || (pane === 'daily' && statusFilter !== 'all') ? 'No matching staff' : pane === 'staff' && showArchived ? 'No archived staff' : 'No staff for this view'} body={query || (pane === 'daily' && statusFilter !== 'all') ? 'Try another name or attendance status.' : pane === 'staff' && showArchived ? 'Archived staff appear here. Past attendance stays saved.' : 'Add kitchen staff to begin marking attendance.'} action={query || (pane === 'daily' && statusFilter !== 'all') ? <GhostButton label="Reset filters" onPress={() => { setQuery(''); setStatusFilter('all'); }} /> : pane === 'staff' && showArchived ? undefined : <GhostButton label="Add kitchen staff" onPress={() => startEditor()} />} />} renderItem={({ item }) => pane === 'daily' ? <AttendanceRow key={`${item.id}:${date}`} person={item} record={byStaff.get(item.id)} busy={busy || loading} onMark={mark} /> : <View className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2"><StaffIdentity person={item} /><IconButton icon={Pencil} label={`Edit staff ${item.name}`} onPress={() => startEditor(item)} /></View>} /></KScreen>;
 }

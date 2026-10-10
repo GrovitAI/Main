@@ -112,6 +112,18 @@ figures to be right, and matching is offered only as a convenience.
   Task 178 refines the staging roster with underline panes, local status/count
   filters and completion, aligned desktop rows and compact phone disclosure,
   using HR-tool roster clarity within the existing manual attendance scope.
+  Task 179 adds Month overview with per-person Present/Absent/Half day/Leave/
+  Unmarked totals and an individual-day calendar editor. Active staff totals
+  count calendar days through today in India time, not employment dates,
+  scheduled work or payroll; archived staff count and correct recorded days
+  only. Save day/Cancel edit protect local drafts; clear saves Unmarked rather
+  than deleting. Desktop uses staff/calendar panes and phone opens the calendar
+  with Back. There is no bulk month autofill or global route-navigation guard.
+- Kitchen History spacing (task 179, staging): desktop groups particulars with
+  amount/status before the separate audit column; phone audit information sits
+  in a divided footer. Creator, transaction date, recorded IST time and audit
+  meaning remain visible, with unchanged filters, sorts, details and the loaded
+  500-entry/92-transaction-day window. See docs/KITCHEN_HISTORY.md.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.
