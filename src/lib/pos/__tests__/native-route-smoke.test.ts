@@ -23,6 +23,9 @@ const ROUTES: [string, () => unknown][] = [
   ['(app)/menu', () => require('@/app/(app)/menu')],
   ['central-kitchen/(tabs)/analytics', () => require('@/app/central-kitchen/(tabs)/analytics')],
   ['central-kitchen/(tabs)/history', () => require('@/app/central-kitchen/(tabs)/history')],
+  ['central-kitchen/(tabs)/items', () => require('@/app/central-kitchen/(tabs)/items')],
+  ['central-kitchen/(tabs)/finished-goods', () => require('@/app/central-kitchen/(tabs)/finished-goods')],
+  ['central-kitchen/item-form', () => require('@/app/central-kitchen/item-form')],
   ['central-kitchen/purchase-categories', () => require('@/app/central-kitchen/purchase-categories')],
 ];
 

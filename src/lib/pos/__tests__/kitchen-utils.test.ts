@@ -21,6 +21,7 @@ import {
 import type { KitchenEntry, KitchenItem, KitchenOpenDocument, KitchenPartyBalance } from '../kitchen-types';
 
 const item = (id: string, name: string, unit: KitchenItem['unit'], price: number | null): KitchenItem => ({
+  item_kind: price === null ? 'raw_material' : 'finished_good',
   id,
   name,
   unit,

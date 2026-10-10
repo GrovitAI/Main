@@ -361,6 +361,7 @@ export function describeKitchenError(message: string | null | undefined, fallbac
   if (m.includes('KITCHEN_FORBIDDEN') || m.includes('42501')) return 'This login cannot write the kitchen’s books.';
   if (m.includes('KITCHEN_PARTY_NOT_FOUND')) return 'That branch or vendor is no longer in the list.';
   if (m.includes('KITCHEN_ITEM_NOT_FOUND')) return 'That item is no longer in the list.';
+  if (m.includes('KITCHEN_FINISHED_GOODS_ONLY')) return 'Batches can only be recorded for finished goods.';
   if (m.includes('KITCHEN_INVALID_LINE')) return 'Every line needs a quantity and a price.';
   if (m.includes('KITCHEN_INVALID_MATCH')) return 'The matched amounts are more than what is open, or more than the money paid.';
   if (m.includes('KITCHEN_INVALID')) return 'Check the amount, the mode and who it is for.';

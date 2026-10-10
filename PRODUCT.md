@@ -63,8 +63,10 @@ figures to be right, and matching is offered only as a convenience.
   Analytics, Kitchen, Inventory and More; desktop web uses a floating bottom
   bar with More opening Business and Administration tools above it. Existing role access and
   the Central Kitchen module remains separate. Its 2026-10-08 refinement adds
-  Analytics directly to the kitchen rail; phones use Home, Analytics, Items,
-  History and More, with Branches and Vendors in More.
+  Analytics directly to the kitchen rail. Task 175 (2026-10-10, staging) splits
+  Items into Raw materials and Finished goods on desktop/tablet; phones use
+  Home, Analytics, Stock, History and More, with both stock panes inside Stock
+  and Branches and Vendors in More.
 
 ## Capabilities and Constraints
 
@@ -91,6 +93,13 @@ figures to be right, and matching is offered only as a convenience.
   branch), *Bought* (from a vendor, paid now or pay later), *Spent* (pay a
   vendor, or an expense), *Made* (a batch adds stock), *Count* (sets stock),
   *yet to pay* (a branch's figure), *we owe* (a vendor's figure).
+- Kitchen stock split (task 175, staging): raw materials are purchased and
+  counted without batch creation. Finished goods have optional default selling
+  prices and Create batch records the quantity produced, without recipes or
+  raw-material deductions (the user's selected scope). New sends offer finished
+  goods and new purchases offer raw materials. Item types are editable; selected
+  lines from historical entries remain available when editing. Existing stock,
+  entry history and atomic posting/voiding are preserved. See docs/KITCHEN_STOCK.md.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.

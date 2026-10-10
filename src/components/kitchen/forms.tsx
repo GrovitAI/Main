@@ -141,7 +141,8 @@ type LinesEditorProps = {
 export function LinesEditor({ items, lines, onChange, mode, defaultCost }: LinesEditorProps) {
   const [query, setQuery] = useState('');
   const ordered = useMemo(() => {
-    const list = items.filter((i) => matchesSearch(query, i.name, i.unit) || (lines[i.id]?.qty ?? 0) > 0);
+    // Preserve selected historical lines when editing an entry after reclassification.
+    const list = items.filter((i) => (lines[i.id]?.qty ?? 0) > 0 || (i.item_kind === (mode === 'sell' ? 'finished_good' : 'raw_material') && matchesSearch(query, i.name, i.unit)));
     if (mode === 'sell') list.sort((a, b) => Number(a.sell_price === null) - Number(b.sell_price === null) || a.name.localeCompare(b.name));
     return list;
   }, [items, query, lines, mode]);
@@ -159,7 +160,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
       <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14 }}>
         {ordered.length === 0 ? (
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', paddingVertical: 18, textAlign: 'center' }}>
-            {items.length === 0 ? 'No items yet. Add them under Items first.' : 'No item matches that.'}
+            {query ? 'No item matches that.' : mode === 'sell' ? 'No finished goods yet. Add them under Stock first.' : 'No raw materials yet. Add them under Stock first.'}
           </Text>
         ) : null}
         {ordered.map((it) => {

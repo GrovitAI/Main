@@ -85,7 +85,7 @@ function actorName(): string {
   return useSessionStore.getState().session?.displayName?.trim() || 'Staff';
 }
 
-const ITEM_COLUMNS = 'id, name, unit, sell_price_paise, stock, is_active, updated_at';
+const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, stock, is_active, updated_at';
 const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise, purchase_category_id';
 const ENTRY_COLUMNS =
   'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_at, voided_at, voided_by, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
@@ -99,6 +99,7 @@ function mapItem(row: Record<string, unknown>): KitchenItem {
   return {
     id: String(row.id),
     name: String(row.name ?? ''),
+    item_kind: row.item_kind === 'finished_good' || (row.item_kind == null && row.sell_price_paise != null) ? 'finished_good' : 'raw_material',
     unit,
     sell_price: row.sell_price_paise === null || row.sell_price_paise === undefined ? null : fromPaise(toNumber(row.sell_price_paise)),
     stock: toNumber(row.stock),
@@ -182,12 +183,13 @@ export async function saveKitchenItem(input: KitchenItemInput, id?: string): Pro
     if (!name) return { data: null, error: 'Give the item a name.' };
     const fields = {
       name,
+      ...(input.item_kind ? { item_kind: input.item_kind } : {}),
       unit: input.unit,
       sell_price_paise: input.sell_price === null ? null : toPaise(input.sell_price),
     };
     const query = id
       ? supabase.from('kitchen_items').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
-      : supabase.from('kitchen_items').insert({ ...fields, tenant_id, branch_id, stock: input.opening_stock ?? 0 });
+      : supabase.from('kitchen_items').insert({ ...fields, item_kind: input.item_kind ?? (input.sell_price === null ? 'raw_material' : 'finished_good'), tenant_id, branch_id, stock: input.opening_stock ?? 0 });
     const { data, error } = await query.select(ITEM_COLUMNS).single();
     if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the item.') };
     return { data: mapItem(data), error: null };

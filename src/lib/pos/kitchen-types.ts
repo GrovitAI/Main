@@ -9,6 +9,7 @@ export type { ServiceResult };
 
 export type KitchenUnit = 'kg' | 'L' | 'pcs';
 export const KITCHEN_UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
+export type KitchenItemKind = 'raw_material' | 'finished_good';
 
 export type KitchenPartyKind = 'branch' | 'vendor';
 export type KitchenMode = 'cash' | 'upi' | 'bank';
@@ -16,6 +17,7 @@ export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent'
 
 export type KitchenItem = {
   id: string;
+  item_kind: KitchenItemKind;
   name: string;
   unit: KitchenUnit;
   /** What a branch pays per unit; null for a raw material the kitchen only buys. */
@@ -27,6 +29,8 @@ export type KitchenItem = {
 
 export type KitchenItemInput = {
   name: string;
+  /** Omitted on an edit: preserve the classification. */
+  item_kind?: KitchenItemKind;
   unit: KitchenUnit;
   sell_price: number | null;
   /** Only read when the item is created. */

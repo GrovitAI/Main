@@ -97,3 +97,31 @@ DESIGN prose about system sans and chips for every choice, predate the shipped
 font/rail/report controls. Existing task 170/173 authority and the scoped
 History behavior above take precedence; a global documentation refresh is
 outside this task.
+
+## Stock extension (2026-10-10, task 175)
+
+Operate-mode extension of the incumbent Kitchen Ledger. Raw materials and
+Finished goods share StockItems and the existing ItemDetail rather than a new
+visual world. Source Sans 3, task 173's canvas/logo/blue rail, white surfaces,
+brand tokens and existing controls remain authoritative; DESIGN.md and its
+sidecar are preserved.
+
+Desktop/tablet rails now expose seven sections: Home, Analytics, Raw materials,
+Finished goods, Branches, Vendors and History. Phones keep Home, Analytics,
+Stock, History and More; Stock contains the two stock panes. This supersedes
+the earlier six-section rail and Items label only. A searchable FlatList and
+wider master-detail layout retain the existing stock workflow. Raw materials
+offer counts; finished goods offer produced-quantity batches and counts, with
+no recipe or ingredient consumption. Item type is independent of price.
+
+Loading, no items, search no-match and unavailable stock are distinct. Failed
+posting retains the input; initial load failure explicitly preserves existing
+records and offers Retry stock. The scoped reviewer scored this recovery fix
+resolved/Ship after its phone capture was updated. Browser evidence covers
+1440×900, 800×700, 390×844 and 320×700, with no overflow; 368 requests were
+mocked locally with zero forwarded. Typecheck, changed-source lint and 70 tests
+(22 route imports) passed. Scoped staging SQL verifies batch/count/void and
+branch isolation using rolled-back fixtures. Native hardware, scaling,
+keyboards, dark appearance and gestures remain unverified. No production
+deployment. See docs/KITCHEN_STOCK.md for the approved migration, preserved
+legacy scope, usage budget and rollout boundary.

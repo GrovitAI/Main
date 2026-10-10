@@ -4,7 +4,7 @@ import { BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSour
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, Boxes, Store, Truck, History, BarChart3, Ellipsis, X, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react-native';
+import { Home, Boxes, PackageCheck, Store, Truck, History, BarChart3, Ellipsis, X, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
@@ -16,12 +16,13 @@ type KitchenTab = { name: string; label: string; icon: LucideIcon };
 export const KITCHEN_TABS: readonly KitchenTab[] = [
   { name: 'home', label: 'Home', icon: Home },
   { name: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { name: 'items', label: 'Items', icon: Boxes },
+  { name: 'items', label: 'Raw materials', icon: Boxes },
+  { name: 'finished-goods', label: 'Finished goods', icon: PackageCheck },
   { name: 'branches', label: 'Branches', icon: Store },
   { name: 'vendors', label: 'Vendors', icon: Truck },
   { name: 'history', label: 'History', icon: History },
 ];
-const phoneTabs = KITCHEN_TABS.filter(tab => tab.name !== 'branches' && tab.name !== 'vendors');
+const phoneTabs = KITCHEN_TABS.filter(tab => !['branches', 'vendors', 'finished-goods'].includes(tab.name)).map(tab => tab.name === 'items' ? { ...tab, label: 'Stock' } : tab);
 const moreTabs = KITCHEN_TABS.filter(tab => tab.name === 'branches' || tab.name === 'vendors');
 
 const leLabanLogo: ImageSourcePropType = require('@/../assets/images/le-leban-logo.png');
@@ -45,7 +46,7 @@ function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: Kitc
       <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused && !rail ? 'bg-accent-soft' : ''}`}`}>
         <Icon size={compact ? 18 : 21} color={color} />
       </View>
-      {!compact || expanded ? <Text className={`${focused ? 'font-extrabold' : 'font-semibold'} ${compact ? 'text-[13px]' : 'mt-0.5 text-xs'}`} style={{ color }} numberOfLines={1}>
+      {!compact || expanded ? <Text className={`${focused ? 'font-extrabold' : 'font-semibold'} ${compact ? 'text-[13px]' : 'mt-0.5 text-xs'}`} style={{ color, textAlign: compact ? 'left' : 'center' }} numberOfLines={rail && !compact ? 2 : 1}>
         {tab.label}
       </Text> : null}
     </Pressable>
@@ -94,7 +95,7 @@ function BottomBar({ state, navigation }: BarProps) {
       {phoneTabs.map((tab) => {
         const route = state.routes.find((r) => r.name === tab.name);
         if (!route) return null;
-        const focused = state.routes[state.index]?.name === tab.name;
+        const focused = activeName === tab.name || (tab.name === 'items' && activeName === 'finished-goods');
         return (
           <TabButton
             key={tab.name}
