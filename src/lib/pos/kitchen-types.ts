@@ -88,6 +88,8 @@ export type KitchenEntry = {
   created_by: string;
   created_at: string;
   voided_at: string | null;
+  /** Stored staff-name snapshot; older cached entries may not include it. */
+  voided_by?: string | null;
   void_reason: string | null;
   /** Set on a corrected entry: the one it took the place of, now voided "Edited". */
   replaces_id: string | null;

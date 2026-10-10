@@ -38,3 +38,62 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 ## Unresolved
 
 Day-one balances (start at zero or enter what is owed); slip as text or PDF; Tamil labels later.
+
+## History extension (2026-10-10, task 174)
+
+Scope: `src/app/central-kitchen/(tabs)/history.tsx` and its audit row/detail,
+shared report selectors and local history utility. This is an ordinary extension
+of the incumbent Kitchen Ledger, with no new world or design tokens. Task 170's
+Source Sans 3 and task 173's POS workspace canvas, logo and blue rail remain
+the current expression.
+
+THESIS: An entry's origin and state are understandable at a glance: who
+recorded it, its business date, its recorded India time and whether it is active,
+corrected, replaced or voided. All includes every state in the loaded window;
+voiding preserves the record while removing its contribution to figures.
+
+OWN-WORLD: The incumbent compact ledger: white rows, hairline separators,
+blue controls, semantic/tabular amounts, Source Sans 3 and the shared POS
+canvas/rail. Desktop metadata sits horizontally; phone metadata wraps.
+Measured sample desktop rows are 85 px, or 105 px with a replacement/void audit
+line; these observations do not prescribe fixed heights for future content.
+
+STORY: Scan the ledger, spot a correction or removal, narrow by any combination
+of type, status, creator, text and dates, then open its detail. A corrected
+entry identifies its editor/time and shows “Before this edit” when the earlier
+version is cached; otherwise it explicitly says that version is outside the
+loaded history window. Unknown legacy void actors are not invented.
+
+FIRST VIEWPORT: History header and Refresh, search, collapsed Filters beside
+an explicit Sort by value, matching/loaded count, the recent-history scope,
+then rows. Default sort is Transaction date · newest; newest/oldest Entry date
+and Transaction date remain available. The inclusive calendar chooses either
+business dates or recorded India days. Clear filters retains the chosen sort.
+Loading, empty, no-match and safe service-error states support recovery.
+
+FORM: Category-conventional, virtualized ledger with its header and rows in
+one scrolling FlatList. Compact labelled selectors reuse report components.
+Filtering/sorting is local to the existing cache of up to 500 entries from the
+last 92 transaction days; controls do not fetch a full archive, issue a new query or regroup
+the selected sort. No compositional experiment or new imagery was needed.
+
+FINISH: Typecheck, changed-file lint and 63 focused tests (19 route-load checks)
+passed. Actual Expo staging browser evidence covers 1440×900, 800×700,
+390×844 and 320×700, all sorts/statuses, composed filters/date bases, no-match
+recovery, before-edit detail and loading/empty/error/refresh states. The final
+mocked run fulfilled 89 cloud-targeted requests locally and forwarded zero,
+with websockets blocked and no live-cloud writes. All measured frames have
+no horizontal overflow. The scoped independent review's sole material
+Refresh-width fix was measured at 48×48 on all four sizes, scored resolved,
+and returned Ship. This is browser/source signoff for the extension, not a
+new whole-surface review or native hardware signoff; the native detector was
+skipped and text scaling, dark appearance and gestures remain unverified.
+No migration or production deployment. See `docs/KITCHEN_HISTORY.md` and
+`.impeccable/review/history-results.json` for behavior and retained evidence.
+
+Not canonized or repaired: the early base contract's system font, older canvas,
+floating-action exception and pre-Analytics first viewport, plus incumbent
+DESIGN prose about system sans and chips for every choice, predate the shipped
+font/rail/report controls. Existing task 170/173 authority and the scoped
+History behavior above take precedence; a global documentation refresh is
+outside this task.

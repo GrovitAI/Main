@@ -6,7 +6,8 @@ import { Pencil } from 'lucide-react-native';
 import { voidKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, formatLongDate, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
+import { historyAuditText, historyDateLabel, historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { GhostButton, Notice, Sheet, TextField } from './ui';
 
@@ -15,6 +16,8 @@ type Props = {
   onClose: () => void;
   itemsById: ReadonlyMap<string, KitchenItem>;
   partiesById: ReadonlyMap<string, KitchenParty>;
+  /** History passes the original when it is present in the loaded window. */
+  previousEntry?: KitchenEntry | null;
 };
 
 /** The form that corrects an entry of this kind; stock-only entries are redone from the item instead. */
@@ -30,7 +33,7 @@ function editHref(entry: KitchenEntry): { pathname: string; params: Record<strin
 }
 
 /** One entry in full, and what can be done to it: edit it, or void it. */
-export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) {
+export function EntryActions({ entry, onClose, itemsById, partiesById, previousEntry }: Props) {
   const [reason, setReason] = useState('');
   const [voiding, setVoiding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -93,11 +96,19 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
         <View className="flex-row flex-wrap" style={{ gap: 14 }}>
           {entryAmountText(entry) ? <Meta label="Amount" value={entryAmountText(entry)} /> : null}
           {entry.mode ? <Meta label="Mode" value={modeLabel(entry.mode)} /> : null}
-          <Meta label="On" value={formatLongDate(entry.entry_date)} />
-          <Meta label="Entered" value={`${formatEnteredAt(entry.created_at)} · ${entry.created_by}`} />
+          <Meta label="Transaction date" value={historyDateLabel(entry.entry_date)} />
+          <Meta label="Entered by" value={entry.created_by} />
+          <Meta label="Entry date" value={historyTimeLabel(entry.created_at)} />
           {entry.replaces_id ? <Meta label="Edited" value="Replaces an earlier entry" /> : null}
           {entry.note ? <Meta label="Note" value={entry.note} /> : null}
         </View>
+        {historyAuditText(entry) ? <Notice tone="neutral" text={historyAuditText(entry) ?? ''} /> : null}
+        {previousEntry ? <View className="gap-1 border-t border-border-soft pt-3">
+          <Text className="text-sm font-bold text-text-primary">Before this edit</Text>
+          <Text className="text-sm text-text-primary">{entryHeadline(previousEntry, { party: previousEntry.party_id ? partiesById.get(previousEntry.party_id)?.name : null, item: previousEntry.item_id ? itemsById.get(previousEntry.item_id)?.name : null })} · {entryAmountText(previousEntry)}</Text>
+          <Text className="text-xs leading-4 text-text-secondary">{entrySubline(previousEntry, itemsById)}</Text>
+          <Text className="text-xs leading-4 text-text-secondary">Transaction {historyDateLabel(previousEntry.entry_date)} · Entered by {previousEntry.created_by} · {historyTimeLabel(previousEntry.created_at)}</Text>
+        </View> : previousEntry === null && entry.replaces_id ? <Text className="text-xs leading-4 text-text-secondary">The earlier version is outside the loaded history window.</Text> : null}
         {entry.voided_at ? (
           <Notice tone="neutral" text={entry.void_reason === 'Edited' ? 'Edited: a corrected entry took its place. This one no longer counts anywhere.' : `Voided${entry.void_reason ? `: ${entry.void_reason}` : ''}. It no longer counts anywhere.`} />
         ) : (

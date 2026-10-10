@@ -22,6 +22,7 @@ const ROUTES: [string, () => unknown][] = [
   ['(app)/billing', () => require('@/app/(app)/billing')],
   ['(app)/menu', () => require('@/app/(app)/menu')],
   ['central-kitchen/(tabs)/analytics', () => require('@/app/central-kitchen/(tabs)/analytics')],
+  ['central-kitchen/(tabs)/history', () => require('@/app/central-kitchen/(tabs)/history')],
   ['central-kitchen/purchase-categories', () => require('@/app/central-kitchen/purchase-categories')],
 ];
 

@@ -6,14 +6,14 @@ import { colors } from '@/lib/pos/brand';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
 import { SearchBox } from '@/components/kitchen/ui';
 
-export function ReportSelect({ label, value, options, onChange, emptyLabel = 'All', selectedLabel, compact = false }: {
+export function ReportSelect({ label, value, options, onChange, emptyLabel = 'All', selectedLabel, compact = false, allowEmpty = true }: {
   label: string; value: string | null; options: readonly ReportOption[];
-  onChange: (id: string | null) => void; emptyLabel?: string; selectedLabel?: string; compact?: boolean;
+  onChange: (id: string | null) => void; emptyLabel?: string; selectedLabel?: string; compact?: boolean; allowEmpty?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const selected = value ? options.find(option => option.id === value)?.label ?? selectedLabel ?? value : emptyLabel;
-  const rows = useMemo(() => [{ id: '', label: emptyLabel }, ...options].filter(option => option.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [options, emptyLabel, search]);
+  const rows = useMemo(() => [...(allowEmpty ? [{ id: '', label: emptyLabel }] : []), ...options].filter(option => option.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [options, emptyLabel, search, allowEmpty]);
   const close = () => { setOpen(false); setSearch(''); };
   return (
     <View className="min-w-0 flex-1 gap-1">

@@ -11,7 +11,7 @@ const control = 'min-h-12 min-w-12 items-center justify-center rounded-xl px-3 h
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 /** Date selection is a draft: only Apply changes the report and starts a request. */
-export function ReportDateRange({ value, onChange }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void }) {
+export function ReportDateRange({ value, onChange, label = 'Report dates', placeholder }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void; label?: string; placeholder?: string }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const today = kitchenToday();
@@ -32,7 +32,7 @@ export function ReportDateRange({ value, onChange }: { value: KitchenDateRange; 
   };
   const header = <View className="gap-2 px-1">
     <View className="flex-row items-center justify-between">
-      <Text accessibilityRole="header" className="text-base font-bold text-text-primary">Report dates</Text>
+      <Text accessibilityRole="header" className="text-base font-bold text-text-primary">{label}</Text>
       <Pressable accessibilityRole="button" onPress={() => preset(today.slice(0, 7))} className={control}><Text className="text-xs font-bold text-primary">This month</Text></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Close date picker" onPress={close} className={control}><X size={18} color={colors.textSecondary} /></Pressable>
     </View>
@@ -52,10 +52,10 @@ export function ReportDateRange({ value, onChange }: { value: KitchenDateRange; 
     <View className="mb-1 flex-row">{weekdays.map(day => <Text key={day} className="flex-1 text-center text-xs font-semibold text-text-secondary">{day}</Text>)}</View>
   </View>;
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel={'Report dates: ' + value.startDate + ' through ' + value.endDate} accessibilityState={{ expanded: open }} onPress={() => { setDraft(value); setChoosing('startDate'); setCalendarMonth(value.startDate.slice(0, 7)); setOpen(true); }}
+    <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + (placeholder ?? value.startDate + ' through ' + value.endDate)} accessibilityState={{ expanded: open }} onPress={() => { setDraft(value); setChoosing('startDate'); setCalendarMonth(value.startDate.slice(0, 7)); setOpen(true); }}
       className="min-h-12 min-w-0 flex-row items-center gap-2 rounded-xl bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary">
       <CalendarDays size={16} color={colors.primary} />
-      <Text className="min-w-0 shrink text-sm font-bold text-primary">{fullMonth ? kitchenMonthLabel(value.startDate.slice(0, 7)) : kitchenRangeLabel(value)}</Text>
+      <Text className="min-w-0 shrink text-sm font-bold text-primary">{placeholder ?? (fullMonth ? kitchenMonthLabel(value.startDate.slice(0, 7)) : kitchenRangeLabel(value))}</Text>
     </Pressable>
     <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.overlay, paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 8) }}>
