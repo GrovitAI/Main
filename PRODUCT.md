@@ -109,6 +109,9 @@ figures to be right, and matching is offered only as a convenience.
   and restored; recorded days survive archive and remain correctable. Save
   feedback waits for database confirmation. This is a daily register, without
   payroll or clock-in automation. See docs/KITCHEN_ATTENDANCE.md.
+  Task 178 refines the staging roster with underline panes, local status/count
+  filters and completion, aligned desktop rows and compact phone disclosure,
+  using HR-tool roster clarity within the existing manual attendance scope.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.

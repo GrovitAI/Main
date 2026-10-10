@@ -184,3 +184,65 @@ untouched. Their pre-existing system-sans, chips-for-every-choice and older
 navigation prose, and the original surface font/canvas/first viewport, were
 reported without repair. Impeccable context also reports the optional
 `config.json` buildPath choice unset; it was not changed by this extension.
+
+## Attendance HR roster refinement (2026-10-10, task 178)
+
+Scope: `src/app/central-kitchen/(tabs)/attendance.tsx` only for implementation.
+This is a narrowed existing-surface refinement in staging, preserving the
+incumbent system. The user's request for high-end HR-tool inspiration was
+interpreted from Personio and BambooHR's primary attendance product pages as
+roster clarity and task focus, without copying or asserting feature parity.
+No new visual world, comp, concept seed or QUALITY BAR was needed.
+
+THESIS: A daily HR roster makes unmarked staff easy to find and manually mark.
+Present, Absent, Half day and Leave remain distinct from Unmarked. The roster
+does not create app logins, payroll or clock-in automation.
+
+OWN-WORLD: Incumbent Source Sans 3 and POS blue navigation, quiet white rows,
+hairline dividers and data-derived initials; initials disappear below 360px
+to preserve room for names. No new shared tokens, assets or visual identity.
+
+STORY: Choose the India day and local filter, mark attendance, inspect or add
+a note and the latest server-recorded actor/time, then maintain the roster.
+Service queries, tenant/branch enforcement, confirmed writes and polling are
+unchanged.
+
+FIRST VIEWPORT: Slim Attendance title with Add staff/Refresh, underline Daily
+register/Staff tabs, date and search, local All/Unmarked/Present/Absent/Half day/
+Leave count filters and marked/total completion, then roster rows. Phone/tablet
+search discloses beside the date and remains visible while a query is present.
+No-match recovery offers Reset filters to clear query and return to All.
+
+FORM: Desktop aligns Staff member, four inline choices (320px), latest
+editor/time (168px) and Notes control (48px). Phone/tablet retains status
+disclosure; expanded rows contain choices, latest actor/time, note and clear
+actions. Typical collapsed phone rows measured 65px; long names or notes may
+wrap taller. One main FlatList owns the register/header; count filters scroll
+in a horizontal FlatList. Existing staff editor and active/archive panes remain.
+
+FINISH: Final typecheck, changed-source lint and 30 attendance/native-route
+checks passed. Sixteen mocked captures cover 1440×900 desktop, 800×700 tablet,
+390×844 phone and 320×700 small phone. All have no reported page errors or
+horizontal overflow. Unmarked/Absent/All filters returned the correct rows
+locally without added requests; staff, note, clear, archive, calendar and
+loading/empty/error recovery were exercised. The run fulfilled 87 requests
+locally, forwarded zero and recorded five mock writes. The results' 17 facts
+are 16 capture facts plus one row-height/local-filter fact, not 17 captures.
+A focused read of the existing staging session confirmed the refreshed UI
+with a user-entered staff record; no user records were altered by testing.
+No service/query/schema/polling changes, new cloud log scan or production
+deployment. Evidence: `.impeccable/review/attendance-hr-results.json`,
+`attendance-hr-*.png` and `docs/KITCHEN_ATTENDANCE.md`.
+
+The fresh independent reviewer returned Ship in all five sections, with no
+material fixes. Verdict scope is this source/browser refinement; native
+hardware, text scaling, soft keyboards, dark appearance and gestures remain
+unverified.
+
+Comparison checked source, shared Kitchen primitives, Typography, brand tokens,
+DESIGN.md, `.impeccable/design.json` and desktop/phone captures. Frontmatter
+already records SourceSans3; prose and sidecar specimens still contain system
+sans, every-choice chips and older navigation guidance. The early surface
+font/canvas/first-viewport contract also predates current authority. These are
+pre-existing documentation drift, reported without repairs. Both incumbent
+design files and global tokens remain untouched.

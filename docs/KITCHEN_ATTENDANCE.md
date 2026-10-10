@@ -2,6 +2,8 @@
 
 Task 176 · 2026-10-10 · staging only
 
+Latest refinement: task 178 · 2026-10-10 · staging only
+
 Central Kitchen now has a manually maintained staff roster and daily attendance
 register. Attendance is separate from app logins: adding a person does not
 create a Supabase Auth account or change their access. Production is unchanged.
@@ -13,21 +15,35 @@ Stock, History and More; Attendance joins Branches and Vendors under More.
 The route is `/central-kitchen/attendance`. Existing Kitchen role access and
 owner/admin entry through Settings remain in force.
 
-The screen opens the Daily register for today in Asia/Kolkata. Previous/next
+The screen opens the Daily register for today in Asia/Kolkata. Underline tabs
+switch between Daily register and Staff; Add staff and Refresh sit beside the
+slim title. Previous/next
 day controls and the calendar select today or an earlier day; future dates
 are disabled and also rejected by the service and database. Today in the
 calendar returns to the current India day.
 
 Each person begins Unmarked. Select Present, Absent, Half day or Leave to save
 that day's mark. Unmarked is distinct from Absent: no mark does not imply the
-person was absent. Counts cover the full day's roster, while search narrows
-the visible rows by name or job role. Desktop shows the four choices inline;
-smaller layouts disclose them from the person's current status button.
+person was absent. All, Unmarked, Present, Absent, Half day and Leave are
+selectable count filters. Counts and the marked/total completion line cover
+the full day's roster; status and name/job-role search narrow only the visible
+rows, locally, without another database request. Desktop search is visible;
+on phone/tablet the search icon beside the date discloses it. Search stays
+visible while it contains a query. Reset filters clears the query and selects
+All when there are no matching staff.
+
+Desktop aligns Staff member, Attendance, Last updated and Notes columns. The
+four choices stay inline; latest editor/time and the note control have their
+own columns. Phone/tablet rows disclose the choices from the current status
+button; expanding also shows the recorded latest editor/time and note editor.
+Data-derived initials accompany names at wider sizes and are omitted below
+360px to leave room for long names.
 
 Open a row's editor to add an optional note of up to 200 characters, save the
 note, or Clear mark. Clear mark saves Unmarked with an empty note rather than
 deleting the attendance record. Choose a status before adding the first note.
-The row shows the latest server-recorded editor and India time. This is the
+The row's Last updated column or expanded phone editor shows the latest
+server-recorded editor and India time. This is the
 current daily record, not a revision-history or payroll system.
 
 The Staff pane provides Active staff and Archived lists, search and editing.
@@ -141,3 +157,56 @@ navigation extensions. The earlier surface contract also contains its original
 font, canvas and first-viewport descriptions. Impeccable context reports an
 unset `buildPath` in `.impeccable/config.json`; that optional workflow choice
 was not changed by this precisely scoped extension.
+
+## HR roster refinement (task 178)
+
+The user requested inspiration from a high-end HR resource tool. The reviewed
+primary product references were [Personio Attendance Tracking](https://www.personio.com/product/attendance-tracking/)
+and [BambooHR Time Tracking](https://www.bamboohr.com/ca/platform/time-and-attendance/time-tracking).
+The interpretation is roster clarity and task focus: choose the day, find
+Unmarked staff, mark attendance, then inspect notes or the latest actor. It
+does not claim a copied design or feature parity. The manual attendance scope
+and existing Source Sans 3, POS blue and Kitchen Ledger remain authoritative.
+
+The narrower refinement replaces the previous pane switch with underline
+tabs, introduces local count filters and the completion line, and aligns the
+desktop roster columns. The four-choice column is 320px, latest editor/time
+168px and Notes 48px. A typical collapsed phone row measured 65px in the
+mocked browser run; wrapping names or saved notes can increase its height.
+Phone search disclosure and omission of initials below 360px preserve room
+for the work. One main FlatList owns the roster and header; the count-filter
+strip uses a horizontal FlatList on narrow layouts. Service, query, schema,
+scope enforcement and polling behavior were not changed.
+
+Task 178 verification retained 16 browser captures at desktop 1440×900,
+tablet 800×700, phone 390×844 and small phone 320×700. All have no reported
+page errors or horizontal overflow. Unmarked, Absent and All filters returned
+the expected local rows without added requests. Existing staff, note, clear,
+archive, calendar, search-empty, loading, empty and error/retry flows were
+exercised with mocks. The run fulfilled 87 cloud-targeted requests locally,
+forwarded zero and recorded five mock writes. Its JSON contains 17 facts:
+16 capture facts and one 65px row/local-filter fact; the console's label of
+17 captures is inaccurate. Evidence is in
+`.impeccable/review/attendance-hr-results.json`,
+`check-kitchen-attendance-hr.cjs` and `attendance-hr-*.png`.
+
+Typecheck, changed-source lint and the 30 attendance/native-route checks
+passed. A focused read of the existing staging session confirmed the refreshed
+screen displays a user-entered staff record; no user records were altered by
+testing. No new cloud log scan was required, and production is unchanged.
+
+The fresh independent finish review returned Ship across all five review
+sections, with no material fixes. This verdict covers the scoped browser
+composition and source; native hardware, text scaling, soft keyboards, dark
+appearance and gestures remain unverified.
+
+The documentation comparison checked source, shared Kitchen controls,
+Typography, brand tokens, DESIGN.md, `.impeccable/design.json` and desktop/
+phone captures. DESIGN.md's frontmatter already records SourceSans3; its
+system-sans prose and sidecar component specimens, chips-for-every-choice
+guidance and older navigation descriptions predate the current implementation.
+The original surface contract also retains earlier font/canvas/first-viewport
+descriptions. These are reported as pre-existing drift without repair; both
+incumbent design files and global tokens are preserved. This is an existing
+surface refinement, so no new visual world, comp, concept seed or QUALITY BAR
+was needed.
