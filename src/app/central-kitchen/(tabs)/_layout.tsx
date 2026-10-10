@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { BackHandler, FlatList, Platform, Pressable, View } from 'react-native';
+import { BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, Boxes, Store, Truck, History, BarChart3, Ellipsis, X, type LucideIcon } from 'lucide-react-native';
+import { Home, Boxes, Store, Truck, History, BarChart3, Ellipsis, X, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
@@ -24,7 +24,10 @@ export const KITCHEN_TABS: readonly KitchenTab[] = [
 const phoneTabs = KITCHEN_TABS.filter(tab => tab.name !== 'branches' && tab.name !== 'vendors');
 const moreTabs = KITCHEN_TABS.filter(tab => tab.name === 'branches' || tab.name === 'vendors');
 
-function TabButton({ tab, focused, onPress, rail }: { tab: KitchenTab; focused: boolean; onPress: () => void; rail: boolean }) {
+const leLabanLogo: ImageSourcePropType = require('@/../assets/images/le-leban-logo.png');
+type RailWebStyle = ViewStyle & { transition?: string };
+
+function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: KitchenTab; focused: boolean; onPress: () => void; rail: boolean; expanded?: boolean }) {
   const { isDesktop } = useResponsive();
   const compact = Platform.OS === 'web' && isDesktop && rail;
   const Icon = tab.icon;
@@ -36,15 +39,15 @@ function TabButton({ tab, focused, onPress, rail }: { tab: KitchenTab; focused: 
       accessibilityState={{ selected: focused }}
       aria-selected={focused}
       accessibilityLabel={tab.label}
-      className={`items-center active:opacity-80 ${rail ? `overflow-hidden rounded-[14px] border border-transparent focus:border-text-on-primary ${focused ? '' : 'hover:bg-sidebar-hover'}` : 'rounded-xl hover:bg-surface-tint focus:border focus:border-primary'} ${compact ? 'min-h-12 w-full flex-row justify-start gap-2 px-3 py-1.5' : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
+      className={`items-center active:opacity-80 ${rail ? `overflow-hidden rounded-[14px] border border-transparent focus:border-text-on-primary ${focused ? '' : 'hover:bg-sidebar-hover'}` : 'rounded-xl hover:bg-surface-tint focus:border focus:border-primary'} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
     >
       {rail && focused ? <SidebarSelection /> : null}
       <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused && !rail ? 'bg-accent-soft' : ''}`}`}>
         <Icon size={compact ? 18 : 21} color={color} />
       </View>
-      <Text className={`${focused ? 'font-extrabold' : 'font-semibold'} ${compact ? 'text-[13px]' : 'mt-0.5 text-xs'}`} style={{ color }} numberOfLines={1}>
+      {!compact || expanded ? <Text className={`${focused ? 'font-extrabold' : 'font-semibold'} ${compact ? 'text-[13px]' : 'mt-0.5 text-xs'}`} style={{ color }} numberOfLines={1}>
         {tab.label}
-      </Text>
+      </Text> : null}
     </Pressable>
   );
 }
@@ -115,17 +118,77 @@ function Rail({ state, navigation }: BarProps) {
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
   const compact = Platform.OS === 'web' && isDesktop;
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(true);
+  const expanded = !compact || pinned || hovered || keyboardFocused;
+  useEffect(() => {
+    if (!compact) return;
+    const rail = document.getElementById('kitchen-navigation-rail');
+    const shell = document.getElementById('kitchen-navigation-shell');
+    if (!rail || !shell) return;
+    let keyboardNavigation = false;
+    const onMouseEnter = (): void => setHovered(true);
+    const onMouseLeave = (): void => setHovered(false);
+    const onFocusIn = (): void => setKeyboardFocused(keyboardNavigation);
+    const onFocusOut = (event: FocusEvent): void => {
+      if (!(event.relatedTarget instanceof Node) || !rail.contains(event.relatedTarget)) setKeyboardFocused(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Tab') return;
+      keyboardNavigation = true;
+      if (rail.contains(document.activeElement)) setKeyboardFocused(true);
+    };
+    const onPointerDown = (): void => {
+      keyboardNavigation = false;
+      setKeyboardFocused(false);
+    };
+    rail.addEventListener('focusin', onFocusIn);
+    rail.addEventListener('focusout', onFocusOut);
+    shell.addEventListener('mouseenter', onMouseEnter);
+    shell.addEventListener('mouseleave', onMouseLeave);
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      rail.removeEventListener('focusin', onFocusIn);
+      rail.removeEventListener('focusout', onFocusOut);
+      shell.removeEventListener('mouseenter', onMouseEnter);
+      shell.removeEventListener('mouseleave', onMouseLeave);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [compact]);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = (): void => setReducedMotion(preference.matches);
+    update();
+    preference.addEventListener('change', update);
+    return () => preference.removeEventListener('change', update);
+  }, []);
+  const drawerStyle: RailWebStyle = {
+    paddingTop: insets.top + 12,
+    paddingBottom: insets.bottom,
+    ...(compact ? {
+      width: expanded ? 176 : 64,
+      transition: reducedMotion ? 'none' : 'width 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+    } : {}),
+  };
   return (
-    <View testID="kitchen-navigation-rail" className={`relative items-center gap-1.5 overflow-hidden ${compact ? 'w-44 px-2' : 'w-[88px] px-2'}`} style={{ paddingTop: insets.top + 12 }}>
+    <View nativeID="kitchen-navigation-shell" testID="kitchen-navigation-shell"
+      className={`relative shrink-0 ${compact ? `${pinned ? 'w-44' : 'w-16'} z-50` : 'w-[88px]'}`}>
+    <View nativeID="kitchen-navigation-rail" testID="kitchen-navigation-rail" className={`items-center gap-1.5 overflow-hidden px-2 ${compact ? 'absolute inset-y-0 left-0' : 'relative h-full w-[88px]'}`} style={drawerStyle}>
       <SidebarSurface />
-      <View className={`w-full border-b border-sidebar-divider pb-3 ${compact ? 'px-3' : 'items-center'}`}>
-        <Text className={`font-bold text-text-on-primary ${compact ? 'text-xl' : 'text-xs'}`} numberOfLines={1}>Le Laban</Text>
+      <View className="h-[68px] w-full items-center justify-center border-b border-sidebar-divider pb-3">
+        <Image source={leLabanLogo} accessibilityLabel="Le Laban logo" resizeMode="contain"
+          style={{ height: compact && expanded ? 52 : 32, width: compact && expanded ? 84 : 32 }} />
       </View>
       <FlatList
         className="min-h-0 w-full flex-1"
         data={KITCHEN_TABS}
         keyExtractor={tab => tab.name}
-        extraData={state.index}
+        extraData={`${state.index}-${expanded}`}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 6 }}
         ItemSeparatorComponent={() => <View className="h-1.5" />}
@@ -133,13 +196,22 @@ function Rail({ state, navigation }: BarProps) {
           const route = state.routes.find(entry => entry.name === tab.name);
           if (!route) return null;
           const focused = state.routes[state.index]?.name === tab.name;
-          return <TabButton tab={tab} focused={focused} rail onPress={() => {
+          return <TabButton tab={tab} focused={focused} rail expanded={expanded} onPress={() => {
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
             if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
           }} />;
         }}
       />
-      {compact ? <View className="mt-auto w-full border-t border-sidebar-divider px-3 py-4"><Text className="text-xs font-semibold text-sidebar-muted">Central Kitchen</Text></View> : null}
+      {compact ? <View className="w-full border-t border-sidebar-divider">
+        {expanded ? <Text className="px-2 pt-2 text-xs font-semibold text-sidebar-muted" numberOfLines={1}>Central Kitchen</Text> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={pinned ? 'Unpin kitchen sidebar' : 'Pin kitchen sidebar open'}
+          accessibilityState={{ selected: pinned }} onPress={() => setPinned(value => !value)}
+          className="min-h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent hover:bg-sidebar-hover focus:border-text-on-primary active:opacity-80">
+          {pinned ? <PanelLeftClose size={18} color={colors.sidebarTextMuted} /> : <PanelLeft size={18} color={colors.sidebarTextMuted} />}
+          {expanded ? <Text className="text-xs font-semibold text-sidebar-muted">{pinned ? 'Unpin sidebar' : 'Pin sidebar'}</Text> : null}
+        </Pressable>
+      </View> : null}
+    </View>
     </View>
   );
 }

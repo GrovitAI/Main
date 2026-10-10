@@ -18,8 +18,6 @@ export function SidebarSurface() {
 
 export function SidebarSelection() {
   return (
-    <View pointerEvents="none" className="absolute inset-0 overflow-hidden rounded-[14px]">
-      <LinearGradient colors={gradients.posSidebarSelected} style={{ flex: 1 }} />
-    </View>
+    <View pointerEvents="none" className="absolute inset-0 rounded-[14px] bg-kitchen-sidebar-selected" />
   );
 }

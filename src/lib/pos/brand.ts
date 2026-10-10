@@ -19,8 +19,10 @@ export const colors = {
   background: '#ffffff',
   /** App canvas — faint blue wash like logo surround */
   surfaceTint: '#e8f2fa',
-  /** Approved Blue frame canvas for the Central Kitchen workspace. */
-  kitchenCanvas: '#e3ecf5',
+  /** Matches the existing POS and Orders workspace canvas. */
+  kitchenCanvas: '#f5f8fc',
+  /** Quiet flat selection on the Kitchen's blue navigation rail. */
+  kitchenSidebarSelected: 'rgba(255, 255, 255, 0.14)',
   /** Existing POS sidebar palette, shared with the kitchen rail. */
   sidebarTop: '#0251b8',
   sidebarMiddle: '#013b8c',

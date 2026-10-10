@@ -1,4 +1,58 @@
-# Kitchen Blue frame — task 172
+# Kitchen Blue frame — tasks 172–173
+
+Task 173 (2026-10-10) is the current refinement below. The task 172 treatment
+and verification are retained as dated selection history; its text header,
+canvas, selected fill and fixed desktop width are superseded.
+
+## Current refinement — task 173, 2026-10-10
+
+The user requested the existing Le Laban sign, the same canvas as POS/other
+tabs, desktop sidebar auto-hide/hover like POS, and a quieter selected highlight.
+Staging source now reuses `assets/images/le-leban-logo.png`; no new asset was
+generated. React Native `Image` has explicit dimensions, following POS, because
+NativeWind image sizing failed browser interop.
+
+- `colors.kitchenCanvas` / `kitchen-canvas` is `#f5f8fc`, matching the existing
+  POS and Orders workspace canvas. Original `surfaceTint` stays `#e8f2fa`.
+- `colors.kitchenSidebarSelected` / `kitchen-sidebar-selected` is the flat
+  `rgba(255, 255, 255, 0.14)` fill. The shared POS rail backdrop and stationary
+  rings are retained; POS keeps its own selected gradient.
+- Desktop web at 1024px+ defaults to a 64px icon strip. Hover or keyboard focus
+  expands a 176px overlay without shifting the report; pinning reserves 176px.
+  Pointer clicks do not latch keyboard expansion. Desktop-only DOM listeners
+  are cleaned up, and the 200ms width transition is disabled for Reduce Motion.
+- Tablet/native uses the 88px labelled rail. Phones retain five controls and
+  More. The bounded six-section FlatList and safe-area footer remain.
+
+Only `_layout.tsx`, `SidebarSurface.tsx`, `brand.ts` and `tailwind.config.js`
+change application source. `DESIGN.md` and its sidecar record the current
+tokens, component and existing-asset provenance; Kitchen's gradient exception
+now applies only to the rail backdrop.
+
+### Verification — task 173
+
+Typecheck, changed-source quiet lint and 18 native route-loading checks passed.
+Mocked Playwright used 1440×900, 1024×390, 800×450, 390×668 and 320×700;
+there was no page overflow, undersized visible control or browser error. It
+confirmed the loaded logo, flat selection, all six desktop destinations and
+hover without report movement or fetch. Each of six mouse tab clicks followed
+by moving outside returned rail and shell to 64px. Actual Tab navigation from
+Home to Analytics expanded to 176px; outside focus collapsed to 64px.
+Pinning opened 176px; mouse unpin followed by pointer exit and report focus
+returned to 64px. This does not establish an isolated unpin/leave-only check.
+Short desktop Vendors/History, tablet History and phone More were checked.
+
+The final run fulfilled 100 cloud-targeted requests locally and forwarded zero;
+WebSockets were blocked and the agent browser was closed. Evidence is
+Git-ignored in `.impeccable/review/rail-refinement-results.json`,
+`check-kitchen-rail-refinement.cjs` and 12 `rail-refinement` screenshots; the
+outdated navigation-failure capture is excluded. Independent finish review
+returned **Ship**, with the input-modality finding resolved and prior visual
+approval retained. Native hardware, text scaling, dark appearance and gestures
+remain unverified. Services, queries, migrations and production deployment
+are unchanged; the user's staging server remains on localhost:8081 (API 8083).
+
+## Task 172 history — 2026-10-09
 
 The user selected Blue frame from the task 171 background previews on
 2026-10-09 and explicitly requested the existing POS left-sidebar colour scheme

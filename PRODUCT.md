@@ -108,8 +108,12 @@ figures to be right, and matching is offered only as a convenience.
 - Kitchen Blue frame (owner, 2026-10-09, task 172): the user selected the task
   171 direction and explicitly required the existing POS left-sidebar colour
   scheme and design. Kitchen desktop/tablet navigation shares that POS blue
-  gradient, translucent selected row and quiet ring detail, with Le Laban and
-  Central Kitchen identity. Its workspace gets a separate blue canvas; white
+  gradient and quiet ring detail, with Le Laban and Central Kitchen identity.
+  Task 173 (2026-10-10) refines this commitment: reuse the existing Le Laban
+  logo, match the POS workspace canvas, use a quiet flat Kitchen selection,
+  and let desktop navigation auto-hide with hover/keyboard disclosure and an
+  optional pin. These supersede task 172's text header, canvas, selected-row
+  gradient and fixed desktop width. Its workspace keeps a separate token; white
   working surfaces, action blue and semantic money colours retain their roles.
   This scoped commitment does not adopt the neutral or warm preview palettes.
 - Voice: plain, from the user's side of the counter; no accounting jargon.
