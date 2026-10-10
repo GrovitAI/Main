@@ -1,4 +1,4 @@
-import { Platform, Alert } from 'react-native';
+import { Alert } from 'react-native';
 import { fetchPrinters, type Printer } from '../pos/printer-db-service';
 import { getBranchTaxPercentage } from '../pos/pos-settings-service';
 import { roundUpToWholeRupee } from '../pos/order-utils';
@@ -173,16 +173,6 @@ function getLineWidth(paperWidth: string): number {
   return paperWidth === '58mm' ? 32 : 48;
 }
 
-function padLeft(str: string, length: number, char = ' '): string {
-  if (str.length >= length) return str;
-  return char.repeat(length - str.length) + str;
-}
-
-function padRight(str: string, length: number, char = ' '): string {
-  if (str.length >= length) return str;
-  return str + char.repeat(length - str.length);
-}
-
 function center(str: string, length: number, char = ' '): string {
   if (str.length >= length) return str.substring(0, length);
   const spaces = Math.floor((length - str.length) / 2);
@@ -191,10 +181,6 @@ function center(str: string, length: number, char = ' '): string {
 
 function separator(length: number, char = '-'): string {
   return char.repeat(length);
-}
-
-function formatMoney(amount: number): string {
-  return 'Rs.' + amount.toFixed(2);
 }
 
 function wrapText(text: string, limit: number): string[] {

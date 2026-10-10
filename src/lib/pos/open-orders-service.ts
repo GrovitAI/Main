@@ -767,7 +767,9 @@ export async function fetchOrderItemCounts(
 
     const { data, error } = await supabase
       .from('open_order_items')
-      .select('open_order_id, qty')
+      .select('open_order_id, qty, open_orders!inner(tenant_id, branch_id)')
+      .eq('open_orders.tenant_id', tenant_id)
+      .eq('open_orders.branch_id', branch_id)
       .in('open_order_id', orderIds);
 
     if (error) {

@@ -49,6 +49,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       .from('printers')
       .select('id')
       .eq('tenant_id', caller.tenantId)
+      .eq('branch_id', caller.branchId)
       .eq('connection', 'printnode')
       .eq('ip_address', printerId)
       .limit(1)
