@@ -9,3 +9,5 @@
 20261008065451_kitchen_spending_category_totals.sql
 20261008152218_kitchen_report_date_range.sql
 20261010055214_kitchen_item_kinds.sql
+20261010070428_kitchen_attendance.sql
+20261010072231_kitchen_attendance_branch_indexes.sql

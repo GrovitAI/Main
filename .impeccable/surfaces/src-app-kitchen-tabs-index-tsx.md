@@ -125,3 +125,62 @@ branch isolation using rolled-back fixtures. Native hardware, scaling,
 keyboards, dark appearance and gestures remain unverified. No production
 deployment. See docs/KITCHEN_STOCK.md for the approved migration, preserved
 legacy scope, usage budget and rollout boundary.
+
+## Attendance extension (2026-10-10, task 176)
+
+Scope: `src/app/central-kitchen/(tabs)/attendance.tsx`, AttendanceDate,
+attendance types/utils/service and the Kitchen navigation entry. Operate-mode
+extension of The Kitchen Ledger, preserving the incumbent design files and
+tokens. No new comp, concept seed or QUALITY BAR is needed for this precisely
+specified local addition.
+
+THESIS: A daily register of manual marks keeps Present, Absent, Half day and
+Leave distinct from Unmarked. The roster is maintained for attendance and does
+not grant app access or create Auth accounts.
+
+OWN-WORLD: Source Sans 3, shared POS blue navigation and canvas, quiet white
+working surfaces, existing blue selections, hairline row dividers and compact
+ledger density. No new global colour, type, asset or component system.
+
+STORY: Add the roster, choose an India day through today, mark a status, add an
+optional note, correct or clear a mark, and archive or restore staff. Recorded
+days survive archive; the server owns the latest editor and time. Feedback
+waits for confirmed writes and failed input stays available for recovery.
+
+FIRST VIEWPORT: Attendance title and Add staff, Daily register/Staff switch,
+India date with previous/next/calendar, five status counts, name/role search,
+Refresh and compact staff rows. Unmarked is shown explicitly. Loading, empty,
+search no-match and unavailable register have distinct recovery states.
+
+FORM: One FlatList for the header and rows. Desktop exposes the four status
+choices inline; phone/tablet rows disclose choices and notes. A flat inline
+name/role form keeps the roster task within the register. Desktop/tablet rails
+now have eight direct sections; phones retain Home, Analytics, Stock, History
+and More, with Attendance, Branches and Vendors in More. This supersedes the
+earlier seven-section task 175 navigation count only.
+
+FINISH: Typecheck, lint with zero errors/existing warnings, 30 local
+attendance/route checks, the broader 297-test/32-suite regression run and a
+55-route web export passed. Browser evidence covers 1440×900, 800×700, 390×844
+and 320×700, with 15 states, no page errors or horizontal overflow. The final
+mocked run fulfilled 87 cloud-targeted requests locally, forwarded zero and
+recorded five sample writes; websockets were blocked. A focused actual staging
+read confirmed the empty register loads without a migration error. Both
+attendance migrations were applied and verified one at a time in staging;
+rollback-only SQL checks cover scope, grants, actor/identity, person/day,
+future-date and archive behavior. Production remains unchanged.
+
+The independent finish reviewer's flat staff-field correction was scored
+resolved/ship. That verdict covers the named correction and browser/source
+extension, not a whole-platform security audit or native-device signoff.
+Native hardware, text scaling, keyboards, dark appearance and gestures remain
+unverified. See `docs/KITCHEN_ATTENDANCE.md` and the retained local
+`.impeccable/review/attendance-*` evidence.
+
+Comparison checked the finished attendance source, date selector, shared
+Kitchen primitives, Typography, brand tokens, DESIGN.md, design.json and
+desktop/phone/form/small-phone captures. Both incumbent design files remain
+untouched. Their pre-existing system-sans, chips-for-every-choice and older
+navigation prose, and the original surface font/canvas/first viewport, were
+reported without repair. Impeccable context also reports the optional
+`config.json` buildPath choice unset; it was not changed by this extension.

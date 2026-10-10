@@ -66,7 +66,8 @@ figures to be right, and matching is offered only as a convenience.
   Analytics directly to the kitchen rail. Task 175 (2026-10-10, staging) splits
   Items into Raw materials and Finished goods on desktop/tablet; phones use
   Home, Analytics, Stock, History and More, with both stock panes inside Stock
-  and Branches and Vendors in More.
+  and Branches and Vendors in More. Task 176 (2026-10-10, staging) adds Attendance
+  directly to desktop/tablet rails and under More on phones.
 
 ## Capabilities and Constraints
 
@@ -100,6 +101,14 @@ figures to be right, and matching is offered only as a convenience.
   goods and new purchases offer raw materials. Item types are editable; selected
   lines from historical entries remain available when editing. Existing stock,
   entry history and atomic posting/voiding are preserved. See docs/KITCHEN_STOCK.md.
+- Kitchen attendance (task 176, staging): a manually maintained roster, separate
+  from Auth accounts, and one daily mark per person in the kitchen's scope.
+  Present, Absent, Half day and Leave are explicit choices; Unmarked stays
+  distinct. India dates stop at today, notes allow 200 characters, and the
+  database owns the latest editor/time. Staff can be added, edited, archived
+  and restored; recorded days survive archive and remain correctable. Save
+  feedback waits for database confirmation. This is a daily register, without
+  payroll or clock-in automation. See docs/KITCHEN_ATTENDANCE.md.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.
