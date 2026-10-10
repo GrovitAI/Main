@@ -124,6 +124,14 @@ figures to be right, and matching is offered only as a convenience.
   in a divided footer. Creator, transaction date, recorded IST time and audit
   meaning remain visible, with unchanged filters, sorts, details and the loaded
   500-entry/92-transaction-day window. See docs/KITCHEN_HISTORY.md.
+- Kitchen History controls (task 180, staging): desktop places Search, Filters
+  and a 220px sort control on one row; phones place Search above matched 48px
+  Filters/sort buttons, including active counts. Compact date-basis labels and
+  direction icons keep all four sorts and full accessible/picker wording.
+  Shared report fields retain their default presentation. Existing local
+  filtering, loaded scope, audit rows, details and design authority are
+  preserved; pre-existing documentation drift remains recorded in
+  docs/KITCHEN_HISTORY.md. No new tokens, assets or production deployment.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.

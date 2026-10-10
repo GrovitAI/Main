@@ -320,3 +320,46 @@ tokens remain untouched. Existing system-sans prose/specimens, every-choice
 chips, older navigation and early surface font/canvas/first-viewport drift is
 reported without repair. No new shipping raster assets or production
 deployment. The HTML/CSS detector does not apply to this React Native source.
+
+## Task 180 direction contract — History controls
+
+Scoped Operate refinement of the incumbent system; no new world, comp or seed.
+THESIS: Search, filter disclosure and sorting form one coherent history toolbar.
+OWN-WORLD: Existing Source Sans 3, POS blue, kitchen canvas and quiet bordered
+48px controls. No token, navigation, ledger-row or data-behavior replacement.
+STORY: Search locally, disclose the existing filters, choose one of the same
+four date/order sorts; preserve active-filter count and clear/recovery behavior.
+FIRST VIEWPORT: Desktop has search then Filters and a single-line sort trigger
+on one row. Phones have full-width search followed by matched-height Filters
+and sort buttons. Sort shows its date basis and direction icon; its accessible
+label and picker retain the full selected source/order wording.
+FORM: Responsive toolbar with one-line compact sorting; the shared selector's
+existing field presentation remains the default everywhere else.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the
+finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+
+Task 180 verdict: **Ship** for the sole correction. The first review found
+narrow-phone sort wrapping and active-count layout. Shortening the mobile
+label to Transaction resolved it; the retained harness now asserts matched
+48px controls with active counts. The reviewer scored the fix resolved and
+found no fix-induced regressions. This does not claim fresh whole-surface
+approval. Desktop keeps a 220px sort trigger; full accessible/picker wording
+and all four choices remain. The optional `ReportSelect` toolbar presentation
+leaves default report fields intact; rows, data, filters, queries, store and
+polling are unchanged.
+
+Final typecheck, changed-file ESLint and 35 tests/two suites (23 native route
+imports) passed. Nineteen mocked captures at 1440×900, 800×700, 390×844 and
+320×700 cover filters/sorts, audit/details, no-match reset and loading/empty/
+error recovery; 89 requests were fulfilled locally, zero forwarded, and local
+filters made no queries. Evidence: `history-toolbar-results.json` and
+`history-toolbar-*.png` under `.impeccable/review/`. The existing user staging
+History read at 319×668 confirms both buttons at 48px in
+`history-toolbar-live-staging.png`, without Refresh or writes.
+
+Source Sans 3, POS blue navigation, Kitchen Canvas, DESIGN.md, design.json and
+tokens remain unchanged; the pre-existing documentation drift above is
+reported without repair. No new assets, schema, migration or production
+deployment; eight migrations remain staging-only. The HTML/CSS detector was
+not used for this native source. Native hardware, text scaling, soft keyboards,
+dark appearance and gestures remain unverified. See `docs/KITCHEN_HISTORY.md`.

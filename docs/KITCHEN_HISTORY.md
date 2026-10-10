@@ -2,7 +2,7 @@
 
 Task 174 · 2026-10-10 · staging source only
 
-Latest refinement: task 179 · 2026-10-10 · staging source only
+Latest refinement: task 180 · 2026-10-10 · staging source only
 
 History now shows who recorded an entry, when the transaction happened, when
 it was recorded, and whether it was corrected or voided. The extension keeps
@@ -180,3 +180,36 @@ Typography, shared Kitchen controls and desktop/phone captures preserves the
 incumbent visual authority. Design files and tokens remain untouched. The
 pre-existing system-sans/specimen, every-choice chips, older navigation and
 early surface-contract drift recorded above is reported without repair.
+
+## Toolbar placement refinement (task 180)
+
+Desktop now places Search, Filters and a 220px sort trigger on one row.
+Phones place full-width Search above matched 48px Filters and sort buttons,
+including active filter counts. Quiet borders and the selected filter fill use
+existing tokens. Sort shows Transaction on phones, Transaction date on desktop
+or Entry date, with an ascending/descending icon; its accessible label and
+picker retain the full date basis and order across the same four choices.
+Only `history.tsx` and `ReportSelect.tsx` changed: the shared selector's optional
+toolbar presentation preserves its default field presentation. Rows, filters,
+details, local data scope, services, queries, store and polling are unchanged.
+
+Final typecheck, changed-file ESLint and 35 tests in two suites passed,
+including 23 native route imports. The 19 mocked captures at 1440×900,
+800×700, 390×844 and 320×700 checked filters/sorts, audit/details, no-match
+reset and loading/empty/error recovery; 89 requests were fulfilled locally,
+zero forwarded, and local filters made no queries. Evidence is
+`.impeccable/review/history-toolbar-results.json` and `history-toolbar-*.png`.
+The read-only existing staging session at 319×668 also confirms both buttons
+at 48px in `history-toolbar-live-staging.png`; no Refresh or live write was
+performed. The first review found narrow-phone sort wrapping and count layout;
+shortening the phone label resolved it, and the harness now asserts matched
+heights with active counts. The reviewer scored that sole fix resolved, found
+no fix-induced regressions and returned **Ship**; this is not fresh approval
+of the whole surface.
+
+Source Sans 3, POS blue navigation, Kitchen Canvas, DESIGN.md, design sidecar
+and tokens are preserved; the existing documentation drift above remains
+reported without repair. No new assets, schema, migration or production
+deployment; all eight staging-only migrations remain pending for production.
+The native source did not use the HTML/CSS detector. Native hardware, text
+scaling, soft keyboards, dark appearance and gestures remain unverified.

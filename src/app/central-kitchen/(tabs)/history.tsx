@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
-import { SlidersHorizontal, RefreshCw } from 'lucide-react-native';
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
@@ -55,12 +55,14 @@ export default function HistoryScreen() {
       </Pressable>
     } />
     {data.error ? <Notice text={data.error} /> : null}
-    <SearchBox value={filters.query} onChange={value => update('query', value)} placeholder="Search staff, items, notes or amounts" />
-    <View className="flex-row items-center gap-2">
-      <Pressable accessibilityRole="button" accessibilityLabel="History filters" accessibilityState={{ expanded: showFilters }} onPress={() => setShowFilters(value => !value)} className={button + ' bg-surface-elevated'}>
+    <View testID="kitchen-history-toolbar" className={'gap-2 ' + (desktop ? 'flex-row items-center' : '')}>
+      <View className="min-w-0 flex-1"><SearchBox value={filters.query} onChange={value => update('query', value)} placeholder="Search staff, items, notes or amounts" /></View>
+      <View className={'flex-row items-center gap-2 ' + (desktop ? 'shrink-0' : '')}>
+      <Pressable accessibilityRole="button" accessibilityLabel="History filters" accessibilityState={{ expanded: showFilters }} onPress={() => setShowFilters(value => !value)} className={button + ' border border-border ' + (showFilters || filterCount ? 'bg-accent-soft' : 'bg-surface-elevated')}>
         <SlidersHorizontal size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">Filters{filterCount ? ` (${filterCount})` : ''}</Text>
       </Pressable>
-      <View className={'min-w-0 flex-1 ' + (desktop ? 'max-w-[320px]' : '')}><ReportSelect compact allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} /></View>
+      <View className={'min-w-0 ' + (desktop ? 'w-[220px]' : 'flex-1')}><ReportSelect toolbar allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} triggerText={filters.sort.startsWith('transaction') ? desktop ? 'Transaction date' : 'Transaction' : 'Entry date'} triggerIcon={filters.sort.endsWith('newest') ? ArrowDownWideNarrow : ArrowUpWideNarrow} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} /></View>
+      </View>
     </View>
     {showFilters ? <View testID="kitchen-history-filters" className="gap-2 rounded-xl border border-border-soft bg-surface-elevated p-3">
       <View className={desktop ? 'flex-row gap-2' : 'gap-2'}>
