@@ -20,7 +20,7 @@ export function ReportSelect({ label, value, options, onChange, emptyLabel = 'Al
     <View className="min-w-0 flex-1 gap-1">
       {!compact && !toolbar ? <Text className="text-xs font-bold text-text-secondary">{label}</Text> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + selected} accessibilityState={{ expanded: open }} onPress={() => setOpen(true)}
-        className={'min-h-12 flex-row items-center justify-between gap-2 rounded-xl px-3 py-2 focus:border focus:border-primary ' + (toolbar || outlined ? 'border border-border bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft' : 'bg-surface-tint hover:bg-accent-soft active:opacity-70')}>
+        className={'min-h-12 flex-row items-center justify-between gap-2 rounded-xl px-3 py-2 focus:border focus:border-primary ' + (toolbar || outlined ? 'border border-border bg-surface-elevated hover:bg-accent-soft active:bg-accent-soft' : 'bg-surface-tint hover:bg-accent-soft active:opacity-70')}>
         {toolbar && TriggerIcon ? <TriggerIcon size={16} color={colors.primary} /> : null}
         <View className="min-w-0 flex-1">
           {compact && !toolbar ? <Text className="text-xs font-bold leading-4 text-text-secondary">{label}</Text> : null}
@@ -40,9 +40,10 @@ export function ReportSelect({ label, value, options, onChange, emptyLabel = 'Al
             <SearchBox value={search} onChange={setSearch} placeholder={'Search ' + label.toLowerCase()} />
             <FlatList data={rows} keyExtractor={item => item.id} keyboardShouldPersistTaps="handled"
               className="mt-3 max-h-[360px] shrink" ListEmptyComponent={<Text className="py-4 text-sm text-text-secondary">No matches. Try another name.</Text>}
+              ItemSeparatorComponent={() => <View className="h-1" />}
               renderItem={({ item }) => (
                 <Pressable accessibilityRole="button" accessibilityState={{ selected: item.id === (value ?? '') }}
-                  onPress={() => { onChange(item.id || null); close(); }} className="min-h-12 flex-row items-center gap-2 border-b border-border-soft py-3 hover:bg-surface-tint active:opacity-60">
+                  onPress={() => { onChange(item.id || null); close(); }} className={'min-h-12 flex-row items-center gap-2 rounded-lg border border-transparent px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus:border-primary ' + (item.id === (value ?? '') ? 'bg-surface-tint' : 'bg-surface-elevated')}>
                   <Text className="flex-1 text-sm font-semibold text-text-primary">{item.label}</Text>
                   {item.id === (value ?? '') ? <Check size={18} color={colors.primary} /> : null}
                 </Pressable>

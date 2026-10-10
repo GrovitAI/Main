@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlatList, Modal, Platform, Pressable, View, useWindowDimensions } from 'react-native';
+import { FlatList, Modal, Pressable, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +7,7 @@ import { colors, semantic } from '@/lib/pos/brand';
 import { kitchenCalendarDays, kitchenMonthLabel, kitchenMonthRange, kitchenRangeLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 
-const control = 'min-h-12 min-w-12 items-center justify-center rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary';
+const control = 'min-h-12 min-w-12 items-center justify-center rounded-xl border border-transparent px-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary';
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 /** Date selection is a draft: only Apply changes the report and starts a request. */
@@ -64,13 +64,15 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
           <FlatList data={kitchenCalendarDays(calendarMonth)} numColumns={7} keyExtractor={day => day.key} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const date = item.date;
-              const cell = 'min-w-0 flex-1 items-center justify-center ' + (Platform.OS === 'web' ? 'min-h-11' : 'min-h-12');
+              const cell = 'min-h-12 min-w-0 flex-1 p-0.5';
               if (!date) return <View className={cell} />;
               const selected = date === draft.startDate || date === draft.endDate;
               const between = date > draft.startDate && date < draft.endDate;
               return <Pressable accessibilityRole="button" accessibilityLabel={'Select ' + date + ' as ' + (choosing === 'startDate' ? 'start' : 'end') + ' date'} accessibilityState={{ selected, disabled: date > today }} disabled={date > today} onPress={() => select(date)}
-                className={cell + ' rounded-lg focus:border focus:border-primary ' + (selected ? 'bg-primary' : between ? 'bg-accent-soft' : 'hover:bg-surface-tint') + (date > today ? ' opacity-40' : '')}>
-                <Text className={'text-sm font-semibold ' + (selected ? 'text-text-on-primary' : 'text-text-primary')}>{Number(date.slice(8))}</Text>
+                className={'group ' + cell + (date > today ? ' opacity-40' : '')}>
+                <View pointerEvents="none" className={'w-full flex-1 items-center justify-center rounded-lg border border-transparent ' + (selected ? 'bg-primary group-hover:bg-primary-deep group-active:bg-primary-deep group-focus:border-text-on-primary' : (between ? 'bg-surface-tint ' : 'bg-surface-elevated ') + (date > today ? '' : 'group-hover:bg-accent-soft group-active:bg-accent-soft group-focus:border-primary'))}>
+                  <Text className={'text-sm font-semibold ' + (selected ? 'text-text-on-primary' : 'text-text-primary')}>{Number(date.slice(8))}</Text>
+                </View>
               </Pressable>;
             }}
             ListFooterComponent={<View className="gap-2 px-1 pb-2 pt-3">

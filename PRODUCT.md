@@ -141,6 +141,13 @@ figures to be right, and matching is offered only as a convenience.
   sizes are retained. Shared outlined presentations remain opt-in. Existing
   toolbar, audit rows, local filtering/sorting and loaded scope are preserved
   within the incumbent design. See docs/KITCHEN_HISTORY.md.
+- Kitchen History hover boundaries (task 182, staging): shared report choices
+  use rounded 48px rows with 4px separators and distinct selected/hover fills.
+  Calendar highlights sit 2px inside full 48px date targets, leaving a visible
+  4px gap and stable focus borders. Existing date drafts, Cancel/Apply and
+  filtering remain; other shared-control callers inherit the visual refinement
+  with their existing callbacks. Incumbent design authority is preserved.
+  See docs/KITCHEN_HISTORY.md.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.

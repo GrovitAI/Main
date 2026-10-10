@@ -2,7 +2,7 @@
 
 Task 174 · 2026-10-10 · staging source only
 
-Latest refinement: task 181 · 2026-10-10 · staging source only
+Latest refinement: task 182 · 2026-10-10 · staging source only
 
 History now shows who recorded an entry, when the transaction happened, when
 it was recorded, and whether it was corrected or voided. The extension keeps
@@ -259,3 +259,52 @@ schema, migration or production deployment was added; eight migrations remain
 staging-only. The HTML/CSS detector was not applied to React Native source.
 Native hardware, text scaling, soft keyboards, dark appearance and gestures
 remain unverified.
+
+## Hover and calendar boundaries (task 182)
+
+The user's post-181 feedback concerned hover emphasis and date highlights
+that appeared to overlap. Only shared `ReportSelect.tsx` and
+`ReportDateRange.tsx` changed. Picker choices now use padded rounded 48px rows,
+4px separators, Surface Tint plus a check for selection and Accent Soft for
+hover/press. Outlined and toolbar triggers use the stronger existing Accent
+Soft hover. Calendar date Pressables retain the full cell and 48px height;
+their non-interactive rounded highlight is inset 2px on each side, creating
+4px visual gaps. Endpoints use Primary/Primary Deep, the inclusive range uses
+Surface Tint, and other hovered dates use Accent Soft. Constant transparent
+borders reserve inside focus space without moving the picker/date geometry.
+No hitSlop was added. The old target bounds were already separate; touching
+backgrounds caused the apparent overlap.
+
+Inclusive drafts, Cancel/Apply, future-day disabling and invalid-range handling
+are retained. Other report-control callers inherit this visual refinement and
+keep their existing callbacks, including Analytics report fetching. History
+grouping, rows, loaded scope, local filters/sorts, queries, store and polling
+are unchanged; no service, schema, migration or production change was made.
+Eight migrations remain staging-only.
+
+Final typecheck, changed-file ESLint and 44 tests/three suites passed, including
+23 native route imports. `check-kitchen-history-hitboxes.cjs` and
+`history-hitboxes-results.json` retain 20 mocked captures: trigger hover,
+picker hover, calendar hover and calendar focus at 1440×900, 800×700, 390×844,
+320×700 and 370×668. The run fulfilled 61 cloud-targeted requests locally,
+forwarded zero and reported no page errors/unexpected hosts or History filter
+requests. It measured disjoint date targets (0.1px tolerance), widths at least
+44px, 48px heights, 2px chip insets, 4px gaps and stable focus geometry; it also
+checked Cancel draft reset, Apply/Clear, status and entry-date sorting.
+
+The existing staging calendar was opened and Cancelled only, without Apply,
+Refresh or writes. `history-hitboxes-live-calendar.png` is 369×668 (the live
+DOM reported 370×668); the user's tab and server were preserved. The fresh
+independent review in `history-hitboxes-finish-review.md` inspected all 21
+images and all five contract sections and returned **Ship**, with no material
+fixes or recaptures. One batched implementation visual round and the fresh
+review completed this scoped refinement.
+
+Comparison with PRODUCT.md, DESIGN.md, `.impeccable/design.json`, brand tokens,
+Typography, shared Kitchen controls and desktop/phone captures preserves
+Source Sans 3, POS blue/Canvas and ledger density. Design files and tokens
+remain untouched; the previously recorded system-sans/specimen, choice-chip,
+navigation and early-contract drift remains disclosed without repair. Captures
+are screenshot evidence, not shipping raster assets. The HTML/CSS detector was
+not applied to React Native source. Native hardware, text scaling, soft
+keyboards, dark appearance and gestures remain unverified.
