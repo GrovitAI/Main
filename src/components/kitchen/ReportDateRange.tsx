@@ -11,7 +11,7 @@ const control = 'min-h-12 min-w-12 items-center justify-center rounded-xl border
 const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 /** Date selection is a draft: only Apply changes the report and starts a request. */
-export function ReportDateRange({ value, onChange, label = 'Report dates', placeholder, outlined = false }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void; label?: string; placeholder?: string; outlined?: boolean }) {
+export function ReportDateRange({ value, onChange, label = 'Report dates', placeholder, outlined = false, inlineLabel, triggerText }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void; label?: string; placeholder?: string; outlined?: boolean; inlineLabel?: string; triggerText?: string }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const today = kitchenToday();
@@ -53,9 +53,10 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
   </View>;
   return <>
     <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + (placeholder ?? value.startDate + ' through ' + value.endDate)} accessibilityState={{ expanded: open }} onPress={() => { setDraft(value); setChoosing('startDate'); setCalendarMonth(value.startDate.slice(0, 7)); setOpen(true); }}
-      className={'min-h-12 min-w-0 flex-row items-center gap-2 rounded-xl bg-surface-elevated px-3 py-2 hover:bg-accent-soft focus:border focus:border-primary ' + (outlined ? 'border border-border active:bg-accent-soft' : 'active:opacity-70')}>
-      <CalendarDays size={16} color={colors.primary} />
-      <Text className="min-w-0 shrink text-sm font-bold text-primary">{placeholder ?? (fullMonth ? kitchenMonthLabel(value.startDate.slice(0, 7)) : kitchenRangeLabel(value))}</Text>
+      className={(inlineLabel ? 'min-h-11 ' : 'min-h-12 ') + 'min-w-0 flex-row items-center gap-2 rounded-xl bg-surface-elevated px-3 py-2 hover:bg-accent-soft focus:border focus:border-primary ' + (outlined ? 'border border-border active:bg-accent-soft' : 'active:opacity-70')}>
+      {inlineLabel ? <Text className="w-20 shrink-0 text-xs font-semibold leading-4 text-text-secondary">{inlineLabel}</Text> : <CalendarDays size={16} color={colors.primary} />}
+      <Text className={'min-w-0 text-sm font-bold text-primary ' + (inlineLabel ? 'flex-1' : 'shrink')}>{triggerText ?? placeholder ?? (fullMonth ? kitchenMonthLabel(value.startDate.slice(0, 7)) : kitchenRangeLabel(value))}</Text>
+      {inlineLabel ? <CalendarDays size={16} color={colors.primary} /> : null}
     </Pressable>
     <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.overlay, paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 8) }}>

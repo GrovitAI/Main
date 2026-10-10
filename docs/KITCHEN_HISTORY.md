@@ -2,7 +2,7 @@
 
 Task 174 · 2026-10-10 · staging source only
 
-Latest refinement: task 182 · 2026-10-10 · staging source only
+Latest refinement: task 183 · 2026-10-10 · staging source only
 
 History now shows who recorded an entry, when the transaction happened, when
 it was recorded, and whether it was corrected or voided. The extension keeps
@@ -308,3 +308,44 @@ navigation and early-contract drift remains disclosed without repair. Captures
 are screenshot evidence, not shipping raster assets. The HTML/CSS detector was
 not applied to React Native source. Native hardware, text scaling, soft
 keyboards, dark appearance and gestures remain unverified.
+
+## Compact phone filters (task 183)
+
+Below 640px, expanded Filters uses five full-width inline label/value rows
+with 44px minimum heights, 6px gaps and 8px panel padding. Redundant headings
+are omitted; the date divider and full picker/accessibility names remain.
+Short helper text preserves transaction/recorded/India-time meaning. Any dates
+means no date filter within the disclosed 500-entry/92-transaction-day window.
+Long choices wrap; the nonshrinking inline selector wrapper prevents crowding.
+Desktop/tablet grouped 48px controls remain. Only History and the two report
+controls changed; optional inline props preserve shared defaults. Local
+filters/sorts, date drafts, Cancel/Apply, rows, details and scope remain intact.
+
+Final typecheck, changed-source ESLint and 44 tests/three suites passed,
+including 23 native route imports. `check-kitchen-history-mobile-filters.cjs`
+and `history-mobile-filters-results.json` retain 33 mocked captures: six states
+at 1440×900, 800×700, 390×844, 320×700 and 370×668, plus phone loading/empty/error.
+The run fulfilled 100 cloud-targeted requests locally, forwarded zero and
+reported no errors, unexpected hosts, writes or History filter requests.
+Scope, overflow, targets, wrapping and existing flows were checked, including
+date application. The `-dates` images show scrolled triggers, not a calendar.
+
+The existing staging default panel measured 294.4px versus the prior 546.4px,
+46.1% shorter. `history-mobile-filters-live.png` is 369×668; its DOM reported
+370×668. Only part of the first history row is visible at that short height.
+Long choices and ranges can increase height. No live Refresh, Apply or write
+occurred. This default capture preceded the wrapper correction, verified by
+final mocked long-staff captures. Two build inspection batches included that
+correction; fresh review inspected all 34 images and five contract sections
+and returned **Ship** without material fixes, recapture or rebuild;
+see `.impeccable/review/history-mobile-filters-finish-review.md`.
+
+Incumbent comparison with PRODUCT, DESIGN, design.json, brand, Typography,
+shared controls and representative captures preserves Source Sans 3, POS
+blue/Canvas and ledger density. Design files/tokens and the previously
+disclosed drift remain untouched. Harness/results/review/captures are ignored
+local QA, with no shipping assets. No service/query/store/polling/schema,
+migration or production change; eight migrations remain staging-only. No
+HTML/CSS detector was used for React Native. Native hardware, text scaling,
+soft keyboards, dark appearance and gestures remain unverified; browser
+44px/6px checks do not establish Android 48dp/8dp conformance.

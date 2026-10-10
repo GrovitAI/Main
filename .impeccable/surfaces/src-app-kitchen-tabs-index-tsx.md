@@ -464,3 +464,48 @@ and eight migrations remain staging-only. No shipping raster was added.
 The HTML/CSS detector was not applied to React Native source. Native hardware,
 text scaling, soft keyboards, dark appearance and gestures remain unverified.
 See `docs/KITCHEN_HISTORY.md`.
+
+## Task 183 direction contract — compact phone History filters
+
+Scoped incumbent Operate refinement, driven by the user's expanded-panel height
+feedback. Preserve the desktop/tablet groups, Source Sans 3, POS blue/Canvas,
+hover/calendar boundaries, full picker wording and local History behavior.
+FIRST VIEWPORT: Below 640px, five full-width rows use labels beside values,
+44px minimum targets, 6px gaps and 8px panel padding. Group titles are redundant
+with those inline labels on phones; a divider still separates date controls.
+Date basis retains the full accessible/picker name; Any dates truthfully means
+no date filter within the disclosed loaded window. Longer choices may wrap.
+STORY: Open Filters, combine choices/dates, clear or collapse. Calendar draft,
+Cancel/Apply, sorting, audit rows and the bounded loaded scope are preserved.
+Optional inline-label presentation keeps other shared callers unchanged.
+No services, queries, schema, polling or production changes; staging only.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the
+finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+Task 183 verdict: **Ship** from fresh independent review of all five contract
+sections and 33 mocked captures plus live, without material fixes, recapture
+or rebuild. Long choices wrap without crowding after the inline wrapper
+correction. Desktop/tablet grouped 48px controls, shared defaults, full names,
+local filtering/sorting, date drafts/Cancel/Apply, rows, details and scope remain.
+
+Final typecheck, changed-source ESLint and 44 tests/three suites (23 native
+route imports) passed. `history-mobile-filters-results.json` and
+`check-kitchen-history-mobile-filters.cjs` retain six states at 1440×900,
+800×700, 390×844, 320×700 and 370×668, plus phone loading/empty/error. The run
+fulfilled 100 cloud-targeted requests locally with zero forwarded/errors/
+unexpected hosts/writes/History filter requests. Date application was checked;
+`-dates` images show scrolled triggers, not a calendar. The existing staging
+default panel is 46.1% shorter (546.4→294.4px). `history-mobile-filters-live.png`
+is 369×668 (DOM 370×668); only part of the first row is visible. No live
+Refresh, Apply or write occurred. The default capture preceded the wrapper
+correction; final mocked long-staff captures verify it. Two build inspection
+batches included that correction before this fresh review; see
+`history-mobile-filters-finish-review.md` and `docs/KITCHEN_HISTORY.md`.
+
+Comparison with PRODUCT, DESIGN, design.json, brand, Typography, shared controls
+and representative captures preserves incumbent Source Sans 3, POS blue/Canvas
+and ledger density. Design files/tokens and previously disclosed drift remain
+untouched. No service/query/store/polling/schema/migration or production change;
+eight migrations remain staging-only. Ignored local QA adds no shipping asset.
+No HTML/CSS detector was used for React Native. Native hardware, text scaling,
+soft keyboards, dark appearance and gestures remain unverified; browser
+44px/6px checks do not establish Android 48dp/8dp conformance.

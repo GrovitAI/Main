@@ -148,6 +148,14 @@ figures to be right, and matching is offered only as a convenience.
   filtering remain; other shared-control callers inherit the visual refinement
   with their existing callbacks. Incumbent design authority is preserved.
   See docs/KITCHEN_HISTORY.md.
+- Kitchen History phone filters (task 183, staging): below 640px the expanded
+  panel uses five full-width inline label/value rows, 44px minimum targets,
+  6px gaps and 8px padding. Redundant group headings are omitted; the date
+  divider, full picker/accessibility names and natural long-choice wrapping
+  remain. Any dates means no date filter within the disclosed loaded window
+  of 500 entries/92 transaction days. Desktop/tablet grouped 48px controls,
+  local behavior, shared defaults and incumbent design authority are retained.
+  No new tokens, assets or production deployment. See docs/KITCHEN_HISTORY.md.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.
