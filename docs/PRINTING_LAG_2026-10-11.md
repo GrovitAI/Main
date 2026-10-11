@@ -1,6 +1,6 @@
 # Printing lag review
 
-Task 192 · 11 October 2026 · source change, not yet deployed
+Task 192 · 11 October 2026 · production hotfix (`hotfix/print-lag`, cherry-picked onto `main`)
 
 ## What was slow
 
@@ -82,6 +82,9 @@ remain). New `print-queue.test.ts` checks the following:
 - printer rows are read once per tenant and branch until Settings clears them;
 - a failed read keeps the earlier rows.
 
-The full 35-suite / 331-test run passed. No real printer was driven, and
-tap-to-paper time on the till hardware has not been measured. Not deployed:
-production still runs the earlier code until this branch is released.
+On the hotfix branch (production `main` plus this change only), the full 27-suite / 254-test run passed; one timing-sensitive navigation test failed once under load and passed on its own and on a full rerun. `npx expo export --platform web`, the Vercel build command, succeeded, and the exported bundle does not contain the PrintNode key. No real printer was driven, and
+tap-to-paper time on the till hardware has not been measured. Merging the hotfix pull request deploys it; no database change is needed.
+
+## Deployment
+
+Merged to `main` on 11 October 2026 through [PR #3](https://github.com/GrovitAI/Main/pull/3) (merge `f067493`). The Vercel production build cloned `main` at `f067493` and is Ready. Unauthenticated smoke checks: the site and login load, and `/api/printjobs` and `/api/printers` answer 401 without a session. An earlier production deployment the same day (12:31 IST) was a redeploy of the previous `main` (`7ba8db6`), so no unreleased work was replaced. `main` was then merged back into `codex/kitchen-analytics`. Still pending: a till test of Save KOT, Save & Print and Reprint, and restarting PrintNode Client on both till PCs.
