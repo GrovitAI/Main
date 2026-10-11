@@ -517,7 +517,8 @@ Type/Status/Staff/Date basis arrangement with a full-width date range; Paired
 rows favours long staff names; Filter sheet adds Done/Close disclosure. All
 retain Source Sans 3, POS blue/Canvas and five filter meanings. Sample entries
 and October dates are fixtures; dark mock-host appearance approves no product
-theme. User selection remains pending, with task 183 still implemented.
+theme. Selection was pending at presentation, with task 183 then implemented;
+the subsequent Filter sheet selection is implemented in task 185 below.
 
 Evidence: `history-filter-design-results.json` and
 `history-filter-design-previews-finish-review.md` under `.impeccable/review/`;
@@ -529,3 +530,52 @@ with no fix-induced visual regression; it does not certify the whole surface
 or approve implementation/deployment. Mock heights/row counts are not real-app
 measurements. Incumbent design authority, tokens, source and recorded drift
 remain untouched; ignored screenshots add no shipping assets.
+
+## Task 185 direction — selected phone History filter sheet
+
+The user selected Filter sheet. On phones below 640px, Filters opens above
+History instead of inserting controls into the list. Four existing choices
+form a compact 2×2 grid; date range remains full width. Done, close, backdrop
+and platform Back dismiss the sheet while retaining local choices. Reset
+clears the existing filter/search fields while retaining sort. Date-picker drafts still
+require their own Apply. Bound and scroll the form on short screens while
+keeping 48px close/Reset/Done targets and a safe-area footer visible.
+Preserve desktop/tablet controls, all five filter meanings, audit rows,
+Source Sans 3, POS blue/Canvas and existing picker hover/calendar behavior.
+No service/query/store/polling/schema or production changes.
+Task 185 verdict: **Ship**, from fresh independent review of the staging browser
+composition and inspected React Native source, with no material fixes,
+recapture or rebuild. The selected preview is a composition reference, not a
+pixel comp. Desktop/tablet inline groups, History toolbar/audit rows, local
+bounded filters/sorts and shared picker/calendar meanings remain.
+
+The static four-choice/date form uses ScrollView with no mapped list, avoiding
+nested virtualized-list context that blocked web picker/calendar scrolling;
+record, picker and calendar lists remain FlatList. At 390×420, the form scrolls
+and Done stays at y=360 with a 48px height in open/long-staff/dates captures.
+The checked 640px transition preserves disclosure; the existing tablet-shell
+remount resets local screen state outside this task's persistence guarantee.
+
+Typecheck, changed-file lint and 44 tests/three suites (23 native route imports)
+passed. Forty-five final-source captures cover seven states at 1440×900,
+800×700, 390×844, 320×700, user 370×668 and short 390×420, plus phone
+loading/empty/error. Five viewport batches passed before a server interruption
+at sixth navigation; resumed short-phone/breakpoint/state checks passed with
+61 mocked cloud-targeted requests and zero forwarded/errors/unexpected hosts.
+That persisted count is for the resumed batch only; the earlier aggregate was
+not retained. All captures use identical final source. Evidence and finish
+review are under `.impeccable/review/history-filter-sheet-*`; see
+`docs/KITCHEN_HISTORY.md` for checked flows and evidence limits.
+
+Source comparison preserves Source Sans 3, POS blue/Canvas and quiet outlines.
+DESIGN.md, design.json and brand.ts hashes match the handoff baselines; existing
+system-sans/specimen, choice-chip, navigation and early-contract drift remains
+reported without repair. No shipping raster, service/store/polling/schema,
+migration or production change; eight migrations remain staging-only. Staging
+restarted on 8081 (API 8083). Live QA was omitted because the usage baseline
+was old; the mock
+zero-forwarded claim excludes the existing staging/HMR session. No HTML/CSS
+detector ran for native source. Native hardware/simulator/emulator appearance,
+soft keyboard, scaling, dark appearance, Reduce Motion and physical/predictive
+Back gestures remain unverified; source safe-area/Back handling and browser
+targets do not certify native insets or Android-wide 48dp conformance.

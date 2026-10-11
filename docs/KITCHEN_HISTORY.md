@@ -2,7 +2,7 @@
 
 Task 174 · 2026-10-10 · staging source only
 
-Latest refinement: task 183 · 2026-10-10 · staging source only
+Latest refinement: task 185 · 2026-10-11 · staging source only
 
 History now shows who recorded an entry, when the transaction happened, when
 it was recorded, and whether it was corrected or voided. The extension keeps
@@ -39,6 +39,8 @@ Deletion in this workflow means voiding; records are not physically deleted.
 
 Search remains visible, while Filters starts collapsed. The selected Sort by
 value is always visible, with Transaction date · newest as the default.
+Phones below 640px open Filters in a sheet above the list; wider layouts retain
+the inline groups. Dismissing the sheet retains the selected local choices.
 Type, status, Entered by, search and date range combine rather than replacing
 one another. Spent includes expenses and vendor payments; Stock includes Made
 and Count. Entered by matches the row's creator, while text search also finds
@@ -67,7 +69,9 @@ that window, even when filtering on Entry date. The controls filter and sort
 only the loaded array; they do not query a full archive or request another page.
 Refresh uses the existing store refresh.
 
-One virtualized FlatList owns the scrolling header and rows. Desktop metadata
+One virtualized FlatList owns the scrolling header and rows. The phone sheet's
+fixed form scrolls independently; record, picker and calendar lists remain
+FlatList. Desktop metadata
 sits horizontally where space permits; phone metadata wraps without hiding
 the creator, business date or recorded time. The inherited content frame,
 Source Sans 3, white ledger rows, hairline separators, exact tabular amounts,
@@ -84,7 +88,8 @@ browser sizes. Pull-to-refresh uses the same refresh path.
 
 The main route is `src/app/central-kitchen/(tabs)/history.tsx`. Row audit metadata
 is in `src/components/kitchen/HistoryEntry.tsx`; the optional previous-entry
-summary is in `EntryActions.tsx`. Shared `ReportSelect.tsx` accepts compact and
+summary is in `EntryActions.tsx`. `HistoryFilterSheet.tsx` owns phone disclosure
+and the bounded static form. Shared `ReportSelect.tsx` accepts compact and
 required choices, and `ReportDateRange.tsx` accepts a History label and unset
 range placeholder. Existing report defaults remain compatible.
 
@@ -311,7 +316,7 @@ keyboards, dark appearance and gestures remain unverified.
 
 ## Compact phone filters (task 183)
 
-Below 640px, expanded Filters uses five full-width inline label/value rows
+At task 183, below 640px, expanded Filters used five full-width inline label/value rows
 with 44px minimum heights, 6px gaps and 8px panel padding. Redundant headings
 are omitted; the date divider and full picker/accessibility names remain.
 Short helper text preserves transaction/recorded/India-time meaning. Any dates
@@ -357,8 +362,9 @@ Date basis in 2×2, full-width date range), Paired rows (full-width staff for
 long names) and Filter sheet (2×2 plus dates, Done/Close). Width choices are
 320/370/390px. Source Sans 3, POS blue and Kitchen Canvas retain incumbent
 authority; host-following dark rendering is illustrative only. Four entries
-labelled Sample and October 1–10 dates are static fixtures. User selection is
-pending; task 183 remains the latest implemented refinement.
+labelled Sample and October 1–10 dates are static fixtures. Selection was
+pending at presentation, with task 183 then the latest implementation. The
+subsequent Filter sheet selection is implemented in task 185 below.
 
 Artifact: `C:/Users/Might/.codex/visualizations/2026/10/05/01a10c91-a0ad-7b12-9c39-3f9dc9598875/history-filter-designs.html`.
 Ignored local QA in `.impeccable/review/history-filter-design-results.json`
@@ -376,3 +382,57 @@ phone capacity. No staging session, application/source/query/schema/deployment
 changed; no app typecheck/full suite was needed. PRODUCT.md, DESIGN.md,
 design.json, brand tokens and documented drift remain untouched. QA screenshots
 are not shipping raster assets; native application behavior remains unverified.
+
+## Selected phone Filter sheet (task 185 · 2026-10-11 · staging)
+
+The user selected “the filter sheet makes more sense i believe” after task 184.
+Below 640px, Filters now opens above History without moving its list position.
+Type, Status, Entered by and Date basis form a 2×2 grid with naturally wrapping
+values; the date range spans the width. Done, Close, backdrop and platform Back
+only dismiss, retaining immediate local choices. Reset clears the existing
+filter/search fields and restores defaults while keeping the chosen sort.
+Dates retain separate Cancel/Apply drafts and Clear dates. Any dates still
+means no date filter inside the disclosed loaded window.
+
+`HistoryFilterSheet.tsx` uses a bounded ScrollView for four fixed controls and
+dates, with no mapped list. This avoids nested virtualized-list context that
+prevented web picker/calendar scrolling; the real record, picker and calendar
+lists remain FlatList. Close and footer actions are 48px with 8px gaps and
+safe-area padding. At 390×420, the form scrolls and Done stays visible at
+y=360 with height 48px in open/long-staff/dates states. Desktop/tablet inline
+groups, toolbar, audit rows, shared control meanings and local bounded
+filter/sort behavior remain. The checked 640px transition preserves disclosure;
+the existing tablet navigation-shell remount resets local screen state and is
+outside this task's persistence guarantee.
+
+Typecheck, changed-file ESLint and 44 tests/three suites passed, including 23
+native route imports. Forty-five named final-source captures cover seven states
+at 1440×900, 800×700, 390×844, 320×700, the user's 370×668 and short 390×420,
+plus phone loading/empty/error. Five viewport batches completed before staging
+stopped at the sixth navigation. The resumed short-phone/breakpoint/state batch
+passed: 61 cloud-targeted requests mocked locally, zero forwarded, no page
+errors or unexpected hosts. That count applies only to the resumed batch;
+the earlier aggregate was not persisted. This was a split run over identical
+final source, not an uninterrupted matrix run. Local filters/sorts/reset/search,
+audit details, date drafts/application, dismissal, targets and overflow were
+checked without filter fetches. Retained evidence is
+`.impeccable/review/history-filter-sheet-{results.json,browser.log,interruption.log,typecheck.log,lint.log,tests.log}`
+and the named captures.
+
+Fresh independent `history-filter-sheet-finish-review.md` inspected all 45
+originals and final source and returned **Ship**, scoped to staging browser
+composition and inspected React Native source, with no material fixes.
+Comparison with PRODUCT, DESIGN, design.json, brand and the source preserves
+Source Sans 3, POS blue/Canvas, quiet outlines and existing reported drift.
+DESIGN.md, `.impeccable/design.json` and brand.ts SHA-256 values match the
+handoff baselines; no new design world, token or shipping raster was introduced.
+
+Staging restarted on localhost:8081 (API 8083). No live browser QA was undertaken
+because the usage baseline was old; the mocked zero-forwarded claim excludes
+the existing staging/HMR session. No service/store/polling/schema, migration or
+production change; eight migrations remain staging-only. No HTML/CSS detector
+ran on native source. Native hardware/simulator/emulator appearance, soft
+keyboard, text scaling, dark appearance, Reduce Motion and physical/predictive
+Back gestures remain unverified. Safe-area and Back source handling are not
+device certification; the unchanged date trigger's 44px minimum does not
+establish Android-wide 48dp conformance.

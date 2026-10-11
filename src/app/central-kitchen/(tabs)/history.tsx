@@ -13,6 +13,7 @@ import { HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
+import { HistoryFilterSheet } from '@/components/kitchen/HistoryFilterSheet';
 
 const KINDS = [
   { id: 'sent', label: 'Sent' }, { id: 'received', label: 'Received' },
@@ -65,7 +66,7 @@ export default function HistoryScreen() {
       <View className={'min-w-0 ' + (desktop ? 'w-[220px]' : 'flex-1')}><ReportSelect toolbar allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} triggerText={filters.sort.startsWith('transaction') ? desktop ? 'Transaction date' : 'Transaction' : 'Entry date'} triggerIcon={filters.sort.endsWith('newest') ? ArrowDownWideNarrow : ArrowUpWideNarrow} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} /></View>
       </View>
     </View>
-    {showFilters ? <View testID="kitchen-history-filters" className={'rounded-xl border border-border-soft bg-surface-elevated ' + (phone ? 'gap-2 p-2' : 'gap-4 p-3 ') + (desktop ? 'flex-row' : '')}>
+    {showFilters && !phone ? <View testID="kitchen-history-filters" className={'rounded-xl border border-border-soft bg-surface-elevated ' + (phone ? 'gap-2 p-2' : 'gap-4 p-3 ') + (desktop ? 'flex-row' : '')}>
       <View className={'min-w-0 ' + (phone ? 'gap-1.5 ' : 'gap-3 ') + (desktop ? 'flex-1' : '')}>
         {!phone ? <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Entry details</Text> : null}
         <View className={phone ? 'gap-1.5' : 'gap-3 sm:flex-row'}>
@@ -99,6 +100,18 @@ export default function HistoryScreen() {
       ListEmptyComponent={!data.loaded ? <View className="items-center py-8"><ActivityIndicator color={colors.primary} accessibilityLabel="Loading history" /></View> :
         <Empty title={hasFilters ? 'Nothing matches' : data.error ? 'History unavailable' : 'Nothing recorded yet'} body={hasFilters ? 'Try another word, staff member, status or date range.' : data.error ? 'Use Refresh history to try again.' : 'Sends, payments, buys and counts will show here.'} action={hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-bold text-primary">Clear filters</Text></Pressable> : undefined} />}
       renderItem={({ item }) => <HistoryEntry entry={item} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.id)} />} />
+    {phone ? <HistoryFilterSheet visible={showFilters} onClose={() => setShowFilters(false)} onReset={reset}
+      fields={[
+        <ReportSelect key="kind" compact outlined label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />,
+        <ReportSelect key="status" compact outlined label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />,
+        <ReportSelect key="staff" compact outlined label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />,
+        <ReportSelect key="basis" compact outlined allowEmpty={false} label="Date filter uses" triggerText={filters.dateBasis === 'transaction' ? 'Transaction' : 'Entry date'} value={filters.dateBasis} options={DATE_BASES} onChange={value => update('dateBasis', DATE_BASES.find(option => option.id === value)?.id ?? 'transaction')} />,
+      ]}
+      dates={<>
+        <ReportDateRange outlined inlineLabel="Date range" triggerText={!filters.range ? 'Any dates' : undefined} label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} placeholder={filters.range ? undefined : 'Choose date range'} onChange={value => update('range', value)} />
+        {filters.range ? <Pressable accessibilityRole="button" onPress={() => update('range', null)} className={button}><Text className="text-sm font-semibold text-primary">Clear dates</Text></Pressable> : null}
+        <Text className="text-xs leading-4 text-text-secondary">Transaction: happened · Entry: recorded · India time.</Text>
+      </>} /> : null}
     <EntryActions entry={open} previousEntry={open?.replaces_id ? entriesById.get(open.replaces_id) ?? null : undefined} onClose={() => setOpenId(null)} itemsById={data.itemsById} partiesById={data.partiesById} />
   </KScreen>;
 }

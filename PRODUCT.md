@@ -148,7 +148,7 @@ figures to be right, and matching is offered only as a convenience.
   filtering remain; other shared-control callers inherit the visual refinement
   with their existing callbacks. Incumbent design authority is preserved.
   See docs/KITCHEN_HISTORY.md.
-- Kitchen History phone filters (task 183, staging): below 640px the expanded
+- Kitchen History phone filters (task 183, staging, superseded on phones by task 185): the expanded
   panel uses five full-width inline label/value rows, 44px minimum targets,
   6px gaps and 8px padding. Redundant group headings are omitted; the date
   divider, full picker/accessibility names and natural long-choice wrapping
@@ -156,6 +156,18 @@ figures to be right, and matching is offered only as a convenience.
   of 500 entries/92 transaction days. Desktop/tablet grouped 48px controls,
   local behavior, shared defaults and incumbent design authority are retained.
   No new tokens, assets or production deployment. See docs/KITCHEN_HISTORY.md.
+- Kitchen History Filter sheet (task 185, staging): the user selected the task
+  184 sheet preview. Below 640px, Type/Status/Entered by/Date basis use a
+  wrapping 2×2 grid above the list, with full-width dates and a persistent
+  Reset/Done footer. Done, Close, backdrop and platform Back retain local
+  choices; Reset clears filter/search fields and keeps sort. Date drafts keep
+  their own Cancel/Apply and Clear dates behavior. A bounded static form scrolls
+  on short windows with 48px close/footer targets and safe-area padding.
+  Desktop/tablet inline groups, audit meaning, local filtering and the loaded
+  500-entry/92-transaction-day window remain. Source Sans 3, POS blue/Canvas
+  and incumbent design authority are preserved; native hardware remains
+  unverified. No service/store/polling/schema or production change.
+  See docs/KITCHEN_HISTORY.md for verification and limits.
 - Undecided: whether branches and vendors start at zero on day one or with
   what each owes today; whether the send slip stays WhatsApp text or becomes
   a PDF.
