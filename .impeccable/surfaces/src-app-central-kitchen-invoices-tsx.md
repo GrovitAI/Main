@@ -100,3 +100,14 @@ aligns to the bottom of its filters. Three mocked browser widths (1440, 390,
 intercepted requests, zero forwarded and no page errors. A desktop-only
 alignment confirmation used nine intercepted requests and zero forwarded.
 Existing data, payment logic and visual authority remain unchanged.
+
+Task 190 refinement: register rows add a 12px tabular "₹X left" line under
+To be paid when a part payment is matched, and the row's accessible name adds
+branch, total, status and remaining balance. The payment editor states the
+open amount below the amount field and, above it, explains the limit in the
+existing warning token while Confirm stays disabled. Delivery, line and print
+dates read "1 Oct 2026"; Prepared/Issued use the India calendar day. No new
+token, control or layout. Mocked browser checks at 1440, 390 and 320px: 29
+intercepted requests, zero forwarded, no page errors or overflow; the design
+detector returned no findings. A polish pass ran in-thread rather than through
+a separate finish reviewer, because the change is small and local.
