@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POS Analytics Previews</title>
+<style>
+@font-face{font-family:"Source Sans 3";src:url("assets/fonts/SourceSans3_400Regular.ttf") format("truetype");font-weight:400}
+@font-face{font-family:"Source Sans 3";src:url("assets/fonts/SourceSans3_500Medium.ttf") format("truetype");font-weight:500}
+@font-face{font-family:"Source Sans 3";src:url("assets/fonts/SourceSans3_600SemiBold.ttf") format("truetype");font-weight:600}
+@font-face{font-family:"Source Sans 3";src:url("assets/fonts/SourceSans3_700Bold.ttf") format("truetype");font-weight:700}
+:root{
+  --primary:#0066b2;--primary-deep:#004a8d;--primary-light:#3399ff;--accent:#93c5fd;--accent-soft:#dbeafe;
+  --tint:#e8f2fa;--canvas:#f5f8fc;--surface:#ffffff;--ink:#0f2744;--muted:#5b6b7c;--border:#c5d9eb;--border-soft:#dbeafe;
+  --ghost:#e3eef9;--success:#15803d;--success-soft:#dcfce7;--danger:#b91c1c;--danger-soft:#fee2e2;--warning:#b45309;--warning-soft:#fef3c7;
+  --rail-top:#0251b8;--rail-mid:#013b8c;--rail-bottom:#012f70;
+  --shadow:0 1px 2px rgba(15,39,68,.05),0 6px 18px -10px rgba(15,39,68,.16);
+  --radius:18px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Source Sans 3",system-ui,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent-soft);color:var(--ink)}
+button{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+/* Preview switcher (outside the app) */
+.switcher{position:relative;z-index:10;display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--ink);color:#fff}
+.switcher strong{font-weight:700;font-size:14px}
+.switcher .note{font-size:12px;opacity:.75}
+.switcher .opts{display:flex;gap:4px;margin-left:auto;background:rgba(255,255,255,.08);padding:4px;border-radius:12px}
+.switcher button{border:0;background:transparent;color:#cfe0f3;padding:8px 14px;border-radius:9px;font-weight:600;cursor:pointer;min-height:36px}
+.switcher button[aria-pressed="true"]{background:#fff;color:var(--ink)}
+.switcher button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* App frame */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:calc(100vh - 56px)}
+.rail{background:linear-gradient(180deg,var(--rail-top),var(--rail-mid) 55%,var(--rail-bottom));color:#fff;padding:22px 14px;display:flex;flex-direction:column;gap:4px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:12px}
+.brand .mark{width:34px;height:34px;border-radius:10px;background:#fff;color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:15px}
+.brand b{display:block;font-size:16px}.brand span{font-size:12px;opacity:.75}
+.rail .group{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.6;padding:14px 10px 6px}
+.nav{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;font-weight:600;color:rgba(255,255,255,.82);min-height:42px}
+.nav svg{width:18px;height:18px;flex:none}
+.nav.on{background:linear-gradient(180deg,rgba(58,120,220,.95),rgba(35,95,190,.95));color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.target{margin-top:auto;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:14px}
+.target small{font-size:12px;opacity:.8}.target b{display:block;font-size:20px;margin:6px 0 2px}.target b span{font-size:13px;font-weight:500;opacity:.75}
+.meter{height:6px;border-radius:6px;background:rgba(255,255,255,.18);overflow:hidden;margin:10px 0 6px}.meter i{display:block;height:100%;background:#fff;border-radius:6px}
+.main{padding:22px 28px 40px;min-width:0}
+.top{display:flex;align-items:flex-end;gap:12px;margin-bottom:18px;max-width:1240px;margin-inline:auto}
+.top h1{margin:0;font-size:24px;line-height:30px;font-weight:700}
+.top p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.top .tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pill{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:1px solid var(--border);background:var(--surface);border-radius:12px;color:var(--ink);font-weight:600;font-size:13px}
+.pill svg{width:16px;height:16px;color:var(--muted)}
+.search{width:220px;color:var(--muted);font-weight:500}
+.btn{display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;border:0;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;font-size:13px;cursor:pointer}
+.btn svg{width:16px;height:16px}
+.sample{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--warning);background:var(--warning-soft);border-radius:999px;padding:3px 8px;margin-left:8px;vertical-align:middle}
+.wrap{max-width:1240px;margin-inline:auto;display:grid;gap:16px}
+.row{display:grid;gap:16px}
+.r-2-1{grid-template-columns:2fr 1fr}.r-1-1{grid-template-columns:1fr 1fr}.r-4{grid-template-columns:repeat(4,1fr)}.r-3-2{grid-template-columns:3fr 2fr}
+.card{background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;min-width:0}
+.card-h{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+.card-h h3{margin:0;font-size:16px;line-height:22px;font-weight:700}
+.card-h p{margin:1px 0 0;color:var(--muted);font-size:12px}
+.card-h .ic{margin-left:auto;width:32px;height:32px;border-radius:10px;background:var(--canvas);display:grid;place-items:center;color:var(--muted);flex:none}
+.card-h .ic svg{width:16px;height:16px}
+.kpi .label{color:var(--muted);font-size:13px;font-weight:600}
+.kpi .value{font-size:28px;line-height:34px;font-weight:700;margin:6px 0 8px;letter-spacing:-.01em}
+.kpi .sub{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700}
+.chip.up{background:var(--success-soft);color:var(--success)}.chip.down{background:var(--danger-soft);color:var(--danger)}.chip.flat{background:var(--accent-soft);color:var(--primary-deep)}
+.big{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:36px}
+.muted{color:var(--muted)}
+/* Bars */
+.bars{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:end;gap:14px;height:210px;padding:0 4px;position:relative}
+.bar{position:relative;height:100%;display:flex;align-items:flex-end;justify-content:center}
+.bar .ghost{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:34px;border-radius:18px 18px 10px 10px;background:var(--ghost)}.bar .lw{position:absolute;left:50%;transform:translateX(-50%);width:46px;height:2px;border-radius:2px;background:#7b93ad;z-index:1}
+.bar .fill{position:relative;width:34px;border-radius:18px 18px 10px 10px;background:linear-gradient(180deg,#4d9de0,var(--primary))}
+.bar.peak .fill{background:linear-gradient(180deg,var(--primary-light),var(--primary-deep));box-shadow:0 8px 18px -8px rgba(0,102,178,.55)}
+.bar .tip{position:absolute;top:-30px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12px;font-weight:700;padding:3px 8px;border-radius:8px;white-space:nowrap}
+.bar .dot{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid var(--primary-deep)}
+.xlab{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:14px;margin-top:8px;padding:0 4px;color:var(--muted);font-size:12px;text-align:center}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.hours .bar .fill,.hours .bar .ghost{width:100%;max-width:30px;border-radius:10px 10px 6px 6px}
+.hours{height:150px;gap:8px}.hours+.xlab{gap:8px}
+.peakband{font-size:12px;color:var(--muted);margin-top:12px;line-height:18px}.peakband svg{vertical-align:-2px;margin-right:6px}
+.peakband b{color:var(--ink)}
+/* Ring */
+.ring{display:grid;place-items:center;margin:4px auto 12px;position:relative;width:170px;height:170px}
+.ring .c{position:absolute;text-align:center}.ring .c b{display:block;font-size:26px;line-height:30px}.ring .c span{font-size:12px;color:var(--muted)}
+.leg{display:grid;gap:10px}
+.leg div{display:flex;align-items:center;gap:8px;font-size:13px}
+.leg i{width:9px;height:9px;border-radius:50%}
+.leg span:last-child{margin-left:auto;font-weight:700}
+/* Lists */
+.items{display:grid;gap:12px}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center}
+.item .n{font-weight:600}.item .v{font-weight:700;text-align:right}
+.item .track{grid-column:1/-1;height:6px;border-radius:6px;background:var(--ghost);overflow:hidden}.item .track i{display:block;height:100%;border-radius:6px;background:var(--primary)}
+.item small{color:var(--muted);font-size:12px}
+.item.slow .track i{background:var(--accent)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:0 8px 10px}
+td{padding:10px 8px;border-top:1px solid var(--border-soft);font-size:13px}td.nw,th.nw{white-space:nowrap}
+td.r,th.r{text-align:right}
+.av{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:9px;background:var(--tint);color:var(--primary-deep);font-weight:700;font-size:11px;margin-right:8px;vertical-align:middle}
+.st{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.st.paid{background:var(--success-soft);color:var(--success)}.st.pending{background:var(--warning-soft);color:var(--warning)}.st.cancelled{background:#f1f5f9;color:#64748b}
+/* Money band */
+.flow{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--ghost);margin:14px 0 12px}
+.flow i{display:block;height:100%}
+.flowlegend{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.flowlegend div{border-left:3px solid var(--c);padding-left:10px}
+.flowlegend small{display:block;color:var(--muted);font-size:12px;font-weight:600}
+.flowlegend b{font-size:18px}
+.section-label{font-size:13px;font-weight:700;color:var(--muted);margin:8px 2px -6px}
+/* Royalty */
+.split{display:flex;height:10px;border-radius:999px;overflow:hidden;margin:12px 0 10px}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-top:1px solid var(--border-soft)}
+.kv:first-of-type{border-top:0}
+/* Quadrant */
+.quad{position:relative;height:330px;border-radius:14px;background:linear-gradient(var(--canvas),var(--canvas)) padding-box;overflow:hidden}
+.quad .q{position:absolute;width:50%;height:50%;padding:10px 12px;font-size:12px;font-weight:700;color:var(--muted)}
+.quad .q span{display:block;font-weight:500;font-size:11px}
+.quad .q1{right:0;top:0;background:#eaf3fc;text-align:right}.quad .q2{left:0;top:0;background:#f3f8fd}.quad .q3{left:0;bottom:0;background:#f8fafc}.quad .q4{right:0;bottom:0;background:#f3f8fd;text-align:right}
+.quad .pt{position:absolute;transform:translate(-50%,50%);display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.quad .pt i{width:var(--s);height:var(--s);border-radius:50%;background:var(--primary);border:2px solid #fff;box-shadow:0 2px 8px -2px rgba(0,74,141,.45);flex:none}
+.quad .pt.low i{background:var(--accent)}
+.axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px}
+.seg{display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border-soft);padding:3px;border-radius:10px;margin-left:auto}
+.seg span{padding:4px 10px;border-radius:7px;font-size:12px;font-weight:700;color:var(--muted)}.seg span.on{background:#fff;color:var(--primary);box-shadow:0 1px 2px rgba(15,39,68,.08)}
+/* Branch split */
+.share{display:flex;height:42px;border-radius:14px;overflow:hidden;font-weight:700;color:#fff;font-size:13px}
+.share div{display:flex;align-items:center;padding:0 14px;gap:8px}
+.bhead{display:flex;align-items:flex-start;gap:10px}
+.bhead .tag{margin-left:auto}
+.minibars{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:end;gap:8px;height:90px;margin:14px 0 6px}
+.minibars i{display:block;border-radius:10px 10px 5px 5px;background:var(--primary);width:22px;margin:0 auto}
+.minibars i.g{background:var(--ghost)}
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.stats3 div{background:var(--canvas);border-radius:12px;padding:10px 12px}
+.stats3 small{display:block;color:var(--muted);font-size:12px;font-weight:600}.stats3 b{font-size:17px}
+.payline{display:flex;height:8px;border-radius:999px;overflow:hidden;margin:8px 0}
+.view{display:none}.view.on{display:block}
+</style>
+</head>
+<body>
+<div class="switcher" role="region" aria-label="Preview controls">
+  <strong>POS analytics · desktop previews</strong>
+  <span class="note">Sample data for illustration only. Keys 1–3 switch layouts.</span>
+  <div class="opts" role="group" aria-label="Layout">
+    <button type="button" data-view="statement" aria-pressed="true">1 · Daily statement</button>
+    <button type="button" data-view="menu" aria-pressed="false">2 · Menu insight</button>
+    <button type="button" data-view="branches" aria-pressed="false">3 · Branch split</button>
+  </div>
+</div>
+<div class="app">
+  <aside class="rail" aria-label="POS navigation">
+    <div class="brand"><div class="mark">LL</div><div><b>Le Laban</b><span>Restaurant POS</span></div></div>
+    <div id="nav"></div>
+    <div class="target">
+      <small>October sales target</small>
+      <b class="num">₹4,26,800 <span>/ ₹6,00,000</span></b>
+      <div class="meter"><i style="width:71%"></i></div>
+      <small>71% with 20 days to go</small>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div><h1>Analytics <span class="sample">Sample data</span></h1><p>Kolathur and Velachery · updated 2 minutes ago</p></div>
+      <div class="tools">
+        <div class="pill search" aria-label="Search">SEARCH_ICON Search bills or items</div>
+        <div class="pill">CAL_ICON This week · 5–11 Oct</div>
+        <div class="pill">STORE_ICON All branches</div>
+        <button class="btn" type="button">DOWNLOAD_ICON Export report</button>
+      </div>
+    </div>
+    <section class="view on" id="statement" aria-label="Daily statement layout"></section>
+    <section class="view" id="menu" aria-label="Menu insight layout"></section>
+    <section class="view" id="branches" aria-label="Branch split layout"></section>
+  </main>
+</div>
+<script>
+// ---------- Sample data (illustrative, not real Le Laban figures) ----------
+const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const week=[38400,41250,36900,44800,58600,72300,66100];
+const lastWeek=[35200,39100,40300,42000,51800,64200,61600];
+const hours=['11','12','1','2','3','4','5','6','7','8','9','10','11'];
+const hourly=[4200,6100,9300,11400,8200,7100,10200,15400,24100,31200,28400,19300,9100];
+const payments=[{n:'UPI',v:61,c:'#0066b2'},{n:'Cash',v:27,c:'#3399ff'},{n:'Card',v:12,c:'#93c5fd'}];
+const items=[
+  {n:'Kunafa',q:312,r:74880},{n:'Tres leches',q:420,r:63000},{n:'Chocolate mousse cake',q:268,r:53600},
+  {n:'Biscoff cheesecake',q:196,r:47040},{n:'Pistachio milk cake',q:240,r:43200},{n:'Rose falooda',q:350,r:35000},
+  {n:'Brownie sundae',q:180,r:27000},{n:'Mango cream bowl',q:64,r:12160},{n:'Rasmalai tres leches',q:48,r:10560},{n:'Filter coffee pudding',q:36,r:5400}];
+const bills=[
+  {no:'KLT-0418',b:'Kolathur',i:'Kunafa, Tres leches',a:640,m:'UPI',s:'paid',t:'2 min ago'},
+  {no:'VL-0297',b:'Velachery',i:'Rose falooda',a:380,m:'Cash',s:'paid',t:'5 min ago'},
+  {no:'KLT-0417',b:'Kolathur',i:'Mousse cake ×2, Sundae',a:1120,m:'Card',s:'paid',t:'9 min ago'},
+  {no:'VL-0296',b:'Velachery',i:'Pistachio milk cake',a:290,m:'UPI',s:'pending',t:'12 min ago'},
+  {no:'KLT-0416',b:'Kolathur',i:'Biscoff cheesecake',a:420,m:'—',s:'cancelled',t:'18 min ago'}];
+const branchData=[
+  {n:'Kolathur',code:'KLT',sales:207850,orders:664,delta:9.6,week:[22100,23900,21500,26400,34100,41800,38050],pay:[58,30,12],top:['Kunafa','Tres leches','Mousse cake'],peak:'8–9 pm'},
+  {n:'Velachery',code:'VL',sales:150500,orders:478,delta:6.8,week:[16300,17350,15400,18400,24500,30500,28050],pay:[65,23,12],top:['Tres leches','Rose falooda','Kunafa'],peak:'9–10 pm'}];
+const total=week.reduce((a,b)=>a+b,0), lastTotal=lastWeek.reduce((a,b)=>a+b,0);
+const k={sales:total,orders:1142,avg:Math.round(total/1142),itemsSold:2486,collected:341900,pending:16450,discounts:9820,gst:17064,cancelled:2740,cancelledBills:9};
+const inr=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+const pct=(a,b)=>((a-b)/b*100).toFixed(1);
+// ---------- Icons (lucide-style strokes) ----------
+const ico=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I={
+  search:ico('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),cal:ico('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>'),
+  store:ico('<path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>'),dl:ico('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>'),
+  rupee:ico('<path d="M6 3h12M6 8h12M14 21 6 13h3a5 5 0 0 0 0-10"/>'),receipt:ico('<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+  bag:ico('<path d="M6 7h12l1 14H5z"/><path d="M9 7a3 3 0 0 1 6 0"/>'),wallet:ico('<path d="M3 7h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3z"/><path d="M3 7V5h13"/><circle cx="16" cy="13" r="1"/>'),
+  chart:ico('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),clock:ico('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  pie:ico('<path d="M21 12A9 9 0 1 1 12 3v9z"/>'),star:ico('<path d="m12 3 2.7 5.6 6.2.9-4.5 4.4 1 6.1L12 17l-5.5 3 1-6.1L3 9.5l6.2-.9z"/>'),
+  home:ico('<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>'),pos:ico('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2"/>'),
+  orders:ico('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),chef:ico('<path d="M6 13a4 4 0 1 1 2-7.5A4 4 0 0 1 16 5a4 4 0 1 1 2 8v6H6z"/>'),
+  box:ico('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>'),gear:ico('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'),
+  up:ico('<path d="M7 17 17 7M9 7h8v8"/>'),down:ico('<path d="M7 7l10 10M17 9v8H9"/>')};
+document.querySelector('.top').innerHTML=document.querySelector('.top').innerHTML.replace('SEARCH_ICON',I.search).replace('CAL_ICON',I.cal).replace('STORE_ICON',I.store).replace('DOWNLOAD_ICON',I.dl);
+document.getElementById('nav').innerHTML=[['Dashboard',I.home],['POS',I.pos],['Orders',I.orders],['Kitchen',I.chef],['Inventory',I.box],['Analytics',I.chart,1],['Settings',I.gear]]
+  .map(([n,ic,on])=>`<div class="nav${on?' on':''}"${on?' aria-current="page"':''}>${ic}${n}</div>`).join('');
+// ---------- Building blocks ----------
+const chip=d=>{const v=Number(d);return `<span class="chip ${v>0?'up':v<0?'down':'flat'}">${v>0?'↗':v<0?'↘':''} ${Math.abs(v)}%</span>`};
+const head=(t,s,ic)=>`<div class="card-h"><div><h3>${t}</h3>${s?`<p>${s}</p>`:''}</div>${ic?`<span class="ic">${ic}</span>`:''}</div>`;
+const kpi=(label,value,delta,ic,sub='vs last week')=>`<div class="card kpi">${head('','',ic).replace('<h3></h3>',`<div class="label">${label}</div>`)}<div class="value num" style="margin-top:-10px">${value}</div><div class="sub">${delta!==null?chip(delta):''}<span>${sub}</span></div></div>`;
+function trend(){const max=Math.max(...week,...lastWeek)*1.08;const peak=week.indexOf(Math.max(...week));
+  return `<div class="card">${head('Sales trend','Daily sales · this week against last week',I.chart)}
+  <div style="display:flex;align-items:baseline;gap:10px;margin:-4px 0 26px"><span class="big num">${inr(total)}</span><span class="muted">this week</span>${chip(pct(total,lastTotal))}</div>
+  <div class="bars">${week.map((v,i)=>`<div class="bar${i===peak?' peak':''}"><div class="ghost" style="height:100%"></div><span class="lw" style="bottom:${lastWeek[i]/max*100}%" title="Last week ${inr(lastWeek[i])}"></span><div class="fill" style="height:${v/max*100}%">${i===peak?`<span class="dot"></span><span class="tip num">${inr(v)}</span>`:''}</div></div>`).join('')}</div>
+  <div class="xlab">${days.map(d=>`<span>${d}</span>`).join('')}</div>
+  <div class="legend"><span><i style="background:var(--primary)"></i>This week</span><span><i style="background:#7b93ad;height:2px;width:14px;vertical-align:3px"></i>Last week</span><span style="margin-left:auto">Busiest: <b style="color:var(--ink)">Saturday</b></span></div></div>`}
+function ring(size=170,stroke=16,label='UPI share'){const r=(size-stroke)/2,c=2*Math.PI*r;let off=0;
+  const segs=payments.map(p=>{const len=c*p.v/100-3;const s=`<circle r="${r}" cx="${size/2}" cy="${size/2}" fill="none" stroke="${p.c}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${len} ${c-len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${size/2} ${size/2})"/>`;off+=c*p.v/100;return s}).join('');
+  return `<div class="ring" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" aria-hidden="true"><circle r="${r}" cx="${size/2}" cy="${size/2}" fill="none" stroke="var(--ghost)" stroke-width="${stroke}"/>${segs}</svg><div class="c"><b class="num">${payments[0].v}%</b><span>${label}</span></div></div>`}
+function payCard(){return `<div class="card">${head('Payment mix','How customers paid this week',I.pie)}${ring()}
+  <div class="leg">${payments.map(p=>`<div><i style="background:${p.c}"></i><span>${p.n}</span><span class="num">${inr(k.sales*p.v/100)}</span></div>`).join('')}</div></div>`}
+function rush(compact){const max=Math.max(...hourly)*1.1;const peak=hourly.indexOf(Math.max(...hourly));
+  return `<div class="card">${head('Rush hours','Average sales by hour, 11 am – midnight',I.clock)}
+  <div class="bars hours">${hourly.map((v,i)=>`<div class="bar${i===peak?' peak':''}"><div class="ghost" style="height:100%"></div><div class="fill" style="height:${v/max*100}%">${i===peak?`<span class="tip num">${inr(v)}</span>`:''}</div></div>`).join('')}</div>
+  <div class="xlab">${hours.map((h,i)=>`<span>${compact?(i%2?'':h+(i===0?'a':'p')):h+(i===0?' am':i===1?' pm':'')}</span>`).join('')}</div>
+  ${compact?'':`<div class="peakband">${I.clock.replace('<svg','<svg width="14" height="14"')} Busiest from <b>7 to 10 pm</b>: 35% of the week's sales. Quietest at <b>11 am</b>.</div>`}</div>`}
+function itemList(list,slow,max){return `<div class="items">${list.map(it=>`<div class="item${slow?' slow':''}"><span class="n">${it.n}</span><span class="v num">${inr(it.r)}</span><div class="track"><i style="width:${it.r/max*100}%"></i></div><small class="num">${it.q} sold</small></div>`).join('')}</div>`}
+function topCard(){return `<div class="card">${head('Best sellers','By revenue this week',I.star)}${itemList(items.slice(0,5),false,items[0].r)}</div>`}
+function slowCard(){return `<div class="card">${head('Slow movers','Fewest sold this week',I.bag)}${itemList(items.slice(-3).reverse(),true,items[0].r)}<p class="muted" style="font-size:12px;margin:14px 0 0">Consider featuring these on the counter board, or reviewing them on the menu.</p></div>`}
+function billsCard(){return `<div class="card">${head('Recent bills','Latest from both branches',I.receipt)}<table><thead><tr><th>Bill</th><th>Items</th><th>Mode</th><th>Status</th><th class="r">Amount</th><th class="r">Time</th></tr></thead><tbody>
+  ${bills.map(b=>`<tr><td class="nw"><span class="av">${b.no.split('-')[0]}</span><b class="num">${b.no}</b></td><td class="muted">${b.i}</td><td>${b.m}</td><td><span class="st ${b.s}">${b.s[0].toUpperCase()+b.s.slice(1)}</span></td><td class="r num"><b>${inr(b.a)}</b></td><td class="r muted nw">${b.t}</td></tr>`).join('')}</tbody></table></div>`}
+function royaltyCard(){const fee=k.sales*0.06;return `<div class="card">${head('Franchise royalty','6% of gross sales this week',I.wallet)}
+  <div class="big num">${inr(fee)}</div><div class="muted" style="font-size:12px">royalty fee due</div>
+  <div class="split"><i style="width:94%;background:var(--primary)"></i><i style="width:6%;background:var(--warning)"></i></div>
+  <div class="kv"><span class="muted">Gross sales</span><b class="num">${inr(k.sales)}</b></div><div class="kv"><span class="muted">Store share (94%)</span><b class="num">${inr(k.sales-fee)}</b></div><div class="kv"><span class="muted">Royalty (6%)</span><b class="num" style="color:var(--warning)">${inr(fee)}</b></div></div>`}
+const kpiRow=()=>`<div class="row r-4">${kpi('Total sales',inr(k.sales),pct(total,lastTotal),I.rupee)}${kpi('Orders',k.orders.toLocaleString('en-IN'),5.2,I.receipt)}${kpi('Average bill',inr(k.avg),3.0,I.bag)}${kpi('Collected',inr(k.collected),null,I.wallet,`<b style="color:var(--warning)">${inr(k.pending)}</b> still pending`)}</div>`;
+// ---------- 1 · Daily statement ----------
+document.getElementById('statement').innerHTML=`<div class="wrap" style="max-width:1120px">
+  <div class="section-label">Money</div>
+  <div class="card"><div style="display:flex;align-items:flex-end;gap:14px"><div><div class="muted" style="font-weight:600">Total sales this week</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:4px"><span class="num" style="font-size:40px;font-weight:700;line-height:44px;letter-spacing:-.015em">${inr(k.sales)}</span>${chip(pct(total,lastTotal))}<span class="muted">vs last week</span></div></div>
+    <div style="margin-left:auto;display:flex;gap:22px;text-align:right"><div><div class="muted" style="font-size:12px;font-weight:600">Orders</div><b class="num" style="font-size:20px">${k.orders.toLocaleString('en-IN')}</b></div><div><div class="muted" style="font-size:12px;font-weight:600">Average bill</div><b class="num" style="font-size:20px">${inr(k.avg)}</b></div><div><div class="muted" style="font-size:12px;font-weight:600">Items sold</div><b class="num" style="font-size:20px">${k.itemsSold.toLocaleString('en-IN')}</b></div></div></div>
+    <div class="flow" aria-hidden="true"><i style="width:${k.collected/k.sales*100}%;background:var(--primary)"></i><i style="width:${k.pending/k.sales*100}%;background:#f59e0b"></i></div>
+    <div class="flowlegend">${[['Collected',k.collected,'var(--primary)'],['Pending',k.pending,'#f59e0b'],['Discounts given',k.discounts,'var(--accent)'],['GST collected',k.gst,'#64748b'],[`Cancelled (${k.cancelledBills} bills)`,k.cancelled,'var(--danger)']].map(([l,v,c])=>`<div style="--c:${c}"><small>${l}</small><b class="num">${inr(v)}</b></div>`).join('')}</div></div>
+  <div class="section-label">Sales</div>
+  <div class="row r-2-1">${trend()}${payCard()}</div>
+  <div class="section-label">When customers come</div>
+  ${rush(false)}
+  <div class="section-label">Menu</div>
+  <div class="row r-1-1">${topCard()}${slowCard()}</div>
+  <div class="section-label">Bills and royalty</div>
+  <div class="row r-2-1">${billsCard()}${royaltyCard()}</div></div>`;
+// ---------- 2 · Menu insight ----------
+(function(){const qmax=Math.max(...items.map(i=>i.q))*1.12,rmax=Math.max(...items.map(i=>i.r))*1.12,qmid=qmax/2,rmid=rmax/2;
+  const nudge={'Mango cream bowl':14,'Rasmalai tres leches':4,'Filter coffee pudding':-6,'Pistachio milk cake':-4,'Biscoff cheesecake':2};
+  const pts=items.map(it=>`<div class="pt${it.r<rmid&&it.q<qmid?' low':''}" style="left:${6+it.q/qmax*86}%;bottom:${10+it.r/rmax*80+(nudge[it.n]||0)}%;--s:${10+it.r/rmax*16}px"><i></i>${it.n}</div>`).join('');
+  document.getElementById('menu').innerHTML=`<div class="wrap">${kpiRow()}
+  <div class="card">${head('Menu performance','Each dessert by how many sold and how much it earned this week',I.star).replace('<span class="ic">','<span class="seg" aria-hidden="true"><span class="on">This week</span><span>Month</span></span><span class="ic" style="margin-left:8px">')}
+    <div class="row r-2-1" style="align-items:start"><div><div class="quad">
+      <div class="q q1">Stars<span>High sales, high revenue</span></div><div class="q q2">Premium picks<span>Fewer sold, strong revenue</span></div>
+      <div class="q q3">Slow movers<span>Low on both</span></div><div class="q q4">Crowd pleasers<span>Sold a lot, lower price</span></div>${pts}</div>
+      <div class="axis"><span>Fewer sold</span><span>Quantity sold →</span><span>More sold</span></div></div>
+    <div>${itemList(items.slice(0,6),false,items[0].r)}<p class="muted" style="font-size:12px;margin:14px 0 0"><b style="color:var(--ink)">Slow movers:</b> ${items.slice(-3).map(i=>i.n).join(', ')}.</p></div></div></div>
+  <div class="row r-2-1">${trend()}${payCard()}</div>
+  <div class="row r-1-1">${rush(true)}${billsCard()}</div>
+  <div class="row r-2-1"><div class="card">${head('Money details','Where the week’s sales went',I.wallet)}<div class="flowlegend" style="grid-template-columns:repeat(4,1fr)">${[['Pending',k.pending,'#f59e0b'],['Discounts given',k.discounts,'var(--accent)'],['GST collected',k.gst,'#64748b'],[`Cancelled (${k.cancelledBills})`,k.cancelled,'var(--danger)']].map(([l,v,c])=>`<div style="--c:${c}"><small>${l}</small><b class="num">${inr(v)}</b></div>`).join('')}</div></div>${royaltyCard()}</div></div>`})();
+// ---------- 3 · Branch split ----------
+(function(){const share=branchData[0].sales/k.sales*100;
+  const col=b=>{const max=Math.max(...branchData.flatMap(x=>x.week))*1.1;const last=b.week.map((v,i)=>Math.round(v*lastWeek[i]/week[i]*0.97));
+    return `<div class="card"><div class="bhead"><span class="av" style="width:40px;height:40px;border-radius:12px;font-size:13px">${b.code}</span><div><h3 style="margin:0;font-size:18px">${b.n}</h3><p class="muted" style="margin:1px 0 0;font-size:12px">${b.orders} orders · average bill ${inr(b.sales/b.orders)}</p></div><span class="tag">${chip(b.delta)}</span></div>
+    <div class="big num" style="margin-top:14px">${inr(b.sales)}</div>
+    <div class="minibars" aria-hidden="true">${b.week.map((v,i)=>`<div style="display:grid;align-items:end;height:100%;position:relative"><i class="g" style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%"></i><i style="position:relative;height:${v/max*100}%"></i></div>`).join('')}</div>
+    <div class="xlab" style="gap:8px;margin-top:0">${days.map(d=>`<span>${d}</span>`).join('')}</div>
+    <div style="margin-top:16px;font-size:13px;font-weight:700">Payment mix</div>
+    <div class="payline">${b.pay.map((v,i)=>`<i style="width:${v}%;background:${payments[i].c}"></i>`).join('')}</div>
+    <div class="legend" style="margin-top:2px">${payments.map((p,i)=>`<span><i style="background:${p.c}"></i>${p.n} ${b.pay[i]}%</span>`).join('')}</div>
+    <div class="stats3"><div><small>Best seller</small><b>${b.top[0]}</b></div><div><small>Busiest hour</small><b>${b.peak}</b></div><div><small>Pending</small><b class="num">${inr(b.code==='KLT'?9200:7250)}</b></div></div>
+    <div style="margin-top:14px;font-size:13px;font-weight:700">Top three</div>
+    <ol style="margin:6px 0 0;padding-left:18px;color:var(--muted);line-height:24px">${b.top.map(t=>`<li><span style="color:var(--ink);font-weight:600">${t}</span></li>`).join('')}</ol></div>`};
+  document.getElementById('branches').innerHTML=`<div class="wrap">${kpiRow()}
+  <div class="card">${head('Branch share','Sales this week, all branches',I.store)}
+    <div class="share" role="img" aria-label="Kolathur ${share.toFixed(0)} percent, Velachery ${(100-share).toFixed(0)} percent"><div style="width:${share}%;background:var(--primary)">Kolathur · ${share.toFixed(0)}% <span class="num" style="margin-left:auto;font-weight:600">${inr(branchData[0].sales)}</span></div><div style="width:${100-share}%;background:var(--primary-light)">Velachery · ${(100-share).toFixed(0)}% <span class="num" style="margin-left:auto;font-weight:600">${inr(branchData[1].sales)}</span></div></div></div>
+  <div class="row r-1-1">${branchData.map(col).join('')}</div>
+  <div class="row r-2-1">${trend()}${rush(true)}</div>
+  <div class="row r-2-1">${billsCard()}${royaltyCard()}</div>
+  <div class="row r-1-1">${topCard()}${slowCard()}</div></div>`})();
+// ---------- Switcher ----------
+const views=['statement','menu','branches'];
+function show(v){views.forEach(x=>document.getElementById(x).classList.toggle('on',x===v));document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===v)));try{history.replaceState(null,'','#'+v)}catch(e){}}
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+document.addEventListener('keydown',e=>{const i=['1','2','3'].indexOf(e.key);if(i>=0)show(views[i])});
+const fromHash=()=>show(views.includes(location.hash.slice(1))?location.hash.slice(1):'statement');
+window.addEventListener('hashchange',fromHash);fromHash();
+</script>
+</body>
+</html>
