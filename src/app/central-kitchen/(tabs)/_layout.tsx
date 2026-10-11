@@ -4,7 +4,7 @@ import { BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSour
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, Boxes, PackageCheck, Store, Truck, History, BarChart3, ClipboardCheck, Ellipsis, X, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react-native';
+import { Home, Boxes, PackageCheck, Store, Truck, History, BarChart3, ClipboardCheck, Receipt, Ellipsis, X, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
@@ -12,7 +12,7 @@ import { SidebarSelection, SidebarSurface } from '@/components/ui/SidebarSurface
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
 
-/** Direct sections on the rail; party lists share More on a phone. */
+/** Direct sections on the rail; party lists, attendance and invoices share More on a phone. */
 export const KITCHEN_TABS: readonly KitchenTab[] = [
   { name: 'home', label: 'Home', icon: Home },
   { name: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -20,11 +20,12 @@ export const KITCHEN_TABS: readonly KitchenTab[] = [
   { name: 'finished-goods', label: 'Finished goods', icon: PackageCheck },
   { name: 'attendance', label: 'Attendance', icon: ClipboardCheck },
   { name: 'branches', label: 'Branches', icon: Store },
+  { name: 'invoices', label: 'Invoices', icon: Receipt },
   { name: 'vendors', label: 'Vendors', icon: Truck },
   { name: 'history', label: 'History', icon: History },
 ];
-const phoneTabs = KITCHEN_TABS.filter(tab => !['branches', 'vendors', 'finished-goods', 'attendance'].includes(tab.name)).map(tab => tab.name === 'items' ? { ...tab, label: 'Stock' } : tab);
-const moreTabs = KITCHEN_TABS.filter(tab => ['attendance', 'branches', 'vendors'].includes(tab.name));
+const phoneTabs = KITCHEN_TABS.filter(tab => !['branches', 'invoices', 'vendors', 'finished-goods', 'attendance'].includes(tab.name)).map(tab => tab.name === 'items' ? { ...tab, label: 'Stock' } : tab);
+const moreTabs = KITCHEN_TABS.filter(tab => ['attendance', 'branches', 'invoices', 'vendors'].includes(tab.name));
 
 const leLabanLogo: ImageSourcePropType = require('@/../assets/images/le-leban-logo.png');
 type RailWebStyle = ViewStyle & { transition?: string };
@@ -220,7 +221,7 @@ function Rail({ state, navigation }: BarProps) {
 
 /**
  * Direct sections on the rail. Phones keep Home, Analytics, Stock,
- * History and More, with Attendance, Branches and Vendors in the expanded list.
+ * History and More, with Attendance, Branches, Invoices and Vendors in the expanded list.
  */
 export default function KitchenTabsLayout() {
   const { isTablet } = useResponsive();

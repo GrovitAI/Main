@@ -213,3 +213,38 @@ RPCs are expected, as documented above), and no new findings appeared. The
 Noted, not changed: invoice numbers use `CK-000001`, and the Central Kitchen
 branch's POS bill prefix may also be `CK`. POS bills use four digits and
 invoices six, but a different invoice prefix would remove any ambiguity.
+
+## Task 191: Invoices tab, in-app preview and print without pop-ups
+
+- **Navigation.** Invoices is now a kitchen tab: desktop and tablet rails list
+  it after Branches, and phones open it from More (Attendance, Branches,
+  Invoices, Vendors). The route moved to `src/app/central-kitchen/(tabs)/invoices.tsx`,
+  so the URL `/central-kitchen/invoices` and the Analytics links are unchanged.
+  Because a tab stays mounted, a later Analytics link replaces its branch and
+  dates. The register has no Back button; New invoice, detail and preview keep it.
+- **Preview.** "Print / PDF" became **Preview invoice**. It fetches fresh
+  payment status and shows the bill in the app as one A4-width paper column:
+  kitchen, number, status and India issue date, Bill to, period, dated lines,
+  totals and the prepared/status-checked footer. Its rows are rows of the
+  existing FlatList, not a nested list or a modal.
+- **Printing.** **Print / Save PDF** prints the same HTML document from a hidden
+  frame inside the page. No window is opened, so browser pop-up blockers no
+  longer stop it. The previewed invoice is printed immediately on tap.
+  Phones keep **Share PDF** (expo-print and expo-sharing, still needing an
+  updated native build).
+- **Refresh.** The Refresh invoices and Refresh invoice buttons were removed.
+  The tab reloads whenever it is shown again, after every create/payment/cancel
+  and on pull-to-refresh on phones; the preview always reads fresh status;
+  Retry loading remains on errors.
+
+Verification: typecheck, changed-file lint, the invoice and native route
+suites, then the full 35-suite/331-test run passed. Mocked Playwright at
+1440×900, 390×844 and 320×700 opened Invoices from the rail or More, confirmed
+the URL, no Refresh buttons and no register Back, opened detail and preview,
+and printed: each print reached the hidden frame with the invoice number, and
+no pop-up window opened. An Analytics-style link replaced the range on the open
+tab. 59 intercepted requests, zero forwarded, no page errors or overflow. One
+seam between the preview header and its first line was fixed and re-checked.
+The design detector found nothing in the invoice screen; its one finding is the
+existing approved rail width transition from task 173. Native hardware remains
+unverified.

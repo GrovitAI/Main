@@ -111,3 +111,13 @@ token, control or layout. Mocked browser checks at 1440, 390 and 320px: 29
 intercepted requests, zero forwarded, no page errors or overflow; the design
 detector returned no findings. A polish pass ran in-thread rather than through
 a separate finish reviewer, because the change is small and local.
+
+Task 191 refinement: the route is now a kitchen tab (rail after Branches; phone
+More). "Preview invoice" replaces "Print / PDF" and shows the bill in place as
+an A4-width paper column built from the existing FlatList rows, within the
+incumbent ledger tokens (white surface, hairline edges, 2px primary rule under
+the header, tabular amounts). Not a modal: the preview is a view state with
+Back. Print / Save PDF prints from a hidden in-page frame, so no pop-up. Both
+Refresh buttons were removed in favour of reload on focus, after writes and
+pull-to-refresh. Mocked checks at 1440, 390 and 320px passed with zero
+forwarded requests.
