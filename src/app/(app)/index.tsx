@@ -698,49 +698,15 @@ export default function PosBillingScreen() {
       return;
     }
     setActiveAction('save_print');
-    
-    // Capture order details before saveAndPrint updates the active state
-    const currentOrderId = activeOrderId;
-    const orderName = activeOrder?.order_name || `Order #${activeOrderId}`;
-    const invoiceNumber = activeOrder?.invoice_number;
-    const items = activeOrderItems.map((item) => ({
-      name: item.product_name || item.item_name || 'Item',
-      qty: item.qty,
-      price: item.price,
-    }));
-    const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
 
+    // saveAndPrint queues the bill on the configured printer. The second print
+    // that used to follow here (for tills with the pre-July local printer
+    // setting) sent every provisional bill to PrintNode twice.
     const success = await saveAndPrint();
     if (success) {
-      showToast('Provisional bill printed.');
-      
-      void (async () => {
-        try {
-          const printerName = typeof window !== 'undefined' && window.localStorage
-            ? window.localStorage.getItem('billingPrinter')
-            : null;
-
-          if (printerName) {
-            // Retrieve updated order details from store to get the assigned order number!
-            const updatedOrder = useOrdersStore.getState().orders.find((o) => o.id === currentOrderId);
-            const updatedOrderName = updatedOrder?.order_name || orderName;
-            const updatedInvoiceNumber = updatedOrder?.invoice_number || invoiceNumber;
-
-            const receiptText = buildReceiptText(updatedOrderName, updatedInvoiceNumber, items, totalAmount, null, currentBranch, taxPercentage);
-            const printResult = await printReceipt(printerName, receiptText);
-            if (printResult.success) {
-              showToast('Provisional bill printed successfully.');
-            } else {
-              showToast(`Provisional bill saved. (Print failed: ${printResult.error || 'unknown error'})`);
-              void checkPrinterHealth();
-            }
-          }
-        } catch (printErr) {
-          console.warn('[Print] Silent provisional printing failed:', printErr);
-        }
-      })();
+      showToast('Provisional bill sent to the printer.');
     }
-  }, [isMutating, activeOrderId, activeOrder, activeOrderItems, saveAndPrint, showToast, checkPrinterHealth]);
+  }, [isMutating, activeOrderItems, saveAndPrint, showToast]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -748,14 +714,9 @@ export default function PosBillingScreen() {
   const doReprintActiveBill = useCallback(async () => {
     if (!activeOrder) return;
     try {
-      const printerName = typeof window !== 'undefined' && window.localStorage
-        ? window.localStorage.getItem('billingPrinter')
-        : null;
-
-      if (!printerName) {
-        showToast('Please configure a billing printer in Settings first.');
-        return;
-      }
+      // printReceipt uses the branch's default bill printer from Settings → Printers;
+      // the old browser-only printer name is no longer required.
+      const printerName = 'default';
 
       const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
       const items = activeOrderItems.map((item) => ({

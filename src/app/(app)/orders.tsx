@@ -546,14 +546,9 @@ export default function OrdersScreen() {
       const totalAmount = viewingSummary.totalAmount;
       const paymentMethod = viewingSummary.order.payment_method;
 
-      const printerName = typeof window !== 'undefined' && window.localStorage
-        ? window.localStorage.getItem('billingPrinter')
-        : null;
-
-      if (!printerName) {
-        showToast('Please configure a billing printer in Settings first.');
-        return;
-      }
+      // printReceipt uses the branch's default bill printer from Settings → Printers;
+      // the old browser-only printer name is no longer required.
+      const printerName = 'default';
 
       // Format items for print
       const printItems = viewingItems.map((item) => ({
