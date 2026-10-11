@@ -24,7 +24,7 @@ type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; valu
 const tabular = { fontVariant: ['tabular-nums' as const] };
 function Action({ label, onPress, primary = false, disabled = false }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
-    className={'min-h-12 min-w-12 items-center justify-center rounded-lg border px-3 py-2 ' +
+    className={'min-h-[44px] min-w-[44px] max-w-full self-start items-center justify-center rounded-lg border px-3 py-1.5 ' +
       (disabled ? 'border-border bg-surface-tint' : primary ? 'border-primary bg-primary hover:bg-primary-deep active:bg-primary-deep focus:border-primary-deep' : 'border-border bg-surface-elevated hover:bg-accent-soft active:bg-accent-soft focus:border-primary')}>
     <Text className={'text-sm font-semibold leading-5 ' + (primary && !disabled ? 'text-text-on-primary' : disabled ? 'text-text-secondary' : 'text-primary')}>{label}</Text>
   </Pressable>;
@@ -121,12 +121,12 @@ export function InvoiceWorkspace() {
         <View className={desktop ? 'max-w-[340px] flex-1' : ''}><ReportSelect label="Branch" value={filter.partyId} options={branches}
           allowEmpty={!filter.candidates} emptyLabel={filter.candidates ? 'Choose a branch' : 'All branches'} outlined onChange={partyId => resetFilter({ partyId })} /></View>
         <View className={desktop ? 'shrink' : ''}><ReportDateRange label="Invoice delivery period" value={filter} outlined onChange={range => resetFilter(range)} /></View>
-        <Action label="Refresh invoices" disabled={loading || busy} onPress={() => { setSelected(new Map()); setRefresh(v => v + 1); }} />
+        <View className={desktop ? 'self-end' : 'self-start'}><Action label="Refresh invoices" disabled={loading || busy} onPress={() => { setSelected(new Map()); setRefresh(v => v + 1); }} /></View>
       </View>
       <Text className="text-xs leading-5 text-text-secondary">{filter.candidates ? 'Select finished-goods deliveries. Each delivery includes all its items. Already invoiced deliveries are excluded.' : 'Invoices overlapping the selected delivery period. Paid status follows matched branch payments.'}</Text>
       {filter.candidates && data?.deliveries.length ? <View className="flex-row flex-wrap items-center justify-between gap-2">
         <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries on this page" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
-          className="min-h-12 flex-row items-center gap-2 rounded-lg border border-border px-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">
+          className="min-h-[44px] flex-row items-center gap-2 rounded-lg border border-border px-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">
           {allPage ? <Check size={18} color={colors.primary} /> : <Square size={18} color={colors.textSecondary} />}<Text className="text-sm font-semibold text-text-primary">Select page</Text>
         </Pressable><Text className="text-xs text-text-secondary">{selected.size}/100 selected</Text>
       </View> : null}
@@ -153,7 +153,11 @@ export function InvoiceWorkspace() {
     <View className="mx-auto w-full max-w-[1120px] flex-1 px-4">
       <FlatList<Row> data={loading || error ? [] : rows} keyExtractor={r => r.kind + r.value.id} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 24 + insets.bottom }}
-        ListEmptyComponent={!loading && !error ? <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.candidates ? filter.partyId ? 'No uninvoiced finished-goods deliveries for this period. Try another date range.' : 'Choose a branch to load its deliveries.' : 'No invoices for this period. Create one from finished-goods deliveries.'}</Text> : null}
+        ListEmptyComponent={!loading && !error ? !detailId && !filter.candidates ? <View className="items-start gap-2 py-5">
+          <Text className="text-sm font-semibold leading-5 text-text-primary">No saved invoices for this period.</Text>
+          <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its finished-goods deliveries to create an invoice.</Text>
+          <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} />
+        </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'No uninvoiced finished-goods deliveries for this period. Try another date range.' : 'Choose a branch to load its deliveries.'}</Text> : null}
         ListFooterComponent={!detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
         renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.number)} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
           className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">

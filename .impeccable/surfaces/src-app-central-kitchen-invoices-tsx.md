@@ -45,7 +45,7 @@ gutters. From 700px, detail uses item (34%), date, quantity, rate and amount
 columns with matching headings; phones pair item/amount over supporting date,
 quantity and rate. Register/selection rows have a 64px minimum height with
 natural wrapping; detail uses 14px main type and 12px supporting text.
-Actions use 14px semibold labels, 8px corners and 48px minimum targets.
+Actions use 14px semibold labels, 8px corners and 44px minimum targets.
 The bounded FlatList retains scrolling, keyboard tap handling and safe-area
 bottom padding; the existing KeyboardAvoider surrounds the workspace.
 
@@ -91,3 +91,12 @@ identity, asset or system overwrite is implied by this extension.
 UNVERIFIED: Native hardware, font scaling, soft keyboards, native PDF sharing,
 dark appearance, gestures, physical printers, production rollout and operator
 acceptance. Browser/source Ship is not native or tax-compliance certification.
+
+Task 189 refinement: the saved-register empty state explicitly says no saved
+invoices and offers Select deliveries, with branch/selection guidance. Actions
+fit their labels instead of stretching across phone columns; desktop Refresh
+aligns to the bottom of its filters. Three mocked browser widths (1440, 390,
+320px) verified empty → selection → created detail, with nine captures, 27
+intercepted requests, zero forwarded and no page errors. A desktop-only
+alignment confirmation used nine intercepted requests and zero forwarded.
+Existing data, payment logic and visual authority remain unchanged.

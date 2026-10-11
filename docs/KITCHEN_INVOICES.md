@@ -6,7 +6,8 @@ Open **Analytics → Sales → Invoices** on desktop. On a phone, open **Report
 actions → Branch invoices**. The direct route is `/central-kitchen/invoices`.
 The Analytics branch and inclusive date range carry into the invoice register.
 
-Choose **New invoice**, a branch and the delivery period. Select individual
+The register lists saved invoices; deliveries appear after **New invoice** or
+the empty-state **Select deliveries** action. Choose a branch and the delivery period. Select individual
 finished-goods deliveries or **Select page**, then **Create invoice**. Selection
 persists across the 50-row pages; one invoice can include up to 100 deliveries.
 Each selected delivery includes all its lines. Raw-material or mixed deliveries,
@@ -124,7 +125,7 @@ The workspace extends the incumbent compact Kitchen Ledger: shared Source
 Sans 3, POS workspace canvas, white ledger surfaces, token-blue solid actions
 and tabular money. Desktop detail has balanced item/date/quantity/rate/amount
 columns; phone lines pair item/amount above date/quantity/rate. Compact 14px
-semibold actions use 8px corners and 48px minimum targets. The 12px status text
+semibold actions use 8px corners and 44px minimum targets. The 12px status text
 uses existing success/warning/muted tokens, always with an explicit label.
 These are scoped invoice roles, not new global tokens or design rules.
 
@@ -141,3 +142,21 @@ The 11 October All projects baseline for 21 September–21 October is
 0.645/1 GB log ingestion, 38.653/100 GB log queries. Meter lag prevents exact
 test-byte attribution or a guaranteed monthly total. Native hardware, text
 scaling, soft keyboards and native sharing remain unverified.
+
+## Task 189: invoice discovery and compact actions
+
+The staging register had no saved invoices; its selected branch/date range
+contained two eligible finished-goods deliveries. Browser inspection confirmed
+the read path worked. No business invoice or payment was created during this
+diagnosis. The empty state now distinguishes saved invoices from deliveries
+and includes Select deliveries. Invoice actions keep intrinsic widths and 44px
+minimum tap targets; desktop Refresh remains aligned with the filter controls.
+
+Typecheck and changed-file lint passed. Mocked Playwright checks at 1440×900,
+390×844 and 320×700 verified the empty-state action, branch selection, delivery
+selection and confirmed creation into detail: nine captures, 27 intercepted
+requests, three mock writes, zero cloud forwarding and no page errors. One
+affected desktop alignment confirmation used nine intercepted requests and one
+mock write, with zero forwarding/errors. A single design detector found nothing.
+The real staging delivery view also displayed the compact controls after hot
+reload. No service, database, migration, production or protected design change.
