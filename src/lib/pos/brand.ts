@@ -90,3 +90,29 @@ export const semantic = {
   neutral: '#64748b',
   neutralSoft: '#f1f5f9',
 } as const;
+
+/**
+ * Chart colours (task 197). Validated with the dataviz six checks on the white
+ * card surface: series1–3 pass all-pairs (CVD ΔE 10.7, normal-vision ΔE 15.9,
+ * every mark at least 3:1). `previous` is the lighter step of series1 for an
+ * earlier period (ordinal ramp, light end 2.22:1). `pending` is the warning
+ * status mark; its label always stays in text colour.
+ */
+export const chart = {
+  /** Le Laban blue: sales, UPI, item revenue. */
+  series1: '#0066b2',
+  /** Teal: cash. */
+  series2: '#14a38b',
+  /** Violet: card. */
+  series3: '#7a5af5',
+  /** The earlier period, a lighter step of series1. */
+  previous: '#7ab4e4',
+  /** Money not yet collected (status warning). */
+  pending: '#d97706',
+  /** Hairline gridlines and empty meter tracks. */
+  grid: '#e6eef7',
+  /** Wash behind the hovered or focused column group. */
+  hoverWash: 'rgba(0, 102, 178, 0.06)',
+  /** Page canvas behind the cards. */
+  canvas: '#f5f8fc',
+} as const;

@@ -31,6 +31,12 @@ colors:
   buy-amber-soft: "#fef3c7"
   stock-neutral: "#64748b"
   stock-neutral-soft: "#f1f5f9"
+  chart-teal: "#14a38b"
+  chart-violet: "#7a5af5"
+  chart-previous: "#7ab4e4"
+  chart-pending: "#d97706"
+  chart-grid: "#e6eef7"
+  chart-hover-wash: "rgba(0, 102, 178, 0.06)"
 typography:
   display:
     fontFamily: "SourceSans3"
@@ -57,6 +63,22 @@ typography:
     lineHeight: "46px"
     letterSpacing: "-0.8px"
     fontFeature: "tnum"
+  figure-hero:
+    fontFamily: "SourceSans3"
+    fontSize: "48px"
+    fontWeight: 700
+    lineHeight: "56px"
+    letterSpacing: "-0.8px"
+  figure-ring:
+    fontFamily: "SourceSans3"
+    fontSize: "26px"
+    fontWeight: 700
+    lineHeight: "32px"
+  chart-label:
+    fontFamily: "SourceSans3"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: "16px"
   title:
     fontFamily: "SourceSans3"
     fontSize: "17px"
@@ -289,6 +311,21 @@ A single brand blue on a blue-tinted page, with three directional money colours 
 
 **The Zero Is Neutral Rule.** A due that is zero is Ink, not green or red: "Branches yet to pay ₹0" is settled, not good news.
 
+### Chart (owner-approved, task 197)
+Chart marks draw from `chart` in `src/lib/pos/brand.ts`, never from the money or action colours by hand. Validated on the white card: the three series pass all-pairs CVD dE 10.7 and normal-vision dE 15.9, and every mark is at least 3:1.
+- **Series 1** (`chart.series1`, the same value as `laban-blue`): sales, UPI, item revenue, collected money, store share, the Best sellers meter.
+- **Chart Teal** (`chart-teal`, `chart.series2`): cash in the payment ring; the Top revenue meter.
+- **Chart Violet** (`chart-violet`, `chart.series3`): card in the payment ring; the royalty fee; the Slow movers meter.
+- **Chart Previous** (`chart-previous`, `chart.previous`): the earlier equal period, a lighter ordinal step of Series 1 (2.22:1 on white, deliberately below the 3:1 mark floor because it is the receding member of a two-step ramp and always has a legend).
+- **Chart Pending** (`chart-pending`, `chart.pending`): money not yet collected, as a flow-bar segment and a 10 px swatch only.
+- **Chart Grid** (`chart-grid`, `chart.grid`): 1 px gridlines, the empty ring, the flow-bar and meter tracks, and the item table's row separators.
+- **Chart Hover Wash** (`chart-hover-wash`, `chart.hoverWash`): the 8 px-radius wash behind the hovered, focused or tapped column group.
+- `chart.canvas` is the same value as `kitchen-canvas` and is not a separate colour.
+
+**The Pending Amber Rule.** Chart Pending marks pending money and nothing else. Its label and amount stay in Ink or Ink Muted; amber never colours text, and it is not Buy Amber.
+
+**The Ordinal Previous Rule.** An earlier period is always the lighter step of the current period's colour, never a new hue, and always appears with a legend.
+
 ## Typography
 
 **Display Font:** System sans (San Francisco on iOS, Roboto on Android, the platform UI font on the web)
@@ -302,6 +339,9 @@ A single brand blue on a blue-tinted page, with three directional money colours 
 - **Headline** (800, 20 px / 24 px, -0.4 px): the inline title on a screen with a back chevron ("Send to a branch"); the sheet title is this family at 18 px.
 - **Figure** (800, 22 px, -0.3 px, tabular): a money figure in a stat cell or a pinned footer total. Shrinks to fit its cell rather than wrapping.
 - **Figure Balance** (800, 40 px / 46 px, -0.8 px, tabular): the one large number on a detail page (an item's stock, a party's balance). One per screen.
+- **Figure Hero** (700, 48 px / 56 px, -0.8 px, proportional): the desktop analytics "Total sales" figure. One per view, never in a column, so it keeps proportional figures.
+- **Figure Ring** (700, 26 px / 32 px): the percentage in the centre of the payment ring, over a 12 px caption.
+- **Chart Label** (400, 12 px / 16 px, tabular where numeric): axis ticks, x labels, legend text and tooltip labels; the item table's uppercase column headers use it at 700 with +0.6 px tracking. 12 px is the chart minimum; nothing in a chart is 11 px.
 - **Title** (800, 17 px): an action tile's verb and a card's opening heading; the primary button's label is 16 px of the same.
 - **Body** (700, 15 px): row titles, row amounts (800), the ghost button label, the search and text field input (600), the empty-state title (800).
 - **Caption** (600, 13 px / 18 px): subtitles under a title, row sublines at 12 px, hints, chip labels (700), empty-state body (line height 19), notice text (700), toast text (700), link buttons (800).
@@ -310,7 +350,7 @@ A single brand blue on a blue-tinted page, with three directional money colours 
 ### Named Rules
 **The Twelve Floor Rule.** Nothing on screen is set below 12 px. Where a label must be quiet, it is 12 px Ink Muted at 600 or 700; never smaller.
 
-**The Tabular Money Rule.** Every number that can be compared with another number (amounts, quantities, stock, stepper values, the big-input prefix) is set in tabular figures, so columns align in a card and a slip.
+**The Tabular Money Rule.** Every number that can be compared with another number (amounts, quantities, stock, stepper values, the big-input prefix) is set in tabular figures, so columns align in a card and a slip. The single Figure Hero is the only exception: it stands alone and is never aligned against another figure.
 
 ## Layout
 
@@ -395,6 +435,7 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 - **Do** keep every target at least 44 pt (48 dp on Android) and no text below 12 px.
 - **Do** use the uppercase 12 px/800 +0.8 px label for section and field headings, and nothing else in capitals.
 - **Do** put a screen's one large number (40 px) on a detail page only, with the 22 px figure for everything in a grid.
+- **Do** take every chart colour from `chart` in `brand.ts`: Series 1, Teal and Violet in that order, the lighter Previous step for an earlier period, Pending only for uncollected money.
 
 ### Don't:
 - **Don't** cast a shadow or add a floating action. Confine the Kitchen gradient to the shared POS rail backdrop (The No-Shadow Rule, The POS Rail Exception Rule).
@@ -405,6 +446,7 @@ The sheet is the module's one moment of ceremony: after a send it rises from the
 - **Don't** write a hex value in a kitchen component; every colour is `colors.*` or `semantic.*` from `src/lib/pos/brand.ts` (or its NativeWind mirror).
 - **Don't** combine `className` with a Pressable's function style: NativeWind drops the function. Class-styled controls use `active:opacity-*`; legacy controls with function styles keep their plain style objects.
 - **Don't** add a second type family, a weight below 600, or letter-spaced capitals outside the Label role.
+- **Don't** set chart text below 12 px, put a value label on every column, or colour a label or amount with Chart Pending.
 
 ## Daily work navigation (owner and admin)
 
@@ -471,3 +513,48 @@ workflows with a more compact layout:
 Verified in the browser at 1366 px and 1024 px desktop widths and 390 px
 phone width across the tab surfaces. This is browser evidence, not a native
 emulator or hardware test.
+
+## Charts and analytics
+
+Task 197 adds the desktop web POS analytics "Daily statement"
+(`src/components/analytics/AnalyticsStatement.tsx`, chart primitives in
+`StatementCharts.tsx`), shown by `src/app/(app)/analytics.tsx` on web at
+desktop width (1024 px and up); phone and tablet keep their existing screens.
+The page sits on the POS screens' incumbent shell (white 16 px cards with a
+Hairline edge and the Tailwind `shadow-card`, 20 px padding, 20 px between card
+rows, content up to 1168 px with 24 px side padding on Kitchen Canvas), which
+predates the Kitchen world and is not a Kitchen card. The chart rules below
+apply to any chart on any surface.
+
+- **Columns** (`ColumnChart`): grow from one baseline; at most 24 px wide
+  (56% of the slot alone, 34% each when paired); 4 px rounded data end and a
+  square base; a non-zero value is never shorter than 3 px. Paired columns
+  (Previous left, current right) sit 2 px apart. Three gridlines at 0, half and
+  a clean maximum (1, 2, 2.5 or 5 times a power of ten) in Chart Grid, with
+  compact rupee ticks in a 52 px left axis. X labels thin to every nth when a
+  series is long; the rest stay in the tooltip.
+- **Direct label:** only the peak column carries a value label (12 px/700 Ink,
+  tabular), hidden while that column's tooltip is open.
+- **Tooltip:** hover, keyboard focus or tap opens it; a second tap closes it.
+  An Ink box with 8 px corners, at least 116 px wide, 8 px above the taller
+  column: a 12 px label at 0.8 opacity, the 13 px/700 value and, for paired
+  series, the previous value with its percentage change. Every column group is
+  an accessible button with its value in its label, and the chart carries a
+  summary.
+- **Legends:** a two-series chart always has a legend of 10 px squares at 3 px
+  radius with 12 px Ink Muted labels; single-series charts do not.
+- **Payment ring:** 168 px, 18 px stroke on a Chart Grid track, one arc per
+  method in Series 1, Teal, Violet order (anything beyond three joins "Other"
+  in Ink Muted), 2 px gaps between arcs, round caps unless a segment is too
+  short. Figure Ring in the centre names the lead method's share.
+- **Flow bar:** one 12 px pill-ended stack with 2 px gaps on a Chart Grid
+  track, for collected against pending and store share against royalty, with
+  swatched figures beneath.
+- **Meters:** 6 px bars with rounded ends on a Chart Grid track, at least 2%
+  wide, beneath a 14 px name and value; the item table repeats the 6 px meter
+  for share of revenue.
+- **Change:** a percentage with an arrow icon, green up, red down, an Ink Muted
+  right arrow under 0.05%; the hero's change sits in the matching soft pill.
+- **Controls:** every toolbar control, preset tab, date button, export, branch
+  choice and stepper is at least 44 px tall at desktop width too, because the
+  POS runs on touch terminals.
