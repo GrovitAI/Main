@@ -2,7 +2,7 @@
 
 Task 176 · 2026-10-10 · staging only
 
-Latest refinement: task 179 · 2026-10-10 · staging only
+Latest refinement: task 186 · 2026-10-11 · staging only
 
 Central Kitchen now has a manually maintained staff roster and daily attendance
 register. Attendance is separate from app logins: adding a person does not
@@ -290,3 +290,34 @@ Canvas, quiet white rows and hairline dividers. DESIGN.md, its sidecar and
 global tokens remain untouched. Existing system-sans prose/specimens,
 every-choice chips guidance, older navigation descriptions and early surface
 font/canvas/first-viewport wording remain reported drift without repair.
+
+## Compact note actions (task 186)
+
+The expanded Daily register row now uses local intrinsic-width Save note,
+Clear mark and Close controls: 14px semibold Source Sans 3, 20px line height,
+44px minimum height/width, and 8px gaps/corners. Save note retains primary
+blue; Clear mark and Close use quiet outlines. The expansion's top gap changes
+from 12px to 8px. Full labels fit one row at normal 320px text size; the layout
+can wrap at larger sizes. Busy/disabled predicates, confirmed-write dismissal
+and failed-save draft retention are unchanged, as are status choices, roster,
+Month overview and services.
+
+Typecheck, changed-file lint and 37 tests/three suites passed. Eleven mocked
+captures cover marked/unmarked rows at 1440×900, 800×700, 390×844, 320×700 and
+370×668 plus failed save. The run fulfilled 47 cloud-targeted requests locally,
+forwarded zero, recorded two successful mock writes and reported no page
+errors. That request claim excludes existing user/HMR sessions. There was no
+live database testing, migration or production change.
+
+The fresh independent review returned **Ship** in all five sections without
+material fixes for the captured browser composition and inspected native
+source. Comparison with the incumbent small-phone capture confirms the former
+two-line Save note label is now compact and single-line; Source Sans 3, POS
+blue/Canvas and existing design authority remain. PRODUCT.md, DESIGN.md,
+design.json and brand tokens are untouched; pre-existing drift remains recorded
+above. Evidence: `.impeccable/review/attendance-actions-results.json`,
+`attendance-actions-*.png`, verification logs and
+`attendance-actions-finish-review.md`. No shipping raster was added and no
+HTML/CSS detector applies to native source. Native hardware, text scaling,
+keyboard, dark appearance and gestures remain unverified; browser 44px targets
+do not certify Android's 48dp floor.

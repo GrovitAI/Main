@@ -579,3 +579,31 @@ detector ran for native source. Native hardware/simulator/emulator appearance,
 soft keyboard, scaling, dark appearance, Reduce Motion and physical/predictive
 Back gestures remain unverified; source safe-area/Back handling and browser
 targets do not certify native insets or Android-wide 48dp conformance.
+
+## Task 186 direction — compact attendance note actions
+
+Polish the expanded attendance row's Save note, Clear mark and Close controls:
+14px semibold labels, intrinsic widths, quieter 8px corners and matching 44px
+minimum targets instead of large shared form buttons and a squeezed Save note.
+Keep full labels, wrapping at larger text sizes, disabled/busy states, confirmed
+save/clear behavior and existing status choices. Slightly tighten the expansion
+gap; preserve Source Sans 3, tokens, roster/month screens and services. Incumbent
+Operate refinement only; no new visual world, token or shipping asset.
+
+Task 186 verdict: **Ship**, from fresh review of all five sections, eleven
+captures and the scoped React Native source, with no material fixes. Compared
+with `attendance-hr-small-phone-mark.png`, Save note now fits one line at
+320px; all three actions retain full 14px semibold labels, intrinsic widths,
+44px minimum targets and 8px gaps/corners. Primary blue and quiet outlines
+preserve Source Sans 3/POS-blue authority. Confirmed-save/clear dismissal,
+failure draft retention and existing busy guards remain.
+
+Typecheck, changed-file lint and 37 tests/three suites passed. Five mocked
+viewports plus failed save fulfilled 47 requests locally with zero forwarded,
+two successful mock writes and no page errors; existing user/HMR sessions are
+outside that claim. Evidence: `.impeccable/review/attendance-actions-*` and
+`docs/KITCHEN_ATTENDANCE.md`. Product/design files, tokens and previously
+recorded drift are preserved. No live database test, migration, production
+change or shipping raster; no native HTML/CSS detector. Native hardware,
+scaling, keyboards, dark appearance and gestures remain unverified; the
+browser 44px floor does not certify Android 48dp targets.

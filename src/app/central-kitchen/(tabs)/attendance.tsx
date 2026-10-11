@@ -40,6 +40,14 @@ function StaffIdentity({ person }: { person: KitchenStaffMember }) {
   );
 }
 
+/** Compact row actions retain full labels and the project's minimum touch target. */
+function AttendanceNoteAction({ label, onPress, disabled, primary = false }: { label: string; onPress: () => void; disabled: boolean; primary?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+    className={'min-h-11 min-w-11 flex-row items-center justify-center rounded-lg border px-3 py-2 ' + (primary ? 'border-primary bg-primary hover:bg-primary-deep active:bg-primary-deep focus:border-primary-deep' : 'border-border bg-surface-elevated hover:bg-accent-soft active:bg-accent-soft focus:border-primary') + (disabled ? ' opacity-50' : '')}>
+    <Text className={'text-sm font-semibold leading-5 ' + (primary ? 'text-text-on-primary' : 'text-text-secondary')}>{label}</Text>
+  </Pressable>;
+}
+
 function AttendanceRow({ person, record, busy, onMark }: { person: KitchenStaffMember; record: KitchenAttendance | undefined; busy: boolean; onMark: (person: KitchenStaffMember, status: AttendanceStatus, note: string) => Promise<boolean> }) {
   const desktop = useDesktopDensity();
   const [expanded, setExpanded] = useState(false);
@@ -56,11 +64,15 @@ function AttendanceRow({ person, record, busy, onMark }: { person: KitchenStaffM
       {desktop ? <IconButton icon={record?.note ? MessageSquareText : Pencil} label={`Attendance note for ${person.name}`} onPress={open} /> : null}
     </View>
     {record?.note && !expanded ? <Text className="mt-1 text-xs text-text-secondary">{record.note}</Text> : null}
-    {expanded ? <View className="gap-2 pt-3">
+    {expanded ? <View className="gap-2 pt-2">
       {!desktop ? choices : null}
       {!desktop && record ? <Text className="text-xs text-text-secondary">Updated by {record.updated_by_name} · {updatedTime} IST</Text> : null}
       <TextField flat label={`Attendance note for ${person.name}`} value={note} onChange={setNote} placeholder="Optional note · up to 200 characters" />
-      <View className="flex-row flex-wrap gap-2"><View className="flex-1"><PrimaryButton label="Save note" disabled={busy || !record || note.trim() === record.note} onPress={() => { void onMark(person, status, note).then(saved => { if (saved) setExpanded(false); }); }} /></View><GhostButton label="Clear mark" disabled={busy || !record || (status === 'unmarked' && !record.note)} onPress={() => { void onMark(person, 'unmarked', '').then(saved => { if (saved) { setNote(''); setExpanded(false); } }); }} /><GhostButton label="Close" disabled={busy} onPress={() => setExpanded(false)} /></View>
+      <View className="flex-row flex-wrap items-start gap-2" testID={`attendance-note-actions-${person.id}`}>
+        <AttendanceNoteAction label="Save note" primary disabled={busy || !record || note.trim() === record.note} onPress={() => { void onMark(person, status, note).then(saved => { if (saved) setExpanded(false); }); }} />
+        <AttendanceNoteAction label="Clear mark" disabled={busy || !record || (status === 'unmarked' && !record.note)} onPress={() => { void onMark(person, 'unmarked', '').then(saved => { if (saved) { setNote(''); setExpanded(false); } }); }} />
+        <AttendanceNoteAction label="Close" disabled={busy} onPress={() => setExpanded(false)} />
+      </View>
       {!record ? <Text className="text-xs text-text-secondary">Choose a status first, then save an optional note.</Text> : null}
     </View> : null}
   </View>;
