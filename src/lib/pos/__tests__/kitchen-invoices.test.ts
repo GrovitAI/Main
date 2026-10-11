@@ -2,7 +2,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { cancelKitchenInvoice, createKitchenInvoice, fetchKitchenInvoice, fetchKitchenInvoices, parseKitchenInvoice, receiveKitchenInvoicePayment } from '@/lib/pos/kitchen-invoice-service';
-import { kitchenInvoiceHtml } from '@/lib/pos/kitchen-invoice-utils';
+import { invoiceNumber, kitchenInvoiceHtml } from '@/lib/pos/kitchen-invoice-utils';
 import type { InvoiceFilter, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 
 jest.mock('@/lib/pos/supabase', () => ({ supabase: { rpc: jest.fn() } }));
@@ -11,7 +11,7 @@ jest.mock('@/lib/pos/kitchen-service', () => ({ kitchenBranch: jest.fn() }));
 const scope = { p_tenant_id: 'tenant', p_branch_id: 'kitchen' };
 const filter: InvoiceFilter = { startDate: '2026-10-01', endDate: '2026-10-02', partyId: 'party', page: 0, candidates: true };
 const delivery = { id: 'delivery', entry_date: '2026-10-01', amount_paise: 15000, lines: [{ id: 'line', item_name: 'Cake', unit: 'pcs', qty: 3, price_paise: 5000, line_paise: 15000 }] };
-const invoice: KitchenInvoice = { id: 'invoice', number: 1, party_id: 'party', party_name: 'Branch', kitchen_name: 'Kitchen',
+const invoice: KitchenInvoice = { id: 'invoice', invoice_no: 1000, party_id: 'party', party_name: 'Branch', kitchen_name: 'Kitchen',
   start_date: filter.startDate, end_date: filter.endDate, total_paise: 15000, covered_paise: 5000, open_paise: 10000, status: 'to_be_paid',
   created_at: '2026-10-02T05:00:00Z', created_by_name: 'Staff', cancelled_at: null, cancel_reason: null, deliveries: [delivery] };
 beforeEach(() => {
@@ -73,7 +73,7 @@ test('private errors do not leak; ambiguous saves require refresh', async () => 
 test('export escapes every user string and preserves historical quantities, prices and matched balance', () => {
   const html = kitchenInvoiceHtml({ ...invoice, party_name: '<script>alert(1)</script>', created_by_name: 'A & B', deliveries: [{ ...delivery, lines: [{ ...delivery.lines[0], item_name: 'Cake <img src=x>' }] }] });
   expect(html).not.toContain('<script>'); expect(html).not.toContain('<img src=x>'); expect(html).toContain('&lt;script&gt;');
-  expect(html).toContain('A &amp; B'); expect(html).toContain('CK-000001'); expect(html).toContain('3 pcs'); expect(html).toContain('To be paid');
+  expect(html).toContain('A &amp; B'); expect(html).toContain('01000'); expect(html).not.toContain('CK-'); expect(html).toContain('3 pcs'); expect(html).toContain('To be paid');
   expect(html).toContain('Unmatched branch receipts'); expect(html).toContain('100');
 });
 test('print dates use the India calendar day, not the UTC prefix of created_at', () => {
@@ -81,4 +81,8 @@ test('print dates use the India calendar day, not the UTC prefix of created_at',
   const html = kitchenInvoiceHtml({ ...invoice, created_at: lateEvening }, new Date(lateEvening));
   expect(html).toContain('Issued 2 Oct 2026'); expect(html).toContain('Delivery period: 1 Oct 2026 to 2 Oct 2026');
   expect(html).toContain('<td>1 Oct 2026</td>'); expect(html).toContain('IST'); expect(html).not.toContain('2026-10-0');
+});
+test('invoice numbers are five digits from the kitchen sequence', () => {
+  expect(invoiceNumber(1000)).toBe('01000'); expect(invoiceNumber(1001)).toBe('01001'); expect(invoiceNumber(12345)).toBe('12345');
+  expect(() => parseKitchenInvoice({ ...invoice, invoice_no: undefined })).toThrow();
 });

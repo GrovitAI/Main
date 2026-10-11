@@ -248,3 +248,26 @@ seam between the preview header and its first line was fixed and re-checked.
 The design detector found nothing in the invoice screen; its one finding is the
 existing approved rail width transition from task 173. Native hardware remains
 unverified.
+
+## Task 193: five-digit invoice numbers
+
+The owner asked for simpler numbers. Invoices are now numbered **01000, 01001,
+01002…** for each Central Kitchen, with no gaps, shown as five plain digits
+(no prefix). This also removes the earlier `CK-` overlap with the Central
+Kitchen branch's till bill prefix.
+
+Migration `20261011170000_kitchen_invoice_numbers.sql` adds `invoice_no` and a
+per-kitchen counter table (row security on, no anon or authenticated access;
+only the security-definer `kitchen_create_invoice` writes it). The counter row
+lock serialises creation, and a failed or rolled-back attempt also rolls back
+the counter. Existing invoices were numbered in creation order. The old global
+identity `number` column stays for history but is not shown.
+`kitchen_invoice_totals` gains `invoice_no` as its last column.
+
+Staging verification: the five existing invoices (old CK-000004 to CK-000008;
+1–3 had been used up by rolled-back tests) became 01000–01004, and the counter
+is 1004. A rollback-only authenticated fixture created 01005, then a
+deliberately failed attempt, then 01006, so no number was skipped. Afterwards
+the counter was still 1004 and no fixture rows remained. The app shows
+`invoice_no` everywhere: register, detail, preview and print. Typecheck passed,
+and 16 invoice tests passed.

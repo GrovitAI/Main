@@ -29,7 +29,7 @@ export function parseKitchenInvoice(v: unknown): KitchenInvoice {
     || (status !== 'cancelled' && (open === 0) !== (status === 'paid'))) throw Error('Invalid invoice totals');
   const deliveries = r.deliveries === undefined ? [] : rows(r.deliveries).map(delivery);
   if (r.deliveries !== undefined && (!deliveries.length || deliveries.reduce((a, d) => a + d.amount_paise, 0) !== total)) throw Error('Invalid invoice lines');
-  return { id: text(r.id), number: integer(r.number), party_id: text(r.party_id), party_name: text(r.party_name), kitchen_name: text(r.kitchen_name),
+  return { id: text(r.id), invoice_no: integer(r.invoice_no), party_id: text(r.party_id), party_name: text(r.party_name), kitchen_name: text(r.kitchen_name),
     start_date: text(r.start_date), end_date: text(r.end_date), total_paise: total, covered_paise: covered, open_paise: open,
     status: status as KitchenInvoice['status'], created_at: text(r.created_at), created_by_name: text(r.created_by_name),
     cancelled_at: nullable(r.cancelled_at), cancel_reason: nullable(r.cancel_reason), deliveries };
