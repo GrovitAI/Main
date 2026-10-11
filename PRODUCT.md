@@ -174,9 +174,25 @@ figures to be right, and matching is offered only as a convenience.
   and incumbent design authority are preserved; native hardware remains
   unverified. No service/store/polling/schema or production change.
   See docs/KITCHEN_HISTORY.md for verification and limits.
+- Kitchen branch invoices (task 188, staging): Analytics Sales opens an invoice
+  register carrying the selected branch and inclusive dates. New invoice groups
+  up to 100 selected whole finished-goods deliveries, with selection retained
+  across pages; raw/mixed, voided and already actively invoiced deliveries are
+  excluded. Saved names, quantities, rates and amounts are snapshots; creation
+  does not post another sale or stock movement. To be paid/Paid follows matched
+  non-voided receipts for those deliveries, with partial payment and remaining
+  balance visible. Record payment confirms money already received and matches
+  it atomically; retry keys prevent duplicate receipts. Cancel retains the
+  invoice and sales/payments, releasing deliveries for correction or reinvoicing.
+  An active invoice protects its deliveries from edit/void. Browser Print / PDF
+  refreshes status and supports Save as PDF; native Share PDF needs an updated
+  build and hardware verification. No statutory tax-invoice fields are invented.
+  The migration is staging only; nine migrations remain pending for production.
+  See docs/KITCHEN_INVOICES.md.
 - Undecided: whether branches and vendors start at zero on day one or with
-  what each owes today; whether the send slip stays WhatsApp text or becomes
-  a PDF.
+  what each owes today; whether the individual send slip stays WhatsApp text
+  or becomes a PDF. Task 188's grouped branch invoice has a separate print/PDF
+  document and does not settle that individual-slip decision.
 
 ## Brand Commitments
 

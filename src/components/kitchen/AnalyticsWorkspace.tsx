@@ -141,6 +141,9 @@ export function AnalyticsWorkspace() {
           <Info size={18} color={colors.primary} />
         </Pressable>;
   const headerActions = <View className="flex-row gap-1">
+        {desktop && kind === 'sales' ? <Pressable accessibilityRole="button" accessibilityLabel="Branch invoices" onPress={() => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never)} className={controls}>
+          <Receipt size={18} color={colors.primary} /><Text className="text-sm font-bold text-primary">Invoices</Text>
+        </Pressable> : null}
         {desktop ? infoButton : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh reports" disabled={loading} onPress={() => setRefresh(value => value + 1)} className={controls + (loading ? ' opacity-40' : '')}>
           <RefreshCw size={18} color={colors.primary} />
@@ -161,6 +164,7 @@ export function AnalyticsWorkspace() {
     ? <><Text style={{ color: semantic.success }}>{'Received ' + money(report.filtered_in_paise)}</Text>{' · '}<Text style={{ color: semantic.danger }}>{'Paid ' + money(report.filtered_out_paise)}</Text></>
     : (desktop || activeFilters || detail ? 'Filtered total ' : 'Report total ') + money(report.filtered_paise) : null;
   const reportActions = [
+    ...(kind === 'sales' ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
     { id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportCsv() },
     { id: 'refresh', label: 'Refresh reports', Icon: RefreshCw, disabled: loading, action: () => setRefresh(value => value + 1) },
     { id: 'info', label: 'About these reports', Icon: Info, disabled: false, action: () => setNotesOpen(value => !value) },

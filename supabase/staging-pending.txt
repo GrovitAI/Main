@@ -11,3 +11,4 @@
 20261010055214_kitchen_item_kinds.sql
 20261010070428_kitchen_attendance.sql
 20261010072231_kitchen_attendance_branch_indexes.sql
+20261011071731_kitchen_branch_invoices.sql
