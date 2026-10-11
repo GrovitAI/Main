@@ -87,8 +87,11 @@ figures to be right, and matching is offered only as a convenience.
   names; entries of seven kinds (sent, received, bought, paid, spent, made,
   count); optional matching of a payment to the buys or sends it covers;
   stock moves only inside the posting function; nothing is deleted, entries
-  are voided. One pot of money with the payment mode recorded (cash, UPI,
-  bank), no cash-versus-bank balances. Expense categories: salaries, gas,
+  are voided. Separate Cash and Bank balances (owner's request, 2026-10-11,
+  replacing the earlier single pot): cash entries are Cash, UPI and bank
+  entries are Bank; opening cash and bank on an as-of date; *Move money*
+  records cash deposited or withdrawn and changes nothing else (migration
+  `20261011170100_kitchen_cash_bank.sql`). Expense categories: salaries, gas,
   electricity, rent, transport, packaging, repairs, other.
 - Terminology (kitchen): *Send* (items to a branch), *Received* (money from a
   branch), *Bought* (from a vendor, paid now or pay later), *Spent* (pay a

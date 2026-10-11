@@ -1,13 +1,14 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus, ArrowLeft } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
+import { fetchKitchenMoney, type MoneySummary } from '@/lib/pos/kitchen-money-service';
 import { formatLongDate, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
 import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
@@ -32,6 +33,21 @@ export default function KitchenHome() {
   const isKitchenLogin = session?.role === 'kitchen';
   const branchName = kitchenBranch().name;
   const nothingSetUp = data.loaded && data.items.length === 0 && data.parties.length === 0;
+  // Cash and bank come from the database (opening plus every entry since), so they refresh when Home
+  // is shown and after each save changes the entries.
+  const [money, setMoney] = useState<MoneySummary | null>(null);
+  const loadMoney = useCallback((): (() => void) => {
+    let live = true;
+    void fetchKitchenMoney().then((r) => { if (live && r.data) setMoney(r.data); });
+    return () => { live = false; };
+  }, []);
+  useFocusEffect(loadMoney);
+  const seenEntries = useRef(data.entries);
+  useEffect(() => {
+    if (seenEntries.current === data.entries) return undefined;
+    seenEntries.current = data.entries;
+    return loadMoney();
+  }, [data.entries, loadMoney]);
 
   const summary = (
     <>
@@ -56,6 +72,12 @@ export default function KitchenHome() {
         <StatTile label="Branches yet to pay" value={owed} tone={owed > 0 ? 'in' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/branches')} />
         <StatTile label="We owe vendors" value={owe} tone={owe > 0 ? 'out' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/vendors')} />
       </View>
+      {money ? (
+        <View className="flex-row" style={{ gap: 10, marginTop: 10 }}>
+          <StatTile label="Cash in hand" value={money.cash_paise / 100} tone={money.cash_paise < 0 ? 'out' : 'neutral'} onPress={() => router.push('/central-kitchen/money')} />
+          <StatTile label="Bank · UPI" value={money.bank_paise / 100} tone={money.bank_paise < 0 ? 'out' : 'neutral'} onPress={() => router.push('/central-kitchen/money')} />
+        </View>
+      ) : null}
     </>
   );
 

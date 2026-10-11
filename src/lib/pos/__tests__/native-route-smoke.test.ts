@@ -29,6 +29,7 @@ const ROUTES: [string, () => unknown][] = [
   ['central-kitchen/item-form', () => require('@/app/central-kitchen/item-form')],
   ['central-kitchen/purchase-categories', () => require('@/app/central-kitchen/purchase-categories')],
   ['central-kitchen/(tabs)/invoices', () => require('@/app/central-kitchen/(tabs)/invoices')],
+  ['central-kitchen/money', () => require('@/app/central-kitchen/money')],
 ];
 
 jest.mock('@react-native-async-storage/async-storage', () =>

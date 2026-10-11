@@ -16,3 +16,5 @@
 20261011143000_kitchen_invoice_payment_oldest_first.sql
 # Task 193: applied to Grovit Staging on 2026-10-11 and verified (rollback-only fixture).
 20261011170000_kitchen_invoice_numbers.sql
+# Task 194: applied to Grovit Staging on 2026-10-11 and verified (rollback-only fixture).
+20261011170100_kitchen_cash_bank.sql
