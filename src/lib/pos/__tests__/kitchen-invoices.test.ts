@@ -76,3 +76,9 @@ test('export escapes every user string and preserves historical quantities, pric
   expect(html).toContain('A &amp; B'); expect(html).toContain('CK-000001'); expect(html).toContain('3 pcs'); expect(html).toContain('To be paid');
   expect(html).toContain('Unmatched branch receipts'); expect(html).toContain('100');
 });
+test('print dates use the India calendar day, not the UTC prefix of created_at', () => {
+  const lateEvening = '2026-10-01T20:00:00Z'; // 2 Oct, 1:30 am in India
+  const html = kitchenInvoiceHtml({ ...invoice, created_at: lateEvening }, new Date(lateEvening));
+  expect(html).toContain('Issued 2 Oct 2026'); expect(html).toContain('Delivery period: 1 Oct 2026 to 2 Oct 2026');
+  expect(html).toContain('<td>1 Oct 2026</td>'); expect(html).toContain('IST'); expect(html).not.toContain('2026-10-0');
+});

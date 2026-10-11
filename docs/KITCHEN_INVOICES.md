@@ -160,3 +160,45 @@ affected desktop alignment confirmation used nine intercepted requests and one
 mock write, with zero forwarding/errors. A single design detector found nothing.
 The real staging delivery view also displayed the compact controls after hot
 reload. No service, database, migration, production or protected design change.
+
+## Task 190: invoice review fixes
+
+A code review of the invoice feature found and fixed:
+
+- **Issue dates in UTC.** "Prepared" in the app and "Issued" on the printed
+  invoice took the first ten characters of the UTC `created_at`, so an invoice
+  created between midnight and 5:30 am India time showed the previous day.
+  Both now use the India calendar day. The print footer's "Payment status
+  checked" time is India time instead of a raw UTC timestamp.
+- **Readable dates.** Delivery dates in the selection list, the invoice lines
+  and the print document read "1 Oct 2026" instead of `2026-10-01`.
+- **Payments covered deliveries in id order.** `kitchen_invoice_action` walked
+  an invoice's deliveries by uuid, so a part payment could mark a later delivery
+  paid and leave an earlier one open. The Received screen covers oldest first
+  (`allocateAcross`). Migration
+  `20261011143000_kitchen_invoice_payment_oldest_first.sql` keeps the id-order
+  row locks and allocates by delivery date, recorded time, then id. Only that
+  function body changes. **It is not yet applied to Grovit Staging**; it is
+  listed in `supabase/staging-pending.txt`. Until it is applied, invoice totals
+  and statuses are already correct; only which delivery a part payment covers
+  differs.
+- **Part-paid invoices in the register** show the remaining balance under
+  "To be paid", and each row's accessible name includes branch, total, status
+  and remaining balance.
+- **Payment form** states how much is still open and explains an amount above
+  it, instead of only disabling Confirm.
+- **Branch choices** reload when New invoice opens after the register failed
+  to load, so the branch picker is never left empty.
+
+Verification: typecheck, changed-file lint and 15 invoice tests (one new, for
+the India issue date) passed. Mocked Playwright against the local staging web
+app at 1440×900, 390×844 and 320×700 covered the register, detail, payment
+form over/under the open balance and branch reload after a failed read: 29
+intercepted requests, zero forwarded to the cloud, zero writes, no page errors
+or horizontal overflow. No live database testing. The SQL change has not been
+executed anywhere; verify it on staging before relying on it. Native hardware
+remains unverified.
+
+Noted, not changed: invoice numbers use `CK-000001`, and the Central Kitchen
+branch's POS bill prefix may also be `CK`. POS bills use four digits and
+invoices six, but a different invoice prefix would remove any ambiguity.

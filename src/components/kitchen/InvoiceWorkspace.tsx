@@ -10,7 +10,7 @@ import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { kitchenMonthRange, kitchenRangeLabel, kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
 import { cancelKitchenInvoice, createKitchenInvoice, fetchKitchenInvoice, fetchKitchenInvoices, receiveKitchenInvoicePayment } from '@/lib/pos/kitchen-invoice-service';
 import { exportKitchenInvoice } from '@/lib/pos/kitchen-invoice-export';
-import { invoiceMoney, invoiceNumber, invoiceStatus } from '@/lib/pos/kitchen-invoice-utils';
+import { invoiceDate, invoiceIssuedDate, invoiceMoney, invoiceNumber, invoiceStatus } from '@/lib/pos/kitchen-invoice-utils';
 import { formatQty, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { InvoiceDelivery, InvoiceFilter, InvoiceLine, InvoiceWorkspace as WorkspaceData, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
@@ -39,7 +39,7 @@ export function InvoiceWorkspace() {
   const [filter, setFilter] = useState<InvoiceFilter>(() => ({ ...kitchenMonthRange(today.slice(0, 7)),
     ...(params.start && params.end && validKitchenDate(params.start) && validKitchenDate(params.end) && params.start <= params.end && params.end <= today ? { startDate: params.start, endDate: params.end } : {}),
     partyId: params.party ?? null, page: 0, candidates: false }));
-  const [data, setData] = useState<WorkspaceData | null>(null); const [branches, setBranches] = useState<ReportOption[]>([]);
+  const [data, setData] = useState<WorkspaceData | null>(null); const [branches, setBranches] = useState<ReportOption[]>([]); const branchesLoaded = useRef(false);
   const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0); const [selected, setSelected] = useState<Map<string, InvoiceDelivery>>(new Map());
   const [invoice, setInvoice] = useState<KitchenInvoice | null>(null); const [detailId, setDetailId] = useState<string | null>(null);
@@ -47,16 +47,18 @@ export function InvoiceWorkspace() {
   const [editor, setEditor] = useState<'receive' | 'cancel' | null>(null); const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(today); const [mode, setMode] = useState<KitchenMode>('upi'); const [reason, setReason] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-  const paymentKey = useRef('');
+  const paymentKey = useRef(''); const paymentPaise = Math.round(parseAmount(amount) * 100);
   useEffect(() => {
     if (detailId) return;
     const controller = new AbortController(); setError(null); setData(null);
-    if (filter.candidates && !filter.partyId) { setLoading(false); return () => controller.abort(); }
+    const branchesOnly = filter.candidates && !filter.partyId;
+    if (branchesOnly && branchesLoaded.current) { setLoading(false); return () => controller.abort(); }
     setLoading(true);
-    void fetchKitchenInvoices(filter, controller.signal).then(result => {
+    // Branch choices arrive with the register; New invoice reloads them if that read failed.
+    void fetchKitchenInvoices(branchesOnly ? { ...filter, candidates: false } : filter, controller.signal).then(result => {
       if (controller.signal.aborted) return;
-      setLoading(false); setError(result.error); setData(result.data);
-      if (result.data) setBranches(result.data.branches);
+      setLoading(false); setError(result.error); if (!branchesOnly) setData(result.data);
+      if (result.data) { setBranches(result.data.branches); branchesLoaded.current = true; }
     });
     return () => controller.abort();
   }, [filter, refresh, detailId]);
@@ -86,7 +88,7 @@ export function InvoiceWorkspace() {
   };
   const saveAction = async (): Promise<void> => {
     if (!invoice || !editor || !startBusy()) return;
-    const result = editor === 'cancel' ? await cancelKitchenInvoice(invoice.id, reason) : await receiveKitchenInvoicePayment(invoice.id, Math.round(parseAmount(amount) * 100), paymentDate, mode, paymentKey.current);
+    const result = editor === 'cancel' ? await cancelKitchenInvoice(invoice.id, reason) : await receiveKitchenInvoicePayment(invoice.id, paymentPaise, paymentDate, mode, paymentKey.current);
     endBusy();
     if (result.error) { setError(result.error); return; }
     setMessage(editor === 'cancel' ? 'Invoice cancelled. Deliveries and payments are retained.' : 'Payment recorded');
@@ -104,12 +106,13 @@ export function InvoiceWorkspace() {
     {error ? <Notice text={error} /> : null}
     {editor === 'receive' ? <>
       <View className={desktop ? 'max-w-[420px]' : ''}><TextField label="Invoice payment amount" value={amount} onChange={setAmount} prefix="₹" keyboardType="decimal-pad" placeholder="Amount received" /></View>
+      <Text className="text-xs leading-5" style={{ color: paymentPaise > invoice.open_paise ? semantic.warning : colors.textSecondary }}>{paymentPaise > invoice.open_paise ? 'More than the ' + invoiceMoney(invoice.open_paise) + ' still open on this invoice. Record any extra on the Received screen.' : invoiceMoney(invoice.open_paise) + ' is still open on this invoice.'}</Text>
       <ModePicker value={mode} onChange={setMode} /><DateField value={paymentDate} onChange={setPaymentDate} />
       <Text className="text-xs leading-5 text-text-secondary">Record money already received. This payment is matched only to this invoice’s deliveries.</Text>
     </> : <><Text className="text-sm leading-5 text-text-secondary">This keeps the invoice as cancelled and releases its deliveries for correction or a new invoice. Sales, stock and payments stay recorded.</Text>
       <TextField label="Invoice cancellation reason" value={reason} onChange={setReason} placeholder="Reason for cancelling" /></>}
     <View className="flex-row flex-wrap gap-2"><Action label={busy ? 'Saving…' : editor === 'receive' ? 'Confirm received payment' : 'Confirm cancellation'} primary onPress={() => void saveAction()}
-      disabled={busy || (editor === 'cancel' ? !reason.trim() || reason.trim().length > 200 : parseAmount(amount) <= 0 || Math.round(parseAmount(amount) * 100) > invoice.open_paise || !validKitchenDate(paymentDate) || paymentDate > today)} />
+      disabled={busy || (editor === 'cancel' ? !reason.trim() || reason.trim().length > 200 : paymentPaise <= 0 || paymentPaise > invoice.open_paise || !validKitchenDate(paymentDate) || paymentDate > today)} />
       <Action label="Close" onPress={() => setEditor(null)} disabled={busy} /></View>
   </View> : null;
   const header = <View className="gap-3 pb-3">
@@ -141,7 +144,7 @@ export function InvoiceWorkspace() {
         <Action label="Refresh invoice" disabled={loading || busy} onPress={() => setRefresh(v => v + 1)} />
       </View>
       {invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-secondary">Cancelled: {invoice.cancel_reason}</Text> : null}
-      <Text className="text-xs leading-5 text-text-secondary">Prepared {invoice.created_at.slice(0, 10)} by {invoice.created_by_name}. Unmatched branch receipts are not counted as invoice payments.</Text>
+      <Text className="text-xs leading-5 text-text-secondary">Prepared {invoiceIssuedDate(invoice.created_at)} by {invoice.created_by_name}. Unmatched branch receipts are not counted as invoice payments.</Text>
       {pane}
       {desktop ? <View className="flex-row gap-3 bg-surface-tint px-3 py-2"><Text className="w-[34%] text-xs font-semibold text-text-secondary">Finished goods</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Delivery date</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
     </> : null}
@@ -159,18 +162,19 @@ export function InvoiceWorkspace() {
           <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} />
         </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'No uninvoiced finished-goods deliveries for this period. Try another date range.' : 'Choose a branch to load its deliveries.'}</Text> : null}
         ListFooterComponent={!detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
-        renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.number)} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
+        renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.number) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
           className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">
           <View className="min-w-0 flex-1"><Text className="text-sm font-bold leading-5 text-text-primary">{invoiceNumber(item.value.number)} · {item.value.party_name}</Text><Text className="text-xs leading-5 text-text-secondary">{kitchenRangeLabel({ startDate: item.value.start_date, endDate: item.value.end_date })}</Text></View>
-          <View className="items-end"><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.total_paise)}</Text><Status invoice={item.value} /></View>
-        </Pressable> : item.kind === 'delivery' ? <Pressable accessibilityRole="checkbox" accessibilityLabel={'Select delivery ' + item.value.entry_date + ' ' + invoiceMoney(item.value.amount_paise)} aria-checked={selected.has(item.value.id)} accessibilityState={{ checked: selected.has(item.value.id), disabled: busy || (!selected.has(item.value.id) && selected.size >= 100) }} disabled={busy || (!selected.has(item.value.id) && selected.size >= 100)} onPress={() => toggle(item.value)}
+          <View className="items-end"><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.total_paise)}</Text><Status invoice={item.value} />
+            {item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{invoiceMoney(item.value.open_paise)} left</Text> : null}</View>
+        </Pressable> : item.kind === 'delivery' ? <Pressable accessibilityRole="checkbox" accessibilityLabel={'Select delivery ' + invoiceDate(item.value.entry_date) + ' ' + invoiceMoney(item.value.amount_paise)} aria-checked={selected.has(item.value.id)} accessibilityState={{ checked: selected.has(item.value.id), disabled: busy || (!selected.has(item.value.id) && selected.size >= 100) }} disabled={busy || (!selected.has(item.value.id) && selected.size >= 100)} onPress={() => toggle(item.value)}
           className={'min-h-16 flex-row items-start gap-3 border-b border-border-soft px-3 py-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary ' + (selected.has(item.value.id) ? 'bg-surface-tint' : 'bg-surface-elevated')}>
           {selected.has(item.value.id) ? <Check size={18} color={colors.primary} /> : <Square size={18} color={colors.textSecondary} />}
-          <View className="min-w-0 flex-1"><View className="flex-row justify-between gap-2"><Text className="text-sm font-bold text-text-primary">{item.value.entry_date}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.amount_paise)}</Text></View>
+          <View className="min-w-0 flex-1"><View className="flex-row justify-between gap-2"><Text className="text-sm font-bold text-text-primary">{invoiceDate(item.value.entry_date)}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.amount_paise)}</Text></View>
             <Text className="text-xs leading-5 text-text-secondary">{item.value.lines.map(l => l.item_name + ' · ' + formatQty(l.qty, l.unit) + ' × ' + invoiceMoney(l.price_paise)).join('\n')}</Text></View>
         </Pressable> : <View className="border-b border-border-soft bg-surface-elevated px-3 py-2">
-          {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[34%] text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="flex-1 text-xs text-text-secondary">{item.date}</Text><Text className="flex-1 text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="flex-1 text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="flex-1 text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
-            : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{item.date} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
+          {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[34%] text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="flex-1 text-xs text-text-secondary">{invoiceDate(item.date)}</Text><Text className="flex-1 text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="flex-1 text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="flex-1 text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
+            : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{invoiceDate(item.date)} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
         </View>} />
     </View>
   </KScreen></KeyboardAvoider>;

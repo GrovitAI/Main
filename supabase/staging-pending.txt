@@ -12,3 +12,6 @@
 20261010070428_kitchen_attendance.sql
 20261010072231_kitchen_attendance_branch_indexes.sql
 20261011071731_kitchen_branch_invoices.sql
+# Task 190 (2026-10-11): written but NOT yet applied to Grovit Staging. Apply it
+# on its own and verify a part payment covers the oldest delivery first.
+20261011143000_kitchen_invoice_payment_oldest_first.sql
