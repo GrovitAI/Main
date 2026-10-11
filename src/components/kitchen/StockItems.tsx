@@ -28,7 +28,7 @@ export function StockItems({ kind }: { kind: KitchenItemKind }) {
     {data.error ? <Notice text={data.error} /> : null}
     <SearchBox value={query} onChange={setQuery} placeholder={`Search ${title.toLowerCase()}`} />
   </View>;
-  return <View className={`flex-1 bg-kitchen-canvas ${isTablet ? 'flex-row' : ''} ${desktop ? 'w-full max-w-[1120px] self-start' : ''}`}>
+  return <View className={`flex-1 bg-kitchen-canvas ${isTablet ? 'flex-row' : ''} ${desktop ? 'w-full max-w-[1120px] self-center' : ''}`}>
     <FlatList
       className={isTablet ? desktop ? 'w-80 flex-none' : 'flex-1' : 'flex-1'}
       style={isTablet && !desktop ? { maxWidth: 420 } : undefined}

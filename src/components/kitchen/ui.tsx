@@ -70,7 +70,7 @@ type ScreenProps = {
 export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24, wide = false }: ScreenProps) {
   const { isTablet } = useResponsive();
   const compact = useDesktopDensity();
-  const widthClass = compact && wide ? 'max-w-[1120px] self-start' : isTablet ? 'max-w-[720px] self-center' : 'self-center';
+  const widthClass = compact && wide ? 'max-w-[1120px] self-center' : isTablet ? 'max-w-[720px] self-center' : 'self-center';
   const inner = (
     <View className={`w-full px-4 ${widthClass}`} style={{ paddingBottom: bottomPad }}>
       {children}

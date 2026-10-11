@@ -93,7 +93,7 @@ export default function HistoryScreen() {
   </View>;
 
   return <KScreen scroll={false}>
-    <FlatList<KitchenEntry> testID="kitchen-history-list" className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-start' : 'max-w-[720px] self-center')}
+    <FlatList<KitchenEntry> testID="kitchen-history-list" className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-center' : 'max-w-[720px] self-center')}
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} data={data.loaded ? rows : []} keyExtractor={entry => entry.id}
       ListHeaderComponent={header} keyboardShouldPersistTaps="handled" refreshing={data.loading && data.loaded} onRefresh={data.refresh}
       initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7}

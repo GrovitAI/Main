@@ -450,8 +450,10 @@ workflows with a more compact layout:
   labels and remain at least 48 px tall. Phone and tablet layout is retained.
 - Root headings are 24/28 px; form headings are 18/24 px. Summary figures are
   20/24 px and list titles are 14 px.
-- The five original tab surfaces share a left-aligned content frame of up to 1120 px;
-  entry forms keep their 720 px cap. Items, Branches and Vendors use a fixed
+- Every kitchen tab surface shares a content frame of up to 1120 px, centred in
+  the space beside the rail, as Analytics and Invoices are (owner's request,
+  2026-10-11; it was left-aligned before). Entry forms and the Cash & bank
+  screen keep their centred 720 px cap. Items, Branches and Vendors use a fixed
   320 px list pane beside a flexible detail pane.
 - Cards use a 12 px radius and 12 px padding. Action tiles use a horizontal
   icon/label layout, 14 px titles and a 76 px minimum height. List rows are

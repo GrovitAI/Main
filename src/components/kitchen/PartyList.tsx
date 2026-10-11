@@ -78,7 +78,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
     return <KScreen refreshing={data.loading && data.loaded} onRefresh={data.refresh}>{list}</KScreen>;
   }
   return (
-    <View className={`flex-1 flex-row bg-kitchen-canvas ${desktop ? 'w-full max-w-[1120px] self-start' : ''}`}>
+    <View className={`flex-1 flex-row bg-kitchen-canvas ${desktop ? 'w-full max-w-[1120px] self-center' : ''}`}>
       <ScrollView className={desktop ? 'w-80 flex-none' : 'flex-1'} style={desktop ? undefined : { maxWidth: 420 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>{list}</ScrollView>
       <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: desktop ? 16 : 20, paddingBottom: 24 }}>
         {current ? <PartyDetail partyId={current} onRemoved={() => setSelected(null)} /> : <Empty title="Pick a name" body="Its figure and give-and-take open here." />}
