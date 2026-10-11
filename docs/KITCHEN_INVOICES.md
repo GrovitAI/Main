@@ -178,10 +178,9 @@ A code review of the invoice feature found and fixed:
   (`allocateAcross`). Migration
   `20261011143000_kitchen_invoice_payment_oldest_first.sql` keeps the id-order
   row locks and allocates by delivery date, recorded time, then id. Only that
-  function body changes. **It is not yet applied to Grovit Staging**; it is
-  listed in `supabase/staging-pending.txt`. Until it is applied, invoice totals
-  and statuses are already correct; only which delivery a part payment covers
-  differs.
+  function body changes. Applied on its own to Grovit Staging on 11 October
+  through the Supabase connector and listed in `supabase/staging-pending.txt`
+  (ten staging-only migrations now). Production is unchanged.
 - **Part-paid invoices in the register** show the remaining balance under
   "To be paid", and each row's accessible name includes branch, total, status
   and remaining balance.
@@ -195,9 +194,21 @@ the India issue date) passed. Mocked Playwright against the local staging web
 app at 1440×900, 390×844 and 320×700 covered the register, detail, payment
 form over/under the open balance and branch reload after a failed read: 29
 intercepted requests, zero forwarded to the cloud, zero writes, no page errors
-or horizontal overflow. No live database testing. The SQL change has not been
-executed anywhere; verify it on staging before relying on it. Native hardware
-remains unverified.
+or horizontal overflow. Native hardware remains unverified.
+
+Staging verification of the migration: before applying, the function still
+walked deliveries in id order. Afterwards it is the single overload, still
+security definer with an empty search path, executable only by authenticated
+and service_role (not anon). One authenticated, rollback-only fixture posted
+three deliveries dated 3, 1 and 2 October (₹30 each) and invoiced them. A ₹40
+part payment covered 1 Oct ₹30, 2 Oct ₹10 and 3 Oct nothing. A retry with the
+same key returned the same receipt, ₹50.01 was refused as an overpayment, ₹50
+made the invoice Paid, and cancellation still worked. The fixture ended in a
+deliberate exception, and a follow-up read found no fixture parties, items,
+invoices or payment keys left. The security advisor lists the same 35
+authenticated security-definer functions as the task 188 review (the invoice
+RPCs are expected, as documented above), and no new findings appeared. The
+11 October usage baseline was reused.
 
 Noted, not changed: invoice numbers use `CK-000001`, and the Central Kitchen
 branch's POS bill prefix may also be `CK`. POS bills use four digits and
