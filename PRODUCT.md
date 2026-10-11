@@ -119,6 +119,12 @@ figures to be right, and matching is offered only as a convenience.
   only. Save day/Cancel edit protect local drafts; clear saves Unmarked rather
   than deleting. Desktop uses staff/calendar panes and phone opens the calendar
   with Back. There is no bulk month autofill or global route-navigation guard.
+  Task 187 adds daily checkbox selection through Select staff or a name press/
+  hold, current-view Select all, and an explicit date/count/status/Mark step.
+  Changed marks save together with individual notes after full confirmation;
+  failures retain selection. Half day/Leave alone offer optional note editing
+  in both views; changing status preserves saved notes. Solid compact actions
+  retain the incumbent brand. This capability is staging only.
 - Kitchen History spacing (task 179, staging): desktop groups particulars with
   amount/status before the separate audit column; phone audit information sits
   in a divided footer. Creator, transaction date, recorded IST time and audit

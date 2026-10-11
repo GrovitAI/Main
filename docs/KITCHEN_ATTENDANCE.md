@@ -2,7 +2,7 @@
 
 Task 176 · 2026-10-10 · staging only
 
-Latest refinement: task 186 · 2026-10-11 · staging only
+Latest refinement: task 187 · 2026-10-11 · staging only
 
 Central Kitchen now has a manually maintained staff roster and daily attendance
 register. Attendance is separate from app logins: adding a person does not
@@ -32,19 +32,31 @@ on phone/tablet the search icon beside the date discloses it. Search stays
 visible while it contains a query. Reset filters clears the query and selects
 All when there are no matching staff.
 
-Desktop aligns Staff member, Attendance, Last updated and Notes columns. The
-four choices stay inline; latest editor/time and the note control have their
-own columns. Phone/tablet rows disclose the choices from the current status
-button; expanding also shows the recorded latest editor/time and note editor.
+Desktop aligns Staff member, Attendance, Last updated and Edit columns. The
+four choices stay inline; latest editor/time and Edit have their own columns.
+Phone/tablet rows disclose the choices from the current status
+button; expanding also shows the recorded latest editor/time and available
+editing controls.
 Data-derived initials accompany names at wider sizes and are omitted below
 360px to leave room for long names.
 
-Open a row's editor to add an optional note of up to 200 characters, save the
-note, or Clear mark. Clear mark saves Unmarked with an empty note rather than
-deleting the attendance record. Choose a status before adding the first note.
+Open a row's editor to Clear mark or, for Half day/Leave, add and save an
+optional note of up to 200 characters. Present/Absent hide note editing;
+changing status preserves an existing saved note. Clear mark saves Unmarked
+with an empty note rather than deleting the attendance record.
 The row's Last updated column or expanded phone editor shows the latest
 server-recorded editor and India time. This is the
 current daily record, not a revision-history or payroll system.
+
+For a shared daily mark, choose Select staff or press/hold a person's name,
+then use the visible checkboxes. Select all in this view selects the current
+status-filtered/search-filtered rows; choose All and clear search to include
+the full day's roster. Check the date/count, choose Present, Absent, Half day
+or Leave, then use Mark; Cancel leaves attendance unchanged. Loading, date,
+pane, status-filter and search changes clear selection. Matching marks are
+skipped; changed marks save together while retaining each person's note.
+Selection clears after confirmation; an unconfirmed failure keeps selection
+and asks for Refresh before retrying.
 
 The Staff pane provides Active staff and Archived lists, search and editing.
 Add staff opens a flat inline form with a required name and optional job role,
@@ -232,8 +244,9 @@ person's calendar with Back to month staff. The calendar uses a seven-column
 FlatList rather than a wide 31-day table.
 
 Choose an individual day, select Present, Absent, Half day or Leave, optionally
-enter a note, then use Save day. Cancel edit discards the local draft. Clear
-attendance day confirms an Unmarked record with an empty note through the
+enter a note for Half day/Leave, then use Save day. Present/Absent hide the
+note field while retaining any existing note. Cancel edit discards the local
+draft. Clear attendance day confirms an Unmarked record with an empty note through the
 existing upsert; it does not delete a row. There is no bulk month autofill.
 Dirty drafts and in-flight saves block local staff/day/month changes, refresh,
 Back and Attendance pane changes until Save or Cancel. This is protection
@@ -321,3 +334,39 @@ above. Evidence: `.impeccable/review/attendance-actions-results.json`,
 HTML/CSS detector applies to native source. Native hardware, text scaling,
 keyboard, dark appearance and gestures remain unverified; browser 44px targets
 do not certify Android's 48dp floor.
+
+## Solid actions and daily group marking (task 187)
+
+This refinement follows the user's rejection of task 186's transparent actions.
+Attendance actions now have solid token fills in enabled/disabled states,
+48px minimum targets and intrinsic 14px semibold labels, without fading the
+whole control. Optional Half day/Leave notes apply in both views. The daily
+selection workflow above adds one tenant/branch-scoped array upsert for changed
+marks, preserving individual notes and server-owned editor/time. The service
+validates the complete returned ID/date/status set before the UI updates;
+already-matching selections issue no write. Existing tables, reads and polling
+remain; there is no schema, migration, live database test or production change.
+
+Final typecheck, changed-source lint and 45 tests across three suites passed,
+including eight new group cases. Twenty visual cases cover 1440×900, 800×700,
+390×844, 320×700 and user-size 370×668. Their geometry, solid-fill and local
+selection assertions passed before a checked-state assertion interrupted the
+matrix; no aggregate request count was saved. Explicit aria-checked/aria-pressed
+fixed that nonvisual issue. The resumed behavior/state run passed with 17
+mocked requests, zero forwarded, two successful mock writes, three state
+captures and no page errors. These counts exclude existing user/HMR sessions;
+this does not claim an uninterrupted aggregate browser-suite pass.
+
+The fresh independent finish review opened all 23 retained images and returned
+**Ship** across five contract sections with no material fixes. The earlier
+visual captures remain valid after the nonvisual accessibility correction;
+monthly note visibility is supported by source/behavior assertions, not a new
+monthly image matrix. Evidence: `.impeccable/review/attendance-group-*`,
+`check-attendance-group.cjs` and `attendance-group-finish-review.md`.
+Source/product/design comparison preserves The Kitchen Ledger, Source Sans 3,
+POS blue/Canvas and existing tokens. DESIGN.md, design.json and brand.ts remain
+byte-identical; previously recorded drift above, including pressed-dim
+specimens, is reported without repair. No shipping raster or native HTML/CSS
+detector applies. Local mocks verify service query behavior, not fresh live
+database certification. Native hardware, scaling, keyboard, dark appearance
+and gestures remain unverified.

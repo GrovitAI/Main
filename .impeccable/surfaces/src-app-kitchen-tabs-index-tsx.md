@@ -607,3 +607,42 @@ recorded drift are preserved. No live database test, migration, production
 change or shipping raster; no native HTML/CSS detector. Native hardware,
 scaling, keyboards, dark appearance and gestures remain unverified; the
 browser 44px floor does not certify Android 48dp targets.
+
+## Task 187 direction — daily attendance selection
+
+The user found task 186 actions too transparent. Use solid token fills for
+enabled and disabled attendance actions, retaining compact 14px labels and
+48px targets. Show optional note editing for Half day/Leave in daily/month
+editors, preserving existing saved notes. Add explicit Select staff and name
+long-press entry to daily selection, visible checkboxes, Select all in this
+view and a compact status/Apply toolbar with date/count. Selection/filtering
+is local; reset on date/view changes. Persist changed marks together with
+scoped existing-table upsert, retain individual notes and confirm the complete
+response before updating UI. Busy guards and recoverable failures remain.
+Preserve incumbent brand/type/layout; staging extension, no new world/assets.
+
+Task 187 verdict: **Ship**, from fresh independent review of all five sections,
+23 opened images and the scoped React Native/service source, with no material
+fixes. Solid token-filled 48px actions retain intrinsic 14px semibold labels;
+daily/monthly notes are optional for Half day/Leave, preserving saved notes
+when status changes. Select staff/name press or hold, checkboxes, current-view
+Select all, date/count, four choices, explicit Mark and Cancel define daily
+group marking. Selection clears on load/date/pane/filter/search changes.
+Changed marks use one scoped array upsert with individual notes and no client
+actor/time; the complete ID/date/status response is checked before UI update.
+Matching marks need no query; failures retain selection with Refresh guidance.
+
+Typecheck, changed-source lint and 45 tests/three suites passed. Twenty visual
+cases at five sizes passed geometry/solid-fill/local-selection assertions
+before a checked-state assertion interrupted the matrix; no aggregate count
+was saved. Explicit aria-checked/aria-pressed fixed the nonvisual issue, then
+resumed behavior/state checks passed with 17 mocked requests, zero forwarded,
+two successful mock writes, three state captures and no page errors. Earlier
+images remain valid; this is not an uninterrupted aggregate browser-suite
+claim. Counts exclude user/HMR sessions. See `docs/KITCHEN_ATTENDANCE.md` and
+`.impeccable/review/attendance-group-finish-review.md` for evidence limits.
+The Kitchen Ledger, Source Sans 3 and POS blue/Canvas remain; DESIGN.md,
+design.json and brand.ts are byte-identical. Previously documented drift is
+preserved by reference. No shipping raster, native HTML/CSS detector, schema,
+migration, live DB verification or production change. Native hardware,
+scaling, keyboard, dark appearance and gestures remain unverified.

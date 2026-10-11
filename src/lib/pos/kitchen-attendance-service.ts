@@ -102,3 +102,32 @@ export async function markKitchenAttendance(input: { roster_id: string; date: st
     return { data: dayRow(data), error: null };
   } catch (error) { return { data: null, error: failure(error, 'Attendance was not saved. Your previous mark is unchanged; retry.') }; }
 }
+
+/** One scoped upsert for the selected day; no per-person request loop. */
+export async function markKitchenAttendanceGroup(input: {
+  date: string; status: AttendanceStatus; staff: readonly { roster_id: string; note: string }[];
+}): Promise<ServiceResult<KitchenAttendance[]>> {
+  const unconfirmed = 'Unable to confirm the attendance marks. Refresh this day before retrying.';
+  try {
+    if (!validKitchenDate(input.date) || input.date > kitchenToday()) return { data: null, error: 'Choose today or an earlier attendance date.' };
+    if (!ATTENDANCE_OPTIONS.some(option => option.value === input.status)) return { data: null, error: 'Choose a valid attendance status.' };
+    const ids = new Set(input.staff.map(person => person.roster_id));
+    if (!input.staff.length || input.staff.length > 999 || ids.size !== input.staff.length ||
+      input.staff.some(person => !person.roster_id.trim() || person.note.trim().length > 200)) {
+      return { data: null, error: 'Select unique staff members and keep each note within 200 characters.' };
+    }
+    const { tenant_id, branch_id } = scope();
+    const values = input.staff.map(person => ({ tenant_id, branch_id, roster_id: person.roster_id,
+      attendance_date: input.date, status: input.status, note: person.note.trim() }));
+    const { data, error } = await supabase.from('kitchen_attendance')
+      .upsert(values, { onConflict: 'tenant_id,branch_id,roster_id,attendance_date' })
+      .eq('tenant_id', tenant_id).eq('branch_id', branch_id).select(DAY_COLUMNS);
+    if (error) return { data: null, error: failure(error, unconfirmed) };
+    if (!Array.isArray(data) || data.length !== values.length || data.some(row => !record(row) ||
+      !ids.has(String(row.roster_id)) || row.attendance_date !== input.date || row.status !== input.status) ||
+      new Set(data.filter(record).map(row => row.roster_id)).size !== ids.size) {
+      return { data: null, error: unconfirmed };
+    }
+    return { data: data.filter(record).map(dayRow), error: null };
+  } catch (error) { return { data: null, error: failure(error, unconfirmed) }; }
+}
