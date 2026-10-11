@@ -175,6 +175,7 @@ Will be replaced by auth session after Task 7.
 ⬜ Task 6: Settlement flow
 ✅ Task 7: Finance module built; standalone Finance and Day Close deferred in the approved 2026-10-07 release. Code and records are retained; Central Kitchen bookkeeping remains available. See docs/FINANCE_MODULE.md.
 ✅ Tasks 131–134: Central Kitchen module (built on feat/central-kitchen; production release approved 2026-10-07 via GitHub PR #2. All ten database migrations applied and verified. See docs/CENTRAL_KITCHEN_RELEASE_2026-10-07.md for the release and rollback record. PRODUCT.md holds the product record, DESIGN.md the look.)
+✅ Task 192 (2026-10-11, production hotfix/print-lag from main): Printing lag fixes. KOT and bill printing no longer hold up saving an order (ordered background queue); printer rows, receipt header and GST rate come from 5-minute caches read in parallel (Settings clears the printer cache; a refused job reloads and retries once); kitchen printers print together; retired local-agent code removed (4 s localhost:4545 wait per KOT, duplicate Save & Print bill, billingPrinter requirement on Reprint). PrintNode check: both till PCs disconnected, client 4.29.3, newest jobs on that key 8 Sep; confirm the Vercel key. Cherry-picked alone onto main; the kitchen work on codex/kitchen-analytics is not included. See docs/PRINTING_LAG_2026-10-11.md.
 ⬜ Task 8: Analytics screen
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)

@@ -1,38 +1,17 @@
-import { fetchPrinters, type Printer } from '@/lib/pos/printer-db-service';
-import { getTenantContext } from '@/lib/pos/tenant-context';
+import { fetchPrintersCached, type Printer } from '@/lib/pos/printer-db-service';
 import { diagnosePrinterConnection, encodeBase64, utf8ToBinaryString } from '@/lib/printer/printer-service';
 import { apiFetch } from '@/lib/pos/api-client';
 import { RECEIPT_CONFIG, PAPER_WIDTH } from './receiptConfig';
 import { roundUpToWholeRupee } from '@/lib/pos/order-utils';
 
-/** How long the branch's printer rows are reused before the database is asked again. */
-const PRINTER_CACHE_MS = 5 * 60_000;
-
-let printerCache: { key: string; printers: Printer[]; resolvedAt: number } | null = null;
-
 /**
- * The branch's printers, read from the database at most once every five
- * minutes. The rows almost never change, and both users of them are on hot
- * paths: the health check ran this read on every tick (a large share of an
- * idle till's database egress), and printing a bill waited for it before the
- * job could even be sent.
+ * The branch's printers from the shared five-minute cache. Both users are on
+ * hot paths: the health check runs on a timer, and a bill waits for this
+ * before its job can be sent.
  */
 async function loadBranchPrinters(forceFresh = false): Promise<{ printers: Printer[] | null; error: string | null }> {
-  const { tenant_id, branch_id } = getTenantContext();
-  const key = `${tenant_id}:${branch_id}`;
-  const now = Date.now();
-  if (!forceFresh && printerCache && printerCache.key === key && now - printerCache.resolvedAt < PRINTER_CACHE_MS) {
-    return { printers: printerCache.printers, error: null };
-  }
-
-  const res = await fetchPrinters();
-  if (res.error || !res.data) {
-    // Keep any earlier answer; a transient read failure should not turn the
-    // indicator red or stop a bill from printing.
-    if (printerCache?.key === key) return { printers: printerCache.printers, error: null };
-    return { printers: null, error: res.error || 'No printers configured.' };
-  }
-  printerCache = { key, printers: res.data, resolvedAt: now };
+  const res = await fetchPrintersCached(forceFresh);
+  if (res.error || !res.data) return { printers: null, error: res.error || 'No printers configured.' };
   return { printers: res.data, error: null };
 }
 

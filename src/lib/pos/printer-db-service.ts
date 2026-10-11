@@ -42,12 +42,45 @@ export async function fetchPrinters(): Promise<ServiceResult<Printer[]>> {
   }
 }
 
+/** How long a branch's printer rows are reused before the database is asked again. */
+const PRINTER_CACHE_MS = 5 * 60_000;
+let printerCache: { key: string; printers: Printer[]; resolvedAt: number } | null = null;
+
+/** Settings changes call this so the next print reads the new configuration. */
+export function clearPrinterCache(): void {
+  printerCache = null;
+}
+
+/**
+ * The branch's printers, read from the database at most once every five
+ * minutes. Printing a bill or KOT used to wait for this read every time before
+ * the job could be sent. A transient read failure keeps the earlier answer so
+ * a bill still prints. `cached` says whether the rows came from memory, so a
+ * refused job can reload them (a printer may have changed on another device).
+ */
+export async function fetchPrintersCached(forceFresh = false): Promise<ServiceResult<Printer[]> & { cached: boolean }> {
+  const { tenant_id, branch_id } = getTenantContext();
+  const key = tenant_id + ':' + branch_id;
+  const now = Date.now();
+  if (!forceFresh && printerCache?.key === key && now - printerCache.resolvedAt < PRINTER_CACHE_MS) {
+    return { data: printerCache.printers, error: null, cached: true };
+  }
+  const result = await fetchPrinters();
+  if (result.error || !result.data) {
+    if (printerCache?.key === key) return { data: printerCache.printers, error: null, cached: true };
+    return { ...result, cached: false };
+  }
+  printerCache = { key, printers: result.data, resolvedAt: now };
+  return { data: result.data, error: null, cached: false };
+}
+
 /**
  * Saves a new printer configuration or updates an existing one.
  */
 export async function savePrinter(
   input: Omit<Printer, 'tenant_id' | 'branch_id' | 'id'> & { id?: string }
 ): Promise<ServiceResult<Printer>> {
+  clearPrinterCache();
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
@@ -122,6 +155,7 @@ export async function savePrinter(
  * Deletes a printer configuration.
  */
 export async function deletePrinter(id: string): Promise<ServiceResult<void>> {
+  clearPrinterCache();
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
@@ -149,6 +183,7 @@ export async function deletePrinter(id: string): Promise<ServiceResult<void>> {
 export async function syncPrintNodePrinters(
   pnPrinters: { id: number; name: string; computer?: { name: string } }[]
 ): Promise<ServiceResult<void>> {
+  clearPrinterCache();
   try {
     const { tenant_id, branch_id } = getTenantContext();
 

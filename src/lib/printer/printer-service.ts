@@ -1,5 +1,6 @@
-import { Platform, Alert } from 'react-native';
-import { fetchPrinters, type Printer } from '../pos/printer-db-service';
+import { Alert } from 'react-native';
+import { fetchPrintersCached, type Printer } from '../pos/printer-db-service';
+import { getTenantContext } from '../pos/tenant-context';
 import { getBranchTaxPercentage } from '../pos/pos-settings-service';
 import { roundUpToWholeRupee } from '../pos/order-utils';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
@@ -158,12 +159,6 @@ function padLine(left: string, right: string, width: number): string {
     return truncatedLeft + ' '.repeat(Math.max(1, finalSpaces)) + right;
   }
   return left + ' '.repeat(spacesNeeded) + right;
-}
-
-function centerTextLocal(text: string, width: number): string {
-  if (text.length >= width) return text.substring(0, width);
-  const spaces = Math.floor((width - text.length) / 2);
-  return ' '.repeat(spaces) + text + ' '.repeat(width - text.length - spaces);
 }
 
 /**
@@ -370,17 +365,17 @@ function buildTotals(
 /**
  * Cloud printing via PrintNode API.
  */
-async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>, lines: string[]): Promise<void> {
+async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'branch_id'>, lines: string[], alertOnFailure = true): Promise<boolean> {
   const printerIdStr = printer.ip_address;
   if (!printerIdStr) {
-    Alert.alert('Configuration Error', 'No PrintNode Printer ID configured.');
-    return;
+    if (alertOnFailure) Alert.alert('Configuration Error', 'No PrintNode Printer ID configured.');
+    return false;
   }
 
   const printerId = parseInt(printerIdStr, 10);
   if (isNaN(printerId)) {
-    Alert.alert('Configuration Error', 'Invalid PrintNode Printer ID.');
-    return;
+    if (alertOnFailure) Alert.alert('Configuration Error', 'Invalid PrintNode Printer ID.');
+    return false;
   }
 
   try {
@@ -403,19 +398,20 @@ async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'br
     }
 
     console.log('[Printer] PrintNode job submitted successfully.');
+    return true;
   } catch (err: unknown) {
     console.error('[Printer] PrintNode submission failed:', err);
-    Alert.alert('Printing Failed', 'Unable to submit the print job to PrintNode. Please try again.');
+    if (alertOnFailure) Alert.alert('Printing Failed', 'Unable to submit the print job to PrintNode. Please try again.');
+    return false;
   }
 }
 
 /**
  * Core raw printing method via Grovit Print Agent.
  */
-async function printRawToPrinter(printer: Printer, lines: string[]): Promise<void> {
+async function printRawToPrinter(printer: Printer, lines: string[], alertOnFailure = true): Promise<boolean> {
   if (printer.connection === 'printnode') {
-    await printViaPrintNode(printer, lines);
-    return;
+    return printViaPrintNode(printer, lines, alertOnFailure);
   }
 
   const ip = printer.ip_address || '127.0.0.1';
@@ -437,6 +433,7 @@ async function printRawToPrinter(printer: Printer, lines: string[]): Promise<voi
       content: escPosString
     });
     console.log('[Printer] Print success');
+    return true;
   } catch (err: unknown) {
     console.error('[Printer] Print failed:', err);
 
@@ -450,6 +447,52 @@ async function printRawToPrinter(printer: Printer, lines: string[]): Promise<voi
       const errorMsg = `Could not reach printer\n${ip}:${port}`;
       Alert.alert('Printer Unreachable', errorMsg);
     }
+    return false;
+  }
+}
+
+/**
+ * Sends one ticket using the cached printer list. If the job is refused and
+ * the list came from memory, the printer may have changed in Settings on
+ * another device: reload the list, pick again and try once more. Only the
+ * final attempt shows an alert.
+ */
+async function printWithFreshRetry(
+  pick: (printers: Printer[]) => Printer | null,
+  printer: Printer,
+  cached: boolean,
+  lines: string[],
+): Promise<void> {
+  if (await printRawToPrinter(printer, lines, !cached)) return;
+  if (!cached) return;
+  const fresh = await fetchPrintersCached(true);
+  const retry = fresh.data ? pick(fresh.data) : null;
+  if (retry) await printRawToPrinter(retry, lines);
+  else Alert.alert('Printing Failed', 'Unable to submit the print job to PrintNode. Please try again.');
+}
+
+/** Receipt header details change rarely, so they are reused for five minutes like the printer list. */
+const BRANCH_CACHE_MS = 5 * 60_000;
+let receiptBranchCache: { key: string; branch: ReceiptBranchInfo | null; resolvedAt: number } | null = null;
+
+async function loadReceiptBranch(): Promise<ReceiptBranchInfo | null> {
+  const { tenant_id, branch_id } = getTenantContext();
+  const key = tenant_id + ':' + branch_id;
+  const now = Date.now();
+  if (receiptBranchCache?.key === key && now - receiptBranchCache.resolvedAt < BRANCH_CACHE_MS) return receiptBranchCache.branch;
+  try {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('phone, gstin, address')
+      .eq('tenant_id', tenant_id)
+      .eq('id', branch_id)
+      .maybeSingle();
+    if (error) return receiptBranchCache?.key === key ? receiptBranchCache.branch : null;
+    const branch: ReceiptBranchInfo | null = data;
+    receiptBranchCache = { key, branch, resolvedAt: now };
+    return branch;
+  } catch {
+    return receiptBranchCache?.key === key ? receiptBranchCache.branch : null;
   }
 }
 
@@ -536,26 +579,25 @@ export const printerService = {
    */
   printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false): Promise<void> => {
     try {
-      const res = await fetchPrinters();
+      const res = await fetchPrintersCached();
+      // Kitchen printers, or the default billing printer when the branch has none.
+      const pickKitchen = (printers: Printer[]): Printer[] => {
+        const kitchen = printers.filter(p => p.is_active && p.printer_role === 'kitchen');
+        if (kitchen.length > 0) return kitchen;
+        const billingFallback = printers.find(p => p.is_active && p.printer_role === 'bill' && p.is_default)
+          || printers.find(p => p.is_active && p.printer_role === 'bill');
+        return billingFallback ? [billingFallback] : [];
+      };
       let kitchenPrinters: Printer[] = [];
       if (res.error || !res.data) {
         console.warn('[Printer] Unable to load printers for KOT:', res.error);
       } else {
-        kitchenPrinters = res.data.filter(p => p.is_active && p.printer_role === 'kitchen');
-        
-        // Fallback: If no kitchen printers are configured, send KOT to the active/default billing printer
-        if (kitchenPrinters.length === 0) {
-          const billingFallback = res.data.find(p => p.is_active && p.printer_role === 'bill' && p.is_default)
-            || res.data.find(p => p.is_active && p.printer_role === 'bill');
-          if (billingFallback) {
-            console.log('[Printer] No kitchen printer found. Falling back to billing printer for KOT:', billingFallback.name);
-            kitchenPrinters = [billingFallback];
-          }
-        }
+        kitchenPrinters = pickKitchen(res.data);
       }
 
       if (kitchenPrinters.length > 0) {
-        for (const printer of kitchenPrinters) {
+        // Each kitchen printer is independent, so the tickets go out together rather than one after another.
+        await Promise.all(kitchenPrinters.map(async (printer, index) => {
           const width = getLineWidth(printer.paper_width);
           const divider = '-'.repeat(width) + '\n';
 
@@ -581,72 +623,13 @@ export const printerService = {
           ];
 
           try {
-            await printRawToPrinter(printer, lines);
+            await printWithFreshRetry(printers => { const fresh = pickKitchen(printers); return fresh.find(p => p.id === printer.id) ?? fresh[index] ?? null; }, printer, res.cached, lines);
           } catch (err: unknown) {
             console.error(`[Printer] KOT print failed for kitchen printer "${printer.name}" (ID: ${printer.ip_address}):`, err);
           }
-        }
+        }));
       } else {
         console.log('[Printer] No active network kitchen printers configured.');
-      }
-
-      // 2. Local OS Printer (if configured in localStorage)
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const localPrinter = window.localStorage.getItem('billingPrinter');
-        if (localPrinter) {
-          const width = 32; // standard 58mm width
-          const divider = '='.repeat(width);
-          const dashedDivider = '-'.repeat(width);
-
-          const lines: string[] = [];
-          lines.push(centerTextLocal(isCancel ? '*** CANCEL KOT ***' : '*** KITCHEN TICKET ***', width));
-          lines.push(divider);
-          lines.push(padLine(`KOT Number: #${kotNumber}`, '', width));
-          
-          const formattedDate = new Date().toLocaleDateString('en-GB');
-          const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-          lines.push(padLine('Date:', `${formattedDate} ${formattedTime}`, width));
-          lines.push(divider);
-          
-          lines.push(padLine('Qty & Item', '', width));
-          lines.push(dashedDivider);
-          
-          items.forEach((item) => {
-            const qtyText = `${Math.abs(item.quantity)}x`;
-            const nameText = item.name + (isCancel ? ' (CANCELLED)' : '');
-            lines.push(padLine(qtyText, nameText, width));
-            if (isCancel && item.notes) {
-              lines.push(`  * Reason: ${item.notes}`);
-            }
-          });
-
-          lines.push(divider);
-          lines.push('\n\n\n\n'); // Safe paper feed spacing
-
-          const content = lines.join('\n');
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 4000);
-          try {
-            await fetch('http://localhost:4545/print', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                printerName: localPrinter,
-                type: 'bill',
-                content,
-              }),
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-            console.log('[Printer] Local KOT print job submitted successfully.');
-          } catch (localErr) {
-            clearTimeout(timeoutId);
-            console.warn('[Printer] Failed to print local KOT:', localErr);
-          }
-        }
       }
     } catch (err) {
       console.warn('[Printer] printKot caught error (ignored to avoid blocking POS):', err);
@@ -672,12 +655,17 @@ export const printerService = {
     discountValue = 0
   ): Promise<void> => {
     try {
-      const res = await fetchPrinters();
+      // Printers, receipt header and GST rate are independent; read them together.
+      const [res, branch, taxPercentage] = await Promise.all([fetchPrintersCached(), loadReceiptBranch(), getBranchTaxPercentage()]);
       if (res.error || !res.data) {
         console.warn('[Printer] Unable to load printers for bill:', res.error);
         return;
       }
 
+      const pickBill = (printers: Printer[]): Printer | null => {
+        const active = printers.filter(p => p.is_active && p.printer_role === 'bill');
+        return active.find(p => p.is_default) || active[0] || null;
+      };
       const activeBillingPrinters = res.data.filter(p => p.is_active && p.printer_role === 'bill');
       if (activeBillingPrinters.length === 0) {
         const errorMsg = 'No active billing printer configured.\nGo to Settings -> Printer Configuration.';
@@ -703,18 +691,8 @@ export const printerService = {
         totalQty += item.qty;
       }
 
-      // Fetch branch details dynamically
-      const { data: branch } = await supabase
-        .from('branches')
-        .select('*')
-        .eq('id', printer.branch_id)
-        .maybeSingle();
-
-      // GST rate for this branch; 0, or no pos_settings row, means no GST.
-      const taxPercentage = await getBranchTaxPercentage();
-
-      // 1. Build Header
-      const headerLines = buildHeader(width, branch as ReceiptBranchInfo | null);
+      // 1. Build Header (branch details and the GST rate were read above; 0 GST prints no GST lines)
+      const headerLines = buildHeader(width, branch);
 
 
 
@@ -775,7 +753,7 @@ export const printerService = {
         ...footerLines,
       ];
 
-      await printRawToPrinter(printer, lines);
+      await printWithFreshRetry(pickBill, printer, res.cached, lines);
     } catch (err) {
       console.warn('[Printer] printBill caught error (ignored to avoid blocking POS):', err);
     }
