@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Building2, Calendar, Clock, Download, Minus, Plus, RotateCcw, type LucideIcon } from 'lucide-react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, useWindowDimensions, View } from 'react-native';
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Building2, Calendar, Check, ChevronDown, Clock, Download, Minus, Plus, RotateCcw, type LucideIcon } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { formatINR } from '@/lib/pos/finance-utils';
@@ -56,7 +56,17 @@ type Props = {
 /** Readable date such as "5 Oct 2026", from a YYYY-MM-DD key. */
 function dayLabel(key: string, withYear = true): string {
   const d = new Date(key + 'T12:00:00');
-  return Number.isNaN(d.getTime()) ? key : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' as const } : {}) });
+  // Fixed three-letter months: browsers print "Sept", which reads oddly next to "Sep" chart labels.
+  return Number.isNaN(d.getTime()) ? key : `${d.getDate()} ${TREND_MONTHS[d.getMonth()]}${withYear ? ` ${d.getFullYear()}` : ''}`;
+}
+/** Short range such as "19–30 Sep", "28 Aug – 3 Sep" or "1 Oct". */
+function shortRange(start: string, end: string): string {
+  if (start === end) return dayLabel(start, false);
+  const s = new Date(start + 'T12:00:00'); const e = new Date(end + 'T12:00:00');
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return `${start} – ${end}`;
+  const yearNote = s.getFullYear() !== e.getFullYear() || e.getFullYear() !== new Date().getFullYear();
+  if (!yearNote && s.getMonth() === e.getMonth()) return `${s.getDate()}–${dayLabel(end, false)}`;
+  return `${dayLabel(start, yearNote)} – ${dayLabel(end, yearNote)}`;
 }
 const isoDay = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -73,7 +83,7 @@ function previousFilters(f: AnalyticsFilters): AnalyticsFilters | null {
 /** The trend service labels days "13 Sep" / "01 Oct" and omits days without sales. */
 const TREND_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const trendLabel = (d: Date): string => `${String(d.getDate()).padStart(2, '0')} ${TREND_MONTHS[d.getMonth()]}`;
-type AlignedDay = { label: string; sales: number; orders: number; previousSales: number };
+type AlignedDay = { label: string; sales: number; orders: number; previousSales: number; previousLabel?: string };
 
 /**
  * One point per calendar day in the loaded range, zero where nothing sold, and
@@ -95,7 +105,7 @@ function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboa
     const before = new Date(day); before.setDate(day.getDate() - span);
     const label = trendLabel(day);
     const hit = byLabel.get(label);
-    out.push({ label, sales: hit?.sales ?? 0, orders: hit?.orders ?? 0, previousSales: prevByLabel.get(trendLabel(before))?.sales ?? 0 });
+    out.push({ label, sales: hit?.sales ?? 0, orders: hit?.orders ?? 0, previousSales: prevByLabel.get(trendLabel(before))?.sales ?? 0, previousLabel: trendLabel(before) });
   }
   // Labels that never match mean the service grouped differently; keep its points.
   return raw.length > 0 && !raw.some((p) => out.some((d) => d.label === p.label)) ? fallback : out;
@@ -108,10 +118,10 @@ function shortHour(hour: string): string {
   return `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'a' : 'p'}`;
 }
 
-function Delta({ current, previous, state, label = 'vs previous period' }: { current: number; previous: number | null | undefined; state: CompareState; label?: string }) {
+function Delta({ current, previous, state, against }: { current: number; previous: number | null | undefined; state: CompareState; against: string }) {
   if (state === 'idle' || state === 'loading') return <View style={{ height: 20 }} />;
   if (state === 'failed') return <Text className="text-xs text-text-secondary">Comparison unavailable</Text>;
-  if (previous === null || previous === undefined || previous <= 0) return <Text className="text-xs text-text-secondary">No sales in the previous period</Text>;
+  if (previous === null || previous === undefined || previous <= 0) return <Text className="text-xs text-text-secondary">No sales {against} to compare with</Text>;
   const change = (current - previous) / previous;
   const { flat } = changeTone(change);
   const up = change > 0;
@@ -120,7 +130,7 @@ function Delta({ current, previous, state, label = 'vs previous period' }: { cur
       <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: flat ? semantic.neutralSoft : up ? semantic.successSoft : semantic.dangerSoft }}>
         <Change change={change} bold />
       </View>
-      <Text className="text-xs text-text-secondary">{label}</Text>
+      <Text className="text-xs text-text-secondary">vs {against}</Text>
     </View>
   );
 }
@@ -137,15 +147,46 @@ function CardHead({ title, subtitle, right }: { title: string; subtitle?: string
   );
 }
 const Gap = () => <View className="h-5" />;
-function ToolButton({ label, onPress, active = false, icon: Icon, disabled = false, primary = false }: { label: string; onPress: () => void; active?: boolean; icon?: typeof Calendar; disabled?: boolean; primary?: boolean }) {
+function ToolButton({ label, onPress, active = false, icon: Icon, disabled = false, primary = false, menu = false, accessibilityLabel }: { label: string; onPress: () => void; active?: boolean; icon?: typeof Calendar; disabled?: boolean; primary?: boolean; menu?: boolean; accessibilityLabel?: string }) {
   const tone = primary ? 'border-primary bg-primary hover:bg-primary-deep' : active ? 'border-primary bg-accent-soft' : 'border-border bg-surface-elevated hover:bg-surface-tint';
   const ink = primary ? colors.textOnPrimary : active ? colors.primaryDeep : colors.textPrimary;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: active, disabled }} disabled={disabled} onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected: active, disabled }} disabled={disabled} onPress={onPress}
       className={`min-h-[44px] flex-row items-center gap-1.5 rounded-xl border px-3.5 ${tone} ${disabled ? 'opacity-50' : 'active:opacity-80'}`}>
       {Icon ? <Icon size={15} color={ink} /> : null}
       <Text className="text-[13px] font-semibold" style={{ color: ink }}>{label}</Text>
+      {menu ? <ChevronDown size={15} color={colors.textSecondary} /> : null}
     </Pressable>
+  );
+}
+
+type MenuOption = { id: string; label: string; selected: boolean };
+/** A toolbar pill that opens a short list below it, right-aligned to the pill. */
+function MenuButton({ label, icon, active = false, accessibilityLabel, options, onSelect }: { label: string; icon: typeof Calendar; active?: boolean; accessibilityLabel: string; options: readonly MenuOption[]; onSelect: (id: string) => void }) {
+  const anchor = useRef<View>(null);
+  const { width } = useWindowDimensions();
+  const [at, setAt] = useState<{ top: number; right: number; minWidth: number } | null>(null);
+  const open = () => anchor.current?.measureInWindow((x, y, w, h) => setAt({ top: y + h + 6, right: Math.max(8, width - (x + w)), minWidth: Math.max(200, w) }));
+  const close = () => setAt(null);
+  return (
+    <>
+      <View ref={anchor} collapsable={false}><ToolButton label={label} icon={icon} active={active} menu accessibilityLabel={accessibilityLabel} onPress={open} /></View>
+      <Modal transparent visible={at !== null} animationType="none" onRequestClose={close}>
+        <Pressable accessibilityLabel="Close menu" className="flex-1" onPress={close}>
+          {at ? (
+            <View accessibilityRole="menu" className="absolute rounded-xl border border-border-soft bg-surface-elevated p-1 shadow-card" style={{ top: at.top, right: at.right, minWidth: at.minWidth }}>
+              {options.map((o) => (
+                <Pressable key={o.id} accessibilityRole="menuitem" accessibilityState={{ selected: o.selected }} onPress={() => { close(); onSelect(o.id); }}
+                  className="min-h-[44px] flex-row items-center justify-between gap-4 rounded-lg px-3 hover:bg-surface-tint">
+                  <Text className="text-[13px] font-semibold" style={{ color: o.selected ? colors.primaryDeep : colors.textPrimary }}>{o.label}</Text>
+                  {o.selected ? <Check size={15} color={colors.primary} /> : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -175,9 +216,15 @@ export function AnalyticsStatement(props: Props) {
 
   const k = data?.kpis;
   const pk = previous?.kpis;
+  const prevRange = loadedFilters ? previousFilters(loadedFilters) : null;
+  /** The dates the comparison uses, such as "19–30 Sep". */
+  const compareRange = prevRange ? shortRange(prevRange.startDate, prevRange.endDate) : null;
   const periodLabel = props.startDate && props.endDate
     ? props.startDate === props.endDate ? dayLabel(props.startDate) : `${dayLabel(props.startDate, props.startDate.slice(0, 4) !== props.endDate.slice(0, 4))} – ${dayLabel(props.endDate)}`
     : 'Choose dates';
+  const presetName = PRESETS.find((p) => p.id === props.preset)?.label ?? 'Custom';
+  const periodShort = props.startDate && props.endDate ? shortRange(props.startDate, props.endDate) : 'Choose dates';
+  const selectedBranchName = props.selectedBranchId ? props.branches.find((b) => b.id === props.selectedBranchId)?.name ?? 'Branch' : 'All branches';
   // After a failed reload the cards still show the last good load, so the scope line follows that load.
   const stale = !!(errorMsg && data && loadedFilters);
   // The cards show the last completed load, so the scope line follows it, also while a new period loads.
@@ -191,7 +238,7 @@ export function AnalyticsStatement(props: Props) {
   const branchName = shownBranchId ? props.branches.find((b) => b.id === shownBranchId)?.name ?? 'Your branch' : props.canPickBranch ? 'All branches' : 'Your branch';
 
   const days = useMemo(() => alignedDays(data, previous, loadedFilters), [data, previous, loadedFilters]);
-  const dayPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.sales, ...(previous ? { previous: d.previousSales } : {}) })), [days, previous]);
+  const dayPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.sales, ...(previous ? { previous: d.previousSales, ...(d.previousLabel ? { previousLabel: d.previousLabel } : {}) } : {}) })), [days, previous]);
   const orderPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.orders })), [days]);
   const hourPoints = useMemo<ColumnPoint[]>(() => {
     const hours = data?.salesByHour ?? [];
@@ -240,41 +287,30 @@ export function AnalyticsStatement(props: Props) {
           <Text className="text-2xl font-bold leading-8 text-text-primary" accessibilityRole="header">Analytics</Text>
           <Text className="text-[13px] leading-5 text-text-secondary">{branchName} · {shownPeriod}{loading ? ' · updating…' : stale ? ' · last successful load' : ''}</Text>
         </View>
-        {props.canExport && k && k.totalOrders > 0 ? (
-          <View className="flex-row gap-2">
+        <View className="flex-row flex-wrap items-center justify-end gap-2">
+          <MenuButton label={`${presetName} · ${periodShort}`} icon={Calendar} accessibilityLabel={`Period: ${presetName}, ${periodLabel}`}
+            options={PRESETS.map((p) => ({ id: p.id, label: p.id === 'custom' ? 'Custom dates…' : p.label, selected: props.preset === p.id }))}
+            onSelect={(id) => { const p = PRESETS.find((x) => x.id === id); if (p) props.onPreset(p.id); }} />
+          <ToolButton label={props.hours.enabled ? `${props.hours.start}–${props.hours.end}` : 'All hours'} icon={Clock} active={props.hours.enabled} onPress={props.hours.onToggle} />
+          {props.canPickBranch && props.branches.length > 0 ? (
+            <MenuButton label={selectedBranchName} icon={Building2} accessibilityLabel={`Branch: ${selectedBranchName}`}
+              options={[{ id: '', label: 'All branches', selected: props.selectedBranchId === null }, ...props.branches.map((b) => ({ id: b.id, label: b.name, selected: props.selectedBranchId === b.id }))]}
+              onSelect={(id) => props.onSelectBranch(id === '' ? null : id)} />
+          ) : null}
+          {props.canExport && k && k.totalOrders > 0 ? <>
             <ToolButton label="Item sales" icon={Download} onPress={props.onExportItems} disabled={loading} />
             <ToolButton label={props.exporting ? 'Preparing…' : 'Export transactions'} icon={Download} primary onPress={props.onExportTransactions} disabled={loading || props.exporting} />
-          </View>
-        ) : null}
-      </View>
-      <View className="flex-row flex-wrap items-center gap-2">
-        <View className="flex-row rounded-xl border border-border-soft bg-surface-elevated p-1" accessibilityRole="tablist">
-          {PRESETS.map((p) => {
-            const on = props.preset === p.id;
-            return (
-              <Pressable key={p.id} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => props.onPreset(p.id)}
-                className={`min-h-[44px] justify-center rounded-lg px-3 ${on ? 'bg-primary' : 'hover:bg-surface-tint'}`}>
-                <Text className="text-[13px] font-semibold" style={{ color: on ? colors.textOnPrimary : colors.textSecondary }}>{p.label}</Text>
-              </Pressable>
-            );
-          })}
+          </> : null}
         </View>
-        <ToolButton label={periodLabel} icon={Calendar} onPress={props.onOpenDates} />
-        <ToolButton label={props.hours.enabled ? `${props.hours.start}–${props.hours.end}` : 'All hours'} icon={Clock} active={props.hours.enabled} onPress={props.hours.onToggle} />
-        {props.hours.enabled ? (
-          <View className="flex-row items-center gap-2">
-            <TextInput accessibilityLabel="From time" value={props.hours.start} onChangeText={props.hours.onStart} placeholder="09:00" className="h-11 w-20 rounded-xl border border-border bg-surface-elevated px-3 text-[13px] text-text-primary" />
-            <Text className="text-text-secondary">to</Text>
-            <TextInput accessibilityLabel="To time" value={props.hours.end} onChangeText={props.hours.onEnd} placeholder="23:00" className="h-11 w-20 rounded-xl border border-border bg-surface-elevated px-3 text-[13px] text-text-primary" />
-          </View>
-        ) : null}
-        {props.canPickBranch && props.branches.length > 0 ? (
-          <View className="ml-auto flex-row flex-wrap gap-2">
-            <ToolButton label="All branches" icon={Building2} active={props.selectedBranchId === null} onPress={() => props.onSelectBranch(null)} />
-            {props.branches.map((b) => <ToolButton key={b.id} label={b.name} active={props.selectedBranchId === b.id} onPress={() => props.onSelectBranch(b.id)} />)}
-          </View>
-        ) : null}
       </View>
+      {props.hours.enabled ? (
+        <View className="flex-row items-center justify-end gap-2">
+          <Text className="text-[13px] text-text-secondary">Business hours</Text>
+          <TextInput accessibilityLabel="From time" value={props.hours.start} onChangeText={props.hours.onStart} placeholder="09:00" className="h-11 w-20 rounded-xl border border-border bg-surface-elevated px-3 text-[13px] text-text-primary" />
+          <Text className="text-text-secondary">to</Text>
+          <TextInput accessibilityLabel="To time" value={props.hours.end} onChangeText={props.hours.onEnd} placeholder="23:00" className="h-11 w-20 rounded-xl border border-border bg-surface-elevated px-3 text-[13px] text-text-primary" />
+        </View>
+      ) : null}
       {props.exportNotice ? <Text accessibilityRole="alert" className="text-[13px] text-text-secondary">{props.exportNotice}</Text> : null}
       {errorMsg && data ? <View accessibilityRole="alert" className="flex-row items-center gap-3 rounded-xl px-4 py-3" style={{ backgroundColor: semantic.warningSoft }}><Text className="min-w-0 flex-1 text-[13px]" style={{ color: semantic.warning }}>{errorMsg} The figures below are from the last successful load.</Text><ToolButton label="Retry" icon={RotateCcw} onPress={props.onRetry} /></View> : null}
     </View>
@@ -301,7 +337,7 @@ export function AnalyticsStatement(props: Props) {
           <View className="min-w-0 flex-1">
             <Text className="text-[13px] font-semibold text-text-secondary">Total sales</Text>
             <Text className="mt-1 text-[48px] font-bold leading-[56px] text-text-primary" style={{ letterSpacing: -0.8 }}>{money(k.totalSales)}</Text>
-            <View className="mt-1"><Delta current={k.totalSales} previous={pk?.totalSales} state={compare} /></View>
+            <View className="mt-1"><Delta current={k.totalSales} previous={pk?.totalSales} state={compare} against={compareRange ?? 'the previous period'} /></View>
           </View>
           {([['Orders', count(k.totalOrders), k.totalOrders, pk?.totalOrders], ['Average bill', money(k.avgOrderValue), k.avgOrderValue, pk?.avgOrderValue], ['Items sold', count(k.itemsSold), k.itemsSold, pk?.itemsSold]] as const).map(([label, shown, value, was]) => (
             <View key={label} className="min-w-[132px]">
@@ -324,10 +360,10 @@ export function AnalyticsStatement(props: Props) {
       <Gap />
       <View className="flex-row gap-4">
         <Card className="min-w-0 flex-[2]">
-          <CardHead title="Sales by day" subtitle={`${money(k.totalSales)} over ${count(dayPoints.length)} ${dayPoints.length === 1 ? 'day' : 'days'}${previous ? ' · against the previous period of the same length' : ''}`}
+          <CardHead title="Sales by day" subtitle={`${money(k.totalSales)} over ${count(dayPoints.length)} ${dayPoints.length === 1 ? 'day' : 'days'}${previous && compareRange ? ` · each day against the same day in ${compareRange}` : ''}`}
             right={busiestDay && busiestDay.value > 0 ? <View className="items-end"><Text className="text-xs text-text-secondary">Best day</Text><Text className="text-[13px] font-bold text-text-primary">{busiestDay.label}</Text></View> : null} />
           <ColumnChart points={dayPoints} format={money} formatTick={moneyTick} labelEvery={dayPoints.length > 16 ? Math.ceil(dayPoints.length / 10) : 1}
-            currentName="This period" previousName="Previous period" summary={`Sales by day, ${dayPoints.length} days, best day ${busiestDay?.label ?? ''} at ${money(busiestDay?.value ?? 0)}`} />
+            currentName={onScreen ? shortRange(onScreen.startDate, onScreen.endDate) : 'This period'} previousName={compareRange ?? 'Previous period'} summary={`Sales by day, ${dayPoints.length} days, best day ${busiestDay?.label ?? ''} at ${money(busiestDay?.value ?? 0)}`} />
         </Card>
         <Card className="min-w-0 flex-1">
           <CardHead title="Payment mix" subtitle="How customers paid" />

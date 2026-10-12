@@ -14,7 +14,7 @@ export function niceMax(value: number): number {
   return step * power;
 }
 
-export type ColumnPoint = { label: string; value: number; previous?: number };
+export type ColumnPoint = { label: string; value: number; previous?: number; /** The day the previous value comes from, such as "19 Sep". */ previousLabel?: string };
 
 type ColumnChartProps = {
   points: readonly ColumnPoint[];
@@ -63,7 +63,7 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
               const delta = p.previous ? (p.value - p.previous) / p.previous : null;
               return (
                 <Pressable key={p.label + i} className="h-full flex-1 items-center justify-end" accessibilityRole="button"
-                  accessibilityLabel={`${p.label}: ${format(p.value)}${hasPrevious && p.previous !== undefined ? `, ${previousName.toLowerCase()} ${format(p.previous)}` : ''}`}
+                  accessibilityLabel={`${p.label}: ${format(p.value)}${hasPrevious && p.previous !== undefined ? `, ${p.previousLabel ?? previousName.toLowerCase()} ${format(p.previous)}` : ''}`}
                   onHoverIn={() => setActive(i)} onHoverOut={() => setActive((a) => (a === i ? null : a))} onFocus={() => setActive(i)} onBlur={() => setActive(null)}
                   onPress={() => setActive((a) => (a === i ? null : i))}
                   style={{ backgroundColor: on ? chart.hoverWash : 'transparent', borderRadius: 8 }}>
@@ -80,7 +80,7 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
                       <Text className="text-[13px] font-bold text-text-on-primary" style={tabular}>{format(p.value)}</Text>
                       {hasPrevious && p.previous !== undefined ? (
                         <Text className="text-xs text-text-on-primary" style={{ ...tabular, opacity: 0.85 }}>
-                          {previousName} {format(p.previous)}{delta !== null && Number.isFinite(delta) ? ` · ${delta >= 0 ? '+' : '−'}${Math.abs(delta * 100).toFixed(0)}%` : ''}
+                          {p.previousLabel ?? previousName} {format(p.previous)}{delta !== null && Number.isFinite(delta) ? ` · ${delta >= 0 ? '+' : '−'}${Math.abs(delta * 100).toFixed(0)}%` : ''}
                         </Text>
                       ) : null}
                     </View>

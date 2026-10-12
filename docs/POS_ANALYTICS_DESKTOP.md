@@ -139,3 +139,29 @@ Checked on real staging, 30 days, all branches:
 Mocked Playwright was re-run with the service's real label format, with zero
 cloud requests forwarded and no errors. The full suite passed: 36 suites,
 339 tests.
+
+## Task 199: header as in the preview, and named comparison dates
+
+The owner noticed the header differed from the chosen preview and asked what
+"previous period" meant.
+
+1. **Header in one row, as in the preview.** The title and scope line sit on
+   the left. One row of tools sits on the right:
+   - a period menu showing the preset and dates ("7 days · 6–12 Oct"), with
+     Today, Yesterday, 7 days, 30 days, This month and Custom dates…;
+   - the business-hours toggle (its time fields open on a line below);
+   - a branch menu ("All branches", then each branch);
+   - Item sales and Export transactions.
+
+   The menus open below their pill, right-aligned, with 44 px rows and a tick
+   on the current choice.
+2. **Comparisons name their dates.** "Previous period" is the same number of
+   days just before the chosen range. For This month on 12 October (1–12 Oct)
+   that is 19–30 Sep. The labels now say so: "vs 19–30 Sep" under the total, "each
+   day against the same day in 19–30 Sep" on Sales by day, the legend shows
+   both ranges, and the tooltip names the exact day compared ("20 Sep ₹…").
+3. Dates use fixed three-letter months everywhere ("Sep", not "Sept").
+
+Mocked Playwright: period and branch menus open, select and re-query; header
+fits on one row at 1440 px and 1100 px with no overflow; zero cloud requests
+forwarded. The full suite passed: 36 suites, 339 tests.
