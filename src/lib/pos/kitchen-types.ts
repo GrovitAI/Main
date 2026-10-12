@@ -90,6 +90,8 @@ export type KitchenEntry = {
   category: string | null;
   note: string | null;
   created_by: string;
+  /** The login that made it (set by the database since task 202; older entries have none). */
+  created_by_id?: string | null;
   created_at: string;
   voided_at: string | null;
   /** Stored staff-name snapshot; older cached entries may not include it. */

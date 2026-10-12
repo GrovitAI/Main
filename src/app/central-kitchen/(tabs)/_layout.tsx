@@ -9,6 +9,7 @@ import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { SidebarSelection, SidebarSurface } from '@/components/ui/SidebarSurface';
+import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
 
@@ -26,6 +27,17 @@ export const KITCHEN_TABS: readonly KitchenTab[] = [
 ];
 const phoneTabs = KITCHEN_TABS.filter(tab => !['branches', 'invoices', 'vendors', 'finished-goods', 'attendance'].includes(tab.name)).map(tab => tab.name === 'items' ? { ...tab, label: 'Stock' } : tab);
 const moreTabs = KITCHEN_TABS.filter(tab => ['attendance', 'branches', 'invoices', 'vendors'].includes(tab.name));
+
+/** Sections a login has no use for are left off the navigation; the database refuses their data anyway. */
+function useTabAllowed(): (name: string) => boolean {
+  const { can } = useKitchenAccess();
+  return (name) => {
+    if (name === 'analytics') return can('reports.view');
+    if (name === 'invoices') return can('invoices.create') || can('invoices.receive') || can('invoices.cancel');
+    if (name === 'attendance') return can('attendance.mark') || can('setup.roster');
+    return true;
+  };
+}
 
 const leLabanLogo: ImageSourcePropType = require('@/../assets/images/le-leban-logo.png');
 type RailWebStyle = ViewStyle & { transition?: string };
@@ -72,6 +84,9 @@ function BottomBar({ state, navigation }: BarProps) {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => { setMoreOpen(false); return true; });
     return () => listener.remove();
   }, [moreOpen]);
+  const allowed = useTabAllowed();
+  const phone = phoneTabs.filter((tab) => allowed(tab.name));
+  const more = moreTabs.filter((tab) => allowed(tab.name));
   const activeName = state.routes[state.index]?.name;
   const openTab = (tab: KitchenTab): void => {
     const route = state.routes.find(entry => entry.name === tab.name);
@@ -88,13 +103,13 @@ function BottomBar({ state, navigation }: BarProps) {
           <Text className="text-sm font-bold text-text-primary">More kitchen sections</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Close more sections" onPress={() => setMoreOpen(false)} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary"><X size={18} color={colors.primary} /></Pressable>
         </View>
-        <FlatList data={moreTabs} keyExtractor={tab => tab.name} extraData={activeName}
+        <FlatList data={more} keyExtractor={tab => tab.name} extraData={activeName}
           renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: activeName === item.name }} onPress={() => openTab(item)} className="min-h-12 flex-row items-center gap-3 rounded-xl px-3 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
             <item.icon size={20} color={colors.primary} /><Text className="text-sm font-semibold text-text-primary">{item.label}</Text>
           </Pressable>} />
       </View> : null}
     <View className="flex-row border-t border-border-soft bg-surface-elevated" style={{ paddingTop: 6, paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 8 : 6), paddingHorizontal: 6 }}>
-      {phoneTabs.map((tab) => {
+      {phone.map((tab) => {
         const route = state.routes.find((r) => r.name === tab.name);
         if (!route) return null;
         const focused = activeName === tab.name || (tab.name === 'items' && activeName === 'finished-goods');
@@ -108,10 +123,10 @@ function BottomBar({ state, navigation }: BarProps) {
           />
         );
       })}
-      <Pressable accessibilityRole="button" accessibilityLabel="More kitchen sections" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen(value => !value)} className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
-        <View className={'h-[30px] w-11 items-center justify-center rounded-xl ' + (moreOpen || moreTabs.some(tab => tab.name === activeName) ? 'bg-accent-soft' : '')}><Ellipsis size={21} color={moreOpen || moreTabs.some(tab => tab.name === activeName) ? colors.primary : colors.textSecondary} /></View>
+      {more.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="More kitchen sections" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen(value => !value)} className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
+        <View className={'h-[30px] w-11 items-center justify-center rounded-xl ' + (moreOpen || more.some(tab => tab.name === activeName) ? 'bg-accent-soft' : '')}><Ellipsis size={21} color={moreOpen || more.some(tab => tab.name === activeName) ? colors.primary : colors.textSecondary} /></View>
         <Text className="mt-0.5 text-xs font-semibold text-text-secondary">More</Text>
-      </Pressable>
+      </Pressable> : null}
     </View>
     </View>
   );
@@ -123,6 +138,7 @@ function Rail({ state, navigation }: BarProps) {
   const compact = Platform.OS === 'web' && isDesktop;
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const allowed = useTabAllowed();
   const [keyboardFocused, setKeyboardFocused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(true);
   const expanded = !compact || pinned || hovered || keyboardFocused;
@@ -189,7 +205,7 @@ function Rail({ state, navigation }: BarProps) {
       </View>
       <FlatList
         className="min-h-0 w-full flex-1"
-        data={KITCHEN_TABS}
+        data={KITCHEN_TABS.filter((tab) => allowed(tab.name))}
         keyExtractor={tab => tab.name}
         extraData={`${state.index}-${expanded}`}
         showsVerticalScrollIndicator={false}

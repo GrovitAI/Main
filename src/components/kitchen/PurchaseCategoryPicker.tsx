@@ -4,7 +4,7 @@ import { Text, TextInput } from '@/components/ui/Typography';
 import type { KitchenCategory } from '@/lib/pos/kitchen-types';
 import { colors } from '@/lib/pos/brand';
 import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { Notice, PrimaryButton } from '@/components/kitchen/ui';
 
@@ -12,6 +12,7 @@ export function PurchaseCategoryPicker({ categories, value, onChange, historical
   categories: readonly KitchenCategory[]; value: string | null; onChange: (id: string | null) => void; historicalName?: string | null;
 }) {
   const [name, setName] = useState('');
+  const mayAdd = useKitchenAccess().can('setup.categories');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const add = async () => {
@@ -27,11 +28,11 @@ export function PurchaseCategoryPicker({ categories, value, onChange, historical
     <View className="gap-2">
       <ReportSelect label="Purchase category" value={value} selectedLabel={historicalName ?? undefined}
         options={categories.filter(category => category.is_active || category.id === value).map(category => ({ id: category.id, label: category.id === value && historicalName ? historicalName : category.name + (!category.is_active ? ' · Archived' : '') }))} onChange={onChange} emptyLabel="Uncategorized" />
-      <View className="flex-row items-center gap-2">
+      {mayAdd ? <View className="flex-row items-center gap-2">
         <TextInput accessibilityLabel="New purchase category" placeholder="Add a category, e.g. Dairy" placeholderTextColor={colors.textSecondary}
           value={name} onChangeText={setName} maxLength={80} className="min-h-12 min-w-0 flex-1 rounded-xl bg-surface-tint px-3 text-base text-text-primary" />
         <View className="w-20"><PrimaryButton label="Add" onPress={() => void add()} loading={saving} disabled={!name.trim()} /></View>
-      </View>
+      </View> : null}
       <Text className="text-xs leading-5 text-text-secondary">Purchase categories are separate from direct expense categories.</Text>
       {error ? <Notice text={error} /> : null}
     </View>

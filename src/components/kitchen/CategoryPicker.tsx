@@ -20,7 +20,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { saveKitchenCategory } from '@/lib/pos/kitchen-service';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { matchesSearch, orderCategories, shownCategories } from '@/lib/pos/kitchen-utils';
 import type { KitchenCategory, KitchenEntry } from '@/lib/pos/kitchen-types';
 import { Label, Notice, PrimaryButton, Row, SearchBox, Sheet, TextField } from './ui';
@@ -57,6 +57,7 @@ type Props = {
  * "More" for the whole list, searchable, with a new one added in place.
  */
 export function CategoryPicker({ categories, entries, value, onChange }: Props) {
+  const mayAdd = useKitchenAccess().can('setup.categories');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [name, setName] = useState('');
@@ -110,6 +111,7 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
       ))}
 
       <Sheet visible={open} onClose={() => setOpen(false)} title="What for">
+        {/* Only logins that may add categories see the add box. */}
         <View style={{ gap: 14 }}>
           <SearchBox value={query} onChange={setQuery} placeholder="Search categories" autoFocus />
           <View>
@@ -118,11 +120,11 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
             ))}
             {filtered.length === 0 ? (
               <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600', paddingVertical: 12 }}>
-                No category called that yet. Add it below and it stays in the list.
+                {mayAdd ? 'No category called that yet. Add it below and it stays in the list.' : 'No category called that yet. Ask the owner to add it.'}
               </Text>
             ) : null}
           </View>
-          <View>
+          {mayAdd ? <View>
             <Label>New category</Label>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={{ flex: 1 }}>
@@ -133,7 +135,7 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
               </View>
             </View>
             {error ? <Notice text={error} /> : null}
-          </View>
+          </View> : null}
         </View>
       </Sheet>
     </View>

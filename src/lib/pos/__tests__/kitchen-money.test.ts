@@ -31,7 +31,7 @@ test('a transfer sends both accounts, exact paise and a stable retry key', async
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: 'move', error: null });
   await moveKitchenMoney('2026-10-02', 'bank', 50000, '  ATM  ', 'stable-request-01');
   expect(supabase.rpc).toHaveBeenCalledWith('kitchen_move_money', { ...scope, p_move_date: '2026-10-02', p_from: 'bank', p_to: 'cash',
-    p_amount_paise: 50000, p_note: 'ATM', p_request_key: 'stable-request-01' });
+    p_amount_paise: 50000, p_note: 'ATM', p_request_key: 'stable-request-01', p_lock_reason: null });
 });
 test('invalid transfers and openings never reach the database', async () => {
   for (const amount of [0, -1, 0.5, Infinity]) expect((await moveKitchenMoney('2026-10-02', 'cash', amount, '', 'stable-request-01')).error).toBeTruthy();
@@ -46,7 +46,7 @@ test('opening balances allow an overdrawn bank and void is scoped', async () => 
   expect((await setKitchenMoneyOpening('2026-10-01', 100000, -5000)).data).toBe('2026-10-01');
   expect(supabase.rpc).toHaveBeenCalledWith('kitchen_set_money_opening', { ...scope, p_as_of: '2026-10-01', p_cash_paise: 100000, p_bank_paise: -5000 });
   expect((await voidKitchenMoneyMove('m1')).data).toBe('m1');
-  expect(supabase.rpc).toHaveBeenLastCalledWith('kitchen_void_money_move', { ...scope, p_move_id: 'm1' });
+  expect(supabase.rpc).toHaveBeenLastCalledWith('kitchen_void_money_move', { ...scope, p_move_id: 'm1', p_lock_reason: null });
 });
 test('database errors are translated, never shown raw', async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: { message: 'PRIVATE_SQL KITCHEN_MONEY_CHANGED' } });

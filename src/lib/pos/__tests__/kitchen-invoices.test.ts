@@ -42,7 +42,7 @@ test('payment has exact amount, kitchen scope and a stable retry key', async () 
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: 'payment', error: null });
   await receiveKitchenInvoicePayment('invoice', 10000, '2026-10-02', 'upi', 'stable-request-01');
   expect(supabase.rpc).toHaveBeenCalledWith('kitchen_invoice_action', { ...scope, p_invoice_id: 'invoice', p_action: 'receive',
-    p_amount_paise: 10000, p_date: '2026-10-02', p_mode: 'upi', p_request_key: 'stable-request-01' });
+    p_amount_paise: 10000, p_date: '2026-10-02', p_mode: 'upi', p_request_key: 'stable-request-01', p_lock_reason: null });
 });
 test('invalid payments and empty cancellation reason never write', async () => {
   for (const amount of [0, -1, 0.5, Infinity]) expect((await receiveKitchenInvoicePayment('invoice', amount, '2026-10-02', 'upi', 'stable-request-01')).error).toBeTruthy();

@@ -9,7 +9,7 @@ import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateK
 import type { KitchenEntryType, KitchenMode, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
-import { DateField, LinesEditor, ModePicker, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
+import { DateField, useDateGuard, LinesEditor, ModePicker, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 import { PurchaseCategoryPicker } from '@/components/kitchen/PurchaseCategoryPicker';
 
@@ -27,6 +27,7 @@ export default function BoughtScreen() {
   const [date, setDate] = useState(localDateKey());
   const [lines, setLines] = useState<DraftLines>({});
   const [note, setNote] = useState('');
+  const [lockReason, setLockReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
@@ -52,7 +53,8 @@ export default function BoughtScreen() {
   const chosen = useMemo(() => draftToLines(lines), [lines]);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
-  const canSave = !missing && !archivedCategory && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date);
+  const dateOk = useDateGuard(date, lockReason);
+  const canSave = !missing && !archivedCategory && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
 
   const save = async () => {
@@ -61,7 +63,7 @@ export default function BoughtScreen() {
     setError(null);
     const paid = paidNow === 'now';
     const input: PostEntryInput = { type: 'bought', party_id: partyId, entry_date: date, lines: chosen, paid, mode: paid ? mode : null, note: note.trim() || null, purchase_category_id: categoryId };
-    const res = editing ? await editKitchenEntry(editing.id, input) : await postKitchenEntry(input);
+    const res = editing ? await editKitchenEntry(editing.id, input, lockReason) : await postKitchenEntry(input, lockReason);
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -118,7 +120,7 @@ export default function BoughtScreen() {
             <ModePicker value={mode} onChange={setMode} />
           </Field>
         ) : null}
-        <DateField value={date} onChange={setDate} />
+        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a cost.' : 'The cost comes pre-filled from the last buy; change it when the price moved.'}>
           <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="cost" defaultCost={defaultCost} />
         </Field>

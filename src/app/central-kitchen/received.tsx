@@ -9,7 +9,7 @@ import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmo
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, TextField } from '@/components/kitchen/ui';
-import { DateField, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
+import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['received'];
@@ -25,6 +25,7 @@ export default function ReceivedScreen() {
   const [mode, setMode] = useState<KitchenMode>('upi');
   const [date, setDate] = useState(localDateKey());
   const [note, setNote] = useState('');
+  const [lockReason, setLockReason] = useState('');
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -48,7 +49,8 @@ export default function ReceivedScreen() {
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
-  const canSave = !missing && !!partyId && amount > 0 && isValidDateKey(date);
+  const dateOk = useDateGuard(date, lockReason);
+  const canSave = !missing && !!partyId && amount > 0 && isValidDateKey(date) && dateOk;
 
   const onTick = (list: KitchenOpenDocument[], next: Set<string>) => {
     setDocs(list);
@@ -65,7 +67,7 @@ export default function ReceivedScreen() {
     setSaving(true);
     setError(null);
     const input: PostEntryInput = { type: 'received', party_id: partyId, entry_date: date, amount, mode, note: note.trim() || null, covers };
-    const res = editing ? await editKitchenEntry(editing.id, input) : await postKitchenEntry(input);
+    const res = editing ? await editKitchenEntry(editing.id, input, lockReason) : await postKitchenEntry(input, lockReason);
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -104,7 +106,7 @@ export default function ReceivedScreen() {
         <Field label="Mode">
           <ModePicker value={mode} onChange={setMode} />
         </Field>
-        <DateField value={date} onChange={setDate} />
+        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         {partyId ? (
           <Field label="Against which sends (optional)" hint="Tick what this money is for and the amount fills itself. Leave them all unticked and it simply comes off the balance.">
             <OpenDocsPicker partyId={partyId} kind="branch" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.id} />

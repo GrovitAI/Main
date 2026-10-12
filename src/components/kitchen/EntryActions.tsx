@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { Pencil } from 'lucide-react-native';
 import { voidKitchenEntry } from '@/lib/pos/kitchen-service';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
 import { historyAuditText, historyDateLabel, historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
@@ -38,7 +38,13 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
   const [voiding, setVoiding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const access = useKitchenAccess();
   if (!entry) return null;
+  const locked = access.isLocked(entry.entry_date);
+  // Who may change it: the owner always (a locked day needs a reason); others by permission, never on a locked day.
+  const mayChange = access.isOwner || (access.canFix(entry) && !locked);
+  const ownerLocked = locked && access.isOwner;
+  const blockedText = locked ? `${formatDayLabel(entry.entry_date)} is locked. Ask the owner to correct this entry.` : 'Your login cannot change this entry. Ask the owner or a kitchen manager.';
   const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
   const href = editHref(entry);
 
@@ -94,7 +100,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
           </View>
         ) : null}
         <View className="flex-row flex-wrap" style={{ gap: 14 }}>
-          {entryAmountText(entry) ? <Meta label="Amount" value={entryAmountText(entry)} /> : null}
+          {entryAmountText(entry) && access.showAmounts ? <Meta label="Amount" value={entryAmountText(entry)} /> : null}
           {entry.mode ? <Meta label="Mode" value={modeLabel(entry.mode)} /> : null}
           <Meta label="Transaction date" value={historyDateLabel(entry.entry_date)} />
           <Meta label="Entered by" value={entry.created_by} />
@@ -111,8 +117,11 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
         </View> : previousEntry === null && entry.replaces_id ? <Text className="text-xs leading-4 text-text-secondary">The earlier version is outside the loaded history window.</Text> : null}
         {entry.voided_at ? (
           <Notice tone="neutral" text={entry.void_reason === 'Edited' ? 'Edited: a corrected entry took its place. This one no longer counts anywhere.' : `Voided${entry.void_reason ? `: ${entry.void_reason}` : ''}. It no longer counts anywhere.`} />
+        ) : !mayChange ? (
+          <Notice tone="neutral" text={blockedText} />
         ) : (
           <View style={{ gap: 10, marginTop: 4 }}>
+            {ownerLocked ? <Notice tone="neutral" text={`${formatDayLabel(entry.entry_date)} is locked. As the owner you can still change it; give a reason, which is kept in the change log.`} /> : null}
             <View className="flex-row" style={{ gap: 10 }}>
               {href ? <View className="flex-1"><GhostButton label="Edit" icon={Pencil} tone="primary" onPress={edit} /></View> : null}
               <View className="flex-1"><GhostButton label="Void…" tone="out" onPress={() => setVoiding((v) => !v)} /></View>
@@ -121,8 +130,8 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
             {voiding ? (
               // The reason belongs to the void alone, so it opens with it.
               <View className="border-t border-border-soft" style={{ gap: 10, paddingTop: 12 }}>
-                <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder="Why it is being voided (optional)" autoFocus />
-                <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} />
+                <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder={ownerLocked ? 'Why it is being voided (needed for a locked day)' : 'Why it is being voided (optional)'} autoFocus />
+                <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} disabled={ownerLocked && !reason.trim()} />
               </View>
             ) : null}
             {error ? <Notice text={error} /> : null}

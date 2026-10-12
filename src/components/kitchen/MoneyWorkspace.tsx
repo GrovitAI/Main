@@ -11,7 +11,8 @@ import { formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils'
 import { historyDateLabel } from '@/lib/pos/kitchen-history-utils';
 import { fetchKitchenMoney, moveKitchenMoney, setKitchenMoneyOpening, voidKitchenMoneyMove, MONEY_LIMIT_PAISE, type MoneyAccount, type MoneyMove, type MoneySummary } from '@/lib/pos/kitchen-money-service';
 import { Card, Divider, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, StatTile, TextField } from '@/components/kitchen/ui';
-import { DateField, isValidDateKey } from '@/components/kitchen/forms';
+import { DateField, isValidDateKey, useDateGuard } from '@/components/kitchen/forms';
+import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
 const tabular = { fontVariant: ['tabular-nums' as const] };
 const ACCOUNT_LABEL: Record<MoneyAccount, string> = { cash: 'Cash', bank: 'Bank' };
@@ -49,12 +50,22 @@ export function MoneyWorkspace() {
   const [asOf, setAsOf] = useState(localDateKey()); const [openCash, setOpenCash] = useState(''); const [openBank, setOpenBank] = useState('');
   const requestKey = useRef('');
   const today = localDateKey();
+  const access = useKitchenAccess();
+  const mayView = access.can('money.view');
+  const mayMove = access.can('money.move');
+  const mayOpening = access.can('money.opening');
+  const [lockReason, setLockReason] = useState('');
+  const moveDateOk = useDateGuard(moveDate, lockReason);
+  // Voiding a transfer on a locked day: the owner gives a reason in the row.
+  const [voiding, setVoiding] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState('');
 
   const load = useCallback(async (): Promise<void> => {
+    if (!mayView) { setLoading(false); return; }
     setLoading(true);
     const result = await fetchKitchenMoney();
     setLoading(false); setError(result.error); if (result.data) setSummary(result.data);
-  }, []);
+  }, [mayView]);
   // Reload whenever the screen is shown; entries recorded elsewhere change the balances.
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
@@ -68,7 +79,7 @@ export function MoneyWorkspace() {
   };
   const openMove = (): void => {
     requestKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
-    setFrom('cash'); setAmount(''); setMoveDate(today); setNote(''); setError(null); setMessage(null); setEditor('move');
+    setFrom('cash'); setAmount(''); setMoveDate(today); setNote(''); setLockReason(''); setError(null); setMessage(null); setEditor('move');
   };
   const openOpening = (): void => {
     setAsOf(summary?.as_of ?? today);
@@ -78,12 +89,16 @@ export function MoneyWorkspace() {
   };
   const voidMove = (m: MoneyMove): void => confirmAction('Void this transfer?',
     `${rupees(m.amount_paise)} from ${ACCOUNT_LABEL[m.from_account]} to ${ACCOUNT_LABEL[m.to_account]} on ${historyDateLabel(m.move_date)}. It stays in the records as voided and no longer counts.`,
-    'Void transfer', () => void run(() => voidKitchenMoneyMove(m.id), 'Transfer voided'));
+    'Void transfer', () => void run(() => voidKitchenMoneyMove(m.id, voiding === m.id ? voidReason : null), 'Transfer voided'));
+  const startVoid = (m: MoneyMove): void => {
+    if (access.isLocked(m.move_date)) { setVoiding(m.id); setVoidReason(''); return; }
+    voidMove(m);
+  };
 
   const movePaise = typedPaise(amount);
   const available = summary ? (from === 'cash' ? summary.cash_paise : summary.bank_paise) : 0;
   const cashPaise = typedPaise(openCash); const bankPaise = typedPaise(openBank, true);
-  const moveReady = movePaise > 0 && movePaise <= MONEY_LIMIT_PAISE && isValidDateKey(moveDate) && moveDate <= today && note.trim().length <= 200;
+  const moveReady = movePaise > 0 && movePaise <= MONEY_LIMIT_PAISE && isValidDateKey(moveDate) && moveDate <= today && note.trim().length <= 200 && moveDateOk;
   const openingReady = openCash.trim() !== '' && openBank.trim() !== '' && cashPaise >= 0 && cashPaise <= MONEY_LIMIT_PAISE
     && Math.abs(bankPaise) <= MONEY_LIMIT_PAISE && isValidDateKey(asOf) && asOf <= today;
 
@@ -101,13 +116,13 @@ export function MoneyWorkspace() {
         <Text className="text-xs leading-5" style={{ color: movePaise > available ? semantic.warning : colors.textSecondary }}>
           {movePaise > available ? `More than the ${rupees(available)} ${from === 'cash' ? 'cash in hand' : 'in the bank'} shown here. Check the amount, or the balances are missing an entry.` : `${rupees(available)} ${from === 'cash' ? 'cash in hand' : 'in the bank'} now.`}
         </Text>
-        <DateField value={moveDate} onChange={setMoveDate} />
+        <DateField value={moveDate} onChange={setMoveDate} lockReason={lockReason} onLockReason={setLockReason} />
         <Field label="Note (optional)">
           <TextField label="Note (optional)" value={note} onChange={setNote} placeholder="For example, deposited at the branch" />
         </Field>
         <Text className="text-xs leading-5 text-text-secondary">A transfer only moves money between Cash and Bank. Sales, purchases and branch or vendor balances are unchanged.</Text>
       </> : <>
-        <DateField value={asOf} onChange={setAsOf} />
+        <DateField value={asOf} onChange={setAsOf} guard={false} />
         <Field label="Cash in hand on that day">
           <TextField label="Cash in hand on that day" value={openCash} onChange={setOpenCash} prefix="₹" keyboardType="decimal-pad" placeholder="0" />
         </Field>
@@ -119,7 +134,7 @@ export function MoneyWorkspace() {
       <View className="flex-row flex-wrap gap-2">
         <PrimaryButton label={editor === 'move' ? 'Save transfer' : 'Save opening balances'} loading={busy} disabled={busy || !(editor === 'move' ? moveReady : openingReady)}
           onPress={() => void (editor === 'move'
-            ? run(() => moveKitchenMoney(moveDate, from, movePaise, note, requestKey.current), from === 'cash' ? 'Cash moved to the bank' : 'Cash withdrawn from the bank')
+            ? run(() => moveKitchenMoney(moveDate, from, movePaise, note, requestKey.current, lockReason), from === 'cash' ? 'Cash moved to the bank' : 'Cash withdrawn from the bank')
             : run(() => setKitchenMoneyOpening(asOf, cashPaise, bankPaise), 'Opening balances saved'))} />
         <GhostButton small label="Close" disabled={busy} onPress={() => { setEditor(null); setError(null); }} />
       </View>
@@ -145,8 +160,8 @@ export function MoneyWorkspace() {
       </Text>
       {message ? <Text accessibilityRole="alert" className="mt-2 text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
       <View className="mt-3 flex-row flex-wrap gap-2">
-        <PrimaryButton label="Move money" icon={ArrowRightLeft} disabled={busy || !!editor} onPress={openMove} />
-        <GhostButton small tone="primary" label={summary.has_opening ? 'Change opening balances' : 'Set opening balances'} disabled={busy || !!editor} onPress={openOpening} />
+        {mayMove ? <PrimaryButton label="Move money" icon={ArrowRightLeft} disabled={busy || !!editor} onPress={openMove} /> : null}
+        {mayOpening ? <GhostButton small tone="primary" label={summary.has_opening ? 'Change opening balances' : 'Set opening balances'} disabled={busy || !!editor} onPress={openOpening} /> : null}
       </View>
       {pane}
       <View className="mt-4 flex-row gap-3 border-y border-border-soft py-3">
@@ -157,18 +172,29 @@ export function MoneyWorkspace() {
     </> : null}
   </View>;
 
+  if (!mayView) {
+    return <KScreen><KHeader title="Cash & bank" onBack={backToKitchen} /><Notice tone="neutral" text="Your login does not show cash and bank balances. Ask the owner if you need them." /></KScreen>;
+  }
+
   return <KeyboardAvoider><KScreen scroll={false} wide>
     <FlatList<MoneyMove> className="flex-1" data={summary?.moves ?? []} keyExtractor={m => m.id} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}
       refreshing={false} onRefresh={() => { if (!busyRef.current) void load(); }}
       ListEmptyComponent={summary ? <Text className="py-3 text-sm leading-5 text-text-secondary">No transfers yet. Use Move money when cash is deposited into the bank or withdrawn from it.</Text> : null}
-      renderItem={({ item }) => <View className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2">
+      renderItem={({ item }) => <View className="min-h-16 flex-row flex-wrap items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2">
         <View className="min-w-0 flex-1">
           <Text className="text-sm font-bold leading-5 text-text-primary">{ACCOUNT_LABEL[item.from_account]} → {ACCOUNT_LABEL[item.to_account]}</Text>
           <Text className="text-xs leading-5 text-text-secondary" numberOfLines={2}>{historyDateLabel(item.move_date)}{item.note ? ' · ' + item.note : ''} · {item.created_by}</Text>
         </View>
         <Text className="text-sm font-bold text-text-primary" style={tabular}>{rupees(item.amount_paise)}</Text>
-        <GhostButton small label="Void" disabled={busy} onPress={() => voidMove(item)} />
+        {mayMove && (!access.isLocked(item.move_date) || access.isOwner) ? <GhostButton small label="Void" disabled={busy} onPress={() => startVoid(item)} /> : null}
+        {voiding === item.id ? <View className="w-full gap-2 pb-2">
+          <TextField label="Reason for changing a locked day" value={voidReason} onChange={setVoidReason} placeholder="Why this transfer is being voided" autoFocus />
+          <View className="flex-row gap-2">
+            <GhostButton small tone="out" label="Void transfer" disabled={busy || !voidReason.trim()} onPress={() => voidMove(item)} />
+            <GhostButton small label="Cancel" onPress={() => setVoiding(null)} />
+          </View>
+        </View> : null}
       </View>} />
   </KScreen></KeyboardAvoider>;
 }

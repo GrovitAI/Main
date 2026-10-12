@@ -4,6 +4,7 @@ import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-
 import { entryAmountText, entryHeadline, entrySubline, isMoneyIn, isMoneyOut } from '@/lib/pos/kitchen-utils';
 import { historyAuditText, historyDateLabel, historyStatus, historyTimeLabel, HISTORY_STATUS_LABELS } from '@/lib/pos/kitchen-history-utils';
 import { toneColor, useDesktopDensity } from '@/components/kitchen/ui';
+import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
 /** History keeps audit information visible without adding it to everyday Home rows. */
 export function HistoryEntry({ entry, itemsById, partiesById, onPress }: {
@@ -17,7 +18,8 @@ export function HistoryEntry({ entry, itemsById, partiesById, onPress }: {
   const status = historyStatus(entry);
   const audit = historyAuditText(entry);
   const removed = entry.voided_at !== null;
-  const amount = entryAmountText(entry);
+  const { showAmounts } = useKitchenAccess();
+  const amount = showAmounts ? entryAmountText(entry) : '';
   const tone = removed ? 'neutral' : isMoneyIn(entry) ? 'in' : isMoneyOut(entry) ? 'out' : 'neutral';
   return <Pressable testID="kitchen-history-entry" accessibilityRole="button"
     accessibilityLabel={`${title}, ${amount}, ${HISTORY_STATUS_LABELS[status]}. Transaction ${historyDateLabel(entry.entry_date)}. Entered by ${entry.created_by}, ${historyTimeLabel(entry.created_at)}${audit ? '. ' + audit : ''}`}

@@ -2,6 +2,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
+import { describeAccessError } from '@/lib/pos/kitchen-utils';
 import type { ServiceResult } from '@/lib/pos/kitchen-types';
 
 /** Cash is cash in hand; Bank includes UPI, which settles into the bank account. */
@@ -47,6 +48,8 @@ function scope(): { p_tenant_id: string; p_branch_id: string } {
 function safeError(error: unknown, write = false): string {
   const r = record(error) ? error : null; const code = r?.code; const message = typeof r?.message === 'string' ? r.message : '';
   if (code === 'PGRST202' || code === '42P01') return 'Cash and bank balances are not on this database yet.';
+  const access = describeAccessError(message);
+  if (access) return access;
   if (message.includes('KITCHEN_FORBIDDEN') || code === '42501') return 'This login cannot keep the kitchen’s cash and bank.';
   if (message.includes('KITCHEN_MONEY_CHANGED') || code === '23505') return 'This transfer changed. Refresh before trying again.';
   if (message.includes('KITCHEN_MONEY_INVALID')) return 'Check the amount and the date.';
@@ -71,21 +74,21 @@ export async function setKitchenMoneyOpening(asOf: string, cashPaise: number, ba
   } catch { return { data: null, error: safeError(null, true) }; }
 }
 
-export async function moveKitchenMoney(moveDate: string, from: MoneyAccount, amountPaise: number, note: string, requestKey: string): Promise<ServiceResult<string>> {
+export async function moveKitchenMoney(moveDate: string, from: MoneyAccount, amountPaise: number, note: string, requestKey: string, lockReason: string | null = null): Promise<ServiceResult<string>> {
   try {
     const to: MoneyAccount = from === 'cash' ? 'bank' : 'cash';
     if (!validKitchenDate(moveDate) || moveDate > kitchenToday() || !Number.isSafeInteger(amountPaise) || amountPaise <= 0 || amountPaise > MONEY_LIMIT_PAISE
       || note.trim().length > 200 || requestKey.length < 12 || requestKey.length > 80) return { data: null, error: 'Enter an amount and a date up to today.' };
     const { data, error } = await supabase.rpc('kitchen_move_money', { ...scope(), p_move_date: moveDate, p_from: from, p_to: to,
-      p_amount_paise: amountPaise, p_note: note.trim() || null, p_request_key: requestKey });
+      p_amount_paise: amountPaise, p_note: note.trim() || null, p_request_key: requestKey, p_lock_reason: lockReason?.trim() || null });
     if (error || typeof data !== 'string') return { data: null, error: safeError(error, true) };
     return { data, error: null };
   } catch { return { data: null, error: safeError(null, true) }; }
 }
 
-export async function voidKitchenMoneyMove(id: string): Promise<ServiceResult<string>> {
+export async function voidKitchenMoneyMove(id: string, lockReason: string | null = null): Promise<ServiceResult<string>> {
   try {
-    const { data, error } = await supabase.rpc('kitchen_void_money_move', { ...scope(), p_move_id: id });
+    const { data, error } = await supabase.rpc('kitchen_void_money_move', { ...scope(), p_move_id: id, p_lock_reason: lockReason?.trim() || null });
     if (error || data !== id) return { data: null, error: safeError(error, true) };
     return { data, error: null };
   } catch { return { data: null, error: safeError(null, true) }; }

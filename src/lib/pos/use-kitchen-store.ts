@@ -15,6 +15,11 @@ import {
 } from './kitchen-service';
 import { localDateKey } from './kitchen-utils';
 import { fetchKitchenPurchaseCategories } from '@/lib/pos/kitchen-analytics-service';
+import { kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
+import { fetchKitchenAccess } from '@/lib/pos/kitchen-access-service';
+import { can, canFix, dateBlock, fullAccess, isDayLocked } from '@/lib/pos/kitchen-access-utils';
+import type { KitchenAccess, KitchenPermission } from '@/lib/pos/kitchen-access-types';
+import { useSessionStore } from '@/lib/pos/use-session-store';
 import type { KitchenCategory, KitchenEntry, KitchenItem, KitchenParty, KitchenPartyBalance } from './kitchen-types';
 
 /** How far back the home and history look without asking for more. */
@@ -33,6 +38,8 @@ type KitchenState = {
   purchaseCategories: KitchenCategory[];
   balances: KitchenPartyBalance[];
   entries: KitchenEntry[];
+  /** What this login may do here, and how days are locked. Full until the database answers. */
+  access: KitchenAccess;
   loaded: boolean;
   loading: boolean;
   error: string | null;
@@ -45,7 +52,7 @@ type KitchenState = {
   reset: () => void;
 };
 
-const EMPTY = { items: [], parties: [], categories: [], purchaseCategories: [], balances: [], entries: [], loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
+const EMPTY = { items: [], parties: [], categories: [], purchaseCategories: [], balances: [], entries: [], access: fullAccess(kitchenToday()), loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
 
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -59,15 +66,16 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
   load: async (silent = false) => {
     if (get().loading) return;
     set({ loading: true, error: silent ? get().error : null });
-    const [items, parties, categories, balances, entries, purchaseCategories] = await Promise.all([
+    const [items, parties, categories, balances, entries, purchaseCategories, access] = await Promise.all([
       fetchKitchenItems(),
       fetchKitchenParties(),
       fetchKitchenCategories(),
       fetchKitchenBalances(),
       fetchKitchenEntries({ from: daysAgoKey(RECENT_DAYS), includeVoided: true }),
       fetchKitchenPurchaseCategories(true),
+      fetchKitchenAccess(kitchenToday()),
     ]);
-    const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error ?? purchaseCategories.error;
+    const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error ?? purchaseCategories.error ?? access.error;
     set({
       items: items.data ?? get().items,
       parties: parties.data ?? get().parties,
@@ -75,6 +83,7 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
       purchaseCategories: purchaseCategories.data ?? get().purchaseCategories,
       balances: balances.data ?? get().balances,
       entries: entries.data ?? get().entries,
+      access: access.data ?? get().access,
       loaded: true,
       loading: false,
       error,
@@ -106,3 +115,26 @@ export function useKitchenData() {
 }
 
 export type KitchenData = ReturnType<typeof useKitchenData>;
+
+/**
+ * This login's permissions in the kitchen, for showing and hiding actions.
+ * The database enforces every one of them; this only keeps the screens honest.
+ */
+export function useKitchenAccess() {
+  const access = useKitchenStore((s) => s.access);
+  const userId = useSessionStore((s) => s.session?.userId ?? null);
+  return useMemo(() => ({
+    access,
+    isOwner: access.isOwner,
+    can: (permission: KitchenPermission): boolean => can(access, permission),
+    /** Why this login cannot save on that day, or null. */
+    dateBlock: (day: string): string | null => dateBlock(access, day),
+    /** The owner is changing a locked day and must give a reason. */
+    needsLockReason: (day: string): boolean => access.isOwner && isDayLocked(access, day),
+    isLocked: (day: string): boolean => isDayLocked(access, day),
+    canFix: (entry: KitchenEntry): boolean => canFix(access, entry, userId, (iso) => kitchenToday(new Date(iso))),
+    showAmounts: can(access, 'amounts.view'),
+  }), [access, userId]);
+}
+
+export type KitchenAccessView = ReturnType<typeof useKitchenAccess>;

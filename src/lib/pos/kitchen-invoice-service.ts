@@ -2,6 +2,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
+import { describeAccessError } from '@/lib/pos/kitchen-utils';
 import type { ServiceResult, KitchenMode } from '@/lib/pos/kitchen-types';
 import type { InvoiceDelivery, InvoiceFilter, InvoiceLine, InvoiceWorkspace, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 
@@ -44,6 +45,8 @@ function validFilter(f: InvoiceFilter): boolean {
 function safeError(error: unknown, write = false): string {
   const r = record(error) ? error : null; const code = r?.code; const message = typeof r?.message === 'string' ? r.message : '';
   if (code === 'PGRST202' || code === '42P01') return 'The invoice update is not on this database yet.';
+  const access = describeAccessError(message);
+  if (access) return access;
   if (message.includes('KITCHEN_INVOICE_CHANGED') || code === '23505') return 'The deliveries or payments changed. Refresh before trying again.';
   if (message.includes('KITCHEN_INVOICE_INVALID')) return 'Check the branch, dates and finished-goods deliveries.';
   return write ? 'Unable to confirm the save. Refresh invoices before trying again.' : 'Unable to load invoices. Please retry.';
@@ -82,12 +85,12 @@ export async function createKitchenInvoice(filter: InvoiceFilter, entries: reado
     return { data, error: null };
   } catch { return { data: null, error: safeError(null, true) }; }
 }
-export async function receiveKitchenInvoicePayment(id: string, amountPaise: number, date: string, mode: KitchenMode, requestKey: string): Promise<ServiceResult<string>> {
+export async function receiveKitchenInvoicePayment(id: string, amountPaise: number, date: string, mode: KitchenMode, requestKey: string, lockReason: string | null = null): Promise<ServiceResult<string>> {
   try {
     if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0 || !validKitchenDate(date) || date > kitchenToday() || !['cash', 'upi', 'bank'].includes(mode) || requestKey.length < 12 || requestKey.length > 80)
       return { data: null, error: 'Enter a valid payment amount, date and mode.' };
     const { data, error } = await supabase.rpc('kitchen_invoice_action', { ...scope(), p_invoice_id: id, p_action: 'receive',
-      p_amount_paise: amountPaise, p_date: date, p_mode: mode, p_request_key: requestKey });
+      p_amount_paise: amountPaise, p_date: date, p_mode: mode, p_request_key: requestKey, p_lock_reason: lockReason?.trim() || null });
     if (error || typeof data !== 'string') return { data: null, error: safeError(error, true) };
     return { data, error: null };
   } catch { return { data: null, error: safeError(null, true) }; }

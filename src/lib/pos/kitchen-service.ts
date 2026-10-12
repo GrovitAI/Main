@@ -88,7 +88,7 @@ function actorName(): string {
 const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, stock, is_active, updated_at';
 const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise, purchase_category_id';
 const ENTRY_COLUMNS =
-  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_at, voided_at, voided_by, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
+  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_by_id, created_at, voided_at, voided_by, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
 const UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
 const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count'];
@@ -151,6 +151,7 @@ function mapEntry(row: Record<string, unknown>): KitchenEntry {
     category: toStringOrNull(row.category),
     note: toStringOrNull(row.note),
     created_by: String(row.created_by ?? 'Staff'),
+    created_by_id: toStringOrNull(row.created_by_id),
     created_at: String(row.created_at ?? ''),
     voided_at: toStringOrNull(row.voided_at),
     voided_by: toStringOrNull(row.voided_by),
@@ -418,7 +419,9 @@ export async function fetchKitchenItemEntries(itemId: string, limit = 100): Prom
   }
 }
 
-/** Posts one entry: the row, its lines, its matches and the stock, in one transaction. */
+const withLockReason = (payload: Record<string, unknown>, reason: string | null): Record<string, unknown> =>
+  reason && reason.trim() ? { ...payload, lock_reason: reason.trim() } : payload;
+
 /** The shape kitchen_post_entry and kitchen_edit_entry read: paise, not rupees. */
 function entryPayload(input: PostEntryInput): Record<string, unknown> {
   const { branch_id } = scope();
@@ -463,9 +466,10 @@ function entryPayload(input: PostEntryInput): Record<string, unknown> {
   return payload;
 }
 
-export async function postKitchenEntry(input: PostEntryInput): Promise<ServiceResult<KitchenEntry>> {
+/** `lockReason` is the owner's reason for changing a locked day; the database logs it. */
+export async function postKitchenEntry(input: PostEntryInput, lockReason: string | null = null): Promise<ServiceResult<KitchenEntry>> {
   try {
-    const { data, error } = await supabase.rpc('kitchen_post_entry', { p: entryPayload(input) });
+    const { data, error } = await supabase.rpc('kitchen_post_entry', { p: withLockReason(entryPayload(input), lockReason) });
     if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the entry.') };
     return { data: mapEntry({ ...data, lines: [] }), error: null };
   } catch (err) {
@@ -479,9 +483,9 @@ export async function postKitchenEntry(input: PostEntryInput): Promise<ServiceRe
  * covered the old buy or send carry over to the new one as far as its amount
  * allows. The kind of entry cannot change.
  */
-export async function editKitchenEntry(id: string, input: PostEntryInput): Promise<ServiceResult<KitchenEntry>> {
+export async function editKitchenEntry(id: string, input: PostEntryInput, lockReason: string | null = null): Promise<ServiceResult<KitchenEntry>> {
   try {
-    const { data, error } = await supabase.rpc('kitchen_edit_entry', { p_entry_id: id, p: entryPayload(input) });
+    const { data, error } = await supabase.rpc('kitchen_edit_entry', { p_entry_id: id, p: withLockReason(entryPayload(input), lockReason) });
     if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the changes.') };
     return { data: mapEntry({ ...data, lines: [] }), error: null };
   } catch (err) {
@@ -537,6 +541,8 @@ export async function fetchKitchenCategories(includeInactive = false): Promise<S
         const seed = DEFAULT_KITCHEN_CATEGORIES.map((name, i) => ({ tenant_id, branch_id, name, sort_order: (i + 1) * 10 }));
         const { error: seedError } = await supabase.from('kitchen_categories').insert(seed);
         // Another device may have written the same list a moment earlier; either way, read what is there.
+        // A login that may not add categories leaves the list empty for someone who may.
+        if (seedError && seedError.code === '42501') return { data: [], error: null };
         if (seedError && seedError.code !== '23505') return { data: null, error: explain(seedError, 'Unable to set up the categories.') };
         const again = await read();
         if (again.error) return { data: null, error: explain(again.error, 'Unable to load the categories.') };

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Share, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
@@ -24,6 +25,9 @@ const tabs: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales'
 
 export function AnalyticsWorkspace() {
   const insets = useSafeAreaInsets();
+  const kitchenAccess = useKitchenAccess();
+  const mayExport = kitchenAccess.can('reports.export');
+  const mayInvoices = kitchenAccess.can('invoices.create') || kitchenAccess.can('invoices.receive') || kitchenAccess.can('invoices.cancel');
   const { width } = useWindowDimensions();
   const [reportWidth, setReportWidth] = useState(width);
   // The sidebar and phone frame reduce the actual space available to reports.
@@ -141,7 +145,7 @@ export function AnalyticsWorkspace() {
           <Info size={18} color={colors.primary} />
         </Pressable>;
   const headerActions = <View className="flex-row gap-1">
-        {desktop && kind === 'sales' ? <Pressable accessibilityRole="button" accessibilityLabel="Branch invoices" onPress={() => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never)} className={controls}>
+        {desktop && kind === 'sales' && mayInvoices ? <Pressable accessibilityRole="button" accessibilityLabel="Branch invoices" onPress={() => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never)} className={controls}>
           <Receipt size={18} color={colors.primary} /><Text className="text-sm font-bold text-primary">Invoices</Text>
         </Pressable> : null}
         {desktop ? infoButton : null}
@@ -164,8 +168,8 @@ export function AnalyticsWorkspace() {
     ? <><Text style={{ color: semantic.success }}>{'Received ' + money(report.filtered_in_paise)}</Text>{' · '}<Text style={{ color: semantic.danger }}>{'Paid ' + money(report.filtered_out_paise)}</Text></>
     : (desktop || activeFilters || detail ? 'Filtered total ' : 'Report total ') + money(report.filtered_paise) : null;
   const reportActions = [
-    ...(kind === 'sales' ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
-    { id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportCsv() },
+    ...(kind === 'sales' && mayInvoices ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
+    ...(mayExport ? [{ id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportCsv() }] : []),
     { id: 'refresh', label: 'Refresh reports', Icon: RefreshCw, disabled: loading, action: () => setRefresh(value => value + 1) },
     { id: 'info', label: 'About these reports', Icon: Info, disabled: false, action: () => setNotesOpen(value => !value) },
   ];
@@ -234,7 +238,7 @@ export function AnalyticsWorkspace() {
             <Text accessibilityRole="header" className="text-sm font-bold leading-5 text-text-primary">{detail ? 'Recorded entries' : title}</Text>
             {!desktop && report ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{reportTotal}{' · '}{report.total_rows} {rowCountLabel}</Text> : null}
           </View>
-          {desktop ? exportButton : <Pressable accessibilityRole="button" accessibilityLabel="Report actions" accessibilityState={{ expanded: actionsOpen }} onPress={() => setActionsOpen(true)} className={controls + ' shrink-0'}>
+          {desktop ? (mayExport ? exportButton : null) : <Pressable accessibilityRole="button" accessibilityLabel="Report actions" accessibilityState={{ expanded: actionsOpen }} onPress={() => setActionsOpen(true)} className={controls + ' shrink-0'}>
             {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <MoreHorizontal size={20} color={colors.primary} />}
           </Pressable>}
         </View>

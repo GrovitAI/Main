@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2 } from 'lucide-react-native';
 import { fetchKitchenItemEntries, postKitchenEntry, setKitchenItemActive } from '@/lib/pos/kitchen-service';
-import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
@@ -32,6 +32,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<KitchenEntry | null>(null);
+  const { can, showAmounts } = useKitchenAccess();
 
   const loadMoves = useCallback(async () => {
     const res = await fetchKitchenItemEntries(itemId);
@@ -99,13 +100,13 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
     <View>
       <KHeader
         title={item.name}
-        subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}
+        subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={
           <View className="flex-row" style={{ gap: 8 }}>
-            <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } })} />
-            <IconButton icon={Trash2} label={`Remove ${item.name}`} tone="out" onPress={remove} />
+            {can('setup.items') ? <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } })} /> : null}
+            {can('setup.items') ? <IconButton icon={Trash2} label={`Remove ${item.name}`} tone="out" onPress={remove} /> : null}
           </View>
         }
       />
@@ -119,8 +120,8 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
             {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
           </View>
           <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>
-            {item.item_kind === 'finished_good' ? <View className="flex-1"><GhostButton label="Create batch" tone="primary" disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
-            <View className="flex-1"><GhostButton label="Count stock" disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View>
+            {item.item_kind === 'finished_good' && can('entries.batch') ? <View className="flex-1"><GhostButton label="Create batch" tone="primary" disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
+            {can('entries.count') ? <View className="flex-1"><GhostButton label="Count stock" disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
           </View>
         </View>
         {panel ? (

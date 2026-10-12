@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2, MessageCircle } from 'lucide-react-native';
 import { setKitchenPartyActive } from '@/lib/pos/kitchen-service';
-import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
 import { entrySubline, formatDayLabel, formatMoney, statementRows, typeLabel, whatsappUrl } from '@/lib/pos/kitchen-utils';
@@ -28,6 +28,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const rows = useMemo(() => (party ? statementRows(data.entries, partyId, party.kind, party.opening) : []), [data.entries, partyId, party]);
   const [open, setOpen] = useState<KitchenEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { can, showAmounts } = useKitchenAccess();
 
   if (!party) {
     return (
@@ -66,8 +67,8 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         large={!standalone}
         right={
           <View className="flex-row" style={{ gap: 8 }}>
-            <IconButton icon={Pencil} label={`Edit ${party.name}`} onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } })} />
-            <IconButton icon={Trash2} label={`Remove ${party.name}`} tone="out" onPress={remove} />
+            {can('setup.parties') ? <IconButton icon={Pencil} label={`Edit ${party.name}`} onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } })} /> : null}
+            {can('setup.parties') ? <IconButton icon={Trash2} label={`Remove ${party.name}`} tone="out" onPress={remove} /> : null}
           </View>
         }
       />
@@ -75,7 +76,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
           <View className={desktop ? 'min-w-0 flex-1' : undefined}>
             <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
-            <Text className={`mt-0.5 font-extrabold ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`} style={{ letterSpacing: desktop ? -0.4 : -0.8, color: tone, fontVariant: ['tabular-nums'] }}>{formatMoney(Math.abs(balance))}</Text>
+            <Text className={`mt-0.5 font-extrabold ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`} style={{ letterSpacing: desktop ? -0.4 : -0.8, color: tone, fontVariant: ['tabular-nums'] }}>{showAmounts ? formatMoney(Math.abs(balance)) : '—'}</Text>
             {party.phone ? (
               <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
                 <MessageCircle size={16} color={semantic.success} />
@@ -86,13 +87,13 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
           <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>
             {isBranch ? (
               <>
-                <View className="flex-1"><PrimaryButton label="Received" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View>
-                <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View>
+                {can('entries.receive') ? <View className="flex-1"><PrimaryButton label="Received" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View> : null}
+                {can('entries.send') ? <View className="flex-1"><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View> : null}
               </>
             ) : (
               <>
-                <View className="flex-1"><PrimaryButton label="Pay" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View>
-                <View className="flex-1"><GhostButton label="Bought" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View>
+                {can('entries.pay') ? <View className="flex-1"><PrimaryButton label="Pay" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View> : null}
+                {can('entries.buy') ? <View className="flex-1"><GhostButton label="Bought" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View> : null}
               </>
             )}
           </View>
@@ -111,8 +112,8 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
                   key={entry.id}
                   title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}
                   subtitle={entrySubline(entry, data.itemsById)}
-                  right={`${moneyBack ? '−' : ''}${formatMoney(entry.amount)}`}
-                  rightSub={`then ${formatMoney(balanceAfter)}`}
+                  right={showAmounts ? `${moneyBack ? '−' : ''}${formatMoney(entry.amount)}` : undefined}
+                  rightSub={showAmounts ? `then ${formatMoney(balanceAfter)}` : undefined}
                   tone={moneyBack ? 'in' : 'neutral'}
                   onPress={() => setOpen(entry)}
                 />
@@ -124,8 +125,8 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
             <Row
               title="Opening balance"
               subtitle="Before this app started"
-              right={formatMoney(Math.abs(party.opening))}
-              rightSub={party.opening > 0 ? (isBranch ? 'yet to pay' : 'we owed') : isBranch ? 'paid ahead' : 'overpaid'}
+              right={showAmounts ? formatMoney(Math.abs(party.opening)) : undefined}
+              rightSub={!showAmounts ? undefined : party.opening > 0 ? (isBranch ? 'yet to pay' : 'we owed') : isBranch ? 'paid ahead' : 'overpaid'}
               tone="neutral"
             />
           ) : null}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { saveKitchenItem } from '@/lib/pos/kitchen-service';
-import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_UNITS, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
 import { parseAmount } from '@/lib/pos/kitchen-utils';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -12,6 +12,7 @@ const UNIT_LABELS: Record<KitchenUnit, string> = { kg: 'Kilograms', L: 'Litres',
 
 /** A new item, or a change to one: name, unit, the price a branch pays. */
 export default function ItemFormScreen() {
+  const mayEdit = useKitchenAccess().can('setup.items');
   const data = useKitchenData();
   const { id, kind: initialKind } = useLocalSearchParams<{ id?: string; kind?: string }>();
   const existing = id ? data.itemsById.get(id) ?? null : null;
@@ -58,8 +59,9 @@ export default function ItemFormScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={id ? 'Save changes' : 'Add item'} onPress={() => void save()} disabled={!name.trim() || Boolean(id && !existing)} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={id ? 'Save changes' : 'Add item'} onPress={() => void save()} disabled={!mayEdit || !name.trim() || Boolean(id && !existing)} loading={saving} />}>
         <KHeader title={existing ? 'Edit item' : kind === 'finished_good' ? 'Add a finished good' : 'Add a raw material'} onBack={() => backToKitchen()} />
+        {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change items. Ask the owner." /> : null}
         <Field label="Item type" hint={existing ? 'Past entries stay unchanged. This controls which stock list and new entry pickers show the item.' : undefined}>
           <Chips options={[{ value: 'raw_material', label: 'Raw material' }, { value: 'finished_good', label: 'Finished good' }]} value={kind} onChange={setKind} />
         </Field>

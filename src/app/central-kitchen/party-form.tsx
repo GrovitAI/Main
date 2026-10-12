@@ -3,7 +3,7 @@ import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { saveKitchenParty } from '@/lib/pos/kitchen-service';
-import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -18,6 +18,7 @@ type Side = 'owed' | 'ahead';
  */
 export default function PartyFormScreen() {
   const data = useKitchenData();
+  const mayEdit = useKitchenAccess().can('setup.parties');
   const params = useLocalSearchParams<{ id?: string; kind?: string }>();
   const existing = params.id ? data.partiesById.get(params.id) ?? null : null;
   const kind: KitchenPartyKind = existing?.kind ?? (params.kind === 'vendor' ? 'vendor' : 'branch');
@@ -54,8 +55,9 @@ export default function PartyFormScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : `Add ${noun}`} onPress={() => void save()} disabled={!name.trim()} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : `Add ${noun}`} onPress={() => void save()} disabled={!mayEdit || !name.trim()} loading={saving} />}>
         <KHeader title={existing ? `Edit ${noun}` : `Add a ${noun}`} subtitle={existing ? undefined : isBranch ? 'An outlet the kitchen sends to' : 'Someone the kitchen buys from'} onBack={() => backToKitchen()} />
+        {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change branches and vendors. Ask the owner." /> : null}
         <Field label="Name">
           <TextField value={name} onChange={setName} label={`${noun} name`} placeholder={isBranch ? 'e.g. Kolathur' : 'e.g. Aavin dairy'} autoFocus={!existing} />
         </Field>

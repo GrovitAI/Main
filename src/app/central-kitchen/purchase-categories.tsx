@@ -5,10 +5,11 @@ import { router, useFocusEffect } from 'expo-router';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenPurchaseCategories, saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
 import type { KitchenCategory } from '@/lib/pos/kitchen-types';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { Empty, KHeader, KScreen, Notice, PrimaryButton } from '@/components/kitchen/ui';
 
 export default function PurchaseCategoriesScreen() {
+  const mayEdit = useKitchenAccess().can('setup.categories');
   const [categories, setCategories] = useState<KitchenCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,10 +40,11 @@ export default function PurchaseCategoriesScreen() {
         keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}
         ListHeaderComponent={<View className="gap-3">
           <KHeader title="Purchase categories" onBack={() => router.back()} subtitle="Defaults for vendors and categories on buys" />
+          {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change categories. Ask the owner." /> : null}
           <Text className="text-sm leading-5 text-text-secondary">Rename or archive a category here. Saved purchases keep their original category label; expense categories are managed on Spent.</Text>
           <Text className="text-sm font-bold text-text-primary">{editing ? 'Rename ' + editing.name : 'Add a category'}</Text>
           <TextInput value={name} onChangeText={setName} placeholder="e.g. Dairy" accessibilityLabel="Purchase category name" maxLength={80} placeholderTextColor={colors.textSecondary} className="min-h-12 rounded-xl bg-surface-elevated px-3 text-base text-text-primary" />
-          <PrimaryButton label={editing ? 'Save name' : 'Add category'} disabled={!name.trim() || loading} loading={saving} onPress={() => void save()} />
+          <PrimaryButton label={editing ? 'Save name' : 'Add category'} disabled={!mayEdit || !name.trim() || loading} loading={saving} onPress={() => void save()} />
           {editing ? <Pressable accessibilityRole="button" onPress={() => { setEditing(null); setName(''); }} className="min-h-12 items-center justify-center"><Text className="font-bold text-primary">Cancel rename</Text></Pressable> : null}
           {error ? <Notice text={error} action={<Pressable accessibilityRole="button" onPress={() => void load()} className="min-h-12 justify-center px-3"><Text className="font-bold text-primary">Retry</Text></Pressable>} /> : null}
           {loading ? <ActivityIndicator color={colors.primary} /> : null}

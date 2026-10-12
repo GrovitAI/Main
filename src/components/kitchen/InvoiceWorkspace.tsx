@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { ActivityIndicator, FlatList, Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Check, Square } from 'lucide-react-native';
@@ -17,7 +18,7 @@ import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
 import { KHeader, KScreen, Notice, TextField } from '@/components/kitchen/ui';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
-import { DateField, ModePicker } from '@/components/kitchen/forms';
+import { DateField, useDateGuard, ModePicker } from '@/components/kitchen/forms';
 
 type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; value: InvoiceDelivery } | { kind: 'line' | 'docline'; value: InvoiceLine; date: string };
 type Preview = { invoice: KitchenInvoice; checkedAt: Date };
@@ -54,6 +55,8 @@ export function InvoiceWorkspace() {
   const [editor, setEditor] = useState<'receive' | 'cancel' | null>(null); const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(today); const [mode, setMode] = useState<KitchenMode>('upi'); const [reason, setReason] = useState('');
   const [message, setMessage] = useState<string | null>(null); const [preview, setPreview] = useState<Preview | null>(null);
+  const access = useKitchenAccess(); const [lockReason, setLockReason] = useState('');
+  const paymentDateOk = useDateGuard(paymentDate, lockReason);
   const paymentKey = useRef(''); const paymentPaise = Math.round(parseAmount(amount) * 100);
   // Invoices is a tab, so it stays mounted: a later Analytics link replaces the branch and dates.
   const appliedParams = useRef([params.start, params.end, params.party].join('|'));
@@ -107,7 +110,7 @@ export function InvoiceWorkspace() {
   };
   const saveAction = async (): Promise<void> => {
     if (!invoice || !editor || !startBusy()) return;
-    const result = editor === 'cancel' ? await cancelKitchenInvoice(invoice.id, reason) : await receiveKitchenInvoicePayment(invoice.id, paymentPaise, paymentDate, mode, paymentKey.current);
+    const result = editor === 'cancel' ? await cancelKitchenInvoice(invoice.id, reason) : await receiveKitchenInvoicePayment(invoice.id, paymentPaise, paymentDate, mode, paymentKey.current, lockReason);
     endBusy();
     if (result.error) { setError(result.error); return; }
     setMessage(editor === 'cancel' ? 'Invoice cancelled. Deliveries and payments are retained.' : 'Payment recorded');
@@ -135,12 +138,12 @@ export function InvoiceWorkspace() {
     {editor === 'receive' ? <>
       <View className={desktop ? 'max-w-[420px]' : ''}><TextField label="Invoice payment amount" value={amount} onChange={setAmount} prefix="₹" keyboardType="decimal-pad" placeholder="Amount received" /></View>
       <Text className="text-xs leading-5" style={{ color: paymentPaise > invoice.open_paise ? semantic.warning : colors.textSecondary }}>{paymentPaise > invoice.open_paise ? 'More than the ' + invoiceMoney(invoice.open_paise) + ' still open on this invoice. Record any extra on the Received screen.' : invoiceMoney(invoice.open_paise) + ' is still open on this invoice.'}</Text>
-      <ModePicker value={mode} onChange={setMode} /><DateField value={paymentDate} onChange={setPaymentDate} />
+      <ModePicker value={mode} onChange={setMode} /><DateField value={paymentDate} onChange={setPaymentDate} lockReason={lockReason} onLockReason={setLockReason} />
       <Text className="text-xs leading-5 text-text-secondary">Record money already received. This payment is matched only to this invoice’s deliveries.</Text>
     </> : <><Text className="text-sm leading-5 text-text-secondary">This keeps the invoice as cancelled and releases its deliveries for correction or a new invoice. Sales, stock and payments stay recorded.</Text>
       <TextField label="Invoice cancellation reason" value={reason} onChange={setReason} placeholder="Reason for cancelling" /></>}
     <View className="flex-row flex-wrap gap-2"><Action label={busy ? 'Saving…' : editor === 'receive' ? 'Confirm received payment' : 'Confirm cancellation'} primary onPress={() => void saveAction()}
-      disabled={busy || (editor === 'cancel' ? !reason.trim() || reason.trim().length > 200 : paymentPaise <= 0 || paymentPaise > invoice.open_paise || !validKitchenDate(paymentDate) || paymentDate > today)} />
+      disabled={busy || (editor === 'cancel' ? !reason.trim() || reason.trim().length > 200 : paymentPaise <= 0 || paymentPaise > invoice.open_paise || !validKitchenDate(paymentDate) || paymentDate > today || !paymentDateOk)} />
       <Action label="Close" onPress={() => setEditor(null)} disabled={busy} /></View>
   </View> : null;
   const docHeader = preview ? <>
@@ -169,7 +172,7 @@ export function InvoiceWorkspace() {
   const header = <View className={'gap-3 ' + (preview ? '' : 'pb-3')}>
     <KHeader title={preview ? 'Invoice preview' : detailId && invoice ? invoiceNumber(invoice.invoice_no) : filter.candidates ? 'New invoice' : 'Invoices'} large={false}
       onBack={busy ? undefined : preview ? () => { setPreview(null); setError(null); } : detailId ? backToList : filter.candidates ? () => resetFilter({ candidates: false }) : undefined}
-      right={!detailId && !filter.candidates ? <Action label="New invoice" primary onPress={() => resetFilter({ candidates: true })} disabled={loading || busy} /> : null} />
+      right={!detailId && !filter.candidates && access.can('invoices.create') ? <Action label="New invoice" primary onPress={() => resetFilter({ candidates: true })} disabled={loading || busy} /> : null} />
     {preview ? null : !detailId ? <>
       <View className={'gap-2 ' + (desktop ? 'flex-row items-end' : '')}>
         <View className={desktop ? 'max-w-[340px] flex-1' : ''}><ReportSelect label="Branch" value={filter.partyId} options={branches}
@@ -189,8 +192,8 @@ export function InvoiceWorkspace() {
         {[['Total', invoice.total_paise], ['Matched payments', invoice.covered_paise], ['To pay', invoice.open_paise]].map(([label, value]) => <View key={String(label)} className="min-w-[80px] flex-1"><Text className="text-xs leading-4 text-text-secondary">{label}</Text><Text className="text-lg font-bold leading-6 text-text-primary" style={tabular}>{invoiceMoney(Number(value))}</Text></View>)}
       </View>
       <View className="flex-row flex-wrap gap-2"><Action label="Preview invoice" disabled={busy} onPress={() => void openPreview()} />
-        {invoice.status === 'to_be_paid' ? <Action label="Record payment" primary disabled={busy || !!editor} onPress={() => { paymentKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); setAmount(String(invoice.open_paise / 100)); setPaymentDate(today); setEditor('receive'); }} /> : null}
-        {invoice.status !== 'cancelled' ? <Action label="Cancel invoice" disabled={busy || !!editor} onPress={() => { setReason(''); setEditor('cancel'); }} /> : null}
+        {invoice.status === 'to_be_paid' && access.can('invoices.receive') ? <Action label="Record payment" primary disabled={busy || !!editor} onPress={() => { paymentKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); setAmount(String(invoice.open_paise / 100)); setPaymentDate(today); setEditor('receive'); }} /> : null}
+        {invoice.status !== 'cancelled' && access.can('invoices.cancel') ? <Action label="Cancel invoice" disabled={busy || !!editor} onPress={() => { setReason(''); setEditor('cancel'); }} /> : null}
       </View>
       {invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-secondary">Cancelled: {invoice.cancel_reason}</Text> : null}
       <Text className="text-xs leading-5 text-text-secondary">Prepared {invoiceIssuedDate(invoice.created_at)} by {invoice.created_by_name}. Unmatched branch receipts are not counted as invoice payments.</Text>
@@ -209,7 +212,7 @@ export function InvoiceWorkspace() {
         ListEmptyComponent={!loading && !error ? !detailId && !filter.candidates ? <View className="items-start gap-2 py-5">
           <Text className="text-sm font-semibold leading-5 text-text-primary">No saved invoices for this period.</Text>
           <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its finished-goods deliveries to create an invoice.</Text>
-          <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} />
+          {access.can('invoices.create') ? <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} /> : null}
         </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'No uninvoiced finished-goods deliveries for this period. Try another date range.' : 'Choose a branch to load its deliveries.'}</Text> : null}
         ListFooterComponent={preview ? docFooter : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
         renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}

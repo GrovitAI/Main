@@ -356,8 +356,20 @@ export function matchesSearch(query: string, ...fields: (string | null | undefin
 }
 
 /** Turns the database's short codes into a sentence the kitchen can act on. */
+/** Words for a permission or day-lock refusal from the database, or null for any other error. */
+export function describeAccessError(message: string | null | undefined): string | null {
+  const m = message ?? '';
+  if (m.includes('KITCHEN_DAY_LOCKED')) return 'That day is locked. Ask the owner to make the change.';
+  if (m.includes('KITCHEN_BACKDATE_NOT_ALLOWED')) return 'This login records today’s entries only.';
+  if (m.includes('KITCHEN_FUTURE_DATE')) return 'Entries cannot be dated in the future.';
+  if (m.includes('KITCHEN_NOT_ALLOWED') || m.includes('row-level security')) return 'Your login is not allowed to do this. Ask the owner.';
+  return null;
+}
+
 export function describeKitchenError(message: string | null | undefined, fallback: string): string {
   const m = message ?? '';
+  const access = describeAccessError(m);
+  if (access) return access;
   if (m.includes('KITCHEN_FORBIDDEN') || m.includes('42501')) return 'This login cannot write the kitchen’s books.';
   if (m.includes('KITCHEN_PARTY_NOT_FOUND')) return 'That branch or vendor is no longer in the list.';
   if (m.includes('KITCHEN_ITEM_NOT_FOUND')) return 'That item is no longer in the list.';
