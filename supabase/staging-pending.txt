@@ -2,19 +2,7 @@
 # scripts/staging-clone.ps1 applies these after copying production, so a
 # refreshed staging gets them back. Remove a line once the file is applied
 # to production. The earlier ten kitchen migrations were promoted on
-# 2026-10-07. These analytics migrations were verified in staging on 2026-10-08.
-20261008061518_kitchen_purchase_categories.sql
-20261008061650_kitchen_monthly_reports.sql
-20261008064237_kitchen_reports_month_to_date.sql
-20261008065451_kitchen_spending_category_totals.sql
-20261008152218_kitchen_report_date_range.sql
-20261010055214_kitchen_item_kinds.sql
-20261010070428_kitchen_attendance.sql
-20261010072231_kitchen_attendance_branch_indexes.sql
-20261011071731_kitchen_branch_invoices.sql
-# Task 190: applied to Grovit Staging on 2026-10-11 and verified (rollback-only fixture).
-20261011143000_kitchen_invoice_payment_oldest_first.sql
-# Task 193: applied to Grovit Staging on 2026-10-11 and verified (rollback-only fixture).
-20261011170000_kitchen_invoice_numbers.sql
-# Task 194: applied to Grovit Staging on 2026-10-11 and verified (rollback-only fixture).
-20261011170100_kitchen_cash_bank.sql
+# 2026-10-07. The twelve kitchen migrations from 2026-10-08 to 2026-10-11
+# (purchase categories through cash and bank) were promoted on 2026-10-12,
+# one at a time, and production's kitchen functions, tables, grants and
+# policies were checked to match staging.
