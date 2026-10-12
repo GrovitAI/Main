@@ -6,8 +6,6 @@
 # (purchase categories through cash and bank) were promoted on 2026-10-12,
 # one at a time, and production's kitchen functions, tables, grants and
 # policies were checked to match staging.
-# Task 202: kitchen permissions and day lock. Applied to Grovit Staging on
-# 2026-10-12 and verified (rollback-only fixtures; function bodies matched).
-20261012140000_kitchen_access.sql
-20261012140100_kitchen_access_enforce.sql
-20261012140200_kitchen_access_flags.sql
+# Task 202 (kitchen permissions and day lock, three migrations) promoted on
+# 2026-10-12; production kitchen functions, policies, grants and triggers
+# were checked to match staging.
