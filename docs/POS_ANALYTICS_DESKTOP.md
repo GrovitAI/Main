@@ -165,3 +165,38 @@ The owner noticed the header differed from the chosen preview and asked what
 Mocked Playwright: period and branch menus open, select and re-query; header
 fits on one row at 1440 px and 1100 px with no overflow; zero cloud requests
 forwarded. The full suite passed: 36 suites, 339 tests.
+
+## Task 200: month comparison, test tag and the date picker
+
+1. **This month compares with the same dates last month.** A range that
+   starts on the 1st and stays in one month (This month, or a month picked by
+   hand) now compares with the same dates in the previous month: 1–12 Oct
+   against 1–12 Sep. Each day pairs with the same date ("03 Oct" with
+   "03 Sep"). A date the shorter month lacks is clamped (31 Oct compares up to
+   30 Sep, and 31 Oct itself has no partner). Other ranges still compare with
+   the same number of days just before.
+2. **Test database tag.** The orange strip across the top is now a small
+   "TEST DATA" tag at the top centre. It floats over the screen, takes no
+   space and ignores taps. Production builds never show it.
+3. **Date picker rebuilt (shared by every screen that picks dates).** The
+   owner reported that date-range tap and hover areas kept misbehaving:
+   - each day is a full one-seventh-wide, 44 px tall target, with no gaps
+     between cells, so a tap or hover anywhere in the grid lands on a day;
+   - the range shows as one continuous band with round ends;
+   - hover works on every day, including days already in the range;
+   - after the first tap, hovering previews the range until the last day is
+     tapped, with a "Now tap the last day" hint;
+   - presets, month arrows, close, Cancel and Apply are 44 px;
+   - From and To read as full dates, with a day count;
+   - brand tokens replace hard-coded colours; dates are local (no UTC
+     off-by-one before 5:30 am) with fixed month names.
+
+   The props are unchanged, so every caller keeps working.
+4. On desktop analytics, "Custom dates…" opens the calendar and the period
+   pill only changes when dates are applied.
+
+Mocked Playwright: This month shows "vs 1–12 Sep" with day-to-same-date
+tooltips; calendar cells measure 58×44 with zero gaps; clicks on cell corners
+select; the hover preview and the 14-day range applied and re-queried; the
+tag sits clear of the desktop header and the phone screen title. Zero cloud
+requests forwarded. The full suite passed: 36 suites, 339 tests.

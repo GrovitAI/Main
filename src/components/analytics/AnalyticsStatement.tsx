@@ -70,11 +70,31 @@ function shortRange(start: string, end: string): string {
 }
 const isoDay = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** The equal-length period just before the loaded one, for "vs previous period". */
+/**
+ * A range that starts on the 1st and stays inside one month (This month, or a
+ * month picked by hand) compares with the same dates last month: 1–12 Oct
+ * against 1–12 Sep. A day the shorter month lacks is clamped (31 Oct → 30 Sep).
+ */
+function isMonthToDate(f: AnalyticsFilters): boolean {
+  return f.startDate.endsWith('-01') && f.startDate.slice(0, 7) === f.endDate.slice(0, 7);
+}
+/** The same day number one month earlier, or null when that month is shorter. */
+function sameDayLastMonth(d: Date): Date | null {
+  const back = new Date(d.getFullYear(), d.getMonth() - 1, d.getDate(), 12);
+  return back.getDate() === d.getDate() ? back : null;
+}
+
+/** The period every "vs" figure compares with: same dates last month for a month-to-date range, else the equal-length period just before. */
 function previousFilters(f: AnalyticsFilters): AnalyticsFilters | null {
   const start = new Date(f.startDate + 'T00:00:00'); const end = new Date(f.endDate + 'T00:00:00');
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   if (!Number.isFinite(days) || days < 1 || days > 366) return null;
+  if (isMonthToDate(f)) {
+    const prevStart = new Date(start.getFullYear(), start.getMonth() - 1, 1);
+    const lastDay = new Date(start.getFullYear(), start.getMonth(), 0).getDate();
+    const prevEnd = new Date(start.getFullYear(), start.getMonth() - 1, Math.min(end.getDate(), lastDay));
+    return { ...f, startDate: isoDay(prevStart), endDate: isoDay(prevEnd) };
+  }
   const prevEnd = new Date(start); prevEnd.setDate(start.getDate() - 1);
   const prevStart = new Date(prevEnd); prevStart.setDate(prevEnd.getDate() - (days - 1));
   return { ...f, startDate: isoDay(prevStart), endDate: isoDay(prevEnd) };
@@ -87,7 +107,8 @@ type AlignedDay = { label: string; sales: number; orders: number; previousSales:
 
 /**
  * One point per calendar day in the loaded range, zero where nothing sold, and
- * each day paired with the day exactly one period earlier. Falls back to the
+ * each day paired with its comparison day: the same date last month for a
+ * month-to-date range, else the day exactly one period earlier. Falls back to the
  * service's own points when its labels are not daily (for example, months).
  */
 function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboard | null, filters: AnalyticsFilters | null): AlignedDay[] {
@@ -102,10 +123,11 @@ function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboa
   const out: AlignedDay[] = [];
   for (let i = 0; i < span; i++) {
     const day = new Date(start); day.setDate(start.getDate() + i);
-    const before = new Date(day); before.setDate(day.getDate() - span);
+    const monthly = isMonthToDate(filters);
+    const before: Date | null = monthly ? sameDayLastMonth(day) : new Date(day.getFullYear(), day.getMonth(), day.getDate() - span, 12);
     const label = trendLabel(day);
     const hit = byLabel.get(label);
-    out.push({ label, sales: hit?.sales ?? 0, orders: hit?.orders ?? 0, previousSales: prevByLabel.get(trendLabel(before))?.sales ?? 0, previousLabel: trendLabel(before) });
+    out.push({ label, sales: hit?.sales ?? 0, orders: hit?.orders ?? 0, previousSales: before ? prevByLabel.get(trendLabel(before))?.sales ?? 0 : 0, ...(before ? { previousLabel: trendLabel(before) } : {}) });
   }
   // Labels that never match mean the service grouped differently; keep its points.
   return raw.length > 0 && !raw.some((p) => out.some((d) => d.label === p.label)) ? fallback : out;
@@ -290,7 +312,11 @@ export function AnalyticsStatement(props: Props) {
         <View className="flex-row flex-wrap items-center justify-end gap-2">
           <MenuButton label={`${presetName} · ${periodShort}`} icon={Calendar} accessibilityLabel={`Period: ${presetName}, ${periodLabel}`}
             options={PRESETS.map((p) => ({ id: p.id, label: p.id === 'custom' ? 'Custom dates…' : p.label, selected: props.preset === p.id }))}
-            onSelect={(id) => { const p = PRESETS.find((x) => x.id === id); if (p) props.onPreset(p.id); }} />
+            onSelect={(id) => {
+              // Custom opens the calendar; the period changes only when dates are applied.
+              if (id === 'custom') { props.onOpenDates(); return; }
+              const p = PRESETS.find((x) => x.id === id); if (p) props.onPreset(p.id);
+            }} />
           <ToolButton label={props.hours.enabled ? `${props.hours.start}–${props.hours.end}` : 'All hours'} icon={Clock} active={props.hours.enabled} onPress={props.hours.onToggle} />
           {props.canPickBranch && props.branches.length > 0 ? (
             <MenuButton label={selectedBranchName} icon={Building2} accessibilityLabel={`Branch: ${selectedBranchName}`}

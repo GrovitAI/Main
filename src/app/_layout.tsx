@@ -69,8 +69,6 @@ export default function RootLayout() {
         <ApprovalProvider>
           <StatusBar style="dark" />
           <View style={{ flex: 1 }}>
-            {/* Only on the staging copy of the database; nothing on the live one. */}
-            <TestDatabaseBanner />
             {/* Routes mount only after session restore so screens never fetch without tenant context. */}
             {!isRestoring && (
               <Stack screenOptions={{ headerShown: false }}>
@@ -79,6 +77,8 @@ export default function RootLayout() {
                 <Stack.Screen name="central-kitchen" />
               </Stack>
             )}
+            {/* Only on the staging copy of the database; a small tag drawn over the screens. */}
+            <TestDatabaseBanner />
             {isRestoring && (
               <View
                 style={{
