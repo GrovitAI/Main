@@ -40,6 +40,10 @@ type ColumnChartProps = {
  */
 export function ColumnChart({ points, height = 200, format, formatTick = format, labelEvery = 1, currentName = 'This period', previousName = 'Previous period', summary }: ColumnChartProps) {
   const [active, setActive] = useState<number | null>(null);
+  const [plotWidth, setPlotWidth] = useState(0);
+  // About 56 px per label; show every nth so labels never truncate.
+  const every = Math.max(labelEvery, plotWidth > 0 ? Math.ceil(points.length / Math.max(1, Math.floor(plotWidth / 56))) : labelEvery);
+  const groups = Array.from({ length: Math.ceil(points.length / every) }, (_, g) => ({ label: points[g * every]?.label ?? '', size: Math.min(every, points.length - g * every) }));
   const hasPrevious = points.some((p) => p.previous !== undefined);
   const max = niceMax(Math.max(0, ...points.map((p) => Math.max(p.value, p.previous ?? 0))));
   const peak = points.reduce((best, p, i) => (p.value > (points[best]?.value ?? -1) ? i : best), 0);
@@ -51,7 +55,7 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
         <View style={{ height, width: 52 }} className="justify-between">
           {ticks.map((t) => <Text key={t} className="text-right text-xs text-text-secondary" style={{ ...tabular, marginTop: t === max ? -7 : 0, marginBottom: t === 0 ? -7 : 0 }}>{formatTick(t)}</Text>)}
         </View>
-        <View className="ml-3 flex-1" style={{ height }}>
+        <View className="ml-3 flex-1" style={{ height }} onLayout={(e) => setPlotWidth(e.nativeEvent.layout.width)}>
           {ticks.map((t) => <View key={t} pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: Math.round((t / max) * height), height: 1, backgroundColor: chart.grid }} />)}
           <View className="flex-1 flex-row items-end">
             {points.map((p, i) => {
@@ -88,7 +92,11 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
         </View>
       </View>
       <View className="mt-2 flex-row" style={{ paddingLeft: 64 }}>
-        {points.map((p, i) => <Text key={p.label + i} numberOfLines={1} className="flex-1 text-center text-xs text-text-secondary">{i % labelEvery === 0 ? p.label : ''}</Text>)}
+        {groups.map((g, i) => (
+          <View key={g.label + i} style={{ flex: g.size }}>
+            <Text numberOfLines={1} className="text-center text-xs text-text-secondary" style={{ width: `${100 / g.size}%`, minWidth: 48, alignSelf: 'flex-start' }}>{g.label}</Text>
+          </View>
+        ))}
       </View>
       {hasPrevious ? (
         <View className="mt-3 flex-row gap-4">

@@ -111,3 +111,31 @@ The marks follow dataviz rules:
 
 Not tested on real touch POS terminals or native builds; the desktop layout
 only runs on web. Production is unchanged until this branch is released.
+
+## Task 198: fixes from real staging data
+
+Opening the page on the live staging database (6,970 bills; Kolathur and
+Velachery up to 2 October) showed four problems the mocked tests could not:
+
+1. **Wrong period named while loading.** Right after a period change, the
+   scope line and empty card named the new period over the previous figures.
+   They now always describe the data on screen and add "updating…" while the
+   next period loads.
+2. **Misaligned day comparison.** The sales service returns only days with
+   sales (20 of 30). The chart now has one column per calendar day, zero where
+   nothing sold, and pairs each day with the day exactly one period earlier.
+   "Over N days" counts the whole range.
+3. **September showed as zero.** Browsers print the month as "Sept", but the
+   service labels it "Sep". Day matching now uses the service's fixed
+   three-letter months.
+4. **Display and label fit.** Totals show in whole rupees (₹6,96,694, not
+   ₹6,96,693.60). The chart measures its width and shows as many day labels as
+   fit, each in full ("13 Sep, 16 Sep…"), instead of truncating to "1…".
+
+Checked on real staging, 30 days, all branches:
+- ₹6,96,694 from 1,686 orders, up 33% on the previous 30 days;
+- best day 20 Sep (₹63,248), UPI 69%, busiest 7–10 pm.
+
+Mocked Playwright was re-run with the service's real label format, with zero
+cloud requests forwarded and no errors. The full suite passed: 36 suites,
+339 tests.

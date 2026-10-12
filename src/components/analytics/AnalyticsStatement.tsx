@@ -13,7 +13,8 @@ const PRESETS: readonly { id: AnalyticsPreset; label: string }[] = [
   { id: '30days', label: '30 days' }, { id: 'month', label: 'This month' }, { id: 'custom', label: 'Custom' },
 ];
 const tabular = { fontVariant: ['tabular-nums' as const] };
-const money = (n: number): string => formatINR(n);
+/** Whole rupees: a dashboard reads totals, not paise. */
+const money = (n: number): string => formatINR(Math.round(n));
 const trim = (v: number): string => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace(/\.0$/, ''));
 const moneyTick = (n: number): string => n >= 1_00_00_000 ? `₹${trim(n / 1_00_00_000)}Cr` : n >= 1_00_000 ? `₹${trim(n / 1_00_000)}L` : n >= 1_000 ? `₹${trim(n / 1_000)}k` : `₹${Math.round(n)}`;
 /** Under 0.05% reads as no change, in neutral ink rather than a green "up". */
@@ -67,6 +68,37 @@ function previousFilters(f: AnalyticsFilters): AnalyticsFilters | null {
   const prevEnd = new Date(start); prevEnd.setDate(start.getDate() - 1);
   const prevStart = new Date(prevEnd); prevStart.setDate(prevEnd.getDate() - (days - 1));
   return { ...f, startDate: isoDay(prevStart), endDate: isoDay(prevEnd) };
+}
+
+/** The trend service labels days "13 Sep" / "01 Oct" and omits days without sales. */
+const TREND_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const trendLabel = (d: Date): string => `${String(d.getDate()).padStart(2, '0')} ${TREND_MONTHS[d.getMonth()]}`;
+type AlignedDay = { label: string; sales: number; orders: number; previousSales: number };
+
+/**
+ * One point per calendar day in the loaded range, zero where nothing sold, and
+ * each day paired with the day exactly one period earlier. Falls back to the
+ * service's own points when its labels are not daily (for example, months).
+ */
+function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboard | null, filters: AnalyticsFilters | null): AlignedDay[] {
+  const raw = data?.salesByDay ?? [];
+  const fallback = raw.map((p) => ({ label: p.label, sales: p.sales, orders: p.orders, previousSales: 0 }));
+  if (!filters) return fallback;
+  const start = new Date(filters.startDate + 'T12:00:00'); const end = new Date(filters.endDate + 'T12:00:00');
+  const span = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  if (!Number.isFinite(span) || span < 1 || span > 92) return fallback;
+  const byLabel = new Map(raw.map((p) => [p.label, p]));
+  const prevByLabel = new Map((previous?.salesByDay ?? []).map((p) => [p.label, p]));
+  const out: AlignedDay[] = [];
+  for (let i = 0; i < span; i++) {
+    const day = new Date(start); day.setDate(start.getDate() + i);
+    const before = new Date(day); before.setDate(day.getDate() - span);
+    const label = trendLabel(day);
+    const hit = byLabel.get(label);
+    out.push({ label, sales: hit?.sales ?? 0, orders: hit?.orders ?? 0, previousSales: prevByLabel.get(trendLabel(before))?.sales ?? 0 });
+  }
+  // Labels that never match mean the service grouped differently; keep its points.
+  return raw.length > 0 && !raw.some((p) => out.some((d) => d.label === p.label)) ? fallback : out;
 }
 
 /** "12a" … "11p" for an "HH:00" hour. */
@@ -148,18 +180,19 @@ export function AnalyticsStatement(props: Props) {
     : 'Choose dates';
   // After a failed reload the cards still show the last good load, so the scope line follows that load.
   const stale = !!(errorMsg && data && loadedFilters);
-  const shownStart = stale && loadedFilters ? loadedFilters.startDate : props.startDate;
-  const shownEnd = stale && loadedFilters ? loadedFilters.endDate : props.endDate;
-  const shownBranchId = stale && loadedFilters ? loadedFilters.branchId ?? null : props.selectedBranchId;
+  // The cards show the last completed load, so the scope line follows it, also while a new period loads.
+  const onScreen = data && loadedFilters ? loadedFilters : null;
+  const shownStart = onScreen ? onScreen.startDate : props.startDate;
+  const shownEnd = onScreen ? onScreen.endDate : props.endDate;
+  const shownBranchId = onScreen ? onScreen.branchId ?? null : props.selectedBranchId;
   const shownPeriod = shownStart && shownEnd
     ? shownStart === shownEnd ? dayLabel(shownStart) : `${dayLabel(shownStart, shownStart.slice(0, 4) !== shownEnd.slice(0, 4))} – ${dayLabel(shownEnd)}`
     : 'Choose dates';
   const branchName = shownBranchId ? props.branches.find((b) => b.id === shownBranchId)?.name ?? 'Your branch' : props.canPickBranch ? 'All branches' : 'Your branch';
 
-  const dayPoints = useMemo<ColumnPoint[]>(() => (data?.salesByDay ?? []).map((p, i) => ({
-    label: p.label, value: p.sales, ...(previous ? { previous: previous.salesByDay[i]?.sales ?? 0 } : {}),
-  })), [data, previous]);
-  const orderPoints = useMemo<ColumnPoint[]>(() => (data?.salesByDay ?? []).map((p) => ({ label: p.label, value: p.orders })), [data]);
+  const days = useMemo(() => alignedDays(data, previous, loadedFilters), [data, previous, loadedFilters]);
+  const dayPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.sales, ...(previous ? { previous: d.previousSales } : {}) })), [days, previous]);
+  const orderPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.orders })), [days]);
   const hourPoints = useMemo<ColumnPoint[]>(() => {
     const hours = data?.salesByHour ?? [];
     const busy = hours.map((h, i) => (h.sales > 0 ? i : -1)).filter((i) => i >= 0);
