@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
@@ -8,7 +9,7 @@ import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmo
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
-import { DateField, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
+import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { CategoryPicker } from '@/components/kitchen/CategoryPicker';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
@@ -28,6 +29,7 @@ export default function SpentScreen() {
   const [mode, setMode] = useState<KitchenMode>('cash');
   const [date, setDate] = useState(localDateKey());
   const [note, setNote] = useState('');
+  const [lockReason, setLockReason] = useState('');
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -53,7 +55,8 @@ export default function SpentScreen() {
   const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
-  const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category);
+  const dateOk = useDateGuard(date, lockReason);
+  const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category) && dateOk;
   const isVendor = kind === 'vendor';
 
   const onTick = (list: KitchenOpenDocument[], next: Set<string>) => {
@@ -73,7 +76,7 @@ export default function SpentScreen() {
       isVendor && partyId
         ? { type: 'paid', party_id: partyId, entry_date: date, amount, mode, note: note.trim() || null, covers }
         : { type: 'spent', entry_date: date, amount, mode, category: category ?? 'Other', note: note.trim() || null };
-    const res = editing ? await editKitchenEntry(editing.id, input) : await postKitchenEntry(input);
+    const res = editing ? await editKitchenEntry(editing.id, input, lockReason) : await postKitchenEntry(input, lockReason);
     setSaving(false);
     if (res.error) {
       setError(res.error);
@@ -131,7 +134,7 @@ export default function SpentScreen() {
         <Field label="Mode">
           <ModePicker value={mode} onChange={setMode} />
         </Field>
-        <DateField value={date} onChange={setDate} />
+        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <Field label="Note">
           <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />
         </Field>

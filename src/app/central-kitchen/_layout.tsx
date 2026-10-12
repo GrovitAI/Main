@@ -21,7 +21,7 @@ export default function KitchenLayout() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surfaceTint } }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.kitchenCanvas } }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
       <Toast text={notice} />

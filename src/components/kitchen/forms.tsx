@@ -4,10 +4,11 @@
  * mode, the date, and the open slips a payment can be set against.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-service';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_MODES, formatDayLabel, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem, KitchenMode, KitchenOpenDocument, KitchenParty, KitchenPartyBalance, KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { AddChip, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
@@ -29,15 +30,18 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const balanceOf = useMemo(() => new Map(balances.map((b) => [b.party_id, b.balance])), [balances]);
+  const guard = useKitchenAccess();
+  const showAmounts = guard.showAmounts;
+  const mayAdd = guard.can('setup.parties');
   const options: ChipOption<string>[] = useMemo(
     () =>
       parties
         .filter((p) => p.kind === kind)
         .map((p) => {
           const bal = balanceOf.get(p.id) ?? 0;
-          return { value: p.id, label: p.name, hint: bal > 0 ? formatMoney(bal) : undefined };
+          return { value: p.id, label: p.name, hint: bal > 0 && showAmounts ? formatMoney(bal) : undefined };
         }),
-    [parties, kind, balanceOf],
+    [parties, kind, balanceOf, showAmounts],
   );
   const noun = kind === 'branch' ? 'branch' : 'vendor';
 
@@ -67,7 +71,7 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
         searchable
         searchPlaceholder={`Search ${noun === 'branch' ? 'branches' : 'vendors'}`}
         emptyText={options.length === 0 ? `No ${noun === 'branch' ? 'branches' : 'vendors'} yet. Add the first one.` : 'No match'}
-        trailing={<AddChip label="New" onPress={() => setAdding((v) => !v)} />}
+        trailing={mayAdd ? <AddChip label="New" onPress={() => setAdding((v) => !v)} /> : undefined}
       />
       {adding ? (
         <View className="flex-row items-center" style={{ gap: 8 }}>
@@ -94,13 +98,45 @@ export function ModePicker({ value, onChange }: { value: KitchenMode; onChange: 
 
 type DateChoice = 'today' | 'yesterday' | 'other';
 
-export function DateField({ value, onChange }: { value: string; onChange: (d: string) => void }) {
+/**
+ * True when this login may save on `date`: not a future day, not a locked
+ * day (the owner gives a reason instead), and today only without back-dating.
+ * `guard` false skips the checks (opening balances are dated, not entries).
+ */
+export function useDateGuard(date: string, lockReason: string, guard = true): boolean {
+  const access = useKitchenAccess();
+  if (!guard) return true;
+  return access.dateBlock(date) === null && !(access.needsLockReason(date) && !lockReason.trim());
+}
+
+type DateFieldProps = {
+  value: string;
+  onChange: (d: string) => void;
+  /** The owner's reason for changing a locked day; the field shows only when needed. */
+  lockReason?: string;
+  onLockReason?: (reason: string) => void;
+  guard?: boolean;
+};
+
+export function DateField({ value, onChange, lockReason = '', onLockReason, guard = true }: DateFieldProps) {
+  const access = useKitchenAccess();
+  const todayOnly = guard && !access.can('entries.backdate');
+  const block = guard ? access.dateBlock(value) : null;
+  const askReason = guard && !!onLockReason && access.needsLockReason(value);
   const today = localDateKey();
   const y = new Date();
   y.setDate(y.getDate() - 1);
   const yesterday = localDateKey(y);
   const choice: DateChoice = value === today ? 'today' : value === yesterday ? 'yesterday' : 'other';
   const [other, setOther] = useState(choice === 'other');
+  if (todayOnly) {
+    return (
+      <Field label="When" hint="This login records today’s entries only.">
+        <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '700' }}>{value === today ? `Today · ${formatDayLabel(today, '')}` : formatDayLabel(value, '')}</Text>
+        {block ? <View style={{ marginTop: 8 }}><Notice text={block} /></View> : null}
+      </Field>
+    );
+  }
   return (
     <Field label="When" hint={other ? 'Year-month-day, for example 2026-10-04' : undefined}>
       <Segmented
@@ -115,6 +151,13 @@ export function DateField({ value, onChange }: { value: string; onChange: (d: st
       {other ? (
         <View style={{ marginTop: 8 }}>
           <TextField value={value} onChange={onChange} label="Date" placeholder="2026-10-04" keyboardType="numeric" />
+        </View>
+      ) : null}
+      {block ? <View style={{ marginTop: 8 }}><Notice text={block} /></View> : null}
+      {askReason && onLockReason ? (
+        <View style={{ marginTop: 10, gap: 4 }}>
+          <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600' }}>This day is locked. As the owner you can still change it; the reason is kept in the change log.</Text>
+          <TextField value={lockReason} onChange={onLockReason} label="Reason for changing a locked day" placeholder="For example: late bill from the vendor" />
         </View>
       ) : null}
     </Field>
@@ -139,8 +182,10 @@ type LinesEditorProps = {
 
 export function LinesEditor({ items, lines, onChange, mode, defaultCost }: LinesEditorProps) {
   const [query, setQuery] = useState('');
+  const { showAmounts } = useKitchenAccess();
   const ordered = useMemo(() => {
-    const list = items.filter((i) => matchesSearch(query, i.name, i.unit) || (lines[i.id]?.qty ?? 0) > 0);
+    // Preserve selected historical lines when editing an entry after reclassification.
+    const list = items.filter((i) => (lines[i.id]?.qty ?? 0) > 0 || (i.item_kind === (mode === 'sell' ? 'finished_good' : 'raw_material') && matchesSearch(query, i.name, i.unit)));
     if (mode === 'sell') list.sort((a, b) => Number(a.sell_price === null) - Number(b.sell_price === null) || a.name.localeCompare(b.name));
     return list;
   }, [items, query, lines, mode]);
@@ -158,7 +203,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
       <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14 }}>
         {ordered.length === 0 ? (
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', paddingVertical: 18, textAlign: 'center' }}>
-            {items.length === 0 ? 'No items yet. Add them under Items first.' : 'No item matches that.'}
+            {query ? 'No item matches that.' : mode === 'sell' ? 'No finished goods yet. Add them under Stock first.' : 'No raw materials yet. Add them under Stock first.'}
           </Text>
         ) : null}
         {ordered.map((it) => {
@@ -172,12 +217,15 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
                 <View className="flex-1" style={{ minWidth: 0 }}>
                   <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{it.name}</Text>
                   <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
-                    {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? ` · ${formatMoney(unitPrice)}/${it.unit}` : mode === 'sell' ? ' · no price yet' : ''}
+                    {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}
                   </Text>
                 </View>
                 <QtyStepper value={qty} onChange={(q) => setLine(it, { qty: q })} step={stepFor(it.unit)} unit={it.unit} label={it.name} />
               </View>
-              {qty > 0 ? (
+              {qty > 0 && !showAmounts && price === null ? (
+                <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 8 }}>This item has no price yet. Ask the owner to set one before sending it.</Text>
+              ) : null}
+              {qty > 0 && showAmounts ? (
                 <View className="flex-row items-center justify-between" style={{ marginTop: 8, gap: 10 }}>
                   <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>{mode === 'sell' ? 'Price' : 'Cost'} per {it.unit}</Text>
                   <View className="flex-row items-center" style={{ gap: 10 }}>
@@ -207,7 +255,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
       </View>
       {chosen.length > 0 ? (
         <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '700', textAlign: 'right' }}>
-          {chosen.length} {chosen.length === 1 ? 'item' : 'items'} · {formatMoney(total)}
+          {chosen.length} {chosen.length === 1 ? 'item' : 'items'}{showAmounts ? ` · ${formatMoney(total)}` : ''}
         </Text>
       ) : null}
     </View>

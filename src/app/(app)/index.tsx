@@ -1,20 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-  StyleSheet,
-  Modal,
-  Platform,
-  Alert,
-  Easing,
-  Animated,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, useWindowDimensions, View, StyleSheet, Modal, Platform, Alert, Easing, Animated } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { Search, Plus, GlassWater, Soup, Coffee, ChefHat, Leaf } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';

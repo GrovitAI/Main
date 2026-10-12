@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Eye, EyeOff, Lock, Pencil, Plus, Sparkles, X } from 'lucide-react-native';
 

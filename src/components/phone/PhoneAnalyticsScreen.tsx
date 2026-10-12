@@ -1,14 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  Modal,
-  TextInput,
-  Dimensions,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Pressable, ScrollView, Modal, Dimensions, ActivityIndicator } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Filter,
   TrendingUp,

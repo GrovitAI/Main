@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-} from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Users,
   Plus,

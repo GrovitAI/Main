@@ -1,19 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  Switch,
-  Platform,
-} from 'react-native';
+import { View, Pressable, FlatList, ActivityIndicator, Switch, Platform } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { storage, STORAGE_KEYS } from '@/lib/pos/storage';
 import { PhoneAnalyticsScreen } from '@/components/phone/PhoneAnalyticsScreen';
+import { AnalyticsStatement } from '@/components/analytics/AnalyticsStatement';
 import Svg, {
   Path,
   Rect,
@@ -61,7 +54,7 @@ export default function AnalyticsScreen() {
 
   const { session } = useSessionStore();
   const insets = useSafeAreaInsets();
-  const { isPhone, width: windowWidth } = useResponsive();
+  const { isPhone, isDesktop, width: windowWidth } = useResponsive();
 
   // Branch filter — the owner only. An admin sees their own branch, like everyone else.
   const canPickBranch = canViewAllBranches(session?.role);
@@ -1245,6 +1238,54 @@ export default function AnalyticsScreen() {
   };
 
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
+  // Desktop web reads the analytics as a daily statement (task 197). Phone and
+  // tablet keep their own layouts below; filters, loading and exports are shared.
+  if (Platform.OS === 'web' && isDesktop) {
+    return (
+      <View className="flex-1" style={{ paddingTop: insets.top }}>
+        <AnalyticsStatement
+          data={dashboardData}
+          loading={loading}
+          errorMsg={errorMsg}
+          onRetry={() => void loadDashboard()}
+          loadedFilters={loadedFilters}
+          preset={preset}
+          onPreset={applyPreset}
+          onOpenDates={() => setIsDatePickerOpen(true)}
+          startDate={startDate}
+          endDate={endDate}
+          branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
+          canPickBranch={canPickBranch}
+          selectedBranchId={selectedBranchId}
+          onSelectBranch={setSelectedBranchId}
+          canExport={canExportCsv}
+          exporting={exporting}
+          exportNotice={exportNotice}
+          onExportTransactions={() => void handleExportCSV()}
+          onExportItems={handleExportItemWiseCSV}
+          hours={{ enabled: advancedTime, start: startTime, end: endTime, onToggle: () => setAdvancedTime((v) => !v), onStart: setStartTime, onEnd: setEndTime }}
+          franchise={{ enabled: isFranchiseMode, rate: royaltyRate, onToggle: toggleFranchiseMode, onDecrease: decreaseRoyaltyRate, onIncrease: increaseRoyaltyRate }}
+        />
+        <DatePickerModal
+          visible={isDatePickerOpen}
+          onClose={() => setIsDatePickerOpen(false)}
+          startDate={startDate}
+          endDate={endDate}
+          startTime={startTime}
+          endTime={endTime}
+          showTimePicker={advancedTime}
+          onApply={(start, end, startT, endT) => {
+            setStartDate(start);
+            setEndDate(end);
+            if (startT) setStartTime(startT);
+            if (endT) setEndTime(endT);
+            setPreset('custom');
+          }}
+        />
+      </View>
+    );
+  }
 
   if (isPhone) {
     const kpis = dashboardData?.kpis;

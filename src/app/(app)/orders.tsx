@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { router, useFocusEffect } from 'expo-router';
 import { RefreshCw, Search, X, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -851,7 +842,7 @@ export default function OrdersScreen() {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', letterSpacing: -0.5 }}>
               Orders Management
             </Text>
             <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
@@ -1971,7 +1962,7 @@ function HeaderSection({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', letterSpacing: -0.5 }}>
             Orders Management
           </Text>
           <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>

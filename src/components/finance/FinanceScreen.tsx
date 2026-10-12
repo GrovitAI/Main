@@ -6,7 +6,8 @@
  * the module is ready to ship. Nothing here touches navigation.
  */
 import React, { useEffect, useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Landmark } from 'lucide-react-native';
 

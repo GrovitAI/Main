@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, Platform, Pressable, ScrollView, Text, View, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Animated, Easing, Image, Platform, Pressable, ScrollView, View, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   BarChart3,

@@ -1,4 +1,5 @@
-import { ActivityIndicator, FlatList, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { Redirect, router, type Href } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

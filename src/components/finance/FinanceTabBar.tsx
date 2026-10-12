@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { BookOpen, LayoutDashboard, Lock, NotebookPen, Tags, type LucideIcon } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';

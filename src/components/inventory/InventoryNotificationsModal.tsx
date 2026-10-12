@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
-import { FlatList, Modal, Pressable, Text, View, type ListRenderItem } from 'react-native';
+import { FlatList, Modal, Pressable, View, type ListRenderItem } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { Bell, X } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';

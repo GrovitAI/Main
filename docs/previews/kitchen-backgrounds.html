@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Le Laban — background design previews</title>
+  <style>
+    @font-face{font-family:SourceSans3;src:url('assets/fonts/SourceSans3_400Regular.ttf') format('truetype');font-weight:400;font-display:swap}
+    @font-face{font-family:SourceSans3;src:url('assets/fonts/SourceSans3_600SemiBold.ttf') format('truetype');font-weight:600;font-display:swap}
+    @font-face{font-family:SourceSans3;src:url('assets/fonts/SourceSans3_700Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+    :root{--ink:#0f2744;--muted:#516173;--blue:#0066b2;--white:#ffffff;--canvas:#f1f3f5;--line:#d5dde5;--hover:#e8eff7;--neutral:#e9edf1;--warm:#ede8df;--navy:#002d5a;--error:#b91c1c;--focus:#0066b2;--system:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    *{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:400 15px/1.45 SourceSans3,var(--system)}::selection{background:var(--hover);color:var(--ink)}button,a{touch-action:manipulation}button{font:600 14px/1.3 SourceSans3,var(--system);cursor:pointer;min-height:44px;padding:9px 14px;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--ink)}button:hover{background:var(--hover)}button[aria-pressed=true]{background:var(--blue);color:var(--white);border-color:var(--blue)}button:focus-visible,a:focus-visible{outline:3px solid var(--focus);outline-offset:3px}a{color:var(--blue);text-underline-offset:3px}button:disabled{cursor:wait;opacity:.6}[hidden]{display:none!important}
+    .wrap{max-width:1440px;margin:auto;padding:22px 28px 0}header{display:flex;align-items:start;justify-content:space-between;gap:24px}h1{font-size:24px;line-height:1.2;font-weight:600;letter-spacing:-.02em;margin:0 0 6px}p{margin:0;color:var(--muted)}.intro{max-width:72ch}.staging{flex-shrink:0;display:flex;align-items:center;min-height:44px;font-weight:600;text-decoration:none}.themes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0 12px}.theme{text-align:left;display:flex;align-items:center;gap:12px;padding:12px 14px;min-height:68px}.theme[aria-pressed=true]{background:var(--white);color:var(--ink);border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}.theme strong{font-weight:600;display:block;font-size:16px}.theme small{font-size:13px;display:block;color:var(--muted);font-weight:400;margin-top:2px}.swatches{display:flex;flex-shrink:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:42px;height:36px}.swatches i{flex:1;background:var(--white)}.swatches .accent{background:var(--blue)}.neutral i:first-child{background:var(--neutral)}.warm i:first-child{background:var(--warm)}.blue i:first-child{background:var(--navy)}
+    .settings{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.group{display:flex;gap:2px;padding:3px;background:var(--white);border:1px solid var(--line);border-radius:10px}.group button{border:0}.utility{margin-left:auto}.description{display:flex;justify-content:space-between;align-items:start;gap:24px;margin:14px 0 2px}.description p{max-width:78ch}.description strong{display:block;color:var(--ink);font-weight:600;margin-bottom:2px}.size{font-size:13px;white-space:nowrap}.stage{max-width:1496px;margin:auto;padding:0 28px 20px;overflow-x:auto;scrollbar-color:var(--line) var(--canvas)}.captures{display:grid;gap:20px;width:100%;max-width:1440px;margin:auto}.captures.phone{max-width:390px}.captures.phone.compare{grid-template-columns:repeat(2,minmax(0,1fr));max-width:800px}.captures.compare:not(.phone){grid-template-columns:repeat(2,minmax(0,1fr))}.captures.actual{width:1440px;max-width:none}.captures.actual.compare{width:2900px}.captures.phone.actual{width:390px}.captures.phone.actual.compare{width:800px}figure{margin:0;min-width:0}figcaption{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);padding:0 2px}figcaption strong{color:var(--ink);font-weight:600}figcaption a{min-height:44px;display:flex;align-items:center}.capture{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:var(--white)}.error{color:var(--error);padding:16px;background:var(--white)}.notes{max-width:1440px;margin:auto;padding:0 28px 24px;display:flex;gap:28px;justify-content:space-between;font-size:13px}.notes p{max-width:80ch}.sources{flex-shrink:0}.sources a{display:inline-flex;align-items:center;min-height:44px;margin-right:16px}.notice{font-size:13px;margin-top:8px}
+    @media(max-width:700px){.wrap{padding:16px 12px 0}header{flex-direction:column;gap:8px}h1{font-size:22px}.themes{grid-template-columns:1fr;gap:6px;margin-top:12px}.theme{min-height:58px;padding:8px 12px}.theme strong{font-size:15px}.theme small{font-size:12px}.settings{gap:6px}.utility{margin-left:0}.description{flex-direction:column;gap:6px;margin-top:12px}.stage{padding:0 12px 16px}.captures.compare:not(.actual){grid-template-columns:1fr!important;max-width:390px}.notes{padding:0 12px 20px;flex-direction:column;gap:8px}.size{white-space:normal}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div><h1>A more considered kitchen workspace</h1><p class="intro">Three background treatments on the actual frontend. Compare Home and Analytics at desktop and phone sizes before choosing the direction.</p></div>
+      <a class="staging" href="http://localhost:8081/central-kitchen/analytics" target="_blank" rel="noopener">Open staging app</a>
+    </header>
+    <div class="themes" role="group" aria-label="Background direction">
+      <button class="theme" data-theme="neutral" aria-pressed="true"><span class="swatches neutral" aria-hidden="true"><i></i><i></i><i class="accent"></i></span><span><strong>Neutral workspace</strong><small>Recommended · crisp and restrained</small></span></button>
+      <button class="theme" data-theme="warm" aria-pressed="false"><span class="swatches warm" aria-hidden="true"><i></i><i></i><i class="accent"></i></span><span><strong>Warm off-white</strong><small>Softer surfaces, the same blue actions</small></span></button>
+      <button class="theme" data-theme="blue" aria-pressed="false"><span class="swatches blue" aria-hidden="true"><i></i><i></i><i class="accent"></i></span><span><strong>Blue frame</strong><small>Navy navigation, stronger separation</small></span></button>
+    </div>
+    <div class="settings">
+      <div class="group" role="group" aria-label="Device"><button data-device="desktop" aria-pressed="true">Desktop</button><button data-device="phone" aria-pressed="false">Phone</button></div>
+      <div class="group" role="group" aria-label="Page"><button data-page="analytics" aria-pressed="true">Analytics</button><button data-page="home" aria-pressed="false">Home</button></div>
+      <button class="utility" id="compare" aria-pressed="false">Compare with current</button>
+      <button id="actual" aria-pressed="false">Actual size</button>
+    </div>
+    <div class="description"><p><strong id="selection" aria-live="polite">Neutral workspace · Desktop · Analytics</strong><span id="description">A soft gray canvas separates crisp white reports from quieter navigation. Quiet separators keep the ledger easy to scan.</span></p><p class="size" id="size">1440 × 900 browser viewport</p></div>
+    <p class="notice">Playwright captures with illustrative local data. Use the controls above; the app controls inside the images are not interactive.</p>
+  </div>
+  <main class="stage" aria-label="Kitchen background preview">
+    <div class="captures" id="captures">
+      <figure><figcaption><strong id="chosen-label">Neutral workspace</strong><a id="chosen-link" href="assets/kitchen-backgrounds/neutral-desktop-analytics.png" target="_blank" rel="noopener">Open full size</a></figcaption><img class="capture" id="chosen" src="assets/kitchen-backgrounds/neutral-desktop-analytics.png" width="1440" height="900" alt="Neutral workspace design on Kitchen Analytics desktop, showing local sample figures"><p class="error" id="chosen-error" role="alert" hidden>Unable to load this capture. Reload the local preview.</p></figure>
+      <figure id="baseline" hidden><figcaption><strong>Current design</strong><a id="current-link" href="assets/kitchen-backgrounds/current-desktop-analytics.png" target="_blank" rel="noopener">Open full size</a></figcaption><img class="capture" id="current" src="assets/kitchen-backgrounds/current-desktop-analytics.png" width="1440" height="900" alt="Current Kitchen Analytics desktop design with the same local sample figures"><p class="error" id="current-error" role="alert" hidden>Unable to load the current-design capture. Reload the local preview.</p></figure>
+    </div>
+  </main>
+  <footer class="notes"><p>Preview only: the running staging app retains its current design. Source Sans 3, exact money figures and compact report rows are preserved. Desktop proposals add the business name to the rail; phone proposals retain the current bottom navigation. These are browser views, not native-device checks.</p><div class="sources">Design references<br><a href="https://linear.app/now/behind-the-latest-design-refresh" target="_blank" rel="noopener">Linear</a><a href="https://polaris-site-prod-kit.shopify.prod.shopifyapps.com/design/colors" target="_blank" rel="noopener">Shopify Polaris</a></div></footer>
+  <script>
+    const themes={neutral:{name:'Neutral workspace',description:'A soft gray canvas separates crisp white reports from quieter navigation. Quiet separators keep the ledger easy to scan.'},warm:{name:'Warm off-white',description:'An off-white canvas and warm separators soften the page. Blue still marks actions and selection; white surfaces keep the report clear.'},blue:{name:'Blue frame',description:'A navy desktop rail anchors the workspace against a richer blue canvas. Phones keep a light background and white bottom navigation for readability.'}};
+    const query=new URLSearchParams(location.search);
+    let theme=Object.hasOwn(themes,query.get('theme'))?query.get('theme'):'neutral';
+    let device=query.get('device')==='phone'?'phone':'desktop';
+    let page=query.get('page')==='home'?'home':'analytics';
+    let compare=query.get('compare')==='1',actual=query.get('actual')==='1';
+    const byId=id=>document.getElementById(id);
+    function update(){
+      for(const [key,value] of [['theme',theme],['device',device],['page',page]])document.querySelectorAll(`[data-${key}]`).forEach(el=>el.setAttribute('aria-pressed',String(el.dataset[key]===value)));
+      const name=themes[theme].name,deviceLabel=device==='phone'?'Phone':'Desktop',pageLabel=page==='home'?'Home':'Analytics';
+      const width=device==='phone'?390:1440,height=device==='phone'?668:900;
+      byId('selection').textContent=`${name} · ${deviceLabel} · ${pageLabel}`;
+      byId('chosen-label').textContent=name;byId('description').textContent=themes[theme].description;byId('size').textContent=`${width} × ${height} browser viewport`;
+      byId('captures').className='captures'+(device==='phone'?' phone':'')+(compare?' compare':'')+(actual?' actual':'');
+      byId('baseline').hidden=!compare;
+      for(const [id,variant] of [['chosen',theme],['current','current']]){
+        const image=byId(id),src=`assets/kitchen-backgrounds/${variant}-${device}-${page}.png`;
+        byId(id+'-error').hidden=true;image.width=width;image.height=height;
+        image.alt=`${id==='chosen'?name:'Current design'} on Kitchen ${pageLabel} ${deviceLabel.toLowerCase()}, with illustrative local sample figures`;
+        image.src=src;byId(id==='chosen'?'chosen-link':'current-link').href=src;
+      }
+      byId('compare').setAttribute('aria-pressed',String(compare));byId('actual').setAttribute('aria-pressed',String(actual));
+      const params=new URLSearchParams({theme,device,page});if(compare)params.set('compare','1');if(actual)params.set('actual','1');history.replaceState(null,'','?'+params);
+    }
+    document.querySelectorAll('[data-theme]').forEach(el=>el.addEventListener('click',()=>{theme=el.dataset.theme;update()}));
+    document.querySelectorAll('[data-device]').forEach(el=>el.addEventListener('click',()=>{device=el.dataset.device;update()}));
+    document.querySelectorAll('[data-page]').forEach(el=>el.addEventListener('click',()=>{page=el.dataset.page;update()}));
+    byId('compare').addEventListener('click',()=>{compare=!compare;update()});byId('actual').addEventListener('click',()=>{actual=!actual;update()});
+    for(const id of ['chosen','current'])byId(id).addEventListener('error',()=>{byId(id+'-error').hidden=false});
+    update();
+  </script>
+</body>
+</html>

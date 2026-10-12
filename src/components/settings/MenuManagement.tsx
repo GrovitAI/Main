@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, Pressable, FlatList, TextInput, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView, type ListRenderItem, type StyleProp, type TextStyle } from 'react-native';
+import { View, Pressable, FlatList, ActivityIndicator, Switch, Alert, Platform, useWindowDimensions, Modal, ScrollView, type ListRenderItem, type StyleProp, type TextStyle } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { Plus, Edit2, Archive, Check, AlertCircle, Tag, Search, X, ArrowUpDown, ChevronDown, Coffee, Sparkles, Layers, EyeOff, MoreVertical, ArrowLeft, Upload, Download, Trash2 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { storage, STORAGE_KEYS } from '@/lib/pos/storage';

@@ -1,5 +1,11 @@
 # Migrations that staging has and production does not have yet, in order.
 # scripts/staging-clone.ps1 applies these after copying production, so a
 # refreshed staging gets them back. Remove a line once the file is applied
-# to production. All ten listed migrations were applied and verified on
-# 2026-10-07. No staging-only migrations remain pending.
+# to production. The earlier ten kitchen migrations were promoted on
+# 2026-10-07. The twelve kitchen migrations from 2026-10-08 to 2026-10-11
+# (purchase categories through cash and bank) were promoted on 2026-10-12,
+# one at a time, and production's kitchen functions, tables, grants and
+# policies were checked to match staging.
+# Task 202 (kitchen permissions and day lock, three migrations) promoted on
+# 2026-10-12; production kitchen functions, policies, grants and triggers
+# were checked to match staging.

@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Switch,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Switch, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { ShieldCheck, Save, RotateCcw, AlertTriangle, CheckCircle2, Lock } from 'lucide-react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { approvalService } from '@/lib/approval/approval.service';

@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { Plus } from 'lucide-react-native';
-import { useKitchenData } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { formatDayLabel, formatMoney, matchesSearch, sumDues } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
@@ -34,38 +35,40 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
   const total = sumDues(data.balances, kind);
   const openParty = (id: string) => (isTablet ? setSelected(id) : router.push({ pathname: '/central-kitchen/party/[id]', params: { id } }));
   const addParty = () => router.push({ pathname: '/central-kitchen/party-form', params: { kind } });
+  const { can, showAmounts } = useKitchenAccess();
+  const mayAdd = can('setup.parties');
   const current = isTablet ? (selected && data.partiesById.has(selected) ? selected : rows[0]?.party.id ?? null) : null;
 
   const list = (
     <>
-      <KHeader title={copy.title} subtitle={copy.subtitle} right={<IconButton icon={Plus} label={copy.add} onPress={addParty} />} />
+      <KHeader title={copy.title} subtitle={copy.subtitle} right={mayAdd ? <IconButton icon={Plus} label={copy.add} onPress={addParty} /> : undefined} />
       {data.error ? <Notice text={data.error} /> : null}
-      <Card style={{ marginBottom: 12 }}>
+      {showAmounts ? <Card style={{ marginBottom: 12 }}>
         <StatTile label={copy.total} value={total} tone={total > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'} />
         {/* Day-one balances are not in the app yet; say so rather than show a settled ₹0 as fact. */}
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 8 }}>
           Includes each name’s opening balance from before this app. Set or correct it by editing the name.
         </Text>
-      </Card>
+      </Card> : null}
       <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />
       <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12 }}>
         {!data.loaded ? (
           <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={44} /><Skeleton height={44} /><Skeleton height={44} /></View>
         ) : rows.length === 0 ? (
-          <Empty title={query ? 'No name matches that' : copy.empty} body={query ? undefined : copy.emptyBody} action={query ? undefined : <GhostButton small icon={Plus} tone="primary" label={copy.add} onPress={addParty} />} />
+          <Empty title={query ? 'No name matches that' : copy.empty} body={query ? undefined : copy.emptyBody} action={query || !mayAdd ? undefined : <GhostButton small icon={Plus} tone="primary" label={copy.add} onPress={addParty} />} />
         ) : (
           rows.map(({ party, balance, last }) => (
             <Row
               key={party.id}
               title={party.name}
               subtitle={last ? `Last entry ${formatDayLabel(last)}` : 'No entries yet'}
-              right={formatMoney(Math.abs(balance))}
-              rightSub={balance > 0 ? (kind === 'branch' ? 'yet to pay' : 'we owe') : balance < 0 ? (kind === 'branch' ? 'paid ahead' : 'overpaid') : 'settled'}
+              right={showAmounts ? formatMoney(Math.abs(balance)) : undefined}
+              rightSub={!showAmounts ? undefined : balance > 0 ? (kind === 'branch' ? 'yet to pay' : 'we owe') : balance < 0 ? (kind === 'branch' ? 'paid ahead' : 'overpaid') : 'settled'}
               tone={balance > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'}
               muted={false}
               selected={isTablet && current === party.id}
               onPress={() => openParty(party.id)}
-              accessibilityLabel={`${party.name}, ${balance > 0 ? formatMoney(balance) : 'settled'}`}
+              accessibilityLabel={showAmounts ? `${party.name}, ${balance > 0 ? formatMoney(balance) : 'settled'}` : party.name}
             />
           ))
         )}
@@ -77,7 +80,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
     return <KScreen refreshing={data.loading && data.loaded} onRefresh={data.refresh}>{list}</KScreen>;
   }
   return (
-    <View className={`flex-1 flex-row bg-surface-tint ${desktop ? 'w-full max-w-[1120px] self-start' : ''}`}>
+    <View className={`flex-1 flex-row bg-kitchen-canvas ${desktop ? 'w-full max-w-[1120px] self-center' : ''}`}>
       <ScrollView className={desktop ? 'w-80 flex-none' : 'flex-1'} style={desktop ? undefined : { maxWidth: 420 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>{list}</ScrollView>
       <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: desktop ? 16 : 20, paddingBottom: 24 }}>
         {current ? <PartyDetail partyId={current} onRemoved={() => setSelected(null)} /> : <Empty title="Pick a name" body="Its figure and give-and-take open here." />}

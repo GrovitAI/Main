@@ -1,11 +1,12 @@
 import { semantic } from '@/lib/pos/brand';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { Pencil, Trash2 } from 'lucide-react-native';
 import { fetchKitchenItemEntries, postKitchenEntry, setKitchenItemActive } from '@/lib/pos/kitchen-service';
-import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
@@ -31,10 +32,11 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<KitchenEntry | null>(null);
+  const { can, showAmounts } = useKitchenAccess();
 
   const loadMoves = useCallback(async () => {
     const res = await fetchKitchenItemEntries(itemId);
-    if (res.data) setMoves(res.data);
+    setMoves(res.data ?? []);
     if (res.error) setError(res.error);
   }, [itemId]);
 
@@ -56,8 +58,12 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
 
   const submitPanel = async () => {
     const n = Number(qty.replace(/[,\s]/g, ''));
-    if (!panel || !Number.isFinite(n) || n < 0 || (panel === 'made' && n <= 0)) {
+    if (!panel || !qty.trim() || !Number.isFinite(n) || n < 0 || (panel === 'made' && n <= 0)) {
       setError(panel === 'made' ? 'Enter how much was made.' : 'Enter what is on the shelf now.');
+      return;
+    }
+    if (panel === 'made' && item.item_kind !== 'finished_good') {
+      setError('Batches can only be recorded for finished goods.');
       return;
     }
     setBusy(true);
@@ -94,13 +100,13 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
     <View>
       <KHeader
         title={item.name}
-        subtitle={item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Raw material · not sold to branches'}
+        subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={
           <View className="flex-row" style={{ gap: 8 }}>
-            <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } })} />
-            <IconButton icon={Trash2} label={`Remove ${item.name}`} tone="out" onPress={remove} />
+            {can('setup.items') ? <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } })} /> : null}
+            {can('setup.items') ? <IconButton icon={Trash2} label={`Remove ${item.name}`} tone="out" onPress={remove} /> : null}
           </View>
         }
       />
@@ -114,16 +120,19 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
             {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
           </View>
           <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>
-            <View className="flex-1"><GhostButton label="Made a batch" tone="primary" onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View>
-            <View className="flex-1"><GhostButton label="Count stock" onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View>
+            {item.item_kind === 'finished_good' && can('entries.batch') ? <View className="flex-1"><GhostButton label="Create batch" tone="primary" disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
+            {can('entries.count') ? <View className="flex-1"><GhostButton label="Count stock" disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
           </View>
         </View>
         {panel ? (
+          <View>
+          {panel === 'made' ? <Text className="mt-3 text-sm text-text-secondary">Record quantity produced. Raw material stock stays unchanged.</Text> : null}
           <View className="flex-row items-center" style={{ gap: 8, marginTop: 10 }}>
             <View className="flex-1">
-              <TextField value={qty} onChange={setQty} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `How much was made (${item.unit})` : `What is on the shelf now (${item.unit})`} keyboardType="decimal-pad" autoFocus />
+              <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `How much was made (${item.unit})` : `What is on the shelf now (${item.unit})`} keyboardType="decimal-pad" autoFocus />
             </View>
             <View style={{ width: 96 }}><PrimaryButton label={panel === 'made' ? 'Add' : 'Set'} onPress={() => void submitPanel()} loading={busy} /></View>
+          </View>
           </View>
         ) : null}
         {error ? <Notice text={error} /> : null}
@@ -133,7 +142,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
           {moves === null ? (
             <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={40} /><Skeleton height={40} /></View>
           ) : moves.length === 0 ? (
-            <Empty title="No movements yet" body="Buys, sends, batches and counts of this item will show here." />
+            <Empty title="No movements yet" body={item.item_kind === 'finished_good' ? 'Batches, sends and stock counts will show here.' : 'Purchases and stock counts will show here.'} />
           ) : (
             <EntryList entries={moves} itemsById={data.itemsById} partiesById={data.partiesById} onPress={setOpen} />
           )}

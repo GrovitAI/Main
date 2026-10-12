@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { Building2, Calendar, RefreshCw } from 'lucide-react-native';
 
 import { colors } from '@/lib/pos/brand';

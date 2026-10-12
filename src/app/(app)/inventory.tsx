@@ -1,20 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  PressableProps,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { ActivityIndicator, Animated, Easing, FlatList, Image, Modal, Platform, Pressable, PressableProps, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   AlertTriangle,
   ArrowDown,

@@ -42,6 +42,13 @@ input.text-xl, textarea.text-xl { font-size: 20px !important; }
 input.text-2xl, textarea.text-2xl { font-size: 24px !important; }
 input.text-3xl, textarea.text-3xl { font-size: 30px !important; }
 
+/* Quiet textual hints without shrinking entered values or numeric amounts. */
+input:not([inputmode="decimal"]):not([inputmode="numeric"]):not([type="number"])::placeholder,
+textarea::placeholder {
+  font-size: 14px;
+  font-weight: 400;
+}
+
 @media (max-width: 767px) {
   input, textarea {
     font-size: 16px !important;

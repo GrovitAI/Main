@@ -1,16 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  FlatList,
-  TextInput,
-  Modal,
-  Switch,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Pressable, ScrollView, FlatList, Modal, Switch, ActivityIndicator, Alert } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import {
   Search,

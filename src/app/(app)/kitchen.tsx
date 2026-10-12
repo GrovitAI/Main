@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
-import { View, Text, Pressable, Platform } from 'react-native';
+import { View, Pressable, Platform } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useFocusEffect } from 'expo-router';
 import { ChefHat } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';

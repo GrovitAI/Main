@@ -8,21 +8,8 @@
  * NativeWind drops that function. Class-styled controls use active variants.
  */
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  type PressableStateCallbackType,
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Search, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
@@ -83,14 +70,14 @@ type ScreenProps = {
 export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24, wide = false }: ScreenProps) {
   const { isTablet } = useResponsive();
   const compact = useDesktopDensity();
-  const widthClass = compact && wide ? 'max-w-[1120px] self-start' : isTablet ? 'max-w-[720px] self-center' : 'self-center';
+  const widthClass = compact && wide ? 'max-w-[1120px] self-center' : isTablet ? 'max-w-[720px] self-center' : 'self-center';
   const inner = (
     <View className={`w-full px-4 ${widthClass}`} style={{ paddingBottom: bottomPad }}>
       {children}
     </View>
   );
   return (
-    <View className="flex-1 bg-surface-tint">
+    <View className="flex-1 bg-kitchen-canvas">
       {scroll ? (
         <ScrollView
           className="flex-1"
@@ -534,13 +521,15 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
   );
 }
 
-export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', small }: { label: string; onPress: () => void; icon?: LucideIcon; tone?: Tone; small?: boolean }) {
+export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', small, disabled = false }: { label: string; onPress: () => void; icon?: LucideIcon; tone?: Tone; small?: boolean; disabled?: boolean }) {
   const compact = useDesktopDensity();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       {...(compact ? {
         className: 'min-h-11 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-surface-elevated px-3.5 active:opacity-60',
       } : {

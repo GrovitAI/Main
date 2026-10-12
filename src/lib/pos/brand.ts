@@ -19,6 +19,19 @@ export const colors = {
   background: '#ffffff',
   /** App canvas — faint blue wash like logo surround */
   surfaceTint: '#e8f2fa',
+  /** Matches the existing POS and Orders workspace canvas. */
+  kitchenCanvas: '#f5f8fc',
+  /** Quiet flat selection on the Kitchen's blue navigation rail. */
+  kitchenSidebarSelected: 'rgba(255, 255, 255, 0.14)',
+  /** Existing POS sidebar palette, shared with the kitchen rail. */
+  sidebarTop: '#0251b8',
+  sidebarMiddle: '#013b8c',
+  sidebarBottom: '#012f70',
+  sidebarSelectedTop: 'rgba(58, 120, 220, 0.95)',
+  sidebarSelectedBottom: 'rgba(35, 95, 190, 0.95)',
+  sidebarTextMuted: 'rgba(255, 255, 255, 0.8)',
+  sidebarHover: 'rgba(255, 255, 255, 0.08)',
+  sidebarDivider: 'rgba(255, 255, 255, 0.12)',
   surfaceElevated: '#ffffff',
   textPrimary: '#0f2744',
   textSecondary: '#5b6b7c',
@@ -31,6 +44,9 @@ export const colors = {
 } as const;
 
 export const gradients = {
+  /** Exact incumbent POS sidebar and selected-row treatments. */
+  posSidebar: [colors.sidebarTop, colors.sidebarMiddle, colors.sidebarBottom] as const,
+  posSidebarSelected: [colors.sidebarSelectedTop, colors.sidebarSelectedBottom] as const,
   /** Logo radial feel: deep → vibrant center */
   primary: [colors.primaryMid, colors.primaryDeep] as const,
   /** Lighter CTA / add buttons */
@@ -49,6 +65,17 @@ export const brand = {
   tagline: 'Restaurant POS',
 } as const;
 
+/** Source Sans 3 was selected from the frontend font comparison (task 170). */
+export const typography = {
+  family: 'SourceSans3',
+  faces: {
+    regular: 'SourceSans3-Regular',
+    medium: 'SourceSans3-Medium',
+    semibold: 'SourceSans3-SemiBold',
+    bold: 'SourceSans3-Bold',
+  },
+} as const;
+
 /**
  * Semantic status colours — money in / money out / attention.
  * Kept here so finance and reporting screens never hardcode hex values.
@@ -62,4 +89,30 @@ export const semantic = {
   warningSoft: '#fef3c7',
   neutral: '#64748b',
   neutralSoft: '#f1f5f9',
+} as const;
+
+/**
+ * Chart colours (task 197). Validated with the dataviz six checks on the white
+ * card surface: series1–3 pass all-pairs (CVD ΔE 10.7, normal-vision ΔE 15.9,
+ * every mark at least 3:1). `previous` is the lighter step of series1 for an
+ * earlier period (ordinal ramp, light end 2.22:1). `pending` is the warning
+ * status mark; its label always stays in text colour.
+ */
+export const chart = {
+  /** Le Laban blue: sales, UPI, item revenue. */
+  series1: '#0066b2',
+  /** Teal: cash. */
+  series2: '#14a38b',
+  /** Violet: card. */
+  series3: '#7a5af5',
+  /** The earlier period, a lighter step of series1. */
+  previous: '#7ab4e4',
+  /** Money not yet collected (status warning). */
+  pending: '#d97706',
+  /** Hairline gridlines and empty meter tracks. */
+  grid: '#e6eef7',
+  /** Wash behind the hovered or focused column group. */
+  hoverWash: 'rgba(0, 102, 178, 0.06)',
+  /** Page canvas behind the cards. */
+  canvas: '#f5f8fc',
 } as const;
