@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { Empty, GhostButton, Notice, PrimaryButton, SearchBox, TextField, useDesktopDensity } from '@/components/kitchen/ui';
-import { colors } from '@/lib/pos/brand';
+import { colors, semantic } from '@/lib/pos/brand';
 import { kitchenCalendarDays, kitchenMonthLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import { attendanceDateLabel, attendanceMonthCounts, attendanceStaff } from '@/lib/pos/kitchen-attendance-utils';
 import { fetchKitchenAttendanceMonth, markKitchenAttendance } from '@/lib/pos/kitchen-attendance-service';
@@ -14,7 +14,26 @@ import type { AttendanceStatus, KitchenAttendanceDay } from '@/lib/pos/kitchen-a
 
 const button = 'min-h-12 min-w-12 items-center justify-center rounded-lg border border-transparent hover:bg-surface-tint focus:border-primary active:bg-accent-soft';
 const labels: Record<AttendanceStatus, string> = { present: 'Present', absent: 'Absent', half_day: 'Half day', leave: 'Leave', unmarked: 'Unmarked' };
-const symbols: Record<AttendanceStatus, string> = { present: 'P', absent: 'A', half_day: 'H', leave: 'L', unmarked: '–' };
+/**
+ * Each status fills the day. Present is the one solid fill, so a good month
+ * reads green at a glance and exceptions stand out. Absent also carries a
+ * border, so it never relies on red against amber alone. Every fill keeps its
+ * number at 4.5:1 or better, and the label is always in the accessible name.
+ */
+const fills: Record<AttendanceStatus, { bg: string; fg: string; border: string }> = {
+  present: { bg: semantic.success, fg: colors.textOnPrimary, border: semantic.success },
+  absent: { bg: semantic.dangerSoft, fg: semantic.danger, border: semantic.danger },
+  half_day: { bg: semantic.warningSoft, fg: semantic.warning, border: semantic.warningSoft },
+  leave: { bg: colors.accentSoft, fg: colors.primaryDeep, border: colors.accentSoft },
+  unmarked: { bg: semantic.neutralSoft, fg: colors.textSecondary, border: semantic.neutralSoft },
+};
+const LEGEND: readonly AttendanceStatus[] = ['present', 'absent', 'half_day', 'leave', 'unmarked'];
+
+/** A small key: the day's fill with an outline in its text colour, so pale fills stay visible on any row. */
+function Swatch({ status }: { status: AttendanceStatus }) {
+  const fill = fills[status];
+  return <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: fill.bg, borderWidth: 1, borderColor: status === 'present' ? fill.bg : fill.fg }} />;
+}
 
 /** Month reads are on demand; selecting staff, days and drafts is entirely local. */
 export function MonthlyAttendance({ header, onLockChange }: { header: ReactElement; onLockChange: (locked: boolean) => void }) {
@@ -89,18 +108,27 @@ export function MonthlyAttendance({ header, onLockChange }: { header: ReactEleme
       {!desktop ? <Pressable className={button} disabled={locked} accessibilityRole="button" accessibilityLabel="Back to month staff" onPress={() => choosePerson(null)}><ArrowLeft size={18} color={colors.primary} /></Pressable> : null}
       <View className="min-w-0 flex-1"><Text accessibilityRole="header" className="text-lg font-bold text-text-primary">{person.name}</Text><Text className="text-xs text-text-secondary">{person.job_title || 'Kitchen staff'}{person.is_active ? '' : ' · Archived'}</Text></View>
     </View>
-    <Text className="text-xs leading-4 text-text-secondary">P Present · A Absent · H Half day · L Leave · – Unmarked</Text>
+    <View className="flex-row flex-wrap gap-x-3 gap-y-1">{LEGEND.map(status => <View key={status} className="flex-row items-center gap-1"><Swatch status={status} /><Text className="text-xs text-text-secondary">{labels[status]}</Text></View>)}</View>
     {!person.is_active ? <Text className="text-xs text-text-secondary">Only recorded days can be corrected for archived staff.</Text> : null}
     <View className="flex-row">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => <Text key={day} className="flex-1 py-1 text-center text-xs font-semibold text-text-secondary">{day}</Text>)}</View>
     <FlatList data={kitchenCalendarDays(month)} keyExtractor={cell => cell.key} numColumns={7} scrollEnabled={false} renderItem={({ item }) => {
       const day = item.date;
       const status = day ? records.get(day)?.status ?? 'unmarked' : 'unmarked';
       const unavailable = !day || day > today || (!person.is_active && !records.has(day));
-      return <View className="flex-1">{day ? <Pressable testID={`month-attendance-day-${day}`} className={`min-h-12 items-center justify-center rounded-lg border ${date === day ? 'border-primary bg-accent-soft' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'} ${unavailable ? 'opacity-30' : ''}`} disabled={unavailable || locked} accessibilityRole="button" accessibilityLabel={`${attendanceDateLabel(day)}: ${unavailable ? 'Unavailable' : labels[status]}`} accessibilityState={{ selected: date === day, disabled: unavailable || locked }} onPress={() => chooseDate(day)}><Text className="text-sm font-semibold text-text-primary">{Number(day.slice(-2))}</Text><Text className={`text-xs ${status === 'unmarked' ? 'text-text-secondary' : 'font-bold text-primary'}`}>{unavailable ? '' : symbols[status]}</Text></Pressable> : <View className="min-h-12" />}</View>;
+      // The whole cell is the target (no gaps between days); the colour sits 2px
+      // inside it and the selection ring sits on the cell edge, outside the colour.
+      const fill = unavailable ? null : fills[status];
+      const chosen = date === day;
+      return <View className="flex-1">{day ? <Pressable testID={`month-attendance-day-${day}`} disabled={unavailable || locked} accessibilityRole="button" accessibilityLabel={`${attendanceDateLabel(day)}: ${unavailable ? 'Unavailable' : labels[status]}`} accessibilityState={{ selected: chosen, disabled: unavailable || locked }} onPress={() => chooseDate(day)}
+        style={{ minHeight: 48, padding: 2, borderRadius: 12, borderWidth: 2, borderColor: chosen ? colors.primary : 'transparent' }}>
+        {({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => <View style={{ flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, backgroundColor: fill ? fill.bg : 'transparent', borderColor: fill ? fill.border : 'transparent', opacity: unavailable ? 0.35 : pressed ? 0.7 : hovered && !chosen ? 0.85 : 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: day === today ? '800' : '600', color: fill ? fill.fg : colors.textSecondary, textDecorationLine: day === today ? 'underline' : 'none' }}>{Number(day.slice(-2))}</Text>
+        </View>}
+      </Pressable> : <View className="min-h-12" />}</View>;
     }} />
     {date ? <View className="gap-2 border-t border-border-soft pt-3">
       <Text accessibilityRole="header" className="text-base font-bold text-text-primary">{attendanceDateLabel(date)}</Text>
-      <View className="flex-row flex-wrap gap-1">{ATTENDANCE_OPTIONS.map(option => <Pressable key={option.value} disabled={busy} accessibilityRole="button" accessibilityLabel={`Month attendance: ${option.label}`} accessibilityState={{ selected: draft.status === option.value, disabled: busy }} onPress={() => setDraft(current => ({ ...current, status: option.value }))} className={`${button} flex-1 px-1 ${draft.status === option.value ? 'border-primary bg-accent-soft' : ''}`}><Text className={`text-xs font-semibold ${draft.status === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}</View>
+      <View className="flex-row flex-wrap gap-1">{ATTENDANCE_OPTIONS.map(option => <Pressable key={option.value} disabled={busy} accessibilityRole="button" accessibilityLabel={`Month attendance: ${option.label}`} accessibilityState={{ selected: draft.status === option.value, disabled: busy }} onPress={() => setDraft(current => ({ ...current, status: option.value }))} className={`${button} flex-1 flex-row gap-1 px-1 ${draft.status === option.value ? 'border-primary bg-accent-soft' : ''}`}><Swatch status={option.value} /><Text className={`text-xs font-semibold ${draft.status === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}</View>
       {draft.status === 'half_day' || draft.status === 'leave' ? <TextField flat label="Monthly attendance note" value={draft.note} onChange={note => { if (!busyRef.current) setDraft(current => ({ ...current, note })); }} placeholder="Optional note · up to 200 characters" /> : null}
       {selected ? <Text className="text-xs text-text-secondary">Updated by {selected.updated_by_name} · {new Date(selected.updated_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} IST</Text> : null}
       {dirty ? <Text className="text-xs text-text-secondary">Save or cancel this edit before changing dates.</Text> : null}
@@ -114,7 +142,7 @@ export function MonthlyAttendance({ header, onLockChange }: { header: ReactEleme
   const empty = loading ? <ActivityIndicator accessibilityLabel="Loading month attendance" color={colors.primary} className="my-6" /> : error && !data ? <Empty title="Month unavailable" body="Retry to load the complete month." action={<GhostButton label="Retry month attendance" onPress={() => void load()} />} /> : <Empty title={query ? 'No matching staff' : 'No staff in this month'} body={query ? 'Try another name or role.' : 'Add kitchen staff using Add staff.'} action={query ? <GhostButton label="Reset month search" onPress={() => setQuery('')} /> : undefined} />;
   const roster = <FlatList className="flex-1" keyboardShouldPersistTaps="handled" data={loading ? [] : people} keyExtractor={member => member.id} extraData={{ personId, locked, summaries }} ListHeaderComponent={rosterHeader} ListEmptyComponent={empty} renderItem={({ item }) => {
     const counts = summaries.get(item.id);
-    return <Pressable testID={`month-staff-${item.id}`} disabled={locked} accessibilityRole="button" accessibilityLabel={`Month attendance for ${item.name}`} accessibilityState={{ selected: item.id === personId, disabled: locked }} onPress={() => choosePerson(item.id)} className={`min-h-12 gap-1 border-b border-border-soft px-3 py-3 focus:border-primary ${item.id === personId ? 'bg-accent-soft' : 'bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft'}`}><Text className="text-base font-semibold text-text-primary">{item.name}</Text><Text className="text-xs text-text-secondary">{item.job_title || 'Kitchen staff'}{item.is_active ? '' : ' · Archived'}</Text>{counts ? <View className="flex-row flex-wrap gap-x-3 gap-y-1">{ATTENDANCE_OPTIONS.map(option => <Text key={option.value} className="text-xs text-text-secondary">{option.label} <Text className="font-semibold text-text-primary">{counts[option.value]}</Text></Text>)}<Text className="text-xs text-text-secondary">Unmarked <Text className="font-semibold text-text-primary">{counts.unmarked}</Text></Text></View> : null}</Pressable>;
+    return <Pressable testID={`month-staff-${item.id}`} disabled={locked} accessibilityRole="button" accessibilityLabel={`Month attendance for ${item.name}`} accessibilityState={{ selected: item.id === personId, disabled: locked }} onPress={() => choosePerson(item.id)} className={`min-h-12 gap-1 border-b border-border-soft px-3 py-3 focus:border-primary ${item.id === personId ? 'bg-accent-soft' : 'bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft'}`}><Text className="text-base font-semibold text-text-primary">{item.name}</Text><Text className="text-xs text-text-secondary">{item.job_title || 'Kitchen staff'}{item.is_active ? '' : ' · Archived'}</Text>{counts ? <View className="flex-row flex-wrap gap-x-3 gap-y-1">{LEGEND.map(status => <View key={status} className="flex-row items-center gap-1"><Swatch status={status} /><Text className="text-xs text-text-secondary">{labels[status]} <Text className="font-semibold text-text-primary">{counts[status]}</Text></Text></View>)}</View> : null}</Pressable>;
   }} />;
   return <View className="w-full max-w-[1120px] flex-1 self-center px-4 pb-6">
     {desktop ? <>{toolbar}{!person ? feedback : null}<View className="min-h-0 flex-1 flex-row gap-4"><View className="w-[352px]">{roster}</View><FlatList className="min-w-0 flex-1" data={[]} renderItem={() => null} ListHeaderComponent={loading ? null : calendar} keyboardShouldPersistTaps="handled" /></View></> : person && !loading ? <FlatList data={[]} renderItem={() => null} ListHeaderComponent={<>{toolbar}{calendar}</>} keyboardShouldPersistTaps="handled" /> : <View className="flex-1">{toolbar}{feedback}{roster}</View>}

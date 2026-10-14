@@ -370,3 +370,22 @@ specimens, is reported without repair. No shipping raster or native HTML/CSS
 detector applies. Local mocks verify service query behavior, not fresh live
 database certification. Native hardware, scaling, keyboard, dark appearance
 and gestures remain unverified.
+
+## Task 205: colour-coded month overview (2026-10-14)
+
+- **Colours instead of letters:** month days are filled by status.
+  - Present: solid green with a white number.
+  - Absent: pale red with a red border.
+  - Half day: amber.
+  - Leave: pale blue.
+  - Unmarked: pale grey.
+  - Future: faded.
+- **Contrast:** every number stays at 4.5:1 or better. Absent's border keeps it
+  apart from Half day without relying on colour alone, and the accessible name
+  always gives the status.
+- **Hitbox:** the whole 48px cell is the target, with no gaps between days.
+  The colour sits 2px inside it, and the selected day's ring sits on the cell
+  edge, outside the colour.
+- **Today:** shown bold and underlined.
+- **Swatches:** the legend, the staff totals and the status buttons use the
+  same colours, outlined so pale ones stay visible.
