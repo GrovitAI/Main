@@ -139,3 +139,16 @@ Detailed sample QA results and screenshots are Git-ignored under
 dependencies, services, queries, schema changes or migrations, and makes no
 production deployment. Earlier analytics migrations remain staging-only under
 their separate release record.
+
+## Task 210: smoother rail selection (2026-10-14)
+
+- **The problem:** after a click, the selected rail tab kept the white
+  keyboard-focus border.
+- **The fix:** the selection is now a soft fill that fades in over 180 ms,
+  with no edge, and hover fades too.
+- **Keyboard focus:** the white outline returns only when moving with the
+  keyboard (Tab or arrows). A mouse or touch press hides it. The Pin sidebar
+  button follows the same rule.
+- **Why state, not a style callback:** hover and focus are tracked in
+  component state because NativeWind drops a Pressable style callback when a
+  class name is present.

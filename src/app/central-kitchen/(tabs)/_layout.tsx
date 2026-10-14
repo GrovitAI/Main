@@ -8,7 +8,7 @@ import { Home, Boxes, PackageCheck, Store, Truck, History, BarChart3, ClipboardC
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
-import { SidebarSelection, SidebarSurface } from '@/components/ui/SidebarSurface';
+import { SidebarSurface } from '@/components/ui/SidebarSurface';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
@@ -42,21 +42,60 @@ function useTabAllowed(): (name: string) => boolean {
 const leLabanLogo: ImageSourcePropType = require('@/../assets/images/le-leban-logo.png');
 type RailWebStyle = ViewStyle & { transition?: string };
 
+/**
+ * True while the person is moving through the page with the keyboard. A mouse
+ * or touch press switches it off, so a clicked tab never keeps a focus outline;
+ * Tab switches it back on and the outline returns for keyboard users.
+ */
+let keyboardMode = false;
+const keyboardModeListeners = new Set<(on: boolean) => void>();
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  const set = (on: boolean): void => { if (keyboardMode === on) return; keyboardMode = on; keyboardModeListeners.forEach(fn => fn(on)); };
+  window.addEventListener('keydown', event => { if (event.key === 'Tab' || event.key.startsWith('Arrow')) set(true); }, true);
+  window.addEventListener('pointerdown', () => set(false), true);
+}
+function useKeyboardMode(): boolean {
+  const [on, setOn] = useState(keyboardMode);
+  useEffect(() => { keyboardModeListeners.add(setOn); return () => { keyboardModeListeners.delete(setOn); }; }, []);
+  return on;
+}
+
+/** Hover and keyboard-focus state for a rail control, tracked here because a class name hides Pressable's style callback. */
+function useRailRim() {
+  const keyboard = useKeyboardMode();
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  return {
+    hovered,
+    outline: focused && keyboard,
+    handlers: { onHoverIn: () => setHovered(true), onHoverOut: () => setHovered(false), onFocus: () => setFocused(true), onBlur: () => setFocused(false) },
+  };
+}
+
 function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: KitchenTab; focused: boolean; onPress: () => void; rail: boolean; expanded?: boolean }) {
   const { isDesktop } = useResponsive();
   const compact = Platform.OS === 'web' && isDesktop && rail;
   const Icon = tab.icon;
   const color = rail ? focused ? colors.textOnPrimary : colors.sidebarTextMuted : focused ? colors.primary : colors.textSecondary;
+  const rim = useRailRim();
+  // On the rail the selection is a soft fill that fades in, with no edge; the
+  // outline appears only for keyboard focus.
+  const railStyle: RailWebStyle | undefined = rail ? {
+    backgroundColor: focused ? colors.kitchenSidebarSelected : rim.hovered ? colors.sidebarHover : 'transparent',
+    borderColor: rim.outline ? colors.textOnPrimary : 'transparent',
+    ...(Platform.OS === 'web' ? { transition: 'background-color 180ms cubic-bezier(0.2, 0, 0, 1), border-color 120ms ease-out' } : {}),
+  } : undefined;
   return (
     <Pressable
       onPress={onPress}
+      {...(rail ? rim.handlers : {})}
+      style={railStyle}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
       aria-selected={focused}
       accessibilityLabel={tab.label}
-      className={`items-center active:opacity-80 ${rail ? `overflow-hidden rounded-[14px] border border-transparent focus:border-text-on-primary ${focused ? '' : 'hover:bg-sidebar-hover'}` : 'rounded-xl hover:bg-surface-tint focus:border focus:border-primary'} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
+      className={`items-center active:opacity-80 ${rail ? 'overflow-hidden rounded-[14px] border' : 'rounded-xl hover:bg-surface-tint focus:border focus:border-primary'} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
     >
-      {rail && focused ? <SidebarSelection /> : null}
       <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused && !rail ? 'bg-accent-soft' : ''}`}`}>
         <Icon size={compact ? 18 : 21} color={color} />
       </View>
@@ -138,6 +177,7 @@ function Rail({ state, navigation }: BarProps) {
   const compact = Platform.OS === 'web' && isDesktop;
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const pinRim = useRailRim();
   const allowed = useTabAllowed();
   const [keyboardFocused, setKeyboardFocused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(true);
@@ -225,7 +265,9 @@ function Rail({ state, navigation }: BarProps) {
         {expanded ? <Text className="px-2 pt-2 text-xs font-semibold text-sidebar-muted" numberOfLines={1}>Central Kitchen</Text> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={pinned ? 'Unpin kitchen sidebar' : 'Pin kitchen sidebar open'}
           accessibilityState={{ selected: pinned }} onPress={() => setPinned(value => !value)}
-          className="min-h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border border-transparent hover:bg-sidebar-hover focus:border-text-on-primary active:opacity-80">
+          {...pinRim.handlers}
+          style={{ backgroundColor: pinRim.hovered ? colors.sidebarHover : 'transparent', borderColor: pinRim.outline ? colors.textOnPrimary : 'transparent' }}
+          className="min-h-12 w-full flex-row items-center justify-center gap-2 rounded-xl border active:opacity-80">
           {pinned ? <PanelLeftClose size={18} color={colors.sidebarTextMuted} /> : <PanelLeft size={18} color={colors.sidebarTextMuted} />}
           {expanded ? <Text className="text-xs font-semibold text-sidebar-muted">{pinned ? 'Unpin sidebar' : 'Pin sidebar'}</Text> : null}
         </Pressable>

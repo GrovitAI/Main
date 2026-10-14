@@ -15,9 +15,3 @@ export function SidebarSurface() {
     </View>
   );
 }
-
-export function SidebarSelection() {
-  return (
-    <View pointerEvents="none" className="absolute inset-0 rounded-[14px] bg-kitchen-sidebar-selected" />
-  );
-}
