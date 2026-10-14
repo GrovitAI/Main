@@ -37,6 +37,13 @@ const webNoOutline = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object
 const tabular: TextStyle = { fontVariant: ['tabular-nums'] };
 /** The smallest thing a finger may be asked to hit: 44 pt on iOS and the web, 48 dp on Android. */
 const TARGET = Platform.select({ android: 48, default: 44 }) ?? 44;
+/**
+ * Option C (owner, 2026-10-14): small controls are drawn 36 high, and an invisible
+ * hit slop above and below brings the finger target back to TARGET.
+ */
+const VISUAL = 36;
+/** The transparent band above and below a drawn control that keeps the whole target tappable. */
+const BAND = Math.ceil((TARGET - VISUAL) / 2);
 
 /** A resting style plus the pressed dim, for every Pressable in these screens. */
 function pressed(base: StyleProp<ViewStyle>, dim = 0.65): (state: PressableStateCallbackType) => StyleProp<ViewStyle> {
@@ -90,7 +97,7 @@ export function KScreen({ children, scroll = true, refreshing = false, onRefresh
         <View className="flex-1">{children}</View>
       )}
       {footer ? (
-        <View className="border-t border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
+        <View className="border-t border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 }}>
           <View className={`w-full ${widthClass}`}>{footer}</View>
         </View>
       ) : null}
@@ -183,7 +190,7 @@ export function Section({ title, action, children }: { title: string; action?: R
 
 export function Label({ children }: { children: string }) {
   return (
-    <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6 }}>
+    <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>
       {children}
     </Text>
   );
@@ -191,10 +198,10 @@ export function Label({ children }: { children: string }) {
 
 export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
-    <View style={{ marginTop: 16 }}>
+    <View style={{ marginTop: 10 }}>
       <Label>{label}</Label>
       {children}
-      {hint ? <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 6, lineHeight: 18 }}>{hint}</Text> : null}
+      {hint ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 4, lineHeight: 17 }}>{hint}</Text> : null}
     </View>
   );
 }
@@ -329,7 +336,7 @@ export function Skeleton({ height = 60, style }: { height?: number; style?: Styl
 
 export function SearchBox({ value, onChange, placeholder = 'Search', autoFocus }: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: 46, paddingHorizontal: 12, gap: 8 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: 44, paddingHorizontal: 12, gap: 8 }}>
       <Search size={18} color={colors.textSecondary} />
       <TextInput
         value={value}
@@ -374,7 +381,7 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
   return (
     <View style={{ gap: 10 }}>
       {showSearch ? <SearchBox value={query} onChange={setQuery} placeholder={searchPlaceholder} /> : null}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, alignItems: 'center' }}>
         {shown.map((o) => {
           const on = o.value === value;
           return (
@@ -384,20 +391,12 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
-              style={pressed({
-                flexDirection: 'row',
-                alignItems: 'center',
-                borderRadius: 999,
-                borderWidth: 1,
-                minHeight: TARGET,
-                paddingHorizontal: 16,
-                gap: 6,
-                backgroundColor: on ? colors.primary : colors.surfaceElevated,
-                borderColor: on ? colors.primary : colors.border,
-              })}
+              style={pressed({ minHeight: TARGET, justifyContent: 'center' })}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }}>{o.label}</Text>
-              {o.hint ? <Text style={{ fontSize: 12, fontWeight: '600', color: on ? colors.textOnPrimary : colors.textSecondary, opacity: 0.85 }}>{o.hint}</Text> : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: 14, gap: 6, backgroundColor: on ? colors.primary : colors.surfaceElevated, borderColor: on ? colors.primary : colors.border }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }}>{o.label}</Text>
+                {o.hint ? <Text style={{ fontSize: 12, fontWeight: '600', color: on ? colors.textOnPrimary : colors.textSecondary, opacity: 0.85 }}>{o.hint}</Text> : null}
+              </View>
             </Pressable>
           );
         })}
@@ -410,14 +409,11 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
 
 export function AddChip({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={pressed({ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.surfaceTint, minHeight: TARGET, paddingHorizontal: 16, gap: 4 })}
-    >
-      <Plus size={14} color={colors.primary} />
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{label}</Text>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.surfaceTint, minHeight: VISUAL, paddingHorizontal: 14, gap: 4 }}>
+        <Plus size={14} color={colors.primary} />
+        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -437,10 +433,10 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
 }) {
   const shell: ViewStyle = flat
     ? { borderRadius: 12, backgroundColor: colors.surfaceTint, minHeight: TARGET, paddingHorizontal: 12 }
-    : { borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: big ? 56 : 48, paddingHorizontal: 14, ...(big ? { maxWidth: 360, width: '100%' } : {}) };
+    : { borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: 44, paddingHorizontal: 12, ...(big ? { maxWidth: 360, width: '100%' } : {}) };
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', ...shell }}>
-      {prefix ? <Text style={{ color: colors.textSecondary, fontSize: big ? 20 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
+      {prefix ? <Text style={{ color: colors.textSecondary, fontSize: big ? 17 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -451,8 +447,8 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
         autoFocus={autoFocus}
         multiline={multiline}
         accessibilityLabel={label}
-        className={big ? 'text-2xl' : undefined}
-        style={{ flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: big ? 24 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 10, letterSpacing: big ? -0.3 : 0, ...tabular, ...webNoOutline }}
+        className={big ? 'text-xl' : undefined}
+        style={{ flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: big ? 20 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 8, letterSpacing: big ? -0.3 : 0, ...tabular, ...webNoOutline }}
       />
     </View>
   );
@@ -515,32 +511,37 @@ export function PrimaryButton({ label, onPress, disabled, loading, tone = 'prima
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: off, busy: loading }}
-      className={`flex-row items-center justify-center gap-2 px-[18px] ${compact ? 'min-h-11 rounded-xl' : 'min-h-[52px] rounded-2xl'} ${off ? 'opacity-50' : 'active:opacity-80'}`}
+      className={`flex-row items-center justify-center gap-2 px-[18px] min-h-11 rounded-xl ${off ? 'opacity-50' : 'active:opacity-80'}`}
       style={{ backgroundColor: toneColor[tone] }}
     >
       {loading ? <ActivityIndicator color={colors.textOnPrimary} /> : Icon ? <Icon size={18} color={colors.textOnPrimary} /> : null}
-      <Text className={`font-extrabold text-text-on-primary ${compact ? 'text-sm' : 'text-base'}`}>{label}</Text>
+      <Text className={`font-extrabold text-text-on-primary ${compact ? 'text-sm' : 'text-[15px]'}`}>{label}</Text>
     </Pressable>
   );
 }
 
 export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', small, disabled = false }: { label: string; onPress: () => void; icon?: LucideIcon; tone?: Tone; small?: boolean; disabled?: boolean }) {
   const compact = useDesktopDensity();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
-      accessibilityState={{ disabled }}
-      {...(compact ? {
-        className: 'min-h-11 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-surface-elevated px-3.5 active:opacity-60',
-      } : {
-        style: pressed({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: small ? TARGET : 52, paddingHorizontal: small ? 14 : 18, gap: 8 }),
-      })}
-    >
+  const content = (
+    <>
       {Icon ? <Icon size={small ? 16 : 18} color={toneColor[tone]} /> : null}
       <Text style={{ color: toneColor[tone], fontSize: small ? 13 : compact ? 14 : 15, fontWeight: '800' }}>{label}</Text>
+    </>
+  );
+  const face: ViewStyle = { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: small ? VISUAL : 44, paddingHorizontal: small ? 12 : 16, gap: 8 };
+  if (compact) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }}
+        className="min-h-11 flex-row items-center justify-center gap-2 rounded-xl border border-border bg-surface-elevated px-3.5 active:opacity-60">
+        {content}
+      </Pressable>
+    );
+  }
+  // A small button is drawn 36 high inside a full-height target.
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }}
+      style={pressed(small ? { minHeight: TARGET, justifyContent: 'center' } : face)}>
+      {small ? <View style={face}>{content}</View> : content}
     </Pressable>
   );
 }
@@ -558,22 +559,20 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
  * icon: the whole button is the target and the chosen one is filled blue.
  */
 export function ChoiceButtons<T extends string>({ options, value, onChange, label }: { options: readonly { value: T; label: string; icon: LucideIcon }[]; value: T; onChange: (v: T) => void; label: string }) {
+  // One connected bar drawn 40 high; each part is a full-height target with its 36 face inside.
   return (
-    <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+    <View style={{ flexDirection: 'row', minHeight: TARGET, paddingHorizontal: 2, gap: 2 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: BAND - 2, bottom: BAND - 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint }} />
       {options.map((o) => {
         const on = o.value === value;
         const Icon = o.icon;
         return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: on }}
-            accessibilityLabel={o.label}
-            style={pressed({ flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 8, borderRadius: 14, borderWidth: 1, borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated })}
-          >
-            <Icon size={18} color={on ? colors.textOnPrimary : colors.primary} />
-            <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={o.label}
+            style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
+            <View style={{ flex: 1, minHeight: VISUAL, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, borderRadius: 10, backgroundColor: on ? colors.primary : 'transparent' }}>
+              <Icon size={16} color={on ? colors.textOnPrimary : colors.primary} />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+            </View>
           </Pressable>
         );
       })}
@@ -582,19 +581,18 @@ export function ChoiceButtons<T extends string>({ options, value, onChange, labe
 }
 
 export function Segmented<T extends string>({ options, value, onChange }: { options: readonly { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  // The same connected bar as the payment mode; the chosen part is raised white.
   return (
-    <View style={{ flexDirection: 'row', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint, padding: 3 }} accessibilityRole="tablist">
+    <View style={{ flexDirection: 'row', minHeight: TARGET, paddingHorizontal: 2 }} accessibilityRole="tablist">
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: BAND - 2, bottom: BAND - 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint }} />
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            style={pressed({ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12, minHeight: TARGET, backgroundColor: on ? colors.surfaceElevated : 'transparent', borderWidth: on ? 1 : 0, borderColor: colors.border })}
-          >
-            <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>
+          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+            style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
+            <View style={{ flex: 1, minHeight: VISUAL, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, backgroundColor: on ? colors.surfaceElevated : 'transparent', borderColor: on ? colors.border : 'transparent' }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>
+            </View>
           </Pressable>
         );
       })}
