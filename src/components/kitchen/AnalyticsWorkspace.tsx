@@ -21,13 +21,20 @@ import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 const money = (paise: number): string => formatMoney(paise / 100);
 const tabular = { fontVariant: ['tabular-nums' as const] };
 const controls = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 hover:bg-accent-soft active:opacity-60 focus:border focus:border-primary';
-const tabs: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales', label: 'Sales' }, { id: 'purchases', label: 'Purchases' }, { id: 'cash', label: 'Cash' }];
+const ALL_TABS: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales', label: 'Sales' }, { id: 'purchases', label: 'Purchases' }, { id: 'cash', label: 'Cash' }, { id: 'bank', label: 'Bank' }, { id: 'profit', label: 'Profit' }];
+/** Cash and Bank are both money-movement registers: no drill-down, no filters, received/paid columns. */
+const isMoney = (kind: KitchenReportKind): boolean => kind === 'cash' || kind === 'bank';
+/** Only Sales and Purchases have branch, item, vendor or category filters and a drill-down. */
+const hasFilters = (kind: KitchenReportKind): boolean => kind === 'sales' || kind === 'purchases';
+const percent = (part: number, whole: number): string => whole > 0 ? Math.round(part / whole * 100) + '%' : '—';
 
 export function AnalyticsWorkspace() {
   const insets = useSafeAreaInsets();
   const kitchenAccess = useKitchenAccess();
   const mayExport = kitchenAccess.can('reports.export');
   const mayInvoices = kitchenAccess.can('invoices.create') || kitchenAccess.can('invoices.receive') || kitchenAccess.can('invoices.cancel');
+  // Profit is all amounts; a quantities-only login does not get the tab.
+  const tabs = ALL_TABS.filter(tab => tab.id !== 'profit' || kitchenAccess.showAmounts);
   const { width } = useWindowDimensions();
   const [reportWidth, setReportWidth] = useState(width);
   // The sidebar and phone frame reduce the actual space available to reports.
@@ -85,7 +92,7 @@ export function AnalyticsWorkspace() {
   const changeMonth = (next: string) => changeDates(kitchenMonthRange(next, today));
   const chooseReport = (next: KitchenReportKind) => { resetFilters(); setKind(next); };
   const inspect = (row: KitchenReportRow) => {
-    if (detail || kind === 'cash') return;
+    if (detail || !hasFilters(kind)) return;
     drillBase.current = { partyId, itemId, category };
     if (kind === 'sales') { setPartyId(row.party_id); setItemId(row.item_id); } else setCategory(row.category);
     setDetail(true); setPage(0);
@@ -119,7 +126,7 @@ export function AnalyticsWorkspace() {
       if (exportController.current === controller) { exportController.current = null; setExporting(false); }
     }
   };
-  const title = kind === 'sales' ? 'Item sales to branches' : kind === 'purchases' ? includeExpenses ? 'All spending by category' : 'Purchases by category' : 'Money received and paid';
+  const title = kind === 'sales' ? 'Item sales to branches' : kind === 'purchases' ? includeExpenses ? 'All spending by category' : 'Purchases by category' : kind === 'bank' ? 'Bank and UPI received and paid' : kind === 'profit' ? 'Profit by finished good' : 'Cash received and paid';
   const summary = report?.summary;
   const metrics = [
     { label: 'Sales to branches', value: summary?.sales_paise, Icon: Package },
@@ -161,11 +168,13 @@ export function AnalyticsWorkspace() {
   const currentRange = kitchenMonthRange(today.slice(0, 7), today);
   const currentMonth = dateRange.startDate === currentRange.startDate && dateRange.endDate === currentRange.endDate;
   const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Month to date · through ' + today : kitchenRangeLabel(dateRange)} · India time</Text>;
-  const rowCountLabel = detail || kind === 'cash' ? report?.total_rows === 1 ? 'row' : 'rows'
+  const rowCountLabel = kind === 'profit' ? report?.total_rows === 1 ? 'finished good' : 'finished goods'
+    : detail || isMoney(kind) ? report?.total_rows === 1 ? 'row' : 'rows'
     : kind === 'sales' ? desktop ? report?.total_rows === 1 ? 'item / branch combination' : 'item / branch combinations' : report?.total_rows === 1 ? 'combination' : 'combinations'
     : report?.total_rows === 1 ? 'category' : 'categories';
-  const reportTotal = report ? kind === 'cash'
+  const reportTotal = report ? isMoney(kind)
     ? <><Text style={{ color: semantic.success }}>{'Received ' + money(report.filtered_in_paise)}</Text>{' · '}<Text style={{ color: semantic.danger }}>{'Paid ' + money(report.filtered_out_paise)}</Text></>
+    : kind === 'profit' ? 'Sales ' + money(report.filtered_paise) + ' · cost ' + money(report.summary.cost_paise)
     : (desktop || activeFilters || detail ? 'Filtered total ' : 'Report total ') + money(report.filtered_paise) : null;
   const reportActions = [
     ...(kind === 'sales' && mayInvoices ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
@@ -192,14 +201,14 @@ export function AnalyticsWorkspace() {
           {toolbar ? <View className="min-w-0 shrink">{period}</View> : null}
           <View className="shrink-0 flex-row items-center gap-1">
             {inlineFilters && !currentMonth ? <Pressable accessibilityRole="button" onPress={() => changeMonth(today.slice(0, 7))} className={controls}><Text className="text-xs font-bold text-primary">This month</Text></Pressable> : null}
-            {kind !== 'cash' ? <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls}>
+            {hasFilters(kind) ? <Pressable accessibilityRole="button" accessibilityLabel="Report filters" accessibilityState={{ expanded: filtersOpen }} onPress={() => setFiltersOpen(value => !value)} className={controls}>
               <Settings2 size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">{filtersOpen ? 'Hide filters' : 'Filters'}{activeFilters ? ' (' + activeFilters + ')' : ''}</Text>
             </Pressable> : null}
           </View>
         </View>
         {desktop && !toolbar ? <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Through ' + today + ' · India time' : 'Inclusive dates · India time'}</Text> : null}
         {filtersOpen && filterSummary ? <Text className="text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
-        {filtersOpen && kind !== 'cash' ? <View className={'mt-1 gap-2 ' + (inlineFilters ? 'flex-row' : '')}>
+        {filtersOpen && hasFilters(kind) ? <View className={'mt-1 gap-2 ' + (inlineFilters ? 'flex-row' : '')}>
           {kind === 'sales' ? <>
             <ReportSelect compact={inlineFilters} label="Branch" value={partyId} options={filterOptions.branches} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All branches" />
             <ReportSelect compact={inlineFilters} label="Item" value={itemId} options={filterOptions.items} onChange={id => { setItemId(id); setPage(0); }} emptyLabel="All items" />
@@ -214,7 +223,8 @@ export function AnalyticsWorkspace() {
           <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
         </Pressable> : null}
       </View>
-        <View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
+        {kind === 'profit' && summary ? <ProfitStatement summary={summary} desktop={desktop} /> : null}
+        {kind === 'profit' ? null : <View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
           {metrics.map(metric => <View key={metric.label} className={'min-w-0 rounded-xl border border-border-soft bg-surface-elevated py-2 ' + (desktop ? 'px-3 ' : 'px-2 ') + (stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'flex-1 gap-1')}>
             <View className={'gap-1 ' + (desktop || stackedMetrics ? 'flex-row items-center' : '')}>
               {desktop ? <metric.Icon size={15} color={colors.primary} /> : null}
@@ -222,13 +232,19 @@ export function AnalyticsWorkspace() {
             </View>
             <Text className={'text-base font-bold text-text-primary ' + (desktop ? '' : 'leading-5')} style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
           </View>)}
-        </View>
+        </View>}
       {notesOpen ? <View className="gap-1 rounded-xl bg-surface-elevated p-3">
         <Text className="text-xs font-bold text-text-primary">{kitchenBranch().name}</Text>
         {!desktop ? period : null}
-        <Text className="text-xs leading-5 text-text-secondary">Goods supplied are kitchen sales. Purchases include credit buys; these figures do not represent profit.</Text>
+        <Text className="text-xs leading-5 text-text-secondary">{kind === 'profit'
+          ? 'Profit = sales to branches − cost of goods sent − other expenses. Each send keeps the cost per unit of its day; sends from before a cost was set use today’s cost.'
+          : 'Goods supplied are kitchen sales. Purchases include credit buys; see Profit for what the kitchen made.'}</Text>
         <Text className="text-xs leading-5 text-text-secondary">{kind === 'cash'
-          ? 'Cash, UPI and bank movements by entry date. Opening balances are excluded.'
+          ? 'Cash entries by entry date, with money moved to or from the bank. Opening balances are excluded.'
+          : kind === 'bank'
+          ? 'UPI and bank entries by entry date, with cash deposited or withdrawn. Opening balances are excluded.'
+          : kind === 'profit'
+          ? 'Purchases are not subtracted again: their cost is inside each finished good’s cost per unit. Set costs under Finished goods.'
           : kind === 'sales' ? 'Quantities keep their own units. Select a row to see its send entries.'
           : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
       </View> : null}
@@ -252,10 +268,12 @@ export function AnalyticsWorkspace() {
       {error ? <Notice text={error} action={<Pressable accessibilityRole="button" onPress={() => setRefresh(value => value + 1)} className={controls}><Text className="font-bold text-primary">Retry</Text></Pressable>} /> : null}
       {loading ? <View className="flex-row items-center gap-3 rounded-xl bg-surface-elevated p-5" accessibilityLiveRegion="polite"><ActivityIndicator color={colors.primary} /><Text className="text-sm text-text-secondary">Loading report…</Text></View> : null}
       {desktop && report?.rows.length ? <View className="flex-row gap-4 rounded-t-xl bg-surface-elevated px-4 pt-2">
-        <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">{salesColumns ? 'Branch' : detail || kind === 'cash' ? 'Entry / source' : 'Category / source'}</Text>
+        <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">{kind === 'profit' ? 'Finished good' : salesColumns ? 'Branch' : detail || isMoney(kind) ? 'Entry / source' : 'Category / source'}</Text>
         {salesColumns ? <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">Item</Text> : null}
+        {kind === 'profit' ? ['Quantity', 'Sales', 'Cost', 'Profit'].map(label => <Text key={label} className="w-28 text-right text-xs font-bold text-text-secondary">{label}</Text>) : <>
         <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-28') + ' text-right text-xs font-bold text-text-secondary'}>{kind === 'sales' ? 'Quantity' : 'Entries'}</Text>
-        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-32') + ' text-right text-xs font-bold text-text-secondary'}>{kind === 'cash' ? 'Received / paid' : 'Value'}</Text>
+        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-32') + ' text-right text-xs font-bold text-text-secondary'}>{isMoney(kind) ? 'Received / paid' : 'Value'}</Text>
+        </>}
       </View> : null}
     </View>
   );
@@ -265,7 +283,7 @@ export function AnalyticsWorkspace() {
         onLayout={event => setReportWidth(event.nativeEvent.layout.width)}
         ListHeaderComponent={listHeader} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
         ListEmptyComponent={!loading && !error ? <View className="rounded-xl bg-surface-elevated"><Empty title="No entries for this selection" body="Choose another month or clear the filters. New kitchen entries will appear here after you refresh." action={<Pressable accessibilityRole="button" onPress={resetFilters} className={controls}><Text className="font-bold text-primary">Clear filters</Text></Pressable>} /></View> : null}
-        renderItem={({ item }) => <ReportRow row={item} desktop={desktop} availableWidth={reportWidth} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}
+        renderItem={({ item }) => kind === 'profit' ? <ProfitRow row={item} desktop={desktop} /> : <ReportRow row={item} desktop={desktop} availableWidth={reportWidth} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}
         ListFooterComponent={report?.total_rows ? <View className="mt-3 flex-row items-center justify-between gap-2">
           <Pressable accessibilityRole="button" disabled={page === 0 || loading} onPress={() => setPage(value => value - 1)} className={controls + (page === 0 || loading ? ' opacity-40' : '')}><Text className="font-bold text-primary">Previous</Text></Pressable>
           <Text className="text-xs text-text-secondary">Page {page + 1} of {Math.ceil(report.total_rows / KITCHEN_REPORT_PAGE_SIZE)}</Text>
@@ -292,18 +310,18 @@ export function AnalyticsWorkspace() {
 }
 
 function ReportRow({ row, desktop, availableWidth, detail, reportKind, total, onPress }: { row: KitchenReportRow; desktop: boolean; availableWidth: number; detail: boolean; reportKind: KitchenReportKind; total: number; onPress: () => void }) {
-  const interactive = !detail && reportKind !== 'cash';
+  const interactive = !detail && !isMoney(reportKind);
   const salesColumns = desktop && reportKind === 'sales' && !detail;
   const title = row.kind === 'category' ? row.category ?? 'Uncategorized' : row.item ? row.party + ' · ' + row.item : row.party;
   const subtitle = [row.date, row.source, row.category && row.kind !== 'category' ? row.category : null, row.payment, row.mode?.toUpperCase()].filter(Boolean).join(' · ');
   const secondary = row.quantity !== null ? row.quantity.toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' ' + (row.unit ?? '') : row.documents + ' ' + (row.documents === 1 ? 'entry' : 'entries');
-  const value = reportKind === 'cash' ? (row.money_in_paise > 0 ? 'Received ' + money(row.money_in_paise) : 'Paid ' + money(row.money_out_paise)) : money(row.amount_paise);
+  const value = isMoney(reportKind) ? (row.money_in_paise > 0 ? 'Received ' + money(row.money_in_paise) : 'Paid ' + money(row.money_out_paise)) : money(row.amount_paise);
   const figures = <>
     <View className={salesColumns ? 'min-w-0 flex-1 items-end' : 'w-28 items-end'}>
       <Text className="text-sm text-text-secondary" style={tabular}>{secondary}</Text>
     </View>
     <View className={salesColumns ? 'min-w-0 flex-1 items-end' : 'w-32 items-end'}>
-      <Text className="text-sm font-bold" style={{ ...tabular, color: reportKind === 'cash' ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{value}</Text>
+      <Text className="text-sm font-bold" style={{ ...tabular, color: isMoney(reportKind) ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{value}</Text>
       {row.kind === 'category' ? <Text className="mt-1 text-xs text-text-secondary" style={tabular}>{total > 0 ? (row.amount_paise / total * 100).toFixed(1) : '0.0'}% of selection</Text> : null}
     </View>
   </>;
@@ -318,11 +336,11 @@ function ReportRow({ row, desktop, availableWidth, detail, reportKind, total, on
       {figures}
     </>
   );
-  const mobileValue = reportKind === 'cash' ? money(row.money_in_paise > 0 ? row.money_in_paise : row.money_out_paise) : money(row.amount_paise);
+  const mobileValue = isMoney(reportKind) ? money(row.money_in_paise > 0 ? row.money_in_paise : row.money_out_paise) : money(row.amount_paise);
   const categoryShare = (total > 0 ? row.amount_paise / total * 100 : 0).toFixed(1) + '% of selection';
   const mobileSubtitle = row.kind === 'category' ? secondary + ' · ' + categoryShare
     : !detail && reportKind === 'sales' ? row.party : [row.item ? row.party : null, subtitle].filter(Boolean).join(' · ');
-  const mobileSecondary = reportKind === 'cash' ? row.money_in_paise > 0 ? 'Received' : 'Paid' : row.quantity !== null ? secondary : null;
+  const mobileSecondary = isMoney(reportKind) ? row.money_in_paise > 0 ? 'Received' : 'Paid' : row.quantity !== null ? secondary : null;
   // Grow into a full-width figure row for exact large values instead of truncating or shrinking.
   const stackedRow = !desktop && Math.max(mobileValue.length * 9, (mobileSecondary?.length ?? 0) * 7) > (availableWidth - 48) * 0.44;
   const mobileBody = <>
@@ -331,11 +349,67 @@ function ReportRow({ row, desktop, availableWidth, detail, reportKind, total, on
       {mobileSubtitle ? <Text className="text-xs leading-4 text-text-secondary">{mobileSubtitle}</Text> : null}
     </View>
     <View className={stackedRow ? 'min-w-0 flex-row flex-wrap items-center justify-between gap-2' : 'min-w-0 max-w-[44%] shrink-0 items-end'}>
-      <Text className="text-sm font-bold leading-5" style={{ ...tabular, color: reportKind === 'cash' ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{mobileValue}</Text>
+      <Text className="text-sm font-bold leading-5" style={{ ...tabular, color: isMoney(reportKind) ? row.money_in_paise > 0 ? semantic.success : semantic.danger : colors.textPrimary }}>{mobileValue}</Text>
       {mobileSecondary ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{mobileSecondary}</Text> : null}
     </View>
   </>;
   const body = desktop ? desktopBody : mobileBody;
   const classes = 'border-b border-border-soft bg-surface-elevated py-2 ' + (desktop ? 'min-h-[52px] flex-row items-center gap-4 px-4' : 'min-h-[62px] px-3 ' + (stackedRow ? 'gap-2' : 'flex-row items-center gap-3'));
   return interactive ? <Pressable testID="kitchen-report-row" onPress={onPress} accessibilityRole="button" accessibilityLabel={'View entries for ' + title} className={classes + ' hover:bg-accent-soft active:bg-accent-soft focus:border focus:border-primary'}>{body}</Pressable> : <View testID="kitchen-report-row" className={classes}>{body}</View>;
+}
+
+/** The period's profit as a short statement: what came in, what it cost, what is left. */
+function ProfitStatement({ summary, desktop }: { summary: KitchenReport['summary']; desktop: boolean }) {
+  const gross = summary.sales_paise - summary.cost_paise;
+  const profit = gross - summary.expenses_paise;
+  const lines: readonly { label: string; value: number; sign?: '−' | '='; strong?: boolean; note?: string }[] = [
+    { label: 'Sales to branches', value: summary.sales_paise },
+    { label: 'Cost of goods sent', value: summary.cost_paise, sign: '−' },
+    { label: 'Gross profit', value: gross, sign: '=', strong: true, note: percent(gross, summary.sales_paise) },
+    { label: 'Other expenses', value: summary.expenses_paise, sign: '−' },
+    { label: 'Profit for the period', value: profit, sign: '=', strong: true, note: percent(profit, summary.sales_paise) },
+  ];
+  return <View testID="kitchen-profit-statement" className={'gap-2 rounded-xl border border-border-soft bg-surface-elevated py-3 ' + (desktop ? 'px-4' : 'px-3')}>
+    {summary.cost_missing_items > 0 ? <View className="gap-2 rounded-lg bg-surface-tint p-3">
+      <Text className="text-sm font-semibold leading-5 text-text-primary">{summary.cost_missing_items === 1 ? '1 finished good sent has no cost yet' : summary.cost_missing_items + ' finished goods sent have no cost yet'} ({money(summary.cost_missing_sales_paise)} of sales).</Text>
+      <Text className="text-xs leading-5 text-text-secondary">Their cost counts as zero here, so profit reads high until you set it.</Text>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/finished-goods' as never)} className={controls + ' self-start border border-border bg-surface-elevated'}><Text className="text-sm font-bold text-primary">Set costs in Finished goods</Text></Pressable>
+    </View> : null}
+    <View className={desktop ? 'max-w-[560px]' : ''}>
+      {lines.map(line => <View key={line.label} className={'min-h-11 flex-row items-center gap-3 ' + (line.sign === '=' ? 'border-t border-border-soft' : '')}>
+        <Text className="w-4 text-sm font-bold text-text-secondary">{line.sign ?? ''}</Text>
+        <Text className={'min-w-0 flex-1 text-sm leading-5 ' + (line.strong ? 'font-bold text-text-primary' : 'text-text-secondary')}>{line.label}</Text>
+        {line.note ? <Text className="text-xs text-text-secondary" style={tabular}>{line.note}</Text> : null}
+        <Text className={(line.strong ? 'text-base font-extrabold' : 'text-sm font-semibold') + ' text-right'} style={{ ...tabular, color: line.strong && line.value < 0 ? semantic.danger : colors.textPrimary, minWidth: 96 }}>{money(line.value)}</Text>
+      </View>)}
+    </View>
+    <Text className="text-xs leading-5 text-text-secondary">Purchases of {money(summary.purchases_paise)} are not subtracted again: their cost is inside each finished good’s cost per unit.</Text>
+  </View>;
+}
+
+/** One finished good: quantity sent, what branches paid, what it cost, and what is left. */
+function ProfitRow({ row, desktop }: { row: KitchenReportRow; desktop: boolean }) {
+  const quantity = (row.quantity ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' ' + (row.unit ?? '');
+  const profit = row.cost_paise === null ? null : row.amount_paise - row.cost_paise;
+  const profitText = profit === null ? 'No cost set' : money(profit);
+  const profitColor = profit === null ? colors.textSecondary : profit < 0 ? semantic.danger : colors.textPrimary;
+  if (desktop) {
+    return <View testID="kitchen-report-row" className="min-h-[52px] flex-row items-center gap-4 border-b border-border-soft bg-surface-elevated px-4 py-2">
+      <View className="min-w-0 flex-1"><Text className="text-sm font-bold text-text-primary">{row.item}</Text><Text className="text-xs leading-4 text-text-secondary">{row.documents} {row.documents === 1 ? 'send' : 'sends'}</Text></View>
+      <Text className="w-28 text-right text-sm text-text-secondary" style={tabular}>{quantity}</Text>
+      <Text className="w-28 text-right text-sm text-text-primary" style={tabular}>{money(row.amount_paise)}</Text>
+      <Text className="w-28 text-right text-sm text-text-secondary" style={tabular}>{row.cost_paise === null ? '—' : money(row.cost_paise)}</Text>
+      <View className="w-28 items-end"><Text className="text-sm font-bold" style={{ ...tabular, color: profitColor }}>{profitText}</Text>{profit !== null ? <Text className="text-xs text-text-secondary" style={tabular}>{percent(profit, row.amount_paise)}</Text> : null}</View>
+    </View>;
+  }
+  return <View testID="kitchen-report-row" className="min-h-[62px] flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2">
+    <View className="min-w-0 flex-1">
+      <Text className="text-sm font-bold leading-5 text-text-primary">{row.item}</Text>
+      <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{quantity} · sales {money(row.amount_paise)}{row.cost_paise === null ? '' : ' · cost ' + money(row.cost_paise)}</Text>
+    </View>
+    <View className="shrink-0 items-end">
+      <Text className="text-sm font-bold leading-5" style={{ ...tabular, color: profitColor }}>{profitText}</Text>
+      {profit !== null ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{percent(profit, row.amount_paise)}</Text> : null}
+    </View>
+  </View>;
 }

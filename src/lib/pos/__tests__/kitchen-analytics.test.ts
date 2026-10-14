@@ -80,3 +80,28 @@ describe('Kitchen report dates and exports', () => {
     expect(supabase.rpc).not.toHaveBeenCalled();
   });
 });
+
+describe('Kitchen profit report', () => {
+  const profit = () => ({
+    ...response(),
+    summary: { ...response().summary, cost_paise: '9000', cost_missing_items: 1, cost_missing_sales_paise: '2500' },
+    rows: [
+      { ...response().rows[0], key: 'item', kind: 'profit', entry_id: null, date: null, party: '', quantity: '3', price_paise: null, amount_paise: 15000, documents: 2, cost_paise: '9000' },
+      { ...response().rows[0], key: 'other', kind: 'profit', entry_id: null, date: null, party: '', quantity: '1', price_paise: null, amount_paise: 2500, documents: 1, cost_paise: null },
+    ],
+  });
+  it('reads the cost of goods sent and leaves an uncosted item without a cost', () => {
+    const report = parseKitchenReport(profit());
+    expect(report.summary.cost_paise).toBe(9000);
+    expect(report.summary.cost_missing_items).toBe(1);
+    expect(report.rows.map(row => row.cost_paise)).toEqual([9000, null]);
+    const csv = kitchenReportCsv(report, { month: '2026-10', report: 'profit' });
+    expect(csv).toContain('"Cost INR"');
+    expect(csv).toContain('"90.00"');
+  });
+  it('treats cost fields missing from an older database as zero rather than failing', () => {
+    const report = parseKitchenReport(response());
+    expect(report.summary.cost_paise).toBe(0);
+    expect(report.rows[0].cost_paise).toBeNull();
+  });
+});

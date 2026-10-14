@@ -73,11 +73,12 @@ export function kitchenReportCsv(report: KitchenReport, filter: KitchenReportFil
   const money = (paise: number): string => (paise / 100).toFixed(2);
   const rows: (string | number | null)[][] = [
     ['Central Kitchen', filter.report, range.startDate + ' through ' + range.endDate, 'Currency: INR', 'India calendar dates, inclusive. Goods supplied are kitchen sales; pay-later status is recorded at entry, not current debt.'],
-    ['Entry ID', 'Date', 'Source', 'Branch / vendor', 'Category', 'Item', 'Quantity', 'Unit', 'Unit price INR', 'Value INR', 'Payment at entry', 'Mode', 'Cash received INR', 'Cash paid INR'],
+    ['Entry ID', 'Date', 'Source', 'Branch / vendor', 'Category', 'Item', 'Quantity', 'Unit', 'Unit price INR', 'Value INR', 'Payment at entry', 'Mode', 'Money in INR', 'Money out INR', 'Cost INR'],
     ...report.rows.map(row => [row.entry_id, row.date, row.source, row.party, row.category, row.item, row.quantity, row.unit,
       row.price_paise === null ? null : money(row.price_paise), money(row.amount_paise), row.payment, row.mode,
-      money(row.money_in_paise), money(row.money_out_paise)]),
-    [null, null, 'TOTAL', null, null, null, null, null, null, money(report.filtered_paise), null, null, money(report.filtered_in_paise), money(report.filtered_out_paise)],
+      money(row.money_in_paise), money(row.money_out_paise), row.cost_paise === null ? null : money(row.cost_paise)]),
+    [null, null, 'TOTAL', null, null, null, null, null, null, money(report.filtered_paise), null, null, money(report.filtered_in_paise), money(report.filtered_out_paise),
+      filter.report === 'profit' ? money(report.summary.cost_paise) : null],
   ];
   return '\uFEFF' + rows.map(row => row.map(kitchenCsvCell).join(',')).join('\r\n');
 }

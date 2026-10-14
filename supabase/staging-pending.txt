@@ -9,3 +9,9 @@
 # Task 202 (kitchen permissions and day lock, three migrations) promoted on
 # 2026-10-12; production kitchen functions, policies, grants and triggers
 # were checked to match staging.
+# Tasks 206-209 (2026-10-14), staging only. Promote all four before the app
+# release that uses them: the app reads kitchen_items.cost_price_paise.
+20261014100000_kitchen_invoice_status_filter.sql
+20261014100100_kitchen_report_bank.sql
+20261014100200_kitchen_finished_goods_cost.sql
+20261014100300_kitchen_report_profit.sql

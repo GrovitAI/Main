@@ -22,6 +22,8 @@ export type KitchenItem = {
   unit: KitchenUnit;
   /** What a branch pays per unit; null for a raw material the kitchen only buys. */
   sell_price: number | null;
+  /** What one unit costs the kitchen to make (finished goods); null when not set. Used for profit. */
+  cost_price: number | null;
   stock: number;
   is_active: boolean;
   updated_at: string;
@@ -33,6 +35,8 @@ export type KitchenItemInput = {
   item_kind?: KitchenItemKind;
   unit: KitchenUnit;
   sell_price: number | null;
+  /** Left out: unchanged. */
+  cost_price?: number | null;
   /** Only read when the item is created. */
   opening_stock?: number;
 };

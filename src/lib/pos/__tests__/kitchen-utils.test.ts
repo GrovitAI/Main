@@ -26,6 +26,7 @@ const item = (id: string, name: string, unit: KitchenItem['unit'], price: number
   name,
   unit,
   sell_price: price,
+  cost_price: null,
   stock: 0,
   is_active: true,
   updated_at: '',

@@ -100,7 +100,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
     <View>
       <KHeader
         title={item.name}
-        subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}
+        subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : `${item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}${item.cost_price !== null ? ` · costs ${formatMoney(item.cost_price)}` : ' · no cost set'}`}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={

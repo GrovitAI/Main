@@ -4,15 +4,16 @@ import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { saveKitchenItem } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_UNITS, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
-import { parseAmount } from '@/lib/pos/kitchen-utils';
+import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Chips, Field, KHeader, KScreen, Notice, PrimaryButton, TextField } from '@/components/kitchen/ui';
 
 const UNIT_LABELS: Record<KitchenUnit, string> = { kg: 'Kilograms', L: 'Litres', pcs: 'Pieces' };
 
-/** A new item, or a change to one: name, unit, the price a branch pays. */
+/** A new item, or a change to one: name, unit, the price a branch pays and, for profit, what it costs to make. */
 export default function ItemFormScreen() {
-  const mayEdit = useKitchenAccess().can('setup.items');
+  const access = useKitchenAccess();
+  const mayEdit = access.can('setup.items');
   const data = useKitchenData();
   const { id, kind: initialKind } = useLocalSearchParams<{ id?: string; kind?: string }>();
   const existing = id ? data.itemsById.get(id) ?? null : null;
@@ -20,6 +21,7 @@ export default function ItemFormScreen() {
   const [kind, setKind] = useState<KitchenItemKind>(existing?.item_kind ?? (initialKind === 'finished_good' ? 'finished_good' : 'raw_material'));
   const [unit, setUnit] = useState<KitchenUnit>(existing?.unit ?? 'kg');
   const [price, setPrice] = useState(existing?.sell_price !== null && existing?.sell_price !== undefined ? String(existing.sell_price) : '');
+  const [cost, setCost] = useState(existing?.cost_price !== null && existing?.cost_price !== undefined ? String(existing.cost_price) : '');
   const [opening, setOpening] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,13 @@ export default function ItemFormScreen() {
     setKind(existing.item_kind);
     setUnit(existing.unit);
     setPrice(existing.sell_price === null ? '' : String(existing.sell_price));
+    setCost(existing.cost_price === null ? '' : String(existing.cost_price));
   }, [existing]);
+
+  const sellNumber = Number(price.replace(/[,s]/g, ''));
+  const costNumber = Number(cost.replace(/[,s]/g, ''));
+  const margin = kind === 'finished_good' && price.trim() && cost.trim() && Number.isFinite(sellNumber) && Number.isFinite(costNumber) && sellNumber > 0
+    ? { each: sellNumber - costNumber, percent: Math.round(((sellNumber - costNumber) / sellNumber) * 100) } : null;
 
   const save = async () => {
     if (!name.trim() || (id && !existing)) return;
@@ -41,10 +49,18 @@ export default function ItemFormScreen() {
       setError('Enter a valid stock quantity and selling price, zero or greater.');
       return;
     }
+    if (kind === 'finished_good' && cost.trim() !== '' && (!Number.isFinite(costNumber) || costNumber < 0)) {
+      setError('Enter a valid cost, zero or greater.');
+      return;
+    }
     setSaving(true);
     setError(null);
     const res = await saveKitchenItem(
-      { name, item_kind: kind, unit, sell_price: kind === 'raw_material' || price.trim() === '' ? null : parseAmount(price), opening_stock: openingQty },
+      {
+        name, item_kind: kind, unit, sell_price: kind === 'raw_material' || price.trim() === '' ? null : parseAmount(price), opening_stock: openingQty,
+        // Only a login that sees amounts edits the cost; otherwise it is left as it is.
+        ...(access.showAmounts ? { cost_price: kind === 'raw_material' || cost.trim() === '' ? null : parseAmount(cost) } : {}),
+      },
       existing?.id,
     );
     setSaving(false);
@@ -73,6 +89,9 @@ export default function ItemFormScreen() {
         </Field>
         {kind === 'finished_good' ? <Field label={`Sells at, ₹ per ${unit}`} hint="Optional default for branch sends. A blank price does not change the item type; enter its price on each send.">
           <TextField value={price} onChange={setPrice} label="Selling price" placeholder="Enter on each send" keyboardType="decimal-pad" prefix="₹" />
+        </Field> : null}
+        {kind === 'finished_good' && access.showAmounts ? <Field label={`Costs us, ₹ per ${unit}`} hint={margin ? `${formatMoney(margin.each)} profit per ${unit} at the selling price (${margin.percent}%). Each send keeps the cost of its day.` : 'What one ' + unit + ' costs the kitchen to make: ingredients and packing. Used for profit in Analytics; each send keeps the cost of its day.'}>
+          <TextField value={cost} onChange={setCost} label="Cost per unit" placeholder="Not set" keyboardType="decimal-pad" prefix="₹" />
         </Field> : null}
         {!existing ? (
           <Field label={`In stock today, ${unit}`} hint={kind === 'finished_good' ? 'What is on the shelf now. Batches add stock; sends reduce it. Count stock corrects it.' : 'What is on the shelf now. Purchases add stock; Count stock corrects it. No batches needed.'}>

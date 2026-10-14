@@ -85,7 +85,9 @@ function actorName(): string {
   return useSessionStore.getState().session?.displayName?.trim() || 'Staff';
 }
 
-const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, stock, is_active, updated_at';
+const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, cost_price_paise, stock, is_active, updated_at';
+/** Before migration 20261014100200 there is no cost column; the list still loads, without costs. */
+const ITEM_COLUMNS_BEFORE_COST = 'id, name, item_kind, unit, sell_price_paise, stock, is_active, updated_at';
 const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise, purchase_category_id';
 const ENTRY_COLUMNS =
   'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_by_id, created_at, voided_at, voided_by, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
@@ -102,6 +104,7 @@ function mapItem(row: Record<string, unknown>): KitchenItem {
     item_kind: row.item_kind === 'finished_good' || (row.item_kind == null && row.sell_price_paise != null) ? 'finished_good' : 'raw_material',
     unit,
     sell_price: row.sell_price_paise === null || row.sell_price_paise === undefined ? null : fromPaise(toNumber(row.sell_price_paise)),
+    cost_price: row.cost_price_paise === null || row.cost_price_paise === undefined ? null : fromPaise(toNumber(row.cost_price_paise)),
     stock: toNumber(row.stock),
     is_active: row.is_active !== false,
     updated_at: String(row.updated_at ?? ''),
@@ -166,11 +169,14 @@ function mapEntry(row: Record<string, unknown>): KitchenEntry {
 export async function fetchKitchenItems(includeInactive = false): Promise<ServiceResult<KitchenItem[]>> {
   try {
     const { tenant_id, branch_id } = scope();
-    let query = supabase.from('kitchen_items').select(ITEM_COLUMNS).eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name');
-    if (!includeInactive) query = query.eq('is_active', true);
-    const { data, error } = await query;
+    const read = (columns: string) => {
+      const query = supabase.from('kitchen_items').select(columns).eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name');
+      return includeInactive ? query : query.eq('is_active', true);
+    };
+    let { data, error } = await read(ITEM_COLUMNS);
+    if (error?.code === '42703') ({ data, error } = await read(ITEM_COLUMNS_BEFORE_COST));
     if (error) return { data: null, error: explain(error, 'Unable to load the items.') };
-    return { data: (data ?? []).filter(isRecord).map(mapItem), error: null };
+    return { data: ((data ?? []) as unknown[]).filter(isRecord).map(mapItem), error: null };
   } catch (err) {
     return { data: null, error: explain(err, 'Unable to load the items.') };
   }
@@ -187,6 +193,7 @@ export async function saveKitchenItem(input: KitchenItemInput, id?: string): Pro
       ...(input.item_kind ? { item_kind: input.item_kind } : {}),
       unit: input.unit,
       sell_price_paise: input.sell_price === null ? null : toPaise(input.sell_price),
+      ...(input.cost_price !== undefined ? { cost_price_paise: input.cost_price === null ? null : toPaise(input.cost_price) } : {}),
     };
     const query = id
       ? supabase.from('kitchen_items').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)

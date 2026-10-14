@@ -48,3 +48,20 @@ test('batch rejection is sanitized and reports no successful write', async () =>
   expect(supabase.rpc).toHaveBeenCalledWith('kitchen_post_entry', { p: expect.objectContaining({ branch_id: 'kitchen', type: 'made', item_id: 'milk', qty: 5 }) });
   jest.restoreAllMocks();
 });
+test('a finished good keeps its cost per unit in paise, and an edit without a cost leaves it alone', async () => {
+  result.data = { ...row, cost_price_paise: 4850 };
+  const saved = await saveKitchenItem({ name: 'Sauce', unit: 'kg', sell_price: 75, cost_price: 48.5 }, 'stock-item');
+  expect(calls).toContainEqual(['update', [{ name: 'Sauce', unit: 'kg', sell_price_paise: 7500, cost_price_paise: 4850 }]]);
+  expect(saved.data?.cost_price).toBe(48.5);
+  calls.length = 0;
+  await saveKitchenItem({ name: 'Sauce', unit: 'kg', sell_price: 75 }, 'stock-item');
+  expect(calls).toContainEqual(['update', [{ name: 'Sauce', unit: 'kg', sell_price_paise: 7500 }]]);
+});
+test('items still load from a database without the cost column, without costs', async () => {
+  const responses = [{ data: null, error: { code: '42703', message: 'column kitchen_items.cost_price_paise does not exist' } }, { data: [row], error: null }];
+  (supabase.from as jest.Mock).mockImplementation(() => { const chain = query(); chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(responses.shift()).then(resolve); return chain; });
+  const res = await fetchKitchenItems();
+  expect(res.error).toBeNull();
+  expect(res.data?.[0]?.cost_price).toBeNull();
+  expect(calls.filter(([method]) => method === 'select').map(([, args]) => String(args[0]).includes('cost_price_paise'))).toEqual([true, false]);
+});

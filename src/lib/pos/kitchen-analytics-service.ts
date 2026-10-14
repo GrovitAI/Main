@@ -13,6 +13,8 @@ const numeric = (value: unknown): number => {
   if (!Number.isFinite(parsed) || Math.abs(parsed) > Number.MAX_SAFE_INTEGER) throw new Error('Invalid report number');
   return parsed;
 };
+/** Fields added after a report version (task 209): absent from an older database means zero. */
+const optionalNumeric = (value: unknown): number => value === undefined || value === null ? 0 : numeric(value);
 const options = (value: unknown): ReportOption[] => {
   if (!Array.isArray(value)) throw new Error('Invalid report options');
   return value.map((row: unknown) => {
@@ -25,7 +27,7 @@ export function parseKitchenReport(value: unknown): KitchenReport {
   if (!record(value) || !record(value.summary) || !record(value.options) || !Array.isArray(value.rows)) throw new Error('Invalid report');
   const summary = value.summary;
   const rows = value.rows.map((raw: unknown): KitchenReportRow => {
-    if (!record(raw) || typeof raw.key !== 'string' || !['sale', 'category', 'entry', 'cash'].includes(String(raw.kind))) throw new Error('Invalid report row');
+    if (!record(raw) || typeof raw.key !== 'string' || !['sale', 'category', 'entry', 'cash', 'profit'].includes(String(raw.kind))) throw new Error('Invalid report row');
     return {
       key: raw.key, kind: raw.kind as KitchenReportRow['kind'], entry_id: nullable(raw.entry_id), date: nullable(raw.date),
       party_id: nullable(raw.party_id), party: String(raw.party ?? ''), item_id: nullable(raw.item_id), item: nullable(raw.item),
@@ -33,11 +35,13 @@ export function parseKitchenReport(value: unknown): KitchenReport {
       price_paise: raw.price_paise === null ? null : numeric(raw.price_paise), amount_paise: numeric(raw.amount_paise),
       documents: numeric(raw.documents), category: nullable(raw.category), source: String(raw.source ?? ''),
       payment: nullable(raw.payment), mode: nullable(raw.mode), money_in_paise: numeric(raw.money_in_paise), money_out_paise: numeric(raw.money_out_paise),
+      cost_paise: raw.cost_paise === undefined || raw.cost_paise === null ? null : numeric(raw.cost_paise),
     };
   });
   return {
     summary: { sales_paise: numeric(summary.sales_paise), purchases_paise: numeric(summary.purchases_paise),
-      expenses_paise: numeric(summary.expenses_paise), cash_in_paise: numeric(summary.cash_in_paise), cash_out_paise: numeric(summary.cash_out_paise) },
+      expenses_paise: numeric(summary.expenses_paise), cash_in_paise: numeric(summary.cash_in_paise), cash_out_paise: numeric(summary.cash_out_paise),
+      cost_paise: optionalNumeric(summary.cost_paise), cost_missing_items: optionalNumeric(summary.cost_missing_items), cost_missing_sales_paise: optionalNumeric(summary.cost_missing_sales_paise) },
     total_rows: numeric(value.total_rows), filtered_paise: numeric(value.filtered_paise),
     filtered_in_paise: numeric(value.filtered_in_paise), filtered_out_paise: numeric(value.filtered_out_paise), rows,
     options: { branches: options(value.options.branches), items: options(value.options.items),

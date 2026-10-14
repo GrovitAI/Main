@@ -96,3 +96,16 @@ production is unchanged.
 
 The Analytics **Cash** report still totals all money together. A Cash/Bank
 split there is a possible follow-up.
+
+## Task 208: Bank tab in Analytics (2026-10-14)
+
+The Cash/Bank split noted above is done.
+- **Cash:** the Cash report now shows cash entries only.
+- **Bank:** the new Bank tab shows UPI and bank entries.
+- **Moves:** a move between the two appears in both, as money out of one and
+  into the other.
+- **Migration:** `20261014100100_kitchen_report_bank.sql` (staging).
+- **Staging check:**
+  - receipts and payments across Cash and Bank, less moves, equal the old
+    combined totals;
+  - a ₹100 deposit showed as paid on Cash and received on Bank.
