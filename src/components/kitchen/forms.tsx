@@ -183,12 +183,19 @@ type LinesEditorProps = {
 export function LinesEditor({ items, lines, onChange, mode, defaultCost }: LinesEditorProps) {
   const [query, setQuery] = useState('');
   const { showAmounts } = useKitchenAccess();
+  const kind = mode === 'sell' ? 'finished_good' : 'raw_material';
+  const offered = useMemo(() => items.filter((i) => i.item_kind === kind), [items, kind]);
+  // Search first: the list holds the items already on this entry, then whatever
+  // matches the search. A match keeps its place when it gets a quantity, so rows
+  // do not jump under the finger. Selected historical lines stay even after an
+  // item is reclassified.
   const ordered = useMemo(() => {
-    // Preserve selected historical lines when editing an entry after reclassification.
-    const list = items.filter((i) => (lines[i.id]?.qty ?? 0) > 0 || (i.item_kind === (mode === 'sell' ? 'finished_good' : 'raw_material') && matchesSearch(query, i.name, i.unit)));
-    if (mode === 'sell') list.sort((a, b) => Number(a.sell_price === null) - Number(b.sell_price === null) || a.name.localeCompare(b.name));
-    return list;
-  }, [items, query, lines, mode]);
+    const matches = query.trim() ? offered.filter((i) => matchesSearch(query, i.name, i.unit)) : [];
+    if (mode === 'sell') matches.sort((a, b) => Number(a.sell_price === null) - Number(b.sell_price === null) || a.name.localeCompare(b.name));
+    const matchIds = new Set(matches.map((i) => i.id));
+    const chosenElsewhere = items.filter((i) => (lines[i.id]?.qty ?? 0) > 0 && !matchIds.has(i.id));
+    return [...chosenElsewhere, ...matches];
+  }, [items, offered, query, lines, mode]);
   const defaultPrice = (it: KitchenItem): number | null => (mode === 'sell' ? it.sell_price : defaultCost?.get(it.id) ?? null);
   const setLine = (it: KitchenItem, patch: Partial<DraftLine>) => {
     const current = lines[it.id] ?? { qty: 0, price: defaultPrice(it) };
@@ -199,11 +206,13 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
 
   return (
     <View style={{ gap: 10 }}>
-      <SearchBox value={query} onChange={setQuery} placeholder="Search items" />
+      <SearchBox value={query} onChange={setQuery} placeholder={mode === 'sell' ? 'Search finished goods to add' : 'Search raw materials to add'} />
       <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14 }}>
         {ordered.length === 0 ? (
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', paddingVertical: 18, textAlign: 'center' }}>
-            {query ? 'No item matches that.' : mode === 'sell' ? 'No finished goods yet. Add them under Stock first.' : 'No raw materials yet. Add them under Stock first.'}
+            {offered.length === 0
+              ? mode === 'sell' ? 'No finished goods yet. Add them under Stock first.' : 'No raw materials yet. Add them under Stock first.'
+              : query.trim() ? 'No item matches that.' : 'Search above, then set a quantity on each item you need.'}
           </Text>
         ) : null}
         {ordered.map((it) => {

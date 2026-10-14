@@ -112,3 +112,15 @@ claiming exact per-test byte costs or a guaranteed monthly total.
 Source Sans 3, the existing POS canvas and blue rail, quiet selected states,
 shared component styles and brand tokens are preserved. No new global design
 rules, assets, font packages or runtime configuration were introduced.
+
+## Task 204: search first on sends and buys (2026-10-14)
+
+- **Search first:** the item list on Send and Bought starts empty and says
+  "Search above, then set a quantity on each item you need".
+- **Matches:** typing shows only matching items of the right kind (finished
+  goods on a send, raw materials on a buy).
+- **Chosen items stay:** items with a quantity stay listed after the search is
+  cleared. A match keeps its place when it gets a quantity, so rows do not
+  jump under the finger.
+- **Raw materials on sends:** they were already hidden from sends since task
+  175. Production showed them only because it ran older code.
