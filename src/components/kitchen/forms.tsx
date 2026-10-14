@@ -6,12 +6,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
+import { Banknote, Landmark, Smartphone } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_MODES, formatDayLabel, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem, KitchenMode, KitchenOpenDocument, KitchenParty, KitchenPartyBalance, KitchenPartyKind } from '@/lib/pos/kitchen-types';
-import { AddChip, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
+import { AddChip, ChoiceButtons, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
 
 // ─── Who ─────────────────────────────────────────────────────────────────────
 
@@ -90,8 +91,16 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
 
 // ─── How ─────────────────────────────────────────────────────────────────────
 
+const MODE_ICONS = { cash: Banknote, upi: Smartphone, bank: Landmark } as const;
+
+/** Cash, UPI or Bank as three equal buttons; the line under them says which balance it lands in. */
 export function ModePicker({ value, onChange }: { value: KitchenMode; onChange: (m: KitchenMode) => void }) {
-  return <Chips options={KITCHEN_MODES.map((m) => ({ value: m.value, label: m.label }))} value={value} onChange={onChange} />;
+  return (
+    <View style={{ gap: 6 }}>
+      <ChoiceButtons label="Payment mode" options={KITCHEN_MODES.map((m) => ({ value: m.value, label: m.label, icon: MODE_ICONS[m.value] }))} value={value} onChange={onChange} />
+      <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600' }}>{value === 'cash' ? 'Counts in Cash in hand.' : 'Counts in the Bank balance.'}</Text>
+    </View>
+  );
 }
 
 // ─── When ────────────────────────────────────────────────────────────────────
@@ -222,13 +231,11 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
           const unitPrice = mode === 'sell' ? it.sell_price : defaultCost?.get(it.id) ?? null;
           return (
             <View key={it.id} className="border-b border-border-soft" style={{ paddingVertical: 10 }}>
-              <View className="flex-row items-center" style={{ gap: 10 }}>
-                <View className="flex-1" style={{ minWidth: 0 }}>
-                  <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{it.name}</Text>
-                  <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>
-                    {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}
-                  </Text>
-                </View>
+              <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={2}>{it.name}</Text>
+              <View className="flex-row items-center" style={{ gap: 10, marginTop: 4 }}>
+                <Text className="flex-1 text-text-secondary" style={{ fontSize: 12, fontWeight: '600', minWidth: 0 }} numberOfLines={2}>
+                  {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}
+                </Text>
                 <QtyStepper value={qty} onChange={(q) => setLine(it, { qty: q })} step={stepFor(it.unit)} unit={it.unit} label={it.name} />
               </View>
               {qty > 0 && !showAmounts && price === null ? (

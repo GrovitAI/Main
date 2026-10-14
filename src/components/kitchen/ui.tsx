@@ -128,7 +128,7 @@ export function KHeader({ title, subtitle, onBack, right, large = !onBack }: Hea
           <Text
             className={`font-extrabold text-text-primary ${large ? compact ? 'text-2xl leading-7' : 'text-[28px] leading-8' : compact ? 'text-lg leading-6' : 'text-xl leading-6'}`}
             style={{ letterSpacing: -0.4 }}
-            numberOfLines={1}
+            numberOfLines={2}
             accessibilityRole="header"
           >
             {title}
@@ -260,9 +260,11 @@ type RowProps = {
   selected?: boolean;
   muted?: boolean;
   accessibilityLabel?: string;
+  /** Lines the title may use before it is cut; long item names use two. */
+  titleLines?: number;
 };
 
-export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel }: RowProps) {
+export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel, titleLines = 1 }: RowProps) {
   const compact = useDesktopDensity();
   const rowClass = `flex-row items-center gap-3 border-b border-border-soft ${compact ? 'min-h-[52px] py-2' : 'min-h-[58px] py-3'}`;
   const content = (
@@ -273,7 +275,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text className={`font-bold ${compact ? 'text-sm' : 'text-[15px]'}`} style={[{ color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={1}>{title}</Text>
+        <Text className={`font-bold ${compact ? 'text-sm' : 'text-[15px]'}`} style={[{ color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={titleLines}>{title}</Text>
         {subtitle ? <Text style={{ fontSize: 12, fontWeight: '600', marginTop: 2, color: colors.textSecondary }} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right || rightSub ? (
@@ -435,10 +437,10 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
 }) {
   const shell: ViewStyle = flat
     ? { borderRadius: 12, backgroundColor: colors.surfaceTint, minHeight: TARGET, paddingHorizontal: 12 }
-    : { borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: big ? 64 : 48, paddingHorizontal: 14 };
+    : { borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: big ? 56 : 48, paddingHorizontal: 14, ...(big ? { maxWidth: 360, width: '100%' } : {}) };
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', ...shell }}>
-      {prefix ? <Text style={{ color: colors.textSecondary, fontSize: big ? 26 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
+      {prefix ? <Text style={{ color: colors.textSecondary, fontSize: big ? 20 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -449,7 +451,8 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
         autoFocus={autoFocus}
         multiline={multiline}
         accessibilityLabel={label}
-        style={{ flex: 1, color: colors.textPrimary, fontSize: big ? 30 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 10, letterSpacing: big ? -0.5 : 0, ...tabular, ...webNoOutline }}
+        className={big ? 'text-2xl' : undefined}
+        style={{ flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: big ? 24 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 10, letterSpacing: big ? -0.3 : 0, ...tabular, ...webNoOutline }}
       />
     </View>
   );
@@ -547,6 +550,34 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
       <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '800' }}>{label}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * A few mutually exclusive choices as equal buttons across the row, each with an
+ * icon: the whole button is the target and the chosen one is filled blue.
+ */
+export function ChoiceButtons<T extends string>({ options, value, onChange, label }: { options: readonly { value: T; label: string; icon: LucideIcon }[]; value: T; onChange: (v: T) => void; label: string }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      {options.map((o) => {
+        const on = o.value === value;
+        const Icon = o.icon;
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={o.label}
+            style={pressed({ flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 8, borderRadius: 14, borderWidth: 1, borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated })}
+          >
+            <Icon size={18} color={on ? colors.textOnPrimary : colors.primary} />
+            <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
