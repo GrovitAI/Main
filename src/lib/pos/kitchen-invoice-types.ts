@@ -9,5 +9,7 @@ export type KitchenInvoice = {
   status: 'paid' | 'to_be_paid' | 'cancelled'; created_at: string; created_by_name: string;
   cancelled_at: string | null; cancel_reason: string | null; deliveries: InvoiceDelivery[];
 };
-export type InvoiceFilter = KitchenDateRange & { partyId: string | null; page: number; candidates: boolean };
+export type InvoiceStatus = KitchenInvoice['status'];
+/** `status` narrows the register; absent or null means every status. */
+export type InvoiceFilter = KitchenDateRange & { partyId: string | null; page: number; candidates: boolean; status?: InvoiceStatus | null };
 export type InvoiceWorkspace = { rows: KitchenInvoice[]; deliveries: InvoiceDelivery[]; branches: ReportOption[]; total_rows: number };

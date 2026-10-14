@@ -271,3 +271,17 @@ deliberately failed attempt, then 01006, so no number was skipped. Afterwards
 the counter was still 1004 and no fixture rows remained. The app shows
 `invoice_no` everywhere: register, detail, preview and print. Typecheck passed,
 and 16 invoice tests passed.
+
+## Task 206: status filter (2026-10-14)
+
+- **Chips:** All, To be paid, Paid and Cancelled above the register.
+- **Database filter:** migration
+  `20261014100000_kitchen_invoice_status_filter.sql` adds `p_status` to
+  `kitchen_invoice_workspace`, so the 50-row pages and counts stay right.
+  The old signature is dropped.
+- **Compatibility:** the app sends the status only when one is chosen, so
+  "All" also works against a database without the change.
+- **Status is kept:** when an Analytics link changes the branch and dates, and
+  while making a new invoice.
+- **Staging check:** the three statuses add up to All (5 = 5), and an unknown
+  status is refused.

@@ -55,7 +55,9 @@ export async function fetchKitchenInvoices(filter: InvoiceFilter, signal?: Abort
   try {
     if (!validFilter(filter)) return { data: null, error: 'Choose a branch and valid dates.' };
     const request = supabase.rpc('kitchen_invoice_workspace', { ...scope(), p_start_date: filter.startDate, p_end_date: filter.endDate,
-      p_party_id: filter.partyId, p_page: filter.page, p_candidates: filter.candidates });
+      p_party_id: filter.partyId, p_page: filter.page, p_candidates: filter.candidates,
+      // Sent only when chosen, so a database without the status filter still serves "All".
+      ...(filter.status && !filter.candidates ? { p_status: filter.status } : {}) });
     const { data, error } = await (signal ? request.abortSignal(signal) : request);
     if (error) return { data: null, error: safeError(error) };
     const r = object(data);
