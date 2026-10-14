@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Pressable, View } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Check, CheckSquare2, ChevronDown, Pencil, Plus, RefreshCw, Search, Square } from 'lucide-react-native';
@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
 import { AttendanceAction } from '@/components/kitchen/AttendanceAction';
 import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
-import { Empty, GhostButton, IconButton, KScreen, Notice, PrimaryButton, SearchBox, Segmented, TextField, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, GhostButton, IconButton, KScreen, Notice, PrimaryButton, SearchBox, Segmented, TextField, useDesktopDensity, useSlidingRect } from '@/components/kitchen/ui';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
@@ -91,6 +91,8 @@ export default function KitchenAttendanceScreen() {
   const insets = useSafeAreaInsets();
   const [date, setDate] = useState(kitchenToday);
   const [pane, setPane] = useState<'daily' | 'monthly' | 'staff'>('daily');
+  // The pane underline slides between Daily register, Month overview and Staff (task 214).
+  const paneSlide = useSlidingRect((['daily', 'monthly', 'staff'] as const).indexOf(pane));
   const [monthlyLocked, setMonthlyLocked] = useState(false);
   const monthly = pane === 'monthly';
   const [query, setQuery] = useState('');
@@ -200,7 +202,9 @@ export default function KitchenAttendanceScreen() {
       {mayRoster ? <Pressable accessibilityRole="button" accessibilityLabel="Add kitchen staff" disabled={busy || monthlyLocked} onPress={() => startEditor()} className="min-h-12 flex-row items-center gap-1 rounded-xl bg-primary px-3 hover:bg-primary-deep focus:border-border active:bg-primary-deep"><Plus size={16} color={colors.textOnPrimary} /><Text className="text-sm font-semibold text-text-on-primary">Add staff</Text></Pressable> : null}
     </View>
     <View accessibilityRole="tablist" className="flex-row gap-3 border-b border-border">
-      {([{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }] as const).map(option => <Pressable key={option.value} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} onPress={() => { if (busyRef.current || monthlyLocked) return; clearSelection(); setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className={`min-h-12 justify-center border-b-2 px-1 focus:bg-accent-soft hover:bg-surface-tint ${pane === option.value ? 'border-primary' : 'border-transparent'}`}><Text className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
+      {([{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }] as const).map((option, i) => <Pressable key={option.value} onLayout={paneSlide.measure(i)} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} onPress={() => { if (busyRef.current || monthlyLocked) return; clearSelection(); setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className="min-h-12 justify-center px-1 focus:bg-accent-soft hover:bg-surface-tint"><Text className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
+      {/* Drawn over the tabs so a focused tab's fill never hides it; it takes no taps. */}
+      <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 0, height: 2, backgroundColor: colors.primary, ...paneSlide.style }} />
     </View>
   </View>;
   const header = <View className="gap-2">

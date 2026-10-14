@@ -7,8 +7,8 @@
  * Legacy Pressables with function styles must not also take className:
  * NativeWind drops that function. Class-styled controls use active variants.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Search, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
@@ -559,45 +559,102 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
  * icon: the whole button is the target and the chosen one is filled blue.
  */
 export function ChoiceButtons<T extends string>({ options, value, onChange, label }: { options: readonly { value: T; label: string; icon: LucideIcon }[]; value: T; onChange: (v: T) => void; label: string }) {
-  // One connected bar drawn 40 high; each part is a full-height target with its 36 face inside.
+  // One connected bar drawn 40 high; the blue highlight slides to the chosen part.
+  const slide = useSlidingRect(options.findIndex((o) => o.value === value));
   return (
-    <View style={{ flexDirection: 'row', minHeight: TARGET, paddingHorizontal: 2, gap: 2 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
-      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: BAND - 2, bottom: BAND - 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint }} />
-      {options.map((o) => {
-        const on = o.value === value;
-        const Icon = o.icon;
-        return (
-          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={o.label}
-            style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
-            <View style={{ flex: 1, minHeight: VISUAL, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, borderRadius: 10, backgroundColor: on ? colors.primary : 'transparent' }}>
-              <Icon size={16} color={on ? colors.textOnPrimary : colors.primary} />
-              <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
-            </View>
-          </Pressable>
-        );
-      })}
+    <View style={{ paddingHorizontal: 2 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      <View style={{ flexDirection: 'row', minHeight: TARGET, gap: 2 }}>
+        <View pointerEvents="none" style={{ position: 'absolute', left: -2, right: -2, top: BAND - 2, bottom: BAND - 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint }} />
+        <Animated.View pointerEvents="none" style={{ position: 'absolute', top: BAND, height: VISUAL, borderRadius: 10, backgroundColor: colors.primary, ...slide.style }} />
+        {options.map((o, i) => {
+          const on = o.value === value;
+          const Icon = o.icon;
+          return (
+            <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={o.label}
+              style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
+              <View style={{ flex: 1, minHeight: VISUAL, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 }}>
+                <Icon size={16} color={on ? colors.textOnPrimary : colors.primary} />
+                <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 export function Segmented<T extends string>({ options, value, onChange }: { options: readonly { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
-  // The same connected bar as the payment mode; the chosen part is raised white.
+  // The same connected bar as the payment mode; a raised white highlight slides to the chosen part.
+  const slide = useSlidingRect(options.findIndex((o) => o.value === value));
   return (
-    <View style={{ flexDirection: 'row', minHeight: TARGET, paddingHorizontal: 2 }} accessibilityRole="tablist">
-      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: BAND - 2, bottom: BAND - 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint }} />
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }}
-            style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
-            <View style={{ flex: 1, minHeight: VISUAL, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, backgroundColor: on ? colors.surfaceElevated : 'transparent', borderColor: on ? colors.border : 'transparent' }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>
-            </View>
-          </Pressable>
-        );
-      })}
+    <View style={{ paddingHorizontal: 2 }} accessibilityRole="tablist">
+      <View style={{ flexDirection: 'row', minHeight: TARGET }}>
+        <View pointerEvents="none" style={{ position: 'absolute', left: -2, right: -2, top: BAND - 2, bottom: BAND - 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceTint }} />
+        <Animated.View pointerEvents="none" style={{ position: 'absolute', top: BAND, height: VISUAL, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, ...slide.style }} />
+        {options.map((o, i) => {
+          const on = o.value === value;
+          return (
+            <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+              style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
+              <View style={{ flex: 1, minHeight: VISUAL, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
+}
+
+
+// ─── Sliding selection ───────────────────────────────────────────────────────
+
+/** True when the person has asked the device for less motion. */
+export function useReducedMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((on) => { if (live) setReduce(on); }).catch(() => undefined);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => { live = false; sub.remove(); };
+  }, []);
+  return reduce;
+}
+
+/**
+ * One highlight that slides to the chosen option of a row (task 214). Each option
+ * reports its place with `measure(i)`; the highlight is an absolute
+ * Animated.View in the same row, given `style`. It moves in 220 ms with an
+ * ease-out, appears in place the first time, jumps on resize, and jumps
+ * when Reduce Motion is on. `index` -1 hides it.
+ */
+export function useSlidingRect(index: number): { measure: (i: number) => (e: LayoutChangeEvent) => void; style: { left: Animated.Value; width: Animated.Value; opacity: number } } {
+  const reduce = useReducedMotion();
+  const places = useRef<({ x: number; width: number } | undefined)[]>([]);
+  const left = useRef(new Animated.Value(0)).current;
+  const width = useRef(new Animated.Value(0)).current;
+  const shown = useRef(false);
+  const [ready, setReady] = useState(false);
+  const jump = useCallback((to: { x: number; width: number }) => {
+    left.setValue(to.x); width.setValue(to.width); shown.current = true; setReady(true);
+  }, [left, width]);
+  useEffect(() => {
+    const to = places.current[index];
+    if (!to) return;
+    if (!shown.current || reduce) { jump(to); return; }
+    const timing = { duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false };
+    const run = Animated.parallel([Animated.timing(left, { toValue: to.x, ...timing }), Animated.timing(width, { toValue: to.width, ...timing })]);
+    run.start();
+    return () => run.stop();
+  }, [index, reduce, jump, left, width]);
+  const measure = useCallback((i: number) => (e: LayoutChangeEvent) => {
+    const { x, width: w } = e.nativeEvent.layout;
+    places.current[i] = { x, width: w };
+    if (i === index) jump({ x, width: w });
+  }, [index, jump]);
+  return { measure, style: { left, width, opacity: ready && index >= 0 ? 1 : 0 } };
 }
 
 // ─── Sheet ───────────────────────────────────────────────────────────────────

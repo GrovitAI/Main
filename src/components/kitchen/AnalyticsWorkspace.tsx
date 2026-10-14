@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
-import { ActivityIndicator, FlatList, Modal, Platform, Pressable, Share, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Modal, Platform, Pressable, Share, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenToday, s
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
 import { formatMoney } from '@/lib/pos/kitchen-utils';
-import { Empty, KScreen, Notice } from '@/components/kitchen/ui';
+import { Empty, KScreen, Notice, useSlidingRect } from '@/components/kitchen/ui';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 
@@ -51,6 +51,8 @@ export function AnalyticsWorkspace() {
   const [dateRange, setDateRange] = useState<KitchenDateRange>(() => kitchenMonthRange(today.slice(0, 7), today));
   const month = dateRange.startDate.slice(0, 7);
   const [kind, setKind] = useState<KitchenReportKind>('sales');
+  // The blue report highlight slides between tabs (task 214).
+  const tabSlide = useSlidingRect(tabs.findIndex(tab => tab.id === kind));
   const [partyId, setPartyId] = useState<string | null>(null);
   const [itemId, setItemId] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
@@ -186,9 +188,10 @@ export function AnalyticsWorkspace() {
     <View className="gap-2" style={{ paddingTop: Math.max(insets.top, 8) }}>
       <View testID="kitchen-report-selector" className="flex-row items-center justify-between gap-2 rounded-xl bg-surface-elevated p-1">
         <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-1')}>
-          {tabs.map(tab => (
-            <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
-              className={'min-h-12 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] ' : 'flex-1 ') + (kind === tab.id ? 'bg-primary' : 'bg-surface-elevated hover:bg-accent-soft')}>
+          <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 12, backgroundColor: colors.primary, ...tabSlide.style }} />
+          {tabs.map((tab, i) => (
+            <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)} onLayout={tabSlide.measure(i)}
+              className={'min-h-12 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] ' : 'flex-1 ') + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
               <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')}>{tab.label}</Text>
             </Pressable>
           ))}
