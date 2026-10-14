@@ -20,8 +20,8 @@ const KINDS = [
   { id: 'bought', label: 'Bought' }, { id: 'spent', label: 'Spent / vendor payments' }, { id: 'stock', label: 'Stock' },
 ] as const;
 const STATUSES = [
-  { id: 'active', label: 'Active · unedited' }, { id: 'edited', label: 'Edited · current version' },
-  { id: 'replaced', label: 'Replaced · earlier version' }, { id: 'voided', label: 'Voided · removed' },
+  { id: 'current', label: 'Current · what counts now' }, { id: 'edited', label: 'Edited · with the earlier version' },
+  { id: 'voided', label: 'Voided · removed' },
 ] as const;
 const SORTS: readonly { id: HistorySort; label: string }[] = [
   { id: 'transaction-newest', label: 'Transaction date · newest' }, { id: 'transaction-oldest', label: 'Transaction date · oldest' },
@@ -71,7 +71,7 @@ export default function HistoryScreen() {
         {!phone ? <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Entry details</Text> : null}
         <View className={phone ? 'gap-1.5' : 'gap-3 sm:flex-row'}>
           <ReportSelect outlined inlineLabel={phone ? 'Type' : undefined} label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />
-          <ReportSelect outlined inlineLabel={phone ? 'Status' : undefined} label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />
+          <ReportSelect outlined inlineLabel={phone ? 'Status' : undefined} label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All entries" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />
           <ReportSelect outlined inlineLabel={phone ? 'Entered by' : undefined} label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />
         </View>
       </View>
@@ -103,7 +103,7 @@ export default function HistoryScreen() {
     {phone ? <HistoryFilterSheet visible={showFilters} onClose={() => setShowFilters(false)} onReset={reset}
       fields={[
         <ReportSelect key="kind" compact outlined label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />,
-        <ReportSelect key="status" compact outlined label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />,
+        <ReportSelect key="status" compact outlined label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All entries" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />,
         <ReportSelect key="staff" compact outlined label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />,
         <ReportSelect key="basis" compact outlined allowEmpty={false} label="Date filter uses" triggerText={filters.dateBasis === 'transaction' ? 'Transaction' : 'Entry date'} value={filters.dateBasis} options={DATE_BASES} onChange={value => update('dateBasis', DATE_BASES.find(option => option.id === value)?.id ?? 'transaction')} />,
       ]}

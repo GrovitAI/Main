@@ -436,3 +436,14 @@ keyboard, text scaling, dark appearance, Reduce Motion and physical/predictive
 Back gestures remain unverified. Safe-area and Back source handling are not
 device certification; the unchanged date trigger's 44px minimum does not
 establish Android-wide 48dp conformance.
+
+## Task 207: simpler status filter (2026-10-14)
+
+The four technical states became three plain choices.
+- **Current:** what counts now, meaning unedited entries plus the corrected
+  version of edited ones.
+- **Edited:** each correction together with the earlier version it replaced.
+- **Voided:** removed entries.
+
+"All entries" shows everything. Entry badges still show Active, Edited,
+Replaced or Voided.

@@ -3,12 +3,21 @@ import { matchesSearch } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 
 export type HistoryStatus = 'active' | 'edited' | 'replaced' | 'voided';
+/**
+ * The three questions people ask of History (task 207): what counts now
+ * (unedited and corrected entries), what was corrected (each correction with
+ * the version it replaced), and what was removed.
+ */
+export type HistoryStatusFilter = 'current' | 'edited' | 'voided';
+const STATUS_FILTER_MATCHES: Readonly<Record<HistoryStatusFilter, readonly HistoryStatus[]>> = {
+  current: ['active', 'edited'], edited: ['edited', 'replaced'], voided: ['voided'],
+};
 export type HistoryKind = 'sent' | 'received' | 'bought' | 'spent' | 'stock';
 export type HistoryDateBasis = 'transaction' | 'recorded';
 export type HistorySort = 'transaction-newest' | 'transaction-oldest' | 'recorded-newest' | 'recorded-oldest';
 export type HistoryFilters = {
   kind: HistoryKind | null;
-  status: HistoryStatus | null;
+  status: HistoryStatusFilter | null;
   enteredBy: string | null;
   dateBasis: HistoryDateBasis;
   range: KitchenDateRange | null;
@@ -62,7 +71,7 @@ export function filterKitchenHistory(
   searchableText: (entry: KitchenEntry) => readonly (string | null | undefined)[],
 ): KitchenEntry[] {
   const result = entries.filter(entry => {
-    if (filters.status && historyStatus(entry) !== filters.status) return false;
+    if (filters.status && !STATUS_FILTER_MATCHES[filters.status].includes(historyStatus(entry))) return false;
     if (filters.enteredBy !== null && entry.created_by !== filters.enteredBy) return false;
     if (filters.kind === 'stock' && entry.type !== 'made' && entry.type !== 'count') return false;
     if (filters.kind === 'spent' && entry.type !== 'spent' && entry.type !== 'paid') return false;

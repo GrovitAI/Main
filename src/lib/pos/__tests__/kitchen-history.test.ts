@@ -20,12 +20,15 @@ describe('Kitchen audit history', () => {
     expect(rows()).toHaveLength(4);
     expect(data.map(historyStatus)).toEqual(['replaced', 'edited', 'voided', 'active']);
   });
-  it.each(['active', 'edited', 'replaced', 'voided'] as const)('isolates %s without mixing earlier versions or voids', status => {
-    expect(rows({ status }).map(historyStatus)).toEqual([status]);
+  it('narrows to what counts now, to corrections with their earlier versions, or to voids', () => {
+    expect(rows({ status: 'current' }).map(item => item.id).sort()).toEqual(['edited', 'original']);
+    expect(rows({ status: 'edited' }).map(item => item.id).sort()).toEqual(['edited', 'old']);
+    expect(rows({ status: 'voided' }).map(item => item.id)).toEqual(['voided']);
   });
   it('combines staff, type, status and search instead of overriding one condition', () => {
     expect(rows({ enteredBy: 'Priya', status: 'edited', kind: 'spent', query: 'Transport' }).map(item => item.id)).toEqual(['edited']);
-    expect(rows({ enteredBy: 'Asha', status: 'edited' })).toEqual([]);
+    expect(rows({ enteredBy: 'Asha', status: 'edited' }).map(item => item.id)).toEqual(['old']);
+    expect(rows({ enteredBy: 'Priya', status: 'voided' })).toEqual([]);
     expect(rows({ kind: 'stock' })).toEqual([]);
     expect(rows({ kind: 'spent' }, [entry('paid', { type: 'paid' })])).toHaveLength(1);
   });
