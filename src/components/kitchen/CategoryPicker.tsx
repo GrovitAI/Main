@@ -110,7 +110,7 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
         </View>
       ))}
 
-      <Sheet visible={open} onClose={() => setOpen(false)} title="What for">
+      <Sheet visible={open} onClose={() => setOpen(false)} dirty={name.trim().length > 0} title="What for">
         {/* Only logins that may add categories see the add box. */}
         <View style={{ gap: 14 }}>
           <SearchBox value={query} onChange={setQuery} placeholder="Search categories" autoFocus />

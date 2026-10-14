@@ -80,7 +80,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
   };
 
   return (
-    <Sheet visible onClose={onClose} title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}>
+    <Sheet visible onClose={onClose} dirty={reason.trim().length > 0} title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}>
       <View style={{ gap: 12 }}>
         <View>
           <Text className="text-text-primary" style={{ fontSize: 17, fontWeight: '800' }}>{entryHeadline(entry, names)}</Text>

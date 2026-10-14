@@ -31,7 +31,9 @@ export function ReportSelect({ label, value, options, onChange, emptyLabel = 'Al
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 items-center justify-center px-4" style={{ backgroundColor: colors.overlay }}>
-          <View className="max-h-[80%] w-full max-w-[480px] shrink rounded-2xl bg-surface-elevated p-4">
+          {/* A tap outside the list closes it. */}
+          <Pressable accessible={false} tabIndex={-1} onPress={close} className="absolute inset-0" testID="report-select-backdrop" />
+          <View accessibilityViewIsModal className="max-h-[80%] w-full max-w-[480px] shrink rounded-2xl bg-surface-elevated p-4">
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-lg font-bold text-text-primary">{label}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="Close picker" onPress={close} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-tint active:opacity-60">

@@ -7,7 +7,7 @@
  * Legacy Pressables with function styles must not also take className:
  * NativeWind drops that function. Class-styled controls use active variants.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -604,13 +604,19 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
 
 // ─── Sheet ───────────────────────────────────────────────────────────────────
 
-export function Sheet({ visible, onClose, title, children }: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+/**
+ * `dirty`: something has been typed. A tap outside then keeps the sheet open (and says so)
+ * instead of losing it; ✕ and Back still close. Untouched sheets close on a tap outside.
+ */
+export function Sheet({ visible, onClose, title, children, dirty = false }: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode; dirty?: boolean }) {
   const insets = useSafeAreaInsets();
   const { isTablet } = useResponsive();
+  const [held, setHeld] = useState(false);
+  useEffect(() => { if (!visible || !dirty) setHeld(false); }, [visible, dirty]);
   return (
     // On a phone the sheet rises from the bottom edge; centred on a tablet, it fades in.
     <Modal visible={visible} transparent animationType={isTablet ? 'fade' : 'slide'} onRequestClose={onClose}>
-      <Pressable onPress={onClose} accessibilityLabel="Close" style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: isTablet ? 'center' : 'flex-end', alignItems: 'center' }}>
+      <Pressable onPress={() => (dirty ? setHeld(true) : onClose())} accessibilityLabel="Close" style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: isTablet ? 'center' : 'flex-end', alignItems: 'center' }}>
         <Pressable
           onPress={() => undefined}
           style={{
@@ -632,6 +638,7 @@ export function Sheet({ visible, onClose, title, children }: { visible: boolean;
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
+          {held ? <Text accessibilityLiveRegion="polite" style={{ color: colors.primary, fontSize: 12, fontWeight: '700', marginTop: -6, marginBottom: 8 }}>What you typed is kept. Finish, or close with ✕.</Text> : null}
           <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
         </Pressable>
       </Pressable>

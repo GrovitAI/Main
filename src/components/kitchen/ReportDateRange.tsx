@@ -22,7 +22,10 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
   const monthRange = kitchenMonthRange(value.startDate.slice(0, 7), today);
   const fullMonth = value.startDate === monthRange.startDate && value.endDate === monthRange.endDate;
   const valid = draft.endDate >= draft.startDate && draft.endDate <= today;
-  const close = () => setOpen(false);
+  const [held, setHeld] = useState(false);
+  const close = () => { setOpen(false); setHeld(false); };
+  const changed = draft.startDate !== value.startDate || draft.endDate !== value.endDate;
+  const outside = () => { if (changed) setHeld(true); else close(); };
   const select = (date: string) => {
     setDraft(current => ({ ...current, [choosing]: date }));
     if (choosing === 'startDate') setChoosing('endDate');
@@ -36,7 +39,7 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
       <Pressable accessibilityRole="button" onPress={() => preset(today.slice(0, 7))} className={control}><Text className="text-xs font-bold text-primary">This month</Text></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Close date picker" onPress={close} className={control}><X size={18} color={colors.textSecondary} /></Pressable>
     </View>
-    <Text className="text-xs leading-4 text-text-secondary">Choose start, then end. Both dates are included.</Text>
+    <Text className="text-xs leading-4" style={{ color: held ? colors.primary : colors.textSecondary }} accessibilityLiveRegion="polite">{held ? 'Your new dates are kept. Apply them, or close with ✕.' : 'Choose start, then end. Both dates are included.'}</Text>
     <View className="flex-row gap-2">
       {(['startDate', 'endDate'] as const).map(field => <Pressable key={field} accessibilityRole="button" accessibilityLabel={(field === 'startDate' ? 'Start date: ' : 'End date: ') + draft[field]} accessibilityState={{ selected: choosing === field }} onPress={() => { setChoosing(field); setCalendarMonth(draft[field].slice(0, 7)); }}
         className={'min-h-12 min-w-0 flex-1 rounded-xl border px-3 py-2 focus:border-primary ' + (choosing === field ? 'border-primary bg-accent-soft' : 'border-border-soft bg-surface-elevated hover:bg-surface-tint')}>
@@ -60,7 +63,7 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
     </Pressable>
     <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.overlay, paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 8) }}>
-        <Pressable accessible={false} tabIndex={-1} onPress={close} className="absolute inset-0" />
+        <Pressable accessible={false} tabIndex={-1} onPress={outside} className="absolute inset-0" />
         <View accessibilityViewIsModal className={'max-h-[92%] w-full max-w-[372px] rounded-2xl bg-surface-elevated p-1.5 ' + (width >= 360 ? 'mx-3' : '')} style={{ maxWidth: Math.min(372, width >= 360 ? width - 24 : width) }}>
           <FlatList data={kitchenCalendarDays(calendarMonth)} numColumns={7} keyExtractor={day => day.key} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {

@@ -20,7 +20,8 @@ export function AttendanceDate({ value, onChange, disabled }: { value: string; o
     </View>
     <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <View className="flex-1 items-center justify-center px-3" style={{ backgroundColor: colors.overlay }}>
-        <View className="w-full max-w-[364px] rounded-2xl bg-surface-elevated p-3">
+        <Pressable accessible={false} tabIndex={-1} onPress={close} className="absolute inset-0" />
+        <View accessibilityViewIsModal className="w-full max-w-[364px] rounded-2xl bg-surface-elevated p-3">
           <View className="flex-row items-center justify-between"><Text className="text-lg font-bold text-text-primary">Attendance date</Text><Pressable className={button} accessibilityRole="button" accessibilityLabel="Close attendance calendar" onPress={close}><X size={18} color={colors.primary} /></Pressable></View>
           <View className="flex-row items-center justify-between"><Pressable className={button} accessibilityRole="button" accessibilityLabel="Previous calendar month" onPress={() => setMonth(shiftKitchenMonth(month, -1))}><ChevronLeft size={18} color={colors.primary} /></Pressable><Text className="text-base font-bold text-text-primary">{kitchenMonthLabel(month)}</Text><Pressable className={`${button} ${month >= today.slice(0, 7) ? 'opacity-40' : ''}`} accessibilityRole="button" accessibilityLabel="Next calendar month" disabled={month >= today.slice(0, 7)} onPress={() => setMonth(shiftKitchenMonth(month, 1))}><ChevronRight size={18} color={colors.primary} /></Pressable></View>
           <View className="flex-row py-2">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => <Text key={day} className="flex-1 text-center text-xs font-semibold text-text-secondary">{day}</Text>)}</View>
