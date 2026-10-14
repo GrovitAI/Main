@@ -7,7 +7,7 @@
  * Legacy Pressables with function styles must not also take className:
  * NativeWind drops that function. Class-styled controls use active variants.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -378,22 +378,27 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
     () => (showSearch && query ? options.filter((o) => matchesSearch(query, o.label, o.hint, o.searchText) || o.value === value) : options),
     [options, query, showSearch, value],
   );
+  const slide = useSlidingRect(shown.findIndex((o) => o.value === value));
   return (
     <View style={{ gap: 10 }}>
       {showSearch ? <SearchBox value={query} onChange={setQuery} placeholder={searchPlaceholder} /> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, alignItems: 'center' }}>
-        {shown.map((o) => {
+        <Animated.View pointerEvents="none" style={{ position: 'absolute', height: TARGET, paddingVertical: BAND, ...slide.style, top: slide.top }}>
+          <View style={{ flex: 1, borderRadius: 999, backgroundColor: colors.primary }} />
+        </Animated.View>
+        {shown.map((o, i) => {
           const on = o.value === value;
           return (
             <Pressable
               key={o.value}
               onPress={() => onChange(o.value)}
+              onLayout={slide.measure(i)}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
               style={pressed({ minHeight: TARGET, justifyContent: 'center' })}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: 14, gap: 6, backgroundColor: on ? colors.primary : colors.surfaceElevated, borderColor: on ? colors.primary : colors.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: 14, gap: 6, backgroundColor: 'transparent', borderColor: on ? colors.primary : colors.border }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }}>{o.label}</Text>
                 {o.hint ? <Text style={{ fontSize: 12, fontWeight: '600', color: on ? colors.textOnPrimary : colors.textSecondary, opacity: 0.85 }}>{o.hint}</Text> : null}
               </View>
@@ -491,10 +496,24 @@ export function QtyStepper({ value, onChange, step, unit, label }: { value: numb
   );
 }
 
-export function Tick({ on }: { on: boolean }) {
+export function Tick({ on, size = 26 }: { on: boolean; size?: number }) {
+  // The blue fades in and the tick pops (a slight overshoot); unticking just fades.
+  const reduce = useReducedMotion();
+  const progress = useRef(new Animated.Value(on ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) { progress.setValue(on ? 1 : 0); return; }
+    const run = Animated.timing(progress, { toValue: on ? 1 : 0, duration: on ? 200 : 120, easing: on ? Easing.out(Easing.back(1.6)) : Easing.out(Easing.quad), useNativeDriver: NATIVE_DRIVER });
+    run.start();
+    return () => run.stop();
+  }, [on, reduce, progress]);
+  const fill = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
   return (
-    <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center', borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : 'transparent' }}>
-      {on ? <Check size={16} color={colors.textOnPrimary} strokeWidth={3} /> : null}
+    <View style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderColor: on ? colors.primary : colors.border }}>
+      <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.primary, opacity: fill }} />
+      <Animated.View style={{ opacity: fill, transform: [{ scale }] }}>
+        <Check size={Math.round(size * 0.62)} color={colors.textOnPrimary} strokeWidth={3} />
+      </Animated.View>
     </View>
   );
 }
@@ -630,31 +649,148 @@ export function useReducedMotion(): boolean {
  * ease-out, appears in place the first time, jumps on resize, and jumps
  * when Reduce Motion is on. `index` -1 hides it.
  */
-export function useSlidingRect(index: number): { measure: (i: number) => (e: LayoutChangeEvent) => void; style: { left: Animated.Value; width: Animated.Value; opacity: number } } {
+export function useSlidingRect(index: number): { measure: (i: number) => (e: LayoutChangeEvent) => void; style: { left: Animated.Value; width: Animated.Value; opacity: number }; top: Animated.Value } {
   const reduce = useReducedMotion();
-  const places = useRef<({ x: number; width: number } | undefined)[]>([]);
+  const places = useRef<({ x: number; y: number; width: number } | undefined)[]>([]);
   const left = useRef(new Animated.Value(0)).current;
   const width = useRef(new Animated.Value(0)).current;
+  const top = useRef(new Animated.Value(0)).current;
   const shown = useRef(false);
   const [ready, setReady] = useState(false);
-  const jump = useCallback((to: { x: number; width: number }) => {
-    left.setValue(to.x); width.setValue(to.width); shown.current = true; setReady(true);
-  }, [left, width]);
+  const jump = useCallback((to: { x: number; y: number; width: number }) => {
+    left.setValue(to.x); width.setValue(to.width); top.setValue(to.y); shown.current = true; setReady(true);
+  }, [left, width, top]);
   useEffect(() => {
     const to = places.current[index];
     if (!to) return;
     if (!shown.current || reduce) { jump(to); return; }
     const timing = { duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false };
-    const run = Animated.parallel([Animated.timing(left, { toValue: to.x, ...timing }), Animated.timing(width, { toValue: to.width, ...timing })]);
+    const run = Animated.parallel([Animated.timing(left, { toValue: to.x, ...timing }), Animated.timing(width, { toValue: to.width, ...timing }), Animated.timing(top, { toValue: to.y, ...timing })]);
     run.start();
     return () => run.stop();
-  }, [index, reduce, jump, left, width]);
+  }, [index, reduce, jump, left, width, top]);
   const measure = useCallback((i: number) => (e: LayoutChangeEvent) => {
-    const { x, width: w } = e.nativeEvent.layout;
-    places.current[i] = { x, width: w };
-    if (i === index) jump({ x, width: w });
+    const { x, y, width: w } = e.nativeEvent.layout;
+    places.current[i] = { x, y, width: w };
+    if (i === index) jump({ x, y, width: w });
   }, [index, jump]);
-  return { measure, style: { left, width, opacity: ready && index >= 0 ? 1 : 0 } };
+  return { measure, style: { left, width, opacity: ready && index >= 0 ? 1 : 0 }, top };
+}
+
+// ─── Smooth show, hide and change (task 215) ─────────────────────────────────
+
+/** Opacity and transforms run on the native thread on phones; the web animates them in JS. */
+const NATIVE_DRIVER = Platform.OS !== 'web';
+
+/**
+ * Keeps something on screen while it fades away. `progress` runs 0 → 1 as it
+ * shows and back to 0 as it hides; `mounted` stays true until the hide ends.
+ * With Reduce Motion it shows and hides at once.
+ */
+export function usePresence(visible: boolean, duration = 200): { mounted: boolean; progress: Animated.Value } {
+  const reduce = useReducedMotion();
+  const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const [mounted, setMounted] = useState(visible);
+  useEffect(() => {
+    if (visible) setMounted(true);
+    if (reduce) { progress.setValue(visible ? 1 : 0); if (!visible) setMounted(false); return; }
+    const run = Animated.timing(progress, { toValue: visible ? 1 : 0, duration: visible ? duration : Math.round(duration * 0.75), easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.quad), useNativeDriver: NATIVE_DRIVER });
+    run.start(({ finished }) => { if (finished && !visible) setMounted(false); });
+    return () => run.stop();
+  }, [visible, reduce, duration, progress]);
+  return { mounted, progress };
+}
+
+export type EnterStyle = { opacity: Animated.Value; transform: ({ translateX: Animated.AnimatedMultiplication<number> } | { translateY: Animated.AnimatedMultiplication<number> })[] };
+
+/**
+ * A short entrance whenever `key` changes, for content that was swapped: new
+ * rows rise 6 px into place as they fade in. With `axis` 'x' they slide 16 px
+ * from the side moved to instead; keys compare as text, so a later month
+ * ('2026-11' after '2026-10') comes in from the right. Nothing moves on the
+ * first render unless `onMount`, and nothing moves with Reduce Motion.
+ */
+export function useEnterOnChange(key: string, axis: 'x' | 'y' = 'y', onMount = false): EnterStyle {
+  const reduce = useReducedMotion();
+  const distance = axis === 'x' ? 16 : 6;
+  const progress = useRef(new Animated.Value(onMount ? 0 : 1)).current;
+  const offset = useRef(new Animated.Value(distance)).current;
+  const shift = useMemo(() => Animated.multiply(Animated.subtract(1, progress), offset), [progress, offset]);
+  const last = useRef<string | null>(onMount ? null : key);
+  // Before paint, so the new content never flashes in place first.
+  useLayoutEffect(() => {
+    if (last.current === key) return;
+    const before = last.current;
+    last.current = key;
+    offset.setValue(axis === 'x' && before !== null && key < before ? -distance : distance);
+    if (reduce) { progress.setValue(1); return; }
+    progress.setValue(0);
+    const run = Animated.timing(progress, { toValue: 1, duration: axis === 'x' ? 220 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: NATIVE_DRIVER });
+    run.start();
+    return () => run.stop();
+  }, [key, axis, distance, reduce, progress, offset]);
+  return { opacity: progress, transform: [axis === 'x' ? { translateX: shift } : { translateY: shift }] };
+}
+
+/**
+ * Opens and closes its children by growing and shrinking their height, with a
+ * fade, instead of snapping. Children are mounted only while open or closing.
+ * With Reduce Motion it opens and closes at once.
+ */
+export function Reveal({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const reduce = useReducedMotion();
+  const [mounted, setMounted] = useState(open);
+  const [moving, setMoving] = useState(false);
+  const movingRef = useRef(false);
+  const height = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(open ? 1 : 0)).current;
+  const natural = useRef(0);
+  const waiting = useRef(false);
+  const run = useRef<Animated.CompositeAnimation | null>(null);
+  const first = useRef(true);
+  const setMove = useCallback((on: boolean) => { movingRef.current = on; setMoving(on); }, []);
+  const grow = useCallback(() => {
+    const anim = Animated.parallel([
+      Animated.timing(height, { toValue: natural.current, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(fade, { toValue: 1, duration: 180, delay: 40, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+    ]);
+    run.current = anim;
+    anim.start(({ finished }) => { if (finished) setMove(false); });
+  }, [height, fade, setMove]);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    run.current?.stop();
+    waiting.current = false;
+    if (reduce) { fade.setValue(open ? 1 : 0); setMove(false); setMounted(open); return; }
+    if (open) {
+      // Reopened while closing: grow back from where it is.
+      if (movingRef.current) { grow(); return; }
+      height.setValue(0); fade.setValue(0); waiting.current = true; setMove(true); setMounted(true);
+      return;
+    }
+    if (!movingRef.current) height.setValue(natural.current);
+    setMove(true);
+    const anim = Animated.parallel([
+      Animated.timing(height, { toValue: 0, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: false }),
+      Animated.timing(fade, { toValue: 0, duration: 120, useNativeDriver: false }),
+    ]);
+    run.current = anim;
+    anim.start(({ finished }) => { if (finished) { setMounted(false); setMove(false); } });
+  }, [open, reduce, fade, height, grow, setMove]);
+  useEffect(() => () => run.current?.stop(), []);
+  // The content is measured at full height (laid out absolutely), then the frame grows to it.
+  const onLayout = (e: LayoutChangeEvent): void => {
+    natural.current = e.nativeEvent.layout.height;
+    if (!waiting.current) return;
+    waiting.current = false;
+    grow();
+  };
+  if (!mounted) return null;
+  return (
+    <Animated.View style={moving ? { height, overflow: 'hidden' } : undefined}>
+      <Animated.View onLayout={onLayout} style={[{ opacity: fade }, moving ? { position: 'absolute', top: 0, left: 0, right: 0 } : null]}>{children}</Animated.View>
+    </Animated.View>
+  );
 }
 
 // ─── Sheet ───────────────────────────────────────────────────────────────────
@@ -703,12 +839,16 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
 
 /** A short confirmation at the foot of a screen that fades after a moment. */
 export function Toast({ text }: { text: string | null }) {
-  if (!text) return null;
+  // Rises 10 px and fades in; fades out with the last words still showing.
+  const last = useRef(text);
+  if (text) last.current = text;
+  const { mounted, progress } = usePresence(Boolean(text), 220);
+  if (!mounted || !last.current) return null;
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: 16, right: 16, bottom: 96, alignItems: 'center' }}>
-      <View style={{ borderRadius: 16, backgroundColor: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 12, maxWidth: 420 }} accessibilityLiveRegion="polite">
-        <Text style={{ color: colors.textOnPrimary, fontSize: 13, fontWeight: '700' }}>{text}</Text>
-      </View>
+      <Animated.View style={{ opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }], borderRadius: 16, backgroundColor: colors.textPrimary, paddingHorizontal: 16, paddingVertical: 12, maxWidth: 420 }} accessibilityLiveRegion="polite">
+        <Text style={{ color: colors.textOnPrimary, fontSize: 13, fontWeight: '700' }}>{last.current}</Text>
+      </Animated.View>
     </View>
   );
 }

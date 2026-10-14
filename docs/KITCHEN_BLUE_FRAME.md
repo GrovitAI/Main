@@ -152,3 +152,24 @@ their separate release record.
 - **Why state, not a style callback:** hover and focus are tracked in
   component state because NativeWind drops a Pressable style callback when a
   class name is present.
+
+## Tasks 214–215: motion (2026-10-14)
+
+Kitchen controls move instead of jumping. Every motion is short (120–220 ms,
+ease-out) and is skipped when the device asks for reduced motion. The helpers
+live in `src/components/kitchen/ui.tsx`.
+
+| Helper | What it does | Where |
+|---|---|---|
+| `useSlidingRect` | One highlight slides to the chosen option (and to another row when chips wrap). | Payment mode, Segmented bars, Chips, Analytics report tabs, attendance pane underline and status filters |
+| `Reveal` | A panel grows open and shrinks closed, with a fade. | Analytics filters and notes, History filters (tablet and desktop), Team member cards, attendance row edit, phone attendance search |
+| `usePresence` | Keeps something drawn while it fades out. | Saved message (`Toast`), phone More menu |
+| `useEnterOnChange` | New content fades up 6 px; with `'x'` a month slides 16 px in from the side moved to. | Report rows and totals, attendance panes and loaded day, Month overview, both calendar pickers |
+| `Tick` | The blue fills and the tick pops. | Team permissions, attendance selection, invoice selection |
+
+- Animated views ignore NativeWind class names, so each one wraps a plain
+  `View` that carries the classes.
+- The attendance status filters scroll sideways in a FlatList, so each cell
+  reports its own place through `CellRendererComponent`.
+- Not animated on purpose: money totals counting up, and whole-screen
+  transitions between sidebar sections.

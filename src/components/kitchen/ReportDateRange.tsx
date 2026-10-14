@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, Modal, Pressable, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, semantic } from '@/lib/pos/brand';
+import { useEnterOnChange } from '@/components/kitchen/ui';
 import { kitchenCalendarDays, kitchenMonthLabel, kitchenMonthRange, kitchenRangeLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 
@@ -19,6 +20,8 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
   const [draft, setDraft] = useState(value);
   const [choosing, setChoosing] = useState<'startDate' | 'endDate'>('startDate');
   const [calendarMonth, setCalendarMonth] = useState(value.startDate.slice(0, 7));
+  // A later month slides in from the right, an earlier one from the left (task 215).
+  const monthSlide = useEnterOnChange(calendarMonth, 'x');
   const monthRange = kitchenMonthRange(value.startDate.slice(0, 7), today);
   const fullMonth = value.startDate === monthRange.startDate && value.endDate === monthRange.endDate;
   const valid = draft.endDate >= draft.startDate && draft.endDate <= today;
@@ -49,7 +52,7 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
     </View>
     <View className="flex-row items-center justify-between">
       <Pressable accessibilityRole="button" accessibilityLabel="Previous calendar month" disabled={calendarMonth === '1000-01'} onPress={() => setCalendarMonth(shiftKitchenMonth(calendarMonth, -1))} className={control}><ChevronLeft size={18} color={colors.primary} /></Pressable>
-      <Text className="text-sm font-bold text-text-primary">{kitchenMonthLabel(calendarMonth)}</Text>
+      <Animated.View style={monthSlide}><Text className="text-sm font-bold text-text-primary">{kitchenMonthLabel(calendarMonth)}</Text></Animated.View>
       <Pressable accessibilityRole="button" accessibilityLabel="Next calendar month" accessibilityState={{ disabled: calendarMonth >= today.slice(0, 7) }} disabled={calendarMonth >= today.slice(0, 7)} onPress={() => setCalendarMonth(shiftKitchenMonth(calendarMonth, 1))} className={control + (calendarMonth >= today.slice(0, 7) ? ' opacity-40' : '')}><ChevronRight size={18} color={colors.primary} /></Pressable>
     </View>
     <View className="mb-1 flex-row">{weekdays.map(day => <Text key={day} className="flex-1 text-center text-xs font-semibold text-text-secondary">{day}</Text>)}</View>
@@ -72,12 +75,12 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
               if (!date) return <View className={cell} />;
               const selected = date === draft.startDate || date === draft.endDate;
               const between = date > draft.startDate && date < draft.endDate;
-              return <Pressable accessibilityRole="button" accessibilityLabel={'Select ' + date + ' as ' + (choosing === 'startDate' ? 'start' : 'end') + ' date'} accessibilityState={{ selected, disabled: date > today }} disabled={date > today} onPress={() => select(date)}
+              return <Animated.View style={[{ flex: 1, minWidth: 0 }, monthSlide]}><Pressable accessibilityRole="button" accessibilityLabel={'Select ' + date + ' as ' + (choosing === 'startDate' ? 'start' : 'end') + ' date'} accessibilityState={{ selected, disabled: date > today }} disabled={date > today} onPress={() => select(date)}
                 className={'group ' + cell + (date > today ? ' opacity-40' : '')}>
                 <View pointerEvents="none" className={'w-full flex-1 items-center justify-center rounded-lg border border-transparent ' + (selected ? 'bg-primary group-hover:bg-primary-deep group-active:bg-primary-deep group-focus:border-text-on-primary' : (between ? 'bg-surface-tint ' : 'bg-surface-elevated ') + (date > today ? '' : 'group-hover:bg-accent-soft group-active:bg-accent-soft group-focus:border-primary'))}>
                   <Text className={'text-sm font-semibold ' + (selected ? 'text-text-on-primary' : 'text-text-primary')}>{Number(date.slice(8))}</Text>
                 </View>
-              </Pressable>;
+              </Pressable></Animated.View>;
             }}
             ListFooterComponent={<View className="gap-2 px-1 pb-2 pt-3">
               {!valid ? <Text accessibilityRole="alert" className="text-xs font-semibold" style={{ color: semantic.danger }}>End date must be on or after start, and no later than today.</Text> : <Text className="text-center text-xs text-text-secondary">{kitchenRangeLabel(draft)} · India time</Text>}

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { ActivityIndicator, FlatList, Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Check, Square } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { colors, semantic } from '@/lib/pos/brand';
@@ -15,7 +14,7 @@ import { historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import type { InvoiceDelivery, InvoiceFilter, InvoiceLine, InvoiceStatus, InvoiceWorkspace as WorkspaceData, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
-import { Chips, KHeader, KScreen, Notice, TextField } from '@/components/kitchen/ui';
+import { Chips, KHeader, KScreen, Notice, TextField, Tick } from '@/components/kitchen/ui';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { DateField, useDateGuard, ModePicker } from '@/components/kitchen/forms';
@@ -188,7 +187,7 @@ export function InvoiceWorkspace() {
       {filter.candidates && data?.deliveries.length ? <View className="flex-row flex-wrap items-center justify-between gap-2">
         <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries on this page" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
           className="min-h-[44px] flex-row items-center gap-2 rounded-lg border border-border px-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">
-          {allPage ? <Check size={18} color={colors.primary} /> : <Square size={18} color={colors.textSecondary} />}<Text className="text-sm font-semibold text-text-primary">Select page</Text>
+          <Tick size={20} on={allPage} /><Text className="text-sm font-semibold text-text-primary">Select page</Text>
         </Pressable><Text className="text-xs text-text-secondary">{selected.size}/100 selected</Text>
       </View> : null}
     </> : invoice ? <>
@@ -227,7 +226,7 @@ export function InvoiceWorkspace() {
             {item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{invoiceMoney(item.value.open_paise)} left</Text> : null}</View>
         </Pressable> : item.kind === 'delivery' ? <Pressable accessibilityRole="checkbox" accessibilityLabel={'Select delivery ' + invoiceDate(item.value.entry_date) + ' ' + invoiceMoney(item.value.amount_paise)} aria-checked={selected.has(item.value.id)} accessibilityState={{ checked: selected.has(item.value.id), disabled: busy || (!selected.has(item.value.id) && selected.size >= 100) }} disabled={busy || (!selected.has(item.value.id) && selected.size >= 100)} onPress={() => toggle(item.value)}
           className={'min-h-16 flex-row items-start gap-3 border-b border-border-soft px-3 py-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary ' + (selected.has(item.value.id) ? 'bg-surface-tint' : 'bg-surface-elevated')}>
-          {selected.has(item.value.id) ? <Check size={18} color={colors.primary} /> : <Square size={18} color={colors.textSecondary} />}
+          <Tick size={20} on={selected.has(item.value.id)} />
           <View className="min-w-0 flex-1"><View className="flex-row justify-between gap-2"><Text className="text-sm font-bold text-text-primary">{invoiceDate(item.value.entry_date)}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.amount_paise)}</Text></View>
             <Text className="text-xs leading-5 text-text-secondary">{item.value.lines.map(l => l.item_name + ' · ' + formatQty(l.qty, l.unit) + ' × ' + invoiceMoney(l.price_paise)).join('\n')}</Text></View>
         </Pressable> : item.kind === 'docline' ? <View className={paper}><View className="border-b border-border-soft px-2 py-2">

@@ -14,7 +14,7 @@ import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenToday, s
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
 import { formatMoney } from '@/lib/pos/kitchen-utils';
-import { Empty, KScreen, Notice, useSlidingRect } from '@/components/kitchen/ui';
+import { Empty, KScreen, Notice, Reveal, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 
@@ -62,6 +62,9 @@ export function AnalyticsWorkspace() {
   const [page, setPage] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [report, setReport] = useState<KitchenReport | null>(null);
+  // Each report that arrives fades its rows and totals up into place (task 215).
+  const reportsShown = useRef(0);
+  const reportEnter = useEnterOnChange(report ? String(reportsShown.current) : 'loading');
   const [filterOptions, setFilterOptions] = useState<KitchenReport['options']>({ branches: [], items: [], vendors: [], categories: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +80,7 @@ export function AnalyticsWorkspace() {
       if (controller.signal.aborted) return;
       setLoading(false);
       if (!result.data || result.error) { setError(result.error ?? 'Unable to load this report.'); return; }
-      setReport(result.data); setFilterOptions(result.data.options);
+      reportsShown.current += 1; setReport(result.data); setFilterOptions(result.data.options);
     });
     return () => controller.abort();
   }, [filter, refresh, tenant_id, branchId, session?.userId]);
@@ -210,8 +213,9 @@ export function AnalyticsWorkspace() {
           </View>
         </View>
         {desktop && !toolbar ? <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Through ' + today + ' · India time' : 'Inclusive dates · India time'}</Text> : null}
-        {filtersOpen && filterSummary ? <Text className="text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
-        {filtersOpen && hasFilters(kind) ? <View className={'mt-1 gap-2 ' + (inlineFilters ? 'flex-row' : '')}>
+        <Reveal open={filtersOpen && hasFilters(kind)}><View className="gap-1">
+        {filterSummary ? <Text className="text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
+        <View className={'mt-1 gap-2 ' + (inlineFilters ? 'flex-row' : '')}>
           {kind === 'sales' ? <>
             <ReportSelect compact={inlineFilters} label="Branch" value={partyId} options={filterOptions.branches} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All branches" />
             <ReportSelect compact={inlineFilters} label="Item" value={itemId} options={filterOptions.items} onChange={id => { setItemId(id); setPage(0); }} emptyLabel="All items" />
@@ -221,13 +225,14 @@ export function AnalyticsWorkspace() {
             <ReportSelect compact={inlineFilters} label="Vendor" value={partyId} options={filterOptions.vendors} onChange={id => { setPartyId(id); setPage(0); }} emptyLabel="All vendors" />
             {inlineFilters ? <Pressable accessibilityRole="button" accessibilityLabel="Manage purchase categories" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' self-center'}><Settings2 size={18} color={colors.primary} /></Pressable> : null}
           </> : null}
-        </View> : null}
-        {kind === 'purchases' && filtersOpen && !inlineFilters ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-1 self-start'}>
+        </View>
+        {kind === 'purchases' && !inlineFilters ? <Pressable accessibilityRole="button" onPress={() => router.push('/central-kitchen/purchase-categories')} className={controls + ' mt-1 self-start'}>
           <Settings2 size={16} color={colors.primary} /><Text className="text-xs font-bold text-primary">Manage purchase categories</Text>
         </Pressable> : null}
+        </View></Reveal>
       </View>
-        {kind === 'profit' && summary ? <ProfitStatement summary={summary} desktop={desktop} /> : null}
-        {kind === 'profit' ? null : <View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
+        {kind === 'profit' && summary ? <Animated.View style={reportEnter}><ProfitStatement summary={summary} desktop={desktop} /></Animated.View> : null}
+        {kind === 'profit' ? null : <Animated.View style={reportEnter}><View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
           {metrics.map(metric => <View key={metric.label} className={'min-w-0 rounded-xl border border-border-soft bg-surface-elevated py-2 ' + (desktop ? 'px-3 ' : 'px-2 ') + (stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'flex-1 gap-1')}>
             <View className={'gap-1 ' + (desktop || stackedMetrics ? 'flex-row items-center' : '')}>
               {desktop ? <metric.Icon size={15} color={colors.primary} /> : null}
@@ -235,8 +240,8 @@ export function AnalyticsWorkspace() {
             </View>
             <Text className={'text-base font-bold text-text-primary ' + (desktop ? '' : 'leading-5')} style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
           </View>)}
-        </View>}
-      {notesOpen ? <View className="gap-1 rounded-xl bg-surface-elevated p-3">
+        </View></Animated.View>}
+      <Reveal open={notesOpen}><View className="gap-1 rounded-xl bg-surface-elevated p-3">
         <Text className="text-xs font-bold text-text-primary">{kitchenBranch().name}</Text>
         {!desktop ? period : null}
         <Text className="text-xs leading-5 text-text-secondary">{kind === 'profit'
@@ -250,7 +255,7 @@ export function AnalyticsWorkspace() {
           ? 'Purchases are not subtracted again: their cost is inside each finished good’s cost per unit. Set costs under Finished goods.'
           : kind === 'sales' ? 'Quantities keep their own units. Select a row to see its send entries.'
           : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
-      </View> : null}
+      </View></Reveal>
       <View testID="kitchen-report-heading" className={desktop ? 'gap-1 rounded-xl bg-surface-elevated px-3 py-2' : 'gap-1 rounded-t-xl bg-surface-elevated px-3 py-1'}>
         <View className="flex-row items-center justify-between gap-1">
           <View className="min-w-0 flex-1">
@@ -285,8 +290,8 @@ export function AnalyticsWorkspace() {
       <FlatList data={report?.rows ?? []} keyExtractor={row => row.key} className={'w-full flex-1 self-center ' + (desktop ? 'max-w-[1120px] px-4' : 'max-w-[720px] px-3')}
         onLayout={event => setReportWidth(event.nativeEvent.layout.width)}
         ListHeaderComponent={listHeader} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={!loading && !error ? <View className="rounded-xl bg-surface-elevated"><Empty title="No entries for this selection" body="Choose another month or clear the filters. New kitchen entries will appear here after you refresh." action={<Pressable accessibilityRole="button" onPress={resetFilters} className={controls}><Text className="font-bold text-primary">Clear filters</Text></Pressable>} /></View> : null}
-        renderItem={({ item }) => kind === 'profit' ? <ProfitRow row={item} desktop={desktop} /> : <ReportRow row={item} desktop={desktop} availableWidth={reportWidth} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}
+        ListEmptyComponent={!loading && !error ? <Animated.View style={reportEnter}><View className="rounded-xl bg-surface-elevated"><Empty title="No entries for this selection" body="Choose another month or clear the filters. New kitchen entries will appear here after you refresh." action={<Pressable accessibilityRole="button" onPress={resetFilters} className={controls}><Text className="font-bold text-primary">Clear filters</Text></Pressable>} /></View></Animated.View> : null}
+        renderItem={({ item }) => <Animated.View style={reportEnter}>{kind === 'profit' ? <ProfitRow row={item} desktop={desktop} /> : <ReportRow row={item} desktop={desktop} availableWidth={reportWidth} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}</Animated.View>}
         ListFooterComponent={report?.total_rows ? <View className="mt-3 flex-row items-center justify-between gap-2">
           <Pressable accessibilityRole="button" disabled={page === 0 || loading} onPress={() => setPage(value => value - 1)} className={controls + (page === 0 || loading ? ' opacity-40' : '')}><Text className="font-bold text-primary">Previous</Text></Pressable>
           <Text className="text-xs text-text-secondary">Page {page + 1} of {Math.ceil(report.total_rows / KITCHEN_REPORT_PAGE_SIZE)}</Text>

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Pressable, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
-import { Empty, GhostButton, Notice, PrimaryButton, SearchBox, TextField, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, GhostButton, Notice, PrimaryButton, SearchBox, TextField, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
 import { colors, semantic } from '@/lib/pos/brand';
 import { kitchenCalendarDays, kitchenMonthLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import { attendanceDateLabel, attendanceMonthCounts, attendanceStaff } from '@/lib/pos/kitchen-attendance-utils';
@@ -93,17 +93,21 @@ export function MonthlyAttendance({ header, onLockChange }: { header: ReactEleme
     busyRef.current = false; setBusy(false);
   };
   const feedback = <View className="gap-2">{error ? <Notice text={error} /> : null}{saved ? <Text accessibilityLiveRegion="polite" className="text-sm font-semibold text-primary">{saved}</Text> : null}</View>;
+  // Task 215: the month name slides from the side moved to; rows and a person's calendar fade up.
+  const monthSlide = useEnterOnChange(month, 'x');
+  const rosterEnter = useEnterOnChange(loading ? 'loading' : month);
+  const calendarEnter = useEnterOnChange(personId ?? '');
   const toolbar = <View className="gap-2 pb-3">
     {header}
     <View className={`flex-row items-center gap-1 ${desktop ? 'w-[352px]' : ''}`}>
       <Pressable className={button} disabled={locked || loading} accessibilityRole="button" accessibilityLabel="Previous attendance month" onPress={() => changeMonth(shiftKitchenMonth(month, -1))}><ChevronLeft size={18} color={colors.primary} /></Pressable>
-      <Text accessibilityRole="header" className="flex-1 text-base font-bold text-text-primary">{kitchenMonthLabel(month)}</Text>
+      <Animated.View style={[{ flex: 1 }, monthSlide]}><Text accessibilityRole="header" className="text-base font-bold text-text-primary">{kitchenMonthLabel(month)}</Text></Animated.View>
       <Pressable className={button} disabled={locked || loading || month >= today.slice(0, 7)} accessibilityRole="button" accessibilityLabel="Next attendance month" accessibilityState={{ disabled: locked || loading || month >= today.slice(0, 7) }} onPress={() => changeMonth(shiftKitchenMonth(month, 1))}><ChevronRight size={18} color={colors.primary} /></Pressable>
       <Pressable className={button} disabled={locked || loading} accessibilityRole="button" accessibilityLabel="Refresh month attendance" onPress={() => { setDate(null); void load(); }}><RefreshCw size={18} color={colors.primary} /></Pressable>
     </View>
     <Text className="text-xs leading-4 text-text-secondary">Select staff, then a day to mark or correct it. Unmarked is not absent.{month === today.slice(0, 7) ? ` Through ${attendanceDateLabel(today)}.` : ''}</Text>
   </View>;
-  const calendar = person ? <View className="gap-2 rounded-xl border border-border-soft bg-surface-elevated p-3">
+  const calendar = person ? <Animated.View style={calendarEnter}><View className="gap-2 rounded-xl border border-border-soft bg-surface-elevated p-3">
     <View className="flex-row items-center gap-2">
       {!desktop ? <Pressable className={button} disabled={locked} accessibilityRole="button" accessibilityLabel="Back to month staff" onPress={() => choosePerson(null)}><ArrowLeft size={18} color={colors.primary} /></Pressable> : null}
       <View className="min-w-0 flex-1"><Text accessibilityRole="header" className="text-lg font-bold text-text-primary">{person.name}</Text><Text className="text-xs text-text-secondary">{person.job_title || 'Kitchen staff'}{person.is_active ? '' : ' · Archived'}</Text></View>
@@ -137,12 +141,12 @@ export function MonthlyAttendance({ header, onLockChange }: { header: ReactEleme
       {selected && (selected.status !== 'unmarked' || selected.note) ? <GhostButton label="Clear attendance day" disabled={busy} onPress={() => void save(true)} /> : null}
     </View> : <Text className="py-2 text-sm text-text-secondary">Choose a day in the calendar.</Text>}
     {!date ? feedback : null}
-  </View> : <Empty title="Select a staff member" body="Their month calendar and attendance totals will appear here." />;
+  </View></Animated.View> : <Empty title="Select a staff member" body="Their month calendar and attendance totals will appear here." />;
   const rosterHeader = <View className="gap-2 pb-2"><SearchBox value={query} onChange={setQuery} placeholder="Search month staff" /><Text className="text-xs text-text-secondary">{people.length} staff</Text></View>;
   const empty = loading ? <ActivityIndicator accessibilityLabel="Loading month attendance" color={colors.primary} className="my-6" /> : error && !data ? <Empty title="Month unavailable" body="Retry to load the complete month." action={<GhostButton label="Retry month attendance" onPress={() => void load()} />} /> : <Empty title={query ? 'No matching staff' : 'No staff in this month'} body={query ? 'Try another name or role.' : 'Add kitchen staff using Add staff.'} action={query ? <GhostButton label="Reset month search" onPress={() => setQuery('')} /> : undefined} />;
   const roster = <FlatList className="flex-1" keyboardShouldPersistTaps="handled" data={loading ? [] : people} keyExtractor={member => member.id} extraData={{ personId, locked, summaries }} ListHeaderComponent={rosterHeader} ListEmptyComponent={empty} renderItem={({ item }) => {
     const counts = summaries.get(item.id);
-    return <Pressable testID={`month-staff-${item.id}`} disabled={locked} accessibilityRole="button" accessibilityLabel={`Month attendance for ${item.name}`} accessibilityState={{ selected: item.id === personId, disabled: locked }} onPress={() => choosePerson(item.id)} className={`min-h-12 gap-1 border-b border-border-soft px-3 py-3 focus:border-primary ${item.id === personId ? 'bg-accent-soft' : 'bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft'}`}><Text className="text-base font-semibold text-text-primary">{item.name}</Text><Text className="text-xs text-text-secondary">{item.job_title || 'Kitchen staff'}{item.is_active ? '' : ' · Archived'}</Text>{counts ? <View className="flex-row flex-wrap gap-x-3 gap-y-1">{LEGEND.map(status => <View key={status} className="flex-row items-center gap-1"><Swatch status={status} /><Text className="text-xs text-text-secondary">{labels[status]} <Text className="font-semibold text-text-primary">{counts[status]}</Text></Text></View>)}</View> : null}</Pressable>;
+    return <Animated.View style={rosterEnter}><Pressable testID={`month-staff-${item.id}`} disabled={locked} accessibilityRole="button" accessibilityLabel={`Month attendance for ${item.name}`} accessibilityState={{ selected: item.id === personId, disabled: locked }} onPress={() => choosePerson(item.id)} className={`min-h-12 gap-1 border-b border-border-soft px-3 py-3 focus:border-primary ${item.id === personId ? 'bg-accent-soft' : 'bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft'}`}><Text className="text-base font-semibold text-text-primary">{item.name}</Text><Text className="text-xs text-text-secondary">{item.job_title || 'Kitchen staff'}{item.is_active ? '' : ' · Archived'}</Text>{counts ? <View className="flex-row flex-wrap gap-x-3 gap-y-1">{LEGEND.map(status => <View key={status} className="flex-row items-center gap-1"><Swatch status={status} /><Text className="text-xs text-text-secondary">{labels[status]} <Text className="font-semibold text-text-primary">{counts[status]}</Text></Text></View>)}</View> : null}</Pressable></Animated.View>;
   }} />;
   return <View className="w-full max-w-[1120px] flex-1 self-center px-4 pb-6">
     {desktop ? <>{toolbar}{!person ? feedback : null}<View className="min-h-0 flex-1 flex-row gap-4"><View className="w-[352px]">{roster}</View><FlatList className="min-w-0 flex-1" data={[]} renderItem={() => null} ListHeaderComponent={loading ? null : calendar} keyboardShouldPersistTaps="handled" /></View></> : person && !loading ? <FlatList data={[]} renderItem={() => null} ListHeaderComponent={<>{toolbar}{calendar}</>} keyboardShouldPersistTaps="handled" /> : <View className="flex-1">{toolbar}{feedback}{roster}</View>}

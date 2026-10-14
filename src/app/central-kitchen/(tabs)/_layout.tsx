@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
+import { Animated, BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -10,6 +10,7 @@ import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { SidebarSurface } from '@/components/ui/SidebarSurface';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
+import { usePresence } from '@/components/kitchen/ui';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
 
@@ -111,6 +112,8 @@ type BarProps = Pick<BottomTabBarProps, 'state' | 'navigation'>;
 function BottomBar({ state, navigation }: BarProps) {
   const insets = useSafeAreaInsets();
   const [moreOpen, setMoreOpen] = useState(false);
+  // The list rises 16 px out of the bar as it fades in, and sinks back (task 215).
+  const moreMenu = usePresence(moreOpen, 220);
   useEffect(() => {
     if (!moreOpen) return;
     if (Platform.OS === 'web') {
@@ -137,7 +140,7 @@ function BottomBar({ state, navigation }: BarProps) {
   };
   return (
     <View>
-      {moreOpen ? <View className="absolute bottom-full left-0 right-0 border-t border-border-soft bg-surface-elevated p-3">
+      {moreMenu.mounted ? <Animated.View pointerEvents={moreOpen ? 'auto' : 'none'} style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, opacity: moreMenu.progress, transform: [{ translateY: moreMenu.progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}><View className="border-t border-border-soft bg-surface-elevated p-3">
         <View className="flex-row items-center justify-between">
           <Text className="text-sm font-bold text-text-primary">More kitchen sections</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Close more sections" onPress={() => setMoreOpen(false)} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary"><X size={18} color={colors.primary} /></Pressable>
@@ -146,7 +149,7 @@ function BottomBar({ state, navigation }: BarProps) {
           renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: activeName === item.name }} onPress={() => openTab(item)} className="min-h-12 flex-row items-center gap-3 rounded-xl px-3 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
             <item.icon size={20} color={colors.primary} /><Text className="text-sm font-semibold text-text-primary">{item.label}</Text>
           </Pressable>} />
-      </View> : null}
+      </View></Animated.View> : null}
     <View className="flex-row border-t border-border-soft bg-surface-elevated" style={{ paddingTop: 6, paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 8 : 6), paddingHorizontal: 6 }}>
       {phone.map((tab) => {
         const route = state.routes.find((r) => r.name === tab.name);

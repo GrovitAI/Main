@@ -12,7 +12,7 @@ import { fetchKitchenAudit, fetchKitchenTeam, saveKitchenLock, saveKitchenStaffA
 import { PERMISSION_GROUPS, PRESETS, auditText, dayText, hourText, lockSummary, presetFor, presetLabel } from '@/lib/pos/kitchen-access-utils';
 import type { KitchenAuditRow, KitchenPermission, KitchenPreset, KitchenTeamMember } from '@/lib/pos/kitchen-access-types';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { Card, Chips, Empty, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Section, Segmented, Skeleton, TextField, Tick } from './ui';
+import { Card, Chips, Empty, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Reveal, Section, Segmented, Skeleton, TextField, Tick } from './ui';
 import { isValidDateKey } from './forms';
 
 const HOURS = [6, 8, 10, 11, 12, 14, 18, 22] as const;
@@ -158,7 +158,7 @@ function MemberCard({ member, open, onToggle, onSaved }: { member: KitchenTeamMe
         </View>
         {open ? <ChevronUp size={18} color={colors.textSecondary} /> : <ChevronDown size={18} color={colors.textSecondary} />}
       </Pressable>
-      {open ? (
+      <Reveal open={open}>
         <View className="border-t border-border-soft px-4 pb-4 pt-3" style={{ gap: 14 }}>
           <Field label="Starting role" hint={PRESETS.find((p) => p.id === preset)?.summary ?? 'Custom: switched on one by one below.'}>
             <Chips options={[...PRESETS.map((p) => ({ value: p.id as KitchenPreset, label: p.label })), ...(preset === 'custom' ? [{ value: 'custom' as KitchenPreset, label: 'Custom' }] : [])]}
@@ -188,7 +188,7 @@ function MemberCard({ member, open, onToggle, onSaved }: { member: KitchenTeamMe
             <View className="flex-1"><PrimaryButton label="Save" onPress={() => void save()} disabled={!changed} loading={busy} /></View>
           </View>
         </View>
-      ) : null}
+      </Reveal>
     </Card>
   );
 }

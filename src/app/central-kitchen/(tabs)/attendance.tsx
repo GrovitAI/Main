@@ -1,13 +1,13 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, FlatList, Platform, Pressable, View } from 'react-native';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { ActivityIndicator, Animated, FlatList, Platform, Pressable, View, type FlatListProps, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { Check, CheckSquare2, ChevronDown, Pencil, Plus, RefreshCw, Search, Square } from 'lucide-react-native';
+import { Check, ChevronDown, Pencil, Plus, RefreshCw, Search } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
 import { AttendanceAction } from '@/components/kitchen/AttendanceAction';
 import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
-import { Empty, GhostButton, IconButton, KScreen, Notice, PrimaryButton, SearchBox, Segmented, TextField, useDesktopDensity, useSlidingRect } from '@/components/kitchen/ui';
+import { Empty, GhostButton, IconButton, KScreen, Notice, PrimaryButton, Reveal, SearchBox, Segmented, TextField, Tick, useDesktopDensity, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
@@ -20,11 +20,22 @@ import type { AttendanceStatus, KitchenAttendance, KitchenAttendanceDay, Kitchen
 const statusLabel = (status: AttendanceStatus): string => ATTENDANCE_OPTIONS.find(option => option.value === status)?.label ?? 'Unmarked';
 const control = 'min-h-12 justify-center rounded-xl border border-transparent px-3 hover:bg-accent-soft focus:border-primary active:bg-accent-soft';
 type StatusFilter = AttendanceStatus | 'all';
-const FILTERS: readonly { value: StatusFilter; label: string }[] = [
+type FilterOption = { value: StatusFilter; label: string };
+const FILTERS: readonly FilterOption[] = [
   { value: 'all', label: 'All' },
   { value: 'unmarked', label: 'Unmarked' },
   ...ATTENDANCE_OPTIONS,
 ];
+
+/**
+ * The status filters scroll sideways in a FlatList, so each cell reports its own
+ * place in the row; the white highlight then slides to the chosen one (task 215).
+ */
+const FilterPlace = createContext<((i: number) => (e: LayoutChangeEvent) => void) | null>(null);
+function FilterCell({ index, onLayout, style, children }: ComponentProps<NonNullable<FlatListProps<FilterOption>['CellRendererComponent']>>) {
+  const place = useContext(FilterPlace);
+  return <View style={style} onLayout={event => { onLayout?.(event); place?.(index)(event); }}>{children}</View>;
+}
 
 function StaffIdentity({ person }: { person: KitchenStaffMember }) {
   const { width } = useResponsive();
@@ -65,7 +76,7 @@ function AttendanceRow({ person, record, busy, selecting, selected, onSelect, on
         onPressIn={() => { heldName.current = false; }}
         onPress={() => { if (!heldName.current) onSelect(person.id); }}
         onLongPress={() => { heldName.current = true; onSelect(person.id); }}>
-        {selecting ? (selected ? <CheckSquare2 size={20} color={colors.primary} /> : <Square size={20} color={colors.textSecondary} />) : null}
+        {selecting ? <Tick size={20} on={selected} /> : null}
         <StaffIdentity person={person} />
       </Pressable>
       {selecting ? <Text className="text-sm font-semibold text-text-secondary">{statusLabel(status)}</Text> : desktop ? <View className="w-[320px] shrink-0">{choices}</View> : <Pressable className={`${control} min-w-[100px] shrink-0 flex-row items-center justify-center gap-1 ${status === 'unmarked' ? 'bg-surface-tint' : 'bg-accent-soft'}`} disabled={busy} accessibilityRole="button" accessibilityLabel={`Mark attendance for ${person.name}, ${statusLabel(status)}`} accessibilityState={{ expanded, disabled: busy }} onPress={open}><Text className={`text-sm font-semibold ${status === 'unmarked' ? 'text-text-secondary' : 'text-primary'}`}>{statusLabel(status)}</Text><ChevronDown size={14} color={colors.primary} /></Pressable>}
@@ -73,7 +84,7 @@ function AttendanceRow({ person, record, busy, selecting, selected, onSelect, on
       {desktop && !selecting ? <AttendanceAction label="Edit" accessibilityLabel={`Edit attendance for ${person.name}`} disabled={busy} onPress={open} /> : null}
     </View>
     {canNote && record?.note && !expanded && !selecting ? <Text className="mt-1 text-xs text-text-secondary">{record.note}</Text> : null}
-    {expanded && !selecting ? <View className="gap-2 pt-2">
+    <Reveal open={expanded && !selecting}><View className="gap-2 pt-2">
       {!desktop ? choices : null}
       {!desktop && record ? <Text className="text-xs text-text-secondary">Updated by {record.updated_by_name} · {updatedTime} IST</Text> : null}
       {canNote ? <TextField flat label={`Attendance note for ${person.name}`} value={note} onChange={setNote} placeholder="Optional note · up to 200 characters" /> : null}
@@ -82,7 +93,7 @@ function AttendanceRow({ person, record, busy, selecting, selected, onSelect, on
         <AttendanceAction label="Clear mark" disabled={busy || !record || (status === 'unmarked' && !record.note)} onPress={() => { void onMark(person, 'unmarked', '').then(saved => { if (saved) { setNote(''); setExpanded(false); } }); }} />
         <AttendanceAction label="Close" disabled={busy} onPress={() => setExpanded(false)} />
       </View>
-    </View> : null}
+    </View></Reveal>
   </View>;
 }
 
@@ -93,14 +104,17 @@ export default function KitchenAttendanceScreen() {
   const [pane, setPane] = useState<'daily' | 'monthly' | 'staff'>('daily');
   // The pane underline slides between Daily register, Month overview and Staff (task 214).
   const paneSlide = useSlidingRect((['daily', 'monthly', 'staff'] as const).indexOf(pane));
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const statusSlide = useSlidingRect(FILTERS.findIndex(option => option.value === statusFilter));
   const [monthlyLocked, setMonthlyLocked] = useState(false);
   const monthly = pane === 'monthly';
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showArchived, setShowArchived] = useState(false);
   const [data, setData] = useState<KitchenAttendanceDay | null>(null);
   const [loadedDate, setLoadedDate] = useState<string | null>(null);
+  // Rows fade up when the pane, the archived view or the loaded day changes (task 215).
+  const paneEnter = useEnterOnChange(pane + ':' + (pane === 'daily' ? loadedDate ?? '' : String(showArchived)));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -207,6 +221,7 @@ export default function KitchenAttendanceScreen() {
       <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 0, height: 2, backgroundColor: colors.primary, ...paneSlide.style }} />
     </View>
   </View>;
+  const search = <SearchBox value={query} onChange={next => { if (busyRef.current) return; clearSelection(); setQuery(next); }} placeholder="Search staff or role" />;
   const header = <View className="gap-2">
     {navigationHeader}
     {editor ? <View pointerEvents={busy ? 'none' : 'auto'} className="gap-3 rounded-2xl border border-border-soft bg-surface-elevated p-3">
@@ -221,9 +236,11 @@ export default function KitchenAttendanceScreen() {
     </View> : null}
     <View className={`gap-2 ${desktop ? 'flex-row items-center' : ''}`}>
       {pane === 'daily' ? <View className="flex-row items-center gap-1"><View className={desktop ? 'w-[272px]' : 'min-w-0 flex-1'}><AttendanceDate value={date} onChange={changeDate} disabled={busy || loading} /></View>{!desktop ? <Pressable className={`${control} items-center`} accessibilityRole="button" accessibilityLabel="Search attendance staff" accessibilityState={{ expanded: searchOpen || Boolean(query) }} onPress={() => setSearchOpen(value => !value)}><Search size={18} color={colors.primary} /></Pressable> : null}</View> : <View className={desktop ? 'w-[272px]' : ''}><Segmented options={[{ value: 'active', label: 'Active staff' }, { value: 'archived', label: 'Archived' }]} value={showArchived ? 'archived' : 'active'} onChange={value => setShowArchived(value === 'archived')} /></View>}
-      {desktop || pane === 'staff' || searchOpen || query ? <View className="flex-1"><SearchBox value={query} onChange={next => { if (busyRef.current) return; clearSelection(); setQuery(next); }} placeholder="Search staff or role" /></View> : null}
+      {desktop ? <View className="flex-1">{search}</View> : <Reveal open={pane === 'staff' || searchOpen || Boolean(query)}>{search}</Reveal>}
     </View>
-    {pane === 'daily' && data && loadedDate === date ? <FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} renderItem={({ item: option }) => <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Filter attendance: ${option.label}`} accessibilityState={{ selected: statusFilter === option.value, disabled: busy }} onPress={() => { if (busyRef.current) return; clearSelection(); setStatusFilter(option.value); }} className={`min-h-12 flex-row items-center gap-2 rounded-lg border px-3 focus:border-primary ${statusFilter === option.value ? 'border-border bg-surface-elevated' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'}`}><Text className={`text-sm font-semibold ${statusFilter === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text><Text className="text-xs font-semibold text-text-secondary">{option.value === 'all' ? total : counts[option.value]}</Text></Pressable>} /> : null}
+    {pane === 'daily' && data && loadedDate === date ? <FilterPlace.Provider value={statusSlide.measure}><FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} CellRendererComponent={FilterCell}
+      ListHeaderComponentStyle={{ marginRight: -4 }} ListHeaderComponent={<Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, ...statusSlide.style }} />}
+      renderItem={({ item: option }) => <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Filter attendance: ${option.label}`} accessibilityState={{ selected: statusFilter === option.value, disabled: busy }} onPress={() => { if (busyRef.current) return; clearSelection(); setStatusFilter(option.value); }} className={`min-h-12 flex-row items-center gap-2 rounded-lg border px-3 focus:border-primary ${statusFilter === option.value ? 'border-transparent' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'}`}><Text className={`text-sm font-semibold ${statusFilter === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text><Text className="text-xs font-semibold text-text-secondary">{option.value === 'all' ? total : counts[option.value]}</Text></Pressable>} /></FilterPlace.Provider> : null}
     {pane === 'daily' && data && loadedDate === date && !loading ? <View className="gap-2 border-y border-border bg-surface-tint px-3 py-2" testID="attendance-selection-toolbar">
       {selecting ? <>
         <View className="flex-row flex-wrap items-center justify-between gap-2">
@@ -235,7 +252,7 @@ export default function KitchenAttendanceScreen() {
           accessibilityState={{ checked: selectedPeople.length === rows.length && rows.length > 0, disabled: busy || !rows.length }}
           disabled={busy || !rows.length} onPress={() => { if (busyRef.current) return; setSelectedIds(selectedPeople.length === rows.length ? new Set() : new Set(rows.map(person => person.id))); }}
           className="min-h-12 flex-row items-center gap-2 rounded-lg px-1 hover:bg-accent-soft focus:border-primary">
-          {selectedPeople.length === rows.length && rows.length > 0 ? <CheckSquare2 size={20} color={colors.primary} /> : <Square size={20} color={colors.textSecondary} />}
+          <Tick size={20} on={selectedPeople.length === rows.length && rows.length > 0} />
           <Text className="text-sm font-semibold text-text-primary">Select all in this view ({rows.length})</Text>
         </Pressable>
         <View className="w-full max-w-[420px] flex-row gap-1">{ATTENDANCE_OPTIONS.map(option => <Pressable key={option.value} disabled={busy}
@@ -262,5 +279,5 @@ export default function KitchenAttendanceScreen() {
     {desktop && !selecting && pane === 'daily' && data && rows.length ? <View className="flex-row items-center gap-3 border-y border-border-soft bg-surface-tint px-3 py-2"><Text className="flex-1 text-xs font-semibold text-text-secondary">Staff member</Text><Text className="w-[320px] text-xs font-semibold text-text-secondary">Attendance</Text><Text className="w-[168px] text-xs font-semibold text-text-secondary">Last updated</Text><Text className="w-12 text-xs font-semibold text-text-secondary">Edit</Text></View> : null}
   </View>;
   if (monthly) return <KScreen scroll={false} wide><MonthlyAttendance header={navigationHeader} onLockChange={setMonthlyLocked} /></KScreen>;
-  return <KScreen scroll={false} wide><FlatList className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 1120, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" data={loading || loadedDate !== date ? [] : rows} keyExtractor={person => person.id} extraData={{ data, busy, selecting, selectedIds }} ListHeaderComponent={header} refreshing={loading} onRefresh={() => { if (!busyRef.current) void load(); }} ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Loading attendance" color={colors.primary} className="my-6" /> : error && !data ? <Empty title="Attendance unavailable" body="Retry to load the register. No attendance has been changed." action={<GhostButton label="Retry attendance" onPress={() => void load()} />} /> : <Empty title={query || (pane === 'daily' && statusFilter !== 'all') ? 'No matching staff' : pane === 'staff' && showArchived ? 'No archived staff' : 'No staff for this view'} body={query || (pane === 'daily' && statusFilter !== 'all') ? 'Try another name or attendance status.' : pane === 'staff' && showArchived ? 'Archived staff appear here. Past attendance stays saved.' : 'Add kitchen staff to begin marking attendance.'} action={query || (pane === 'daily' && statusFilter !== 'all') ? <GhostButton label="Reset filters" onPress={() => { setQuery(''); setStatusFilter('all'); }} /> : pane === 'staff' && showArchived ? undefined : <GhostButton label="Add kitchen staff" onPress={() => startEditor()} />} />} renderItem={({ item }) => pane === 'daily' ? <AttendanceRow key={`${item.id}:${date}`} person={item} record={byStaff.get(item.id)} busy={busy || loading || !mayMark} selecting={selecting} selected={selectedIds.has(item.id)} onSelect={selectPerson} onMark={mark} /> : <View className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2"><StaffIdentity person={item} />{mayRoster ? <IconButton icon={Pencil} label={`Edit staff ${item.name}`} onPress={() => startEditor(item)} /> : null}</View>} /></KScreen>;
+  return <KScreen scroll={false} wide><FlatList className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 1120, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" data={loading || loadedDate !== date ? [] : rows} keyExtractor={person => person.id} extraData={{ data, busy, selecting, selectedIds }} ListHeaderComponent={header} refreshing={loading} onRefresh={() => { if (!busyRef.current) void load(); }} ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Loading attendance" color={colors.primary} className="my-6" /> : error && !data ? <Empty title="Attendance unavailable" body="Retry to load the register. No attendance has been changed." action={<GhostButton label="Retry attendance" onPress={() => void load()} />} /> : <Empty title={query || (pane === 'daily' && statusFilter !== 'all') ? 'No matching staff' : pane === 'staff' && showArchived ? 'No archived staff' : 'No staff for this view'} body={query || (pane === 'daily' && statusFilter !== 'all') ? 'Try another name or attendance status.' : pane === 'staff' && showArchived ? 'Archived staff appear here. Past attendance stays saved.' : 'Add kitchen staff to begin marking attendance.'} action={query || (pane === 'daily' && statusFilter !== 'all') ? <GhostButton label="Reset filters" onPress={() => { setQuery(''); setStatusFilter('all'); }} /> : pane === 'staff' && showArchived ? undefined : <GhostButton label="Add kitchen staff" onPress={() => startEditor()} />} />} renderItem={({ item }) => <Animated.View style={paneEnter}>{pane === 'daily' ? <AttendanceRow key={`${item.id}:${date}`} person={item} record={byStaff.get(item.id)} busy={busy || loading || !mayMark} selecting={selecting} selected={selectedIds.has(item.id)} onSelect={selectPerson} onMark={mark} /> : <View className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2"><StaffIdentity person={item} />{mayRoster ? <IconButton icon={Pencil} label={`Edit staff ${item.name}`} onPress={() => startEditor(item)} /> : null}</View>}</Animated.View>} /></KScreen>;
 }

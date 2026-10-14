@@ -8,7 +8,7 @@ import { entryAmountText, entryHeadline, entrySubline } from '@/lib/pos/kitchen-
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, type HistoryFilters, type HistorySort } from '@/lib/pos/kitchen-history-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Empty, KHeader, KScreen, Notice, SearchBox, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, Notice, Reveal, SearchBox, useDesktopDensity } from '@/components/kitchen/ui';
 import { HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
@@ -66,7 +66,7 @@ export default function HistoryScreen() {
       <View className={'min-w-0 ' + (desktop ? 'w-[220px]' : 'flex-1')}><ReportSelect toolbar allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} triggerText={filters.sort.startsWith('transaction') ? desktop ? 'Transaction date' : 'Transaction' : 'Entry date'} triggerIcon={filters.sort.endsWith('newest') ? ArrowDownWideNarrow : ArrowUpWideNarrow} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} /></View>
       </View>
     </View>
-    {showFilters && !phone ? <View testID="kitchen-history-filters" className={'rounded-xl border border-border-soft bg-surface-elevated ' + (phone ? 'gap-2 p-2' : 'gap-4 p-3 ') + (desktop ? 'flex-row' : '')}>
+    {!phone ? <Reveal open={showFilters}><View testID="kitchen-history-filters" className={'rounded-xl border border-border-soft bg-surface-elevated ' + (phone ? 'gap-2 p-2' : 'gap-4 p-3 ') + (desktop ? 'flex-row' : '')}>
       <View className={'min-w-0 ' + (phone ? 'gap-1.5 ' : 'gap-3 ') + (desktop ? 'flex-1' : '')}>
         {!phone ? <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Entry details</Text> : null}
         <View className={phone ? 'gap-1.5' : 'gap-3 sm:flex-row'}>
@@ -84,7 +84,7 @@ export default function HistoryScreen() {
         {filters.range ? <Pressable accessibilityRole="button" onPress={() => update('range', null)} className={button}><Text className="text-sm font-semibold text-primary">Clear dates</Text></Pressable> : null}
         <Text className="text-xs leading-4 text-text-secondary">{phone ? 'Transaction: happened · Entry: recorded · India time.' : 'Transaction date: when it happened. Entry date: when it was recorded. India time.'}</Text>
       </View>
-    </View> : null}
+    </View></Reveal> : null}
     <View className="flex-row items-center justify-between gap-2">
       <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-xs leading-4 text-text-secondary">{rows.length} of {data.entries.length} loaded entries · includes edits and voids</Text>
       {hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-semibold text-primary">Clear filters</Text></Pressable> : null}
