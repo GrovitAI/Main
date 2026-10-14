@@ -8,7 +8,8 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { CategoryPicker } from '@/components/kitchen/CategoryPicker';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
@@ -33,6 +34,7 @@ export default function SpentScreen() {
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const done = useSavedThen();
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
 
@@ -80,8 +82,10 @@ export default function SpentScreen() {
     setSaving(false);
     if (res.error) {
       setError(res.error);
+      buzz('error');
       return;
     }
+    done.mark();
     await data.load(true);
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
@@ -91,7 +95,7 @@ export default function SpentScreen() {
     } else {
       useKitchenStore.getState().setNotice(`${category ?? 'Expense'} · ${formatMoney(amount)} recorded`);
     }
-    backToKitchen();
+    done.finish(backToKitchen);
   };
 
   const title = editing ? (isVendor ? 'Edit payment' : 'Edit expense') : 'Spent';
@@ -99,7 +103,7 @@ export default function SpentScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : isVendor ? 'Save payment' : 'Save expense'} onPress={() => void save()} disabled={!canSave} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : isVendor ? 'Save payment' : 'Save expense'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={kind === 'vendor' && !partyId ? 'Choose a vendor' : kind !== 'vendor' && !category ? 'Choose what it was for' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />}>
         <KHeader title={title} subtitle={subtitle} onBack={() => backToKitchen()} />
         {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a payment or expense." /> : null}
         {editing ? null : (

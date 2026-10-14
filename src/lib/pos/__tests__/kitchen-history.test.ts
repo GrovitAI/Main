@@ -1,4 +1,4 @@
-import { filterKitchenHistory, historyAuditText, historyRecordedDay, historyStatus, historyTimeLabel, type HistoryFilters } from '../kitchen-history-utils';
+import { filterKitchenHistory, historyAuditText, historyDayHeading, historyRecordedDay, historySections, historyStatus, historyTimeLabel, type HistoryFilters } from '../kitchen-history-utils';
 import type { KitchenEntry } from '../kitchen-types';
 
 const entry = (id: string, over: Partial<KitchenEntry> = {}): KitchenEntry => ({
@@ -71,5 +71,28 @@ describe('Kitchen audit history', () => {
     const removedEdit = { ...edited, voided_at: '2026-10-09T09:00:00Z', void_reason: 'Duplicate bill' };
     expect(historyStatus(removedEdit)).toBe('voided');
     expect(rows({ status: 'edited' }, [removedEdit])).toEqual([]);
+  });
+});
+
+describe('history day headings (task 216)', () => {
+  it('names today, yesterday and older days, adding the year only when it differs', () => {
+    expect(historyDayHeading('2026-10-14', '2026-10-14')).toBe('Today');
+    expect(historyDayHeading('2026-10-13', '2026-10-14')).toBe('Yesterday');
+    expect(historyDayHeading('2026-10-01', '2026-10-01')).toBe('Today');
+    expect(historyDayHeading('2026-09-30', '2026-10-01')).toBe('Yesterday');
+    expect(historyDayHeading('2026-10-05', '2026-10-14')).toMatch(/5 Oct/);
+    expect(historyDayHeading('2025-12-31', '2026-01-02')).toMatch(/2025/);
+  });
+
+  it('puts one heading before each day', () => {
+    const a = entry('a', { entry_date: '2026-10-14', created_at: '2026-10-14T05:00:00Z' });
+    const b = entry('b', { entry_date: '2026-10-14', created_at: '2026-10-14T04:00:00Z' });
+    // Recorded 13 Oct 19:00 UTC is 14 Oct 00:30 in India.
+    const c = entry('c', { entry_date: '2026-10-12', created_at: '2026-10-13T19:00:00Z' });
+    const byTransaction = historySections([a, b, c], 'transaction-newest', '2026-10-14');
+    expect(byTransaction.items.map(i => i.kind === 'day' ? i.label + ':' + i.count : i.key)).toEqual(['Today:2', 'a', 'b', expect.stringMatching(/12 Oct:1$/), 'c']);
+    const byRecorded = historySections([a, b, c], 'recorded-newest', '2026-10-14');
+    expect(byRecorded.items.map(i => i.kind === 'day' ? i.label : i.key)).toEqual(['Today', 'a', 'b', 'c']);
+    expect(historySections([], 'transaction-newest').items).toEqual([]);
   });
 });

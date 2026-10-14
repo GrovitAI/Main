@@ -383,3 +383,27 @@ export function describeKitchenError(message: string | null | undefined, fallbac
   if (m.includes('kitchen_categories_name_key')) return 'That category is already in the list.';
   return fallback;
 }
+
+/**
+ * The items sent most often to one branch in the loaded entries, with the
+ * quantity sent the last time (task 216). Voided sends do not count. Ties go
+ * to the item sent most recently.
+ */
+export function oftenSent(entries: readonly KitchenEntry[], partyId: string, limit = 6): { itemId: string; times: number; lastQty: number }[] {
+  const seen = new Map<string, { itemId: string; times: number; lastQty: number; lastAt: string }>();
+  for (const entry of entries) {
+    if (entry.type !== 'sent' || entry.party_id !== partyId || entry.voided_at) continue;
+    const at = entry.entry_date + ' ' + entry.created_at;
+    for (const line of entry.lines) {
+      if (!(line.qty > 0)) continue;
+      const row = seen.get(line.item_id) ?? { itemId: line.item_id, times: 0, lastQty: line.qty, lastAt: '' };
+      row.times += 1;
+      if (at > row.lastAt) { row.lastAt = at; row.lastQty = line.qty; }
+      seen.set(line.item_id, row);
+    }
+  }
+  return [...seen.values()]
+    .sort((a, b) => b.times - a.times || b.lastAt.localeCompare(a.lastAt))
+    .slice(0, limit)
+    .map(({ itemId, times, lastQty }) => ({ itemId, times, lastQty }));
+}

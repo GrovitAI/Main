@@ -7,7 +7,8 @@ import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 import { PurchaseCategoryPicker } from '@/components/kitchen/PurchaseCategoryPicker';
 
 type Side = 'owed' | 'ahead';
@@ -28,6 +29,7 @@ export default function PartyFormScreen() {
   const [openingText, setOpeningText] = useState(existing && existing.opening !== 0 ? String(Math.abs(existing.opening)) : '');
   const [side, setSide] = useState<Side>(existing && existing.opening < 0 ? 'ahead' : 'owed');
   const [saving, setSaving] = useState(false);
+  const done = useSavedThen();
   const [error, setError] = useState<string | null>(null);
   const noun = kind === 'branch' ? 'branch' : 'vendor';
   const isBranch = kind === 'branch';
@@ -42,11 +44,13 @@ export default function PartyFormScreen() {
     setSaving(false);
     if (res.error || !res.data) {
       setError(res.error ?? `Unable to save the ${noun}.`);
+      buzz('error');
       return;
     }
+    done.mark();
     await data.load(true);
     useKitchenStore.getState().setNotice(existing ? `${res.data.name} saved` : `${res.data.name} added`);
-    backToKitchen();
+    done.finish(backToKitchen);
   };
 
   const sides = isBranch
@@ -55,7 +59,7 @@ export default function PartyFormScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : `Add ${noun}`} onPress={() => void save()} disabled={!mayEdit || !name.trim()} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : `Add ${noun}`} onPress={() => void save()} disabled={!mayEdit || !name.trim()} loading={saving} done={done.saved} reason={mayEdit && !name.trim() ? 'Enter a name' : undefined} />}>
         <KHeader title={existing ? `Edit ${noun}` : `Add a ${noun}`} subtitle={existing ? undefined : isBranch ? 'An outlet the kitchen sends to' : 'Someone the kitchen buys from'} onBack={() => backToKitchen()} />
         {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change branches and vendors. Ask the owner." /> : null}
         <Field label="Name">

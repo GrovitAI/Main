@@ -187,10 +187,19 @@ type LinesEditorProps = {
   /** Selling to a branch (price from the item) or buying from a vendor (price from the last buy). */
   mode: 'sell' | 'cost';
   defaultCost?: ReadonlyMap<string, number>;
+  /**
+   * Items to offer as one-tap chips before any search, with the quantity used
+   * last time (task 216). A tap adds the item at zero: the quantity is always
+   * typed, never guessed.
+   */
+  picks?: readonly { itemId: string; lastQty: number }[];
+  picksTitle?: string;
 };
 
-export function LinesEditor({ items, lines, onChange, mode, defaultCost }: LinesEditorProps) {
+export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, picksTitle }: LinesEditorProps) {
   const [query, setQuery] = useState('');
+  const [pinned, setPinned] = useState<readonly string[]>([]);
+  const lastQty = useMemo(() => new Map((picks ?? []).map((p) => [p.itemId, p.lastQty])), [picks]);
   const { showAmounts } = useKitchenAccess();
   const kind = mode === 'sell' ? 'finished_good' : 'raw_material';
   const offered = useMemo(() => items.filter((i) => i.item_kind === kind), [items, kind]);
@@ -202,9 +211,12 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
     const matches = query.trim() ? offered.filter((i) => matchesSearch(query, i.name, i.unit)) : [];
     if (mode === 'sell') matches.sort((a, b) => Number(a.sell_price === null) - Number(b.sell_price === null) || a.name.localeCompare(b.name));
     const matchIds = new Set(matches.map((i) => i.id));
-    const chosenElsewhere = items.filter((i) => (lines[i.id]?.qty ?? 0) > 0 && !matchIds.has(i.id));
+    const chosenElsewhere = items.filter((i) => ((lines[i.id]?.qty ?? 0) > 0 || pinned.includes(i.id)) && !matchIds.has(i.id));
     return [...chosenElsewhere, ...matches];
-  }, [items, offered, query, lines, mode]);
+  }, [items, offered, query, lines, mode, pinned]);
+  const shownPicks = useMemo(() => (query.trim() ? [] : (picks ?? [])
+    .map((p) => offered.find((i) => i.id === p.itemId && i.is_active))
+    .filter((i): i is KitchenItem => !!i && !pinned.includes(i.id) && !((lines[i.id]?.qty ?? 0) > 0))), [picks, offered, pinned, lines, query]);
   const defaultPrice = (it: KitchenItem): number | null => (mode === 'sell' ? it.sell_price : defaultCost?.get(it.id) ?? null);
   const setLine = (it: KitchenItem, patch: Partial<DraftLine>) => {
     const current = lines[it.id] ?? { qty: 0, price: defaultPrice(it) };
@@ -216,12 +228,20 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
   return (
     <View style={{ gap: 10 }}>
       <SearchBox value={query} onChange={setQuery} placeholder={mode === 'sell' ? 'Search finished goods to add' : 'Search raw materials to add'} />
+      {shownPicks.length > 0 ? (
+        <View style={{ gap: 2 }}>
+          {picksTitle ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>{picksTitle}</Text> : null}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 6 }}>
+            {shownPicks.map((it) => <AddChip key={it.id} label={it.name} onPress={() => setPinned((p) => [...p, it.id])} />)}
+          </View>
+        </View>
+      ) : null}
       <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14 }}>
         {ordered.length === 0 ? (
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', paddingVertical: 18, textAlign: 'center' }}>
             {offered.length === 0
               ? mode === 'sell' ? 'No finished goods yet. Add them under Stock first.' : 'No raw materials yet. Add them under Stock first.'
-              : query.trim() ? 'No item matches that.' : 'Search above, then set a quantity on each item you need.'}
+              : query.trim() ? 'No item matches that.' : shownPicks.length > 0 ? 'Search above, or tap an item you often send.' : 'Search above, then set a quantity on each item you need.'}
           </Text>
         ) : null}
         {ordered.map((it) => {
@@ -234,7 +254,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost }: Lines
               <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={2}>{it.name}</Text>
               <View className="flex-row items-center" style={{ gap: 10, marginTop: 4 }}>
                 <Text className="flex-1 text-text-secondary" style={{ fontSize: 12, fontWeight: '600', minWidth: 0 }} numberOfLines={2}>
-                  {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}
+                  {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}{lastQty.has(it.id) ? ` · last time ${formatQty(lastQty.get(it.id) ?? 0, it.unit)}` : ''}
                 </Text>
                 <QtyStepper value={qty} onChange={(q) => setLine(it, { qty: q })} step={stepFor(it.unit)} unit={it.unit} label={it.name} />
               </View>

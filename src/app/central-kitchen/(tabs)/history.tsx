@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ViewToken } from 'react-native';
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { entryAmountText, entryHeadline, entrySubline } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
-import { filterKitchenHistory, type HistoryFilters, type HistorySort } from '@/lib/pos/kitchen-history-utils';
-import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Empty, KHeader, KScreen, Notice, Reveal, SearchBox, useDesktopDensity } from '@/components/kitchen/ui';
+import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
+import { Empty, KHeader, KScreen, Notice, Reveal, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
 import { HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
@@ -47,10 +46,32 @@ export default function HistoryScreen() {
     const names = { party: entry.party_id ? data.partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? data.itemsById.get(entry.item_id)?.name : null };
     return [entryHeadline(entry, names), entrySubline(entry, data.itemsById), entryAmountText(entry), entry.purchase_category_name, entry.category, entry.note];
   }), [data.entries, data.partiesById, data.itemsById, filters]);
+  // Task 216: a heading for each day, pinned at the top while its entries scroll.
+  const sections = useMemo(() => historySections(rows, filters.sort), [rows, filters.sort]);
+  // Once the toolbar has scrolled away, a bar above the list names the day of the
+  // topmost entry. (The list's own sticky headers misplace rows in the browser.)
+  const dayOf = useMemo(() => {
+    const map = new Map<string, { label: string; count: number }>();
+    let day: { label: string; count: number } | null = null;
+    for (const item of sections.items) { if (item.kind === 'day') day = { label: item.label, count: item.count }; if (day) map.set(item.key, day); }
+    return map;
+  }, [sections]);
+  const dayRef = useRef(dayOf);
+  dayRef.current = dayOf;
+  const [pinnedDay, setPinnedDay] = useState<{ label: string; count: number } | null>(null);
+  const headerHeight = useRef(0);
+  const pastHeader = useRef(false);
+  const topKey = useRef<string | null>(null);
+  const syncPinned = useRef(() => setPinnedDay(pastHeader.current && topKey.current ? dayRef.current.get(topKey.current) ?? null : null)).current;
+  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<HistoryListItem>[] }) => { topKey.current = viewableItems[0]?.key ?? null; syncPinned(); }).current;
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    const past = event.nativeEvent.contentOffset.y > headerHeight.current;
+    if (past !== pastHeader.current) { pastHeader.current = past; syncPinned(); }
+  };
   const filterCount = [filters.kind, filters.status, filters.enteredBy, filters.range].filter(Boolean).length;
   const hasFilters = filterCount > 0 || filters.query.trim().length > 0;
   const reset = () => setFilters(current => ({ ...DEFAULTS, sort: current.sort }));
-  const header = <View className="gap-2 pb-3">
+  const header = <View className="gap-2 pb-3" onLayout={event => { headerHeight.current = event.nativeEvent.layout.height; }}>
     <KHeader title="History" subtitle="Entries, corrections and voids" right={
       <Pressable accessibilityRole="button" accessibilityLabel="Refresh history" accessibilityState={{ disabled: data.loading }} disabled={data.loading} onPress={data.refresh} className={button}>
         {data.loading ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCw size={18} color={colors.primary} />}
@@ -93,13 +114,19 @@ export default function HistoryScreen() {
   </View>;
 
   return <KScreen scroll={false}>
-    <FlatList<KitchenEntry> testID="kitchen-history-list" className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-center' : 'max-w-[720px] self-center')}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} data={data.loaded ? rows : []} keyExtractor={entry => entry.id}
+    <View className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-center' : 'max-w-[720px] self-center')}>
+    <FlatList<HistoryListItem> testID="kitchen-history-list" className="flex-1"
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} data={data.loaded ? sections.items : []} keyExtractor={item => item.key}
+      onScroll={onScroll} scrollEventThrottle={16} onViewableItemsChanged={onViewable}
       ListHeaderComponent={header} keyboardShouldPersistTaps="handled" refreshing={data.loading && data.loaded} onRefresh={data.refresh}
       initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7}
-      ListEmptyComponent={!data.loaded ? <View className="items-center py-8"><ActivityIndicator color={colors.primary} accessibilityLabel="Loading history" /></View> :
+      ListEmptyComponent={!data.loaded ? <SkeletonRows count={6} height={64} label="Loading history" /> :
         <Empty title={hasFilters ? 'Nothing matches' : data.error ? 'History unavailable' : 'Nothing recorded yet'} body={hasFilters ? 'Try another word, staff member, status or date range.' : data.error ? 'Use Refresh history to try again.' : 'Sends, payments, buys and counts will show here.'} action={hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-bold text-primary">Clear filters</Text></Pressable> : undefined} />}
-      renderItem={({ item }) => <HistoryEntry entry={item} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.id)} />} />
+      renderItem={({ item }) => item.kind === 'day'
+        ? <DayHeading label={item.label} count={item.count} />
+        : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.entry.id)} />} />
+    {pinnedDay && data.loaded ? <View pointerEvents="none" testID="kitchen-history-pinned-day" style={{ position: 'absolute', top: 0, left: 16, right: 16 }}><DayHeading label={pinnedDay.label} count={pinnedDay.count} /></View> : null}
+    </View>
     {phone ? <HistoryFilterSheet visible={showFilters} onClose={() => setShowFilters(false)} onReset={reset}
       fields={[
         <ReportSelect key="kind" compact outlined label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />,
@@ -114,4 +141,11 @@ export default function HistoryScreen() {
       </>} /> : null}
     <EntryActions entry={open} previousEntry={open?.replaces_id ? entriesById.get(open.replaces_id) ?? null : undefined} onClose={() => setOpenId(null)} itemsById={data.itemsById} partiesById={data.partiesById} />
   </KScreen>;
+}
+
+function DayHeading({ label, count }: { label: string; count: number }) {
+  return <View accessibilityRole="header" className="flex-row items-baseline gap-2 border-b border-border-soft px-1 pb-1.5 pt-3" style={{ backgroundColor: colors.kitchenCanvas }}>
+    <Text className="text-sm font-bold text-primary">{label}</Text>
+    <Text className="text-xs text-text-secondary">{count} {count === 1 ? 'entry' : 'entries'}</Text>
+  </View>;
 }

@@ -8,7 +8,8 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, TextField } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
@@ -29,6 +30,7 @@ export default function ReceivedScreen() {
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const done = useSavedThen();
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
 
@@ -71,8 +73,10 @@ export default function ReceivedScreen() {
     setSaving(false);
     if (res.error) {
       setError(res.error);
+      buzz('error');
       return;
     }
+    done.mark();
     await data.load(true);
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
@@ -80,12 +84,12 @@ export default function ReceivedScreen() {
       const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'branch', party?.opening ?? 0);
       useKitchenStore.getState().setNotice(`Received ${formatMoney(amount)} from ${party?.name ?? 'the branch'} · now ${formatMoney(Math.max(0, after))} to pay`);
     }
-    backToKitchen();
+    done.finish(backToKitchen);
   };
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a branch' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />}>
         <KHeader
           title={editing ? 'Edit receipt' : 'Received from a branch'}
           subtitle={editing ? 'The earlier entry is voided; this one takes its place' : 'Any amount; it comes off what they owe'}

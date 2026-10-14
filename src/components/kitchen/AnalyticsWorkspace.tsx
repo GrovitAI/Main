@@ -14,7 +14,7 @@ import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenToday, s
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
 import { formatMoney } from '@/lib/pos/kitchen-utils';
-import { Empty, KScreen, Notice, Reveal, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
+import { Empty, KScreen, LoadingBar, Notice, Reveal, SkeletonRows, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 
@@ -26,6 +26,7 @@ const ALL_TABS: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sa
 const isMoney = (kind: KitchenReportKind): boolean => kind === 'cash' || kind === 'bank';
 /** Only Sales and Purchases have branch, item, vendor or category filters and a drill-down. */
 const hasFilters = (kind: KitchenReportKind): boolean => kind === 'sales' || kind === 'purchases';
+const dim = { opacity: 0.45 };
 const percent = (part: number, whole: number): string => whole > 0 ? Math.round(part / whole * 100) + '%' : '—';
 
 export function AnalyticsWorkspace() {
@@ -58,10 +59,16 @@ export function AnalyticsWorkspace() {
   const [category, setCategory] = useState<string | null>(null);
   const [includeExpenses, setIncludeExpenses] = useState(false);
   const [detail, setDetail] = useState(false);
-  const salesColumns = desktop && kind === 'sales' && !detail;
   const [page, setPage] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [report, setReport] = useState<KitchenReport | null>(null);
+  // Task 216: while a new report loads, the last one stays on screen, dimmed and
+  // not tappable, under a thin moving line; its rows keep the shape they were
+  // loaded for. Only the very first load shows placeholder rows.
+  const [shownFor, setShownFor] = useState<KitchenReportFilter | null>(null);
+  const rowKind = shownFor?.report ?? kind;
+  const rowDetail = shownFor?.detail ?? detail;
+  const salesColumns = desktop && rowKind === 'sales' && !rowDetail;
   // Each report that arrives fades its rows and totals up into place (task 215).
   const reportsShown = useRef(0);
   const reportEnter = useEnterOnChange(report ? String(reportsShown.current) : 'loading');
@@ -75,12 +82,12 @@ export function AnalyticsWorkspace() {
   const filter = useMemo<KitchenReportFilter>(() => ({ month, ...dateRange, report: kind, partyId, itemId, category, includeExpenses, detail, page }), [month, dateRange, kind, partyId, itemId, category, includeExpenses, detail, page]);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(null); setExportError(null); setReport(null);
+    setLoading(true); setError(null); setExportError(null);
     void fetchKitchenReport(filter, controller.signal).then(result => {
       if (controller.signal.aborted) return;
       setLoading(false);
-      if (!result.data || result.error) { setError(result.error ?? 'Unable to load this report.'); return; }
-      reportsShown.current += 1; setReport(result.data); setFilterOptions(result.data.options);
+      if (!result.data || result.error) { setReport(null); setShownFor(null); setError(result.error ?? 'Unable to load this report.'); return; }
+      reportsShown.current += 1; setReport(result.data); setShownFor(filter); setFilterOptions(result.data.options);
     });
     return () => controller.abort();
   }, [filter, refresh, tenant_id, branchId, session?.userId]);
@@ -97,7 +104,7 @@ export function AnalyticsWorkspace() {
   const changeMonth = (next: string) => changeDates(kitchenMonthRange(next, today));
   const chooseReport = (next: KitchenReportKind) => { resetFilters(); setKind(next); };
   const inspect = (row: KitchenReportRow) => {
-    if (detail || !hasFilters(kind)) return;
+    if (loading || detail || !hasFilters(kind)) return;
     drillBase.current = { partyId, itemId, category };
     if (kind === 'sales') { setPartyId(row.party_id); setItemId(row.item_id); } else setCategory(row.category);
     setDetail(true); setPage(0);
@@ -133,6 +140,7 @@ export function AnalyticsWorkspace() {
   };
   const title = kind === 'sales' ? 'Item sales to branches' : kind === 'purchases' ? includeExpenses ? 'All spending by category' : 'Purchases by category' : kind === 'bank' ? 'Bank and UPI received and paid' : kind === 'profit' ? 'Profit by finished good' : 'Cash received and paid';
   const summary = report?.summary;
+  const stale = loading && report !== null;
   const metrics = [
     { label: 'Sales to branches', value: summary?.sales_paise, Icon: Package },
     { label: 'Purchases', value: summary?.purchases_paise, Icon: ShoppingBasket },
@@ -173,14 +181,15 @@ export function AnalyticsWorkspace() {
   const currentRange = kitchenMonthRange(today.slice(0, 7), today);
   const currentMonth = dateRange.startDate === currentRange.startDate && dateRange.endDate === currentRange.endDate;
   const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Month to date · through ' + today : kitchenRangeLabel(dateRange)} · India time</Text>;
-  const rowCountLabel = kind === 'profit' ? report?.total_rows === 1 ? 'finished good' : 'finished goods'
-    : detail || isMoney(kind) ? report?.total_rows === 1 ? 'row' : 'rows'
-    : kind === 'sales' ? desktop ? report?.total_rows === 1 ? 'item / branch combination' : 'item / branch combinations' : report?.total_rows === 1 ? 'combination' : 'combinations'
+  // Totals describe the report on screen, which may still be the previous one while a new one loads.
+  const rowCountLabel = rowKind === 'profit' ? report?.total_rows === 1 ? 'finished good' : 'finished goods'
+    : rowDetail || isMoney(rowKind) ? report?.total_rows === 1 ? 'row' : 'rows'
+    : rowKind === 'sales' ? desktop ? report?.total_rows === 1 ? 'item / branch combination' : 'item / branch combinations' : report?.total_rows === 1 ? 'combination' : 'combinations'
     : report?.total_rows === 1 ? 'category' : 'categories';
-  const reportTotal = report ? isMoney(kind)
+  const reportTotal = report ? isMoney(rowKind)
     ? <><Text style={{ color: semantic.success }}>{'Received ' + money(report.filtered_in_paise)}</Text>{' · '}<Text style={{ color: semantic.danger }}>{'Paid ' + money(report.filtered_out_paise)}</Text></>
-    : kind === 'profit' ? 'Sales ' + money(report.filtered_paise) + ' · cost ' + money(report.summary.cost_paise)
-    : (desktop || activeFilters || detail ? 'Filtered total ' : 'Report total ') + money(report.filtered_paise) : null;
+    : rowKind === 'profit' ? 'Sales ' + money(report.filtered_paise) + ' · cost ' + money(report.summary.cost_paise)
+    : (desktop || activeFilters || rowDetail ? 'Filtered total ' : 'Report total ') + money(report.filtered_paise) : null;
   const reportActions = [
     ...(kind === 'sales' && mayInvoices ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
     ...(mayExport ? [{ id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportCsv() }] : []),
@@ -231,8 +240,8 @@ export function AnalyticsWorkspace() {
         </Pressable> : null}
         </View></Reveal>
       </View>
-        {kind === 'profit' && summary ? <Animated.View style={reportEnter}><ProfitStatement summary={summary} desktop={desktop} /></Animated.View> : null}
-        {kind === 'profit' ? null : <Animated.View style={reportEnter}><View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
+        {kind === 'profit' && summary ? <Animated.View style={[reportEnter, stale ? dim : null]}><ProfitStatement summary={summary} desktop={desktop} /></Animated.View> : null}
+        {kind === 'profit' ? null : <Animated.View style={[reportEnter, stale ? dim : null]}><View testID="kitchen-report-kpis" className={stackedMetrics ? 'gap-2' : 'flex-row gap-2'}>
           {metrics.map(metric => <View key={metric.label} className={'min-w-0 rounded-xl border border-border-soft bg-surface-elevated py-2 ' + (desktop ? 'px-3 ' : 'px-2 ') + (stackedMetrics ? 'flex-row flex-wrap items-center justify-between gap-2' : 'flex-1 gap-1')}>
             <View className={'gap-1 ' + (desktop || stackedMetrics ? 'flex-row items-center' : '')}>
               {desktop ? <metric.Icon size={15} color={colors.primary} /> : null}
@@ -257,10 +266,11 @@ export function AnalyticsWorkspace() {
           : 'Select a category to see its entries. Later vendor payments are counted in Cash, not purchases.'}</Text>
       </View></Reveal>
       <View testID="kitchen-report-heading" className={desktop ? 'gap-1 rounded-xl bg-surface-elevated px-3 py-2' : 'gap-1 rounded-t-xl bg-surface-elevated px-3 py-1'}>
+        <View pointerEvents="none" style={{ position: 'absolute', left: 12, right: 12, top: 0 }}><LoadingBar active={stale} /></View>
         <View className="flex-row items-center justify-between gap-1">
           <View className="min-w-0 flex-1">
             <Text accessibilityRole="header" className="text-sm font-bold leading-5 text-text-primary">{detail ? 'Recorded entries' : title}</Text>
-            {!desktop && report ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{reportTotal}{' · '}{report.total_rows} {rowCountLabel}</Text> : null}
+            {!desktop && report ? <Text className="text-xs leading-4 text-text-secondary" style={[tabular, stale ? dim : null]}>{reportTotal}{' · '}{report.total_rows} {rowCountLabel}</Text> : null}
           </View>
           {desktop ? (mayExport ? exportButton : null) : <Pressable accessibilityRole="button" accessibilityLabel="Report actions" accessibilityState={{ expanded: actionsOpen }} onPress={() => setActionsOpen(true)} className={controls + ' shrink-0'}>
             {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <MoreHorizontal size={20} color={colors.primary} />}
@@ -268,19 +278,19 @@ export function AnalyticsWorkspace() {
         </View>
         {detail ? <Pressable accessibilityRole="button" onPress={closeDetail} className={controls + ' mt-2 self-start'}><ChevronLeft size={16} color={colors.primary} /><Text className="text-sm font-bold text-primary">Back to breakdown</Text></Pressable> : null}
         {desktop && report ? <View className="mt-1 flex-row flex-wrap items-center justify-between gap-2 border-t border-border-soft pt-2">
-          <Text className="text-sm font-bold text-text-primary" style={tabular}>{reportTotal}</Text>
+          <Text className="text-sm font-bold text-text-primary" style={[tabular, stale ? dim : null]}>{reportTotal}</Text>
           <Text className="text-xs text-text-secondary">{report.total_rows} {rowCountLabel}</Text>
         </View> : null}
       </View>
       {exportError ? <Notice text={exportError} /> : null}
       {error ? <Notice text={error} action={<Pressable accessibilityRole="button" onPress={() => setRefresh(value => value + 1)} className={controls}><Text className="font-bold text-primary">Retry</Text></Pressable>} /> : null}
-      {loading ? <View className="flex-row items-center gap-3 rounded-xl bg-surface-elevated p-5" accessibilityLiveRegion="polite"><ActivityIndicator color={colors.primary} /><Text className="text-sm text-text-secondary">Loading report…</Text></View> : null}
+      {loading && !report ? <SkeletonRows count={5} height={44} label="Loading report" /> : null}
       {desktop && report?.rows.length ? <View className="flex-row gap-4 rounded-t-xl bg-surface-elevated px-4 pt-2">
-        <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">{kind === 'profit' ? 'Finished good' : salesColumns ? 'Branch' : detail || isMoney(kind) ? 'Entry / source' : 'Category / source'}</Text>
+        <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">{rowKind === 'profit' ? 'Finished good' : salesColumns ? 'Branch' : rowDetail || isMoney(rowKind) ? 'Entry / source' : 'Category / source'}</Text>
         {salesColumns ? <Text className="min-w-0 flex-1 text-xs font-bold text-text-secondary">Item</Text> : null}
-        {kind === 'profit' ? ['Quantity', 'Sales', 'Cost', 'Profit'].map(label => <Text key={label} className="w-28 text-right text-xs font-bold text-text-secondary">{label}</Text>) : <>
-        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-28') + ' text-right text-xs font-bold text-text-secondary'}>{kind === 'sales' ? 'Quantity' : 'Entries'}</Text>
-        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-32') + ' text-right text-xs font-bold text-text-secondary'}>{isMoney(kind) ? 'Received / paid' : 'Value'}</Text>
+        {rowKind === 'profit' ? ['Quantity', 'Sales', 'Cost', 'Profit'].map(label => <Text key={label} className="w-28 text-right text-xs font-bold text-text-secondary">{label}</Text>) : <>
+        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-28') + ' text-right text-xs font-bold text-text-secondary'}>{rowKind === 'sales' ? 'Quantity' : 'Entries'}</Text>
+        <Text className={(salesColumns ? 'min-w-0 flex-1' : 'w-32') + ' text-right text-xs font-bold text-text-secondary'}>{isMoney(rowKind) ? 'Received / paid' : 'Value'}</Text>
         </>}
       </View> : null}
     </View>
@@ -291,7 +301,7 @@ export function AnalyticsWorkspace() {
         onLayout={event => setReportWidth(event.nativeEvent.layout.width)}
         ListHeaderComponent={listHeader} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
         ListEmptyComponent={!loading && !error ? <Animated.View style={reportEnter}><View className="rounded-xl bg-surface-elevated"><Empty title="No entries for this selection" body="Choose another month or clear the filters. New kitchen entries will appear here after you refresh." action={<Pressable accessibilityRole="button" onPress={resetFilters} className={controls}><Text className="font-bold text-primary">Clear filters</Text></Pressable>} /></View></Animated.View> : null}
-        renderItem={({ item }) => <Animated.View style={reportEnter}>{kind === 'profit' ? <ProfitRow row={item} desktop={desktop} /> : <ReportRow row={item} desktop={desktop} availableWidth={reportWidth} detail={detail} reportKind={kind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}</Animated.View>}
+        renderItem={({ item }) => <Animated.View style={[reportEnter, stale ? dim : null]} pointerEvents={stale ? 'none' : 'auto'}>{rowKind === 'profit' ? <ProfitRow row={item} desktop={desktop} /> : <ReportRow row={item} desktop={desktop} availableWidth={reportWidth} detail={rowDetail} reportKind={rowKind} total={report?.filtered_paise ?? 0} onPress={() => inspect(item)} />}</Animated.View>}
         ListFooterComponent={report?.total_rows ? <View className="mt-3 flex-row items-center justify-between gap-2">
           <Pressable accessibilityRole="button" disabled={page === 0 || loading} onPress={() => setPage(value => value - 1)} className={controls + (page === 0 || loading ? ' opacity-40' : '')}><Text className="font-bold text-primary">Previous</Text></Pressable>
           <Text className="text-xs text-text-secondary">Page {page + 1} of {Math.ceil(report.total_rows / KITCHEN_REPORT_PAGE_SIZE)}</Text>

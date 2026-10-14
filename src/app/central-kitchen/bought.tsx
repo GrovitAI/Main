@@ -8,7 +8,8 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateKey } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, LinesEditor, ModePicker, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 import { PurchaseCategoryPicker } from '@/components/kitchen/PurchaseCategoryPicker';
@@ -29,6 +30,7 @@ export default function BoughtScreen() {
   const [note, setNote] = useState('');
   const [lockReason, setLockReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const done = useSavedThen();
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
 
@@ -67,8 +69,10 @@ export default function BoughtScreen() {
     setSaving(false);
     if (res.error) {
       setError(res.error);
+      buzz('error');
       return;
     }
+    done.mark();
     await data.load(true);
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
@@ -76,7 +80,7 @@ export default function BoughtScreen() {
       const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor', party?.opening ?? 0);
       useKitchenStore.getState().setNotice(paid ? `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'}, paid` : `Bought ${formatMoney(total)} from ${party?.name ?? 'the vendor'} · we owe ${formatMoney(after)}`);
     }
-    backToKitchen();
+    done.finish(backToKitchen);
   };
 
   return (
@@ -89,7 +93,7 @@ export default function BoughtScreen() {
               <Text className="text-text-primary" style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, fontVariant: ['tabular-nums'] }}>{formatMoney(total)}</Text>
             </View>
             <View style={{ flex: 1.2 }}>
-              <PrimaryButton label={editing ? 'Save changes' : paidNow === 'now' ? 'Save, paid' : 'Save, pay later'} onPress={() => void save()} disabled={!canSave} loading={saving} />
+              <PrimaryButton label={editing ? 'Save changes' : paidNow === 'now' ? 'Save, paid' : 'Save, pay later'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a vendor' : archivedCategory ? 'Choose an active category' : !isValidDateKey(date) || !dateOk ? 'Check the date' : !hasQty ? 'Add an item quantity' : undefined} />
             </View>
           </View>
         }

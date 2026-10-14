@@ -6,7 +6,8 @@ import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use
 import { KITCHEN_UNITS, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Chips, Field, KHeader, KScreen, Notice, PrimaryButton, TextField } from '@/components/kitchen/ui';
+import { Chips, Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 
 const UNIT_LABELS: Record<KitchenUnit, string> = { kg: 'Kilograms', L: 'Litres', pcs: 'Pieces' };
 
@@ -24,6 +25,7 @@ export default function ItemFormScreen() {
   const [cost, setCost] = useState(existing?.cost_price !== null && existing?.cost_price !== undefined ? String(existing.cost_price) : '');
   const [opening, setOpening] = useState('');
   const [saving, setSaving] = useState(false);
+  const done = useSavedThen();
   const [error, setError] = useState<string | null>(null);
   const hydrated = useRef(existing?.id);
   useEffect(() => {
@@ -66,16 +68,18 @@ export default function ItemFormScreen() {
     setSaving(false);
     if (res.error || !res.data) {
       setError(res.error ?? 'Unable to save the item.');
+      buzz('error');
       return;
     }
+    done.mark();
     await data.load(true);
     useKitchenStore.getState().setNotice(existing ? `${res.data.name} saved` : `${res.data.name} added`);
-    backToKitchen();
+    done.finish(backToKitchen);
   };
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={id ? 'Save changes' : 'Add item'} onPress={() => void save()} disabled={!mayEdit || !name.trim() || Boolean(id && !existing)} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={id ? 'Save changes' : 'Add item'} onPress={() => void save()} disabled={!mayEdit || !name.trim() || Boolean(id && !existing)} loading={saving} done={done.saved} reason={mayEdit && !name.trim() ? 'Enter a name' : undefined} />}>
         <KHeader title={existing ? 'Edit item' : kind === 'finished_good' ? 'Add a finished good' : 'Add a raw material'} onBack={() => backToKitchen()} />
         {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change items. Ask the owner." /> : null}
         <Field label="Item type" hint={existing ? 'Past entries stay unchanged. This controls which stock list and new entry pickers show the item.' : undefined}>

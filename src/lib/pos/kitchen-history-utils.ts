@@ -92,3 +92,39 @@ export function filterKitchenHistory(
     return direction * ((recorded ? safeTimestamps : dates) || (recorded ? dates : safeTimestamps) || a.id.localeCompare(b.id));
   });
 }
+
+export type HistoryListItem =
+  | { kind: 'day'; key: string; label: string; count: number }
+  | { kind: 'entry'; key: string; entry: KitchenEntry };
+
+/** "Today", "Yesterday", then "Mon, 13 Oct" (with the year once it is not this year). */
+export function historyDayHeading(day: string, today: string = kitchenToday()): string {
+  if (day === today) return 'Today';
+  const yesterday = new Date(today + 'T12:00:00Z');
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  if (day === yesterday.toISOString().slice(0, 10)) return 'Yesterday';
+  const date = new Date(day + 'T12:00:00Z');
+  if (!Number.isFinite(date.getTime())) return day;
+  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', ...(day.slice(0, 4) === today.slice(0, 4) ? {} : { year: 'numeric' }), timeZone: 'UTC' });
+}
+
+/**
+ * Sorted History rows with a heading before each new day (task 216): the
+ * transaction date, or the India-time day it was recorded for the entry-date
+ * sorts.
+ */
+export function historySections(entries: readonly KitchenEntry[], sort: HistorySort, today: string = kitchenToday()): { items: HistoryListItem[] } {
+  const recorded = sort.startsWith('recorded');
+  const items: HistoryListItem[] = [];
+  let heading: { kind: 'day'; key: string; label: string; count: number } | null = null;
+  for (const entry of entries) {
+    const day = recorded ? historyRecordedDay(entry.created_at) : entry.entry_date;
+    if (!heading || heading.key !== 'day:' + day) {
+      heading = { kind: 'day', key: 'day:' + day, label: historyDayHeading(day, today), count: 0 };
+      items.push(heading);
+    }
+    heading.count += 1;
+    items.push({ kind: 'entry', key: entry.id, entry });
+  }
+  return { items };
+}

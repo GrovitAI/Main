@@ -6,10 +6,11 @@ import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { MessageCircle } from 'lucide-react-native';
 import { editKitchenEntry, postKitchenEntry, kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { balanceFromEntries, formatDayLabel, formatMoney, formatQty, linesTotal, localDateKey, slipText, whatsappUrl } from '@/lib/pos/kitchen-utils';
+import { balanceFromEntries, formatDayLabel, formatMoney, formatQty, linesTotal, localDateKey, oftenSent, slipText, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry, KitchenEntryType, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, TextField } from '@/components/kitchen/ui';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, LinesEditor, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
@@ -45,6 +46,8 @@ export default function SendScreen() {
   const chosen = useMemo(() => draftToLines(lines), [lines]);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
+  // One-tap chips for what this branch usually gets (task 216); none while editing.
+  const picks = useMemo(() => (partyId && !editing ? oftenSent(data.entries, partyId) : []), [data.entries, partyId, editing]);
   const dateOk = useDateGuard(date, lockReason);
   const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
@@ -58,8 +61,10 @@ export default function SendScreen() {
     setSaving(false);
     if (res.error || !res.data) {
       setError(res.error ?? 'Unable to save the send.');
+      buzz('error');
       return;
     }
+    buzz('success');
     await data.load(true);
     setSaved({ ...res.data, lines: chosen.map((l, i) => ({ id: String(i), item_id: l.item_id, qty: l.qty, price: l.price, line_total: Math.round(l.qty * l.price * 100) / 100 })) });
   };
@@ -101,7 +106,7 @@ export default function SendScreen() {
               <Text className="text-text-primary" style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, fontVariant: ['tabular-nums'] }}>{formatMoney(total)}</Text>
             </View>
             <View style={{ flex: 1.2 }}>
-              <PrimaryButton label={editing ? 'Save changes' : 'Save send'} onPress={() => void save()} disabled={!canSave} loading={saving} />
+              <PrimaryButton label={editing ? 'Save changes' : 'Save send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add an item quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
             </View>
           </View>
         }
@@ -122,7 +127,7 @@ export default function SendScreen() {
         ) : null}
         <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a price.' : undefined}>
-          <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="sell" />
+          <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="sell" picks={picks} picksTitle={party ? `Often sent to ${party.name}` : undefined} />
         </Field>
         <Field label="Note">
           <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />

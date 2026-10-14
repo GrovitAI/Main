@@ -173,3 +173,45 @@ live in `src/components/kitchen/ui.tsx`.
   reports its own place through `CellRendererComponent`.
 - Not animated on purpose: money totals counting up, and whole-screen
   transitions between sidebar sections.
+
+## Task 216: calmer loading and saving (2026-10-14)
+
+- **Analytics keeps the last report while a new one loads.** It stays dimmed
+  (45%) and can't be tapped, under a thin moving line. Its rows, column names
+  and totals keep the shape of the report they came from (`shownFor`), so a
+  Sales table never renders as Cash. Only the first load shows placeholder
+  rows. A failed load clears the old report, so stale numbers never sit next
+  to an error.
+- **Placeholder rows instead of spinners**: `SkeletonRows` (the shared
+  `Skeleton` now pulses slowly) on first loads in Analytics, Attendance, the
+  Month overview and History.
+- **The Save button confirms itself.** On Received, Bought, Spent and the item
+  and branch/vendor forms, `useSavedThen()` turns the button green with a tick
+  and "Saved" as soon as the database confirms. The form leaves 650 ms later.
+  The button can't be pressed again in between. Send keeps its slip sheet as
+  the confirmation.
+- **Disabled buttons say what's missing.** For example "Choose a branch",
+  "Add an item quantity", "Enter the amount", "Choose what it was for",
+  "Check the date" or "Enter a name".
+- **"Often sent to <branch>"** chips on Send come from the loaded entries
+  (`oftenSent`). A tap adds the item at quantity zero, and the row shows
+  "last time N". Quantities are never filled in for you.
+- **History day headings**: "Today", "Yesterday", "Mon, 12 Oct", each with its
+  count (`historySections`). Once the toolbar scrolls away, a bar above the
+  list names the day of the topmost entry. FlatList `stickyHeaderIndices` was
+  tried and dropped: on the web it pinned part of the list header over the
+  rows.
+- **Opened screens slide in on the web.** In the kitchen stack's
+  `screenLayout`, `ScreenEnter` slides each opened screen in (not the tabs). The
+  phone app's own navigation already slides.
+- **Phone buzz**: `buzz()` in `src/lib/pos/kitchen-haptics.ts` uses
+  `expo-haptics`. Success on a confirmed save, a light tick when a tick box
+  changes, a warning on a save error. Silent in browsers, and calls within 60
+  ms collapse into one.
+- **The TEST DATA tag** (staging only) now hangs flush from the top edge, so
+  it no longer crosses page titles.
+- **Considered and declined by the owner**:
+  - undo instead of a confirm before voiding (it may be missed);
+  - keyboard shortcuts (they can be pressed by accident);
+  - remembering the last branch and mode (a send could go to the remembered
+    branch without anyone noticing).

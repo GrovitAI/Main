@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { ActivityIndicator, Animated, FlatList, Pressable, View } from 'react-native';
+import { Animated, FlatList, Pressable, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
-import { Empty, GhostButton, Notice, PrimaryButton, SearchBox, TextField, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
+import { Empty, GhostButton, Notice, PrimaryButton, SearchBox, SkeletonRows, TextField, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
 import { colors, semantic } from '@/lib/pos/brand';
 import { kitchenCalendarDays, kitchenMonthLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import { attendanceDateLabel, attendanceMonthCounts, attendanceStaff } from '@/lib/pos/kitchen-attendance-utils';
@@ -143,7 +143,7 @@ export function MonthlyAttendance({ header, onLockChange }: { header: ReactEleme
     {!date ? feedback : null}
   </View></Animated.View> : <Empty title="Select a staff member" body="Their month calendar and attendance totals will appear here." />;
   const rosterHeader = <View className="gap-2 pb-2"><SearchBox value={query} onChange={setQuery} placeholder="Search month staff" /><Text className="text-xs text-text-secondary">{people.length} staff</Text></View>;
-  const empty = loading ? <ActivityIndicator accessibilityLabel="Loading month attendance" color={colors.primary} className="my-6" /> : error && !data ? <Empty title="Month unavailable" body="Retry to load the complete month." action={<GhostButton label="Retry month attendance" onPress={() => void load()} />} /> : <Empty title={query ? 'No matching staff' : 'No staff in this month'} body={query ? 'Try another name or role.' : 'Add kitchen staff using Add staff.'} action={query ? <GhostButton label="Reset month search" onPress={() => setQuery('')} /> : undefined} />;
+  const empty = loading ? <SkeletonRows count={4} height={64} label="Loading month attendance" /> : error && !data ? <Empty title="Month unavailable" body="Retry to load the complete month." action={<GhostButton label="Retry month attendance" onPress={() => void load()} />} /> : <Empty title={query ? 'No matching staff' : 'No staff in this month'} body={query ? 'Try another name or role.' : 'Add kitchen staff using Add staff.'} action={query ? <GhostButton label="Reset month search" onPress={() => setQuery('')} /> : undefined} />;
   const roster = <FlatList className="flex-1" keyboardShouldPersistTaps="handled" data={loading ? [] : people} keyExtractor={member => member.id} extraData={{ personId, locked, summaries }} ListHeaderComponent={rosterHeader} ListEmptyComponent={empty} renderItem={({ item }) => {
     const counts = summaries.get(item.id);
     return <Animated.View style={rosterEnter}><Pressable testID={`month-staff-${item.id}`} disabled={locked} accessibilityRole="button" accessibilityLabel={`Month attendance for ${item.name}`} accessibilityState={{ selected: item.id === personId, disabled: locked }} onPress={() => choosePerson(item.id)} className={`min-h-12 gap-1 border-b border-border-soft px-3 py-3 focus:border-primary ${item.id === personId ? 'bg-accent-soft' : 'bg-surface-elevated hover:bg-surface-tint active:bg-accent-soft'}`}><Text className="text-base font-semibold text-text-primary">{item.name}</Text><Text className="text-xs text-text-secondary">{item.job_title || 'Kitchen staff'}{item.is_active ? '' : ' · Archived'}</Text>{counts ? <View className="flex-row flex-wrap gap-x-3 gap-y-1">{LEGEND.map(status => <View key={status} className="flex-row items-center gap-1"><Swatch status={status} /><Text className="text-xs text-text-secondary">{labels[status]} <Text className="font-semibold text-text-primary">{counts[status]}</Text></Text></View>)}</View> : null}</Pressable></Animated.View>;

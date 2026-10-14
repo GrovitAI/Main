@@ -13,6 +13,7 @@ import {
   linesTotal,
   matchesSearch,
   monthTotals,
+  oftenSent,
   slipText,
   statementRows,
   sumDues,
@@ -258,5 +259,21 @@ describe('opening balances', () => {
   it('runs the statement from the opening figure', () => {
     const rows = statementRows([sent, got], 'b9', 'branch', 1200);
     expect(rows.map((r) => r.balanceAfter)).toEqual([500, 1500]);
+  });
+});
+
+describe('oftenSent (task 216)', () => {
+  const line = (item_id: string, qty: number) => ({ id: item_id + qty, item_id, qty, price: 10, line_total: qty * 10 });
+  it('ranks a branch\'s items by sends, keeps the latest quantity and skips voids and other branches', () => {
+    const list = [
+      entry({ type: 'sent', party_id: 'p1', entry_date: '2026-10-01', lines: [line('mousse', 10), line('sauce', 2)] }),
+      entry({ type: 'sent', party_id: 'p1', entry_date: '2026-10-03', lines: [line('mousse', 24)] }),
+      entry({ type: 'sent', party_id: 'p1', entry_date: '2026-10-04', voided_at: '2026-10-04T11:00:00Z', lines: [line('sauce', 9), line('cup', 5)] }),
+      entry({ type: 'sent', party_id: 'p2', lines: [line('cup', 50), line('cup', 50)] }),
+      entry({ type: 'bought', party_id: 'p1', lines: [line('milk', 30)] }),
+    ];
+    expect(oftenSent(list, 'p1')).toEqual([{ itemId: 'mousse', times: 2, lastQty: 24 }, { itemId: 'sauce', times: 1, lastQty: 2 }]);
+    expect(oftenSent(list, 'p1', 1).map((r) => r.itemId)).toEqual(['mousse']);
+    expect(oftenSent(list, 'nobody')).toEqual([]);
   });
 });

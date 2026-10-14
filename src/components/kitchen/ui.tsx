@@ -15,6 +15,7 @@ import { ChevronLeft, Search, X, Check, Minus, Plus, type LucideIcon } from 'luc
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
+import { buzz } from '@/lib/pos/kitchen-haptics';
 
 export type Tone = 'neutral' | 'in' | 'out' | 'buy' | 'primary';
 
@@ -329,7 +330,27 @@ export function Notice({ text, tone = 'out', action }: { text: string; tone?: To
 }
 
 export function Skeleton({ height = 60, style }: { height?: number; style?: StyleProp<ViewStyle> }) {
-  return <View style={[{ height, borderRadius: 16, backgroundColor: colors.borderSoft, opacity: 0.7 }, style]} accessibilityElementsHidden />;
+  // A slow pulse says "loading" in the shape of what is coming (task 216); still with Reduce Motion.
+  const reduce = useReducedMotion();
+  const pulse = useRef(new Animated.Value(0.7)).current;
+  useEffect(() => {
+    if (reduce) { pulse.setValue(0.7); return; }
+    const step = (toValue: number) => Animated.timing(pulse, { toValue, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: NATIVE_DRIVER });
+    const loop = Animated.loop(Animated.sequence([step(0.4), step(0.85)]));
+    loop.start();
+    return () => loop.stop();
+  }, [reduce, pulse]);
+  return <Animated.View style={[{ height, borderRadius: 16, backgroundColor: colors.borderSoft, opacity: pulse }, style]} accessibilityElementsHidden />;
+}
+
+/** Placeholder rows in the shape of a list, for a first load (task 216). */
+export function SkeletonRows({ count = 4, height = 52, label }: { count?: number; height?: number; label: string }) {
+  const widths = ['100%', '86%', '94%', '78%', '90%', '82%'] as const;
+  return (
+    <View style={{ gap: 8, paddingVertical: 8 }} accessible accessibilityLabel={label} accessibilityRole="progressbar">
+      {Array.from({ length: count }, (_, i) => <Skeleton key={i} height={height} style={{ width: widths[i % widths.length], borderRadius: 12 }} />)}
+    </View>
+  );
 }
 
 // ─── Inputs ──────────────────────────────────────────────────────────────────
@@ -500,7 +521,10 @@ export function Tick({ on, size = 26 }: { on: boolean; size?: number }) {
   // The blue fades in and the tick pops (a slight overshoot); unticking just fades.
   const reduce = useReducedMotion();
   const progress = useRef(new Animated.Value(on ? 1 : 0)).current;
+  const before = useRef(on);
   useEffect(() => {
+    if (before.current !== on) buzz('select');
+    before.current = on;
     if (reduce) { progress.setValue(on ? 1 : 0); return; }
     const run = Animated.timing(progress, { toValue: on ? 1 : 0, duration: on ? 200 : 120, easing: on ? Easing.out(Easing.back(1.6)) : Easing.out(Easing.quad), useNativeDriver: NATIVE_DRIVER });
     run.start();
@@ -520,23 +544,55 @@ export function Tick({ on, size = 26 }: { on: boolean; size?: number }) {
 
 // ─── Buttons ─────────────────────────────────────────────────────────────────
 
-export function PrimaryButton({ label, onPress, disabled, loading, tone = 'primary', icon: Icon }: { label: string; onPress: () => void; disabled?: boolean; loading?: boolean; tone?: Tone; icon?: LucideIcon }) {
+export function PrimaryButton({ label, onPress, disabled, loading, tone = 'primary', icon: Icon, done = false, reason }: {
+  label: string; onPress: () => void; disabled?: boolean; loading?: boolean; tone?: Tone; icon?: LucideIcon;
+  /** The save went through: green with a tick and "Saved" for a moment (task 216). */
+  done?: boolean;
+  /** What is missing, shown on the button while it is disabled (task 216). */
+  reason?: string;
+}) {
   const compact = useDesktopDensity();
-  const off = disabled || loading;
+  const off = disabled || loading || done;
+  const why = disabled && !loading && !done && reason ? reason : null;
+  const text = done ? 'Saved' : why ?? label;
   return (
     <Pressable
       onPress={onPress}
       disabled={off}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={why ? `${label}: ${why}` : text}
       accessibilityState={{ disabled: off, busy: loading }}
-      className={`flex-row items-center justify-center gap-2 px-[18px] min-h-11 rounded-xl ${off ? 'opacity-50' : 'active:opacity-80'}`}
-      style={{ backgroundColor: toneColor[tone] }}
+      className={`flex-row items-center justify-center gap-2 px-[18px] min-h-11 rounded-xl ${(disabled || loading) && !done ? 'opacity-50' : 'active:opacity-80'}`}
+      style={{ backgroundColor: done ? semantic.success : toneColor[tone] }}
     >
-      {loading ? <ActivityIndicator color={colors.textOnPrimary} /> : Icon ? <Icon size={18} color={colors.textOnPrimary} /> : null}
-      <Text className={`font-extrabold text-text-on-primary ${compact ? 'text-sm' : 'text-[15px]'}`}>{label}</Text>
+      {done ? <Check size={18} color={colors.textOnPrimary} strokeWidth={3} /> : loading ? <ActivityIndicator color={colors.textOnPrimary} /> : Icon && !why ? <Icon size={18} color={colors.textOnPrimary} /> : null}
+      <Text className={`font-extrabold text-text-on-primary ${compact ? 'text-sm' : 'text-[15px]'}`} numberOfLines={1}>{text}</Text>
     </Pressable>
   );
+}
+
+/**
+ * After a confirmed save (task 216): `mark()` turns the button to "Saved" with a
+ * tick at once (and the phone buzzes), so it cannot be pressed twice while the
+ * lists reload; `finish(next)` then runs `next`, usually leaving the form, once
+ * the tick has shown for 650 ms.
+ */
+export function useSavedThen(): { saved: boolean; mark: () => void; finish: (next: () => void) => void } {
+  const [saved, setSaved] = useState(false);
+  const since = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const mark = useCallback(() => {
+    if (since.current) return;
+    since.current = Date.now();
+    buzz('success');
+    setSaved(true);
+  }, []);
+  const finish = useCallback((next: () => void) => {
+    mark();
+    timer.current = setTimeout(() => { timer.current = null; next(); }, Math.max(0, 650 - (Date.now() - since.current)));
+  }, [mark]);
+  return { saved, mark, finish };
 }
 
 export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', small, disabled = false }: { label: string; onPress: () => void; icon?: LucideIcon; tone?: Tone; small?: boolean; disabled?: boolean }) {
@@ -791,6 +847,35 @@ export function Reveal({ open, children }: { open: boolean; children: React.Reac
       <Animated.View onLayout={onLayout} style={[{ opacity: fade }, moving ? { position: 'absolute', top: 0, left: 0, right: 0 } : null]}>{children}</Animated.View>
     </Animated.View>
   );
+}
+
+/** A thin moving line that says "updating" without hiding what is on screen (task 216). */
+export function LoadingBar({ active }: { active: boolean }) {
+  const reduce = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  const run = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!active || reduce || !width) return;
+    run.setValue(0);
+    const loop = Animated.loop(Animated.timing(run, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: NATIVE_DRIVER }));
+    loop.start();
+    return () => loop.stop();
+  }, [active, reduce, width, run]);
+  return (
+    <View pointerEvents="none" onLayout={(e) => setWidth(e.nativeEvent.layout.width)} accessibilityElementsHidden style={{ height: 2, overflow: 'hidden', borderRadius: 1, opacity: active ? 1 : 0 }}>
+      {reduce ? <View style={{ flex: 1, backgroundColor: colors.primary, opacity: 0.5 }} />
+        : <Animated.View style={{ width: width * 0.3, height: 2, borderRadius: 1, backgroundColor: colors.primary, transform: [{ translateX: run.interpolate({ inputRange: [0, 1], outputRange: [-width * 0.3, width] }) }] }} />}
+    </View>
+  );
+}
+
+/**
+ * A screen opened from a list slides 16 px in from the right as it fades in
+ * (task 216). For the web: the phone app's own navigation already slides.
+ */
+export function ScreenEnter({ children }: { children: React.ReactNode }) {
+  const enter = useEnterOnChange('open', 'x', true);
+  return <Animated.View style={[{ flex: 1 }, enter]}>{children}</Animated.View>;
 }
 
 // ─── Sheet ───────────────────────────────────────────────────────────────────

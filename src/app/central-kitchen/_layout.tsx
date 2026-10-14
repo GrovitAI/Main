@@ -1,10 +1,10 @@
 import { Redirect, Stack } from 'expo-router';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { isCentralKitchenSession } from '@/lib/pos/tab-config';
 import { colors } from '@/lib/pos/brand';
-import { Toast } from '@/components/kitchen/ui';
+import { ScreenEnter, Toast } from '@/components/kitchen/ui';
 
 /**
  * The Central Kitchen's own screens. A kitchen login at the Central Kitchen
@@ -21,7 +21,10 @@ export default function KitchenLayout() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.kitchenCanvas } }}>
+      {/* Task 216: a screen opened from a list slides in. The phone app's navigation already
+          does this; in a browser each opened screen (not the tabs) gets a short slide-in. */}
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.kitchenCanvas } }}
+        screenLayout={Platform.OS === 'web' ? ({ children, route }) => (route.name === '(tabs)' ? children : <ScreenEnter>{children}</ScreenEnter>) : undefined}>
         <Stack.Screen name="(tabs)" />
       </Stack>
       <Toast text={notice} />
