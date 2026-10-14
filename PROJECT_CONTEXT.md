@@ -231,6 +231,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 208 (2026-10-14, staging source): Kitchen Analytics Bank tab; Cash is cash only, Bank is UPI and bank, money moves in both (migration 20261014100100). See docs/KITCHEN_CASH_BANK.md.
 ✅ Task 209 (2026-10-14, staging source): Cost per unit on finished goods, kept on each send line, and a Profit tab (sales - cost of goods sent - other expenses) (migrations 20261014100200, 20261014100300). See docs/KITCHEN_PROFIT.md.
 ✅ Task 210 (2026-10-14, staging source): Kitchen rail selection is a soft fading fill; the focus outline shows only for keyboard focus. See docs/KITCHEN_BLUE_FRAME.md.
+✅ Task 211 (2026-10-14, staging source): Kitchen phone layout: a chosen send/buy line gives the item name the full width (two lines) with stock and price beside the stepper; item and stock-list titles wrap to two lines; the amount box is 56px, capped at 360px, with matching ₹ and digits (24px also on phones); Cash/UPI/Bank are three equal icon buttons with a note on which balance it counts in.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)
