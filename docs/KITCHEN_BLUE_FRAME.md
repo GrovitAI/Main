@@ -215,3 +215,19 @@ live in `src/components/kitchen/ui.tsx`.
   - keyboard shortcuts (they can be pressed by accident);
   - remembering the last branch and mode (a send could go to the remembered
     branch without anyone noticing).
+
+## Task 217: phone fixes for the stock switch and report tabs (2026-10-15)
+
+- **Stock switch on the phone.** Raw materials and Finished goods share the
+  phone's Stock tab. The switch used to move to the other route, which rebuilt
+  the screen, so its highlight never slid. It now changes the list in place
+  (`StockItems` keeps the phone's kind itself). The highlight slides and the
+  rows come in from the side chosen (`useEnterOnChange`). The rail still opens
+  each kind as its own section.
+- **Analytics report tabs on the phone.** Each tab used to get an equal fifth
+  of the row, so "Purchases" touched its neighbours, and at 360 px it was wider
+  than its tab. Each tab is now as wide as its name plus an even share of the
+  spare room. On a very narrow screen the row scrolls and keeps the chosen tab
+  in view. Desktop is unchanged.
+- **Rule (AGENTS.md):** every UI change is designed and checked on both phone
+  and desktop, for every component it touches.

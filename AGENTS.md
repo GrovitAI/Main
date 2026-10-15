@@ -65,6 +65,10 @@ Never hardcode UUIDs outside tenant-context.ts.
 - Always handle loading state
 - Always handle error state
 - Always handle empty state
+- Phone and desktop, always: every UI change is designed, applied and checked
+  on both layouts (390 px phone and desktop) for every component and screen
+  variant it touches, including the separate phone/desktop branches. Do not
+  wait for the owner to point out the other device.
 
 ## File ownership
 - UI screens → src/app/(app)/*.tsx

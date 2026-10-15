@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
-import { ActivityIndicator, Animated, FlatList, Modal, Platform, Pressable, Share, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Modal, Platform, Pressable, ScrollView, Share, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,7 +53,14 @@ export function AnalyticsWorkspace() {
   const month = dateRange.startDate.slice(0, 7);
   const [kind, setKind] = useState<KitchenReportKind>('sales');
   // The blue report highlight slides between tabs (task 214).
-  const tabSlide = useSlidingRect(tabs.findIndex(tab => tab.id === kind));
+  const kindIndex = tabs.findIndex(tab => tab.id === kind);
+  const tabSlide = useSlidingRect(kindIndex);
+  const tabScroll = useRef<ScrollView>(null);
+  const tabLeft = useRef<number[]>([]);
+  useEffect(() => {
+    const x = tabLeft.current[kindIndex];
+    if (x !== undefined) tabScroll.current?.scrollTo({ x: Math.max(0, x - 24), animated: true });
+  }, [kindIndex]);
   const [partyId, setPartyId] = useState<string | null>(null);
   const [itemId, setItemId] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
@@ -196,18 +203,23 @@ export function AnalyticsWorkspace() {
     { id: 'refresh', label: 'Refresh reports', Icon: RefreshCw, disabled: loading, action: () => setRefresh(value => value + 1) },
     { id: 'info', label: 'About these reports', Icon: Info, disabled: false, action: () => setNotesOpen(value => !value) },
   ];
+  // On a phone each tab is as wide as its name plus an even share of the spare
+  // room, so "Purchases" never presses on its neighbours; on a very narrow
+  // screen the row scrolls and keeps the chosen tab in view.
+  const tabRow = <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-grow')}>
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 12, backgroundColor: colors.primary, ...tabSlide.style }} />
+    {tabs.map((tab, i) => (
+      <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
+        onLayout={event => { tabLeft.current[i] = event.nativeEvent.layout.x; tabSlide.measure(i)(event); }}
+        className={'min-h-12 items-center justify-center rounded-xl active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] px-3 ' : 'flex-grow px-2.5 ') + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
+        <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')} numberOfLines={1}>{tab.label}</Text>
+      </Pressable>
+    ))}
+  </View>;
   const listHeader = (
     <View className="gap-2" style={{ paddingTop: Math.max(insets.top, 8) }}>
       <View testID="kitchen-report-selector" className="flex-row items-center justify-between gap-2 rounded-xl bg-surface-elevated p-1">
-        <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-1')}>
-          <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 12, backgroundColor: colors.primary, ...tabSlide.style }} />
-          {tabs.map((tab, i) => (
-            <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)} onLayout={tabSlide.measure(i)}
-              className={'min-h-12 items-center justify-center rounded-xl px-3 active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] ' : 'flex-1 ') + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
-              <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')}>{tab.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {desktop ? tabRow : <ScrollView ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>{tabRow}</ScrollView>}
         {desktop ? headerActions : null}
       </View>
       <View testID="kitchen-report-period" className={'gap-1 rounded-xl border border-border-soft bg-surface-elevated py-1 ' + (desktop ? 'px-3' : 'px-1')}>
