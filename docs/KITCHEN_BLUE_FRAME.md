@@ -347,3 +347,19 @@ Sources: IBM Carbon dashboards, Linear's design refresh, Shopify Polaris
 - **Forms**: `Field optional` adds "(optional)" in lower case after the label,
   replacing "Optional" placeholders, which vanish on typing. Hints are cut to
   one short sentence.
+
+## Task 223: same-size choices everywhere (2026-10-16)
+
+The owner's rule from task 218, applied to the whole kitchen: every option in a
+row of choices has the same width, so the highlight never changes size.
+
+- `useEqualChoices` and `MeasureLabels` in `ui.tsx` measure each label from an
+  invisible copy. All options get the widest label's width, or an equal share of
+  the line when that is narrower. When the options can't fit on one line, they
+  wrap as a grid of equal cells.
+- `Chips` uses it, which covers the Invoices status filter, item type, unit, and
+  the branch and vendor pickers.
+- Attendance: the Daily register / Month overview / Staff tabs and the status
+  filters are equal too.
+- `Segmented` and `ChoiceButtons` were already equal.
+- The rule is in AGENTS.md (Component rules).

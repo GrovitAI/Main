@@ -243,6 +243,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 220 (2026-10-16, staging source): Kitchen login permissions, option C. Desktop shows the logins beside one person's 25 ticks in three balanced columns; phones fold the six groups with counts. Unsaved changes are kept per login. DESKTOP_LAYOUT = 'fold' switches desktop to option A.
 ✅ Task 221 (2026-10-16, staging source): Guideline fixes. Keyboard-only focus ring, browser tab titles per kitchen screen, rupee amount read-back (₹1,12,000 · 1.12 lakh), a question before leaving a form with typing, an offline bar (NetInfo added; phones need the next build), and a brand caret, selection and theme-color.
 ✅ Task 222 (2026-10-16, staging source): Page layouts. Phone Home shows the four actions first with figures in two calm cards; desktop branch, vendor and item pages split into a list column and a sticky summary column; Team and day lock uses the annotated settings layout on desktop; optional fields say (optional) in the label, hints cut to one sentence.
+✅ Task 223 (2026-10-16, staging source): Same-size choices everywhere. Chips (Invoices status, item type, unit, branch/vendor pickers) and the Attendance tabs and status filters take the widest option width, so the highlight keeps one size; rule added to AGENTS.md.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

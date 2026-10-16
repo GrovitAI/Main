@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
 import { AttendanceAction } from '@/components/kitchen/AttendanceAction';
 import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
-import { Empty, GhostButton, IconButton, KScreen, LinkButton, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
+import { Empty, GhostButton, IconButton, KScreen, LinkButton, MeasureLabels, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useEqualChoices, useSlidingRect } from '@/components/kitchen/ui';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
@@ -31,6 +31,8 @@ const FILTERS: readonly FilterOption[] = [
  * The status filters scroll sideways in a FlatList, so each cell reports its own
  * place in the row; the white highlight then slides to the chosen one (task 215).
  */
+const PANES = [{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }] as const;
+
 const FilterPlace = createContext<((i: number) => (e: LayoutChangeEvent) => void) | null>(null);
 function FilterCell({ index, onLayout, style, children }: ComponentProps<NonNullable<FlatListProps<FilterOption>['CellRendererComponent']>>) {
   const place = useContext(FilterPlace);
@@ -106,6 +108,10 @@ export default function KitchenAttendanceScreen() {
   const paneSlide = useSlidingRect((['daily', 'monthly', 'staff'] as const).indexOf(pane));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const statusSlide = useSlidingRect(FILTERS.findIndex(option => option.value === statusFilter));
+  // Same-size choices (task 223): the three panes and the status filters each take the width of
+  // their widest label, so the underline and the white highlight keep one size as they move.
+  const paneSizes = useEqualChoices(PANES.length, { gap: 12, pad: 8, tightPad: 0, fallback: 'natural' });
+  const filterSizes = useEqualChoices(FILTERS.length, { gap: 4, pad: 26 });
   const [monthlyLocked, setMonthlyLocked] = useState(false);
   const monthly = pane === 'monthly';
   const [query, setQuery] = useState('');
@@ -215,8 +221,9 @@ export default function KitchenAttendanceScreen() {
       {!monthly ? <Pressable className={control} accessibilityRole="button" accessibilityLabel="Refresh attendance" disabled={busy || loading} onPress={() => void load()}><RefreshCw size={18} color={colors.primary} /></Pressable> : null}
       {mayRoster ? <Pressable accessibilityRole="button" accessibilityLabel="Add kitchen staff" disabled={busy || monthlyLocked} onPress={() => startEditor()} className="min-h-12 flex-row items-center gap-1 rounded-xl bg-primary px-3 hover:bg-primary-deep focus:border-border active:bg-primary-deep"><Plus size={16} color={colors.textOnPrimary} /><Text className="text-sm font-semibold text-text-on-primary">Add staff</Text></Pressable> : null}
     </View>
-    <View accessibilityRole="tablist" className="flex-row gap-3 border-b border-border">
-      {([{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }] as const).map((option, i) => <Pressable key={option.value} onLayout={paneSlide.measure(i)} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} onPress={() => { if (busyRef.current || monthlyLocked) return; clearSelection(); setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className="min-h-12 justify-center px-1 focus:bg-accent-soft hover:bg-surface-tint"><Text className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
+    <View accessibilityRole="tablist" className="flex-row gap-3 border-b border-border" onLayout={paneSizes.onLine}>
+      <MeasureLabels>{PANES.map((option, i) => <Text key={option.value} onLayout={paneSizes.measure(i)} className="text-sm font-semibold">{option.label}</Text>)}</MeasureLabels>
+      {PANES.map((option, i) => <Pressable key={option.value} onLayout={paneSlide.measure(i)} style={paneSizes.width ? { width: paneSizes.width } : undefined} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} onPress={() => { if (busyRef.current || monthlyLocked) return; clearSelection(); setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className="min-h-12 items-center justify-center px-1 focus:bg-accent-soft hover:bg-surface-tint"><Text numberOfLines={1} className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
       {/* Drawn over the tabs so a focused tab's fill never hides it; it takes no taps. */}
       <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 0, height: 2, backgroundColor: colors.primary, ...paneSlide.style }} />
     </View>
@@ -238,9 +245,9 @@ export default function KitchenAttendanceScreen() {
       {pane === 'daily' ? <View className="flex-row items-center gap-1"><View className={desktop ? 'w-[272px]' : 'min-w-0 flex-1'}><AttendanceDate value={date} onChange={changeDate} disabled={busy || loading} /></View>{!desktop ? <Pressable className={`${control} items-center`} accessibilityRole="button" accessibilityLabel="Search attendance staff" accessibilityState={{ expanded: searchOpen || Boolean(query) }} onPress={() => setSearchOpen(value => !value)}><Search size={18} color={colors.primary} /></Pressable> : null}</View> : <View className={desktop ? 'w-[272px]' : ''}><Segmented options={[{ value: 'active', label: 'Active staff' }, { value: 'archived', label: 'Archived' }]} value={showArchived ? 'archived' : 'active'} onChange={value => setShowArchived(value === 'archived')} /></View>}
       {desktop ? <View className="flex-1">{search}</View> : <Reveal open={pane === 'staff' || searchOpen || Boolean(query)}>{search}</Reveal>}
     </View>
-    {pane === 'daily' && data && loadedDate === date ? <FilterPlace.Provider value={statusSlide.measure}><FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} CellRendererComponent={FilterCell}
+    {pane === 'daily' && data && loadedDate === date ? <View><MeasureLabels>{FILTERS.map((option, i) => <View key={option.value} onLayout={filterSizes.measure(i)} className="flex-row items-center gap-2"><Text className="text-sm font-semibold">{option.label}</Text><Text className="text-xs font-semibold">{option.value === 'all' ? total : counts[option.value]}</Text></View>)}</MeasureLabels><FilterPlace.Provider value={statusSlide.measure}><FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} CellRendererComponent={FilterCell}
       ListHeaderComponentStyle={{ marginRight: -4 }} ListHeaderComponent={<Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, ...statusSlide.style }} />}
-      renderItem={({ item: option }) => <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Filter attendance: ${option.label}`} accessibilityState={{ selected: statusFilter === option.value, disabled: busy }} onPress={() => { if (busyRef.current) return; clearSelection(); setStatusFilter(option.value); }} className={`min-h-12 flex-row items-center gap-2 rounded-lg border px-3 focus:border-primary ${statusFilter === option.value ? 'border-transparent' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'}`}><Text className={`text-sm font-semibold ${statusFilter === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text><Text className="text-xs font-semibold text-text-secondary">{option.value === 'all' ? total : counts[option.value]}</Text></Pressable>} /></FilterPlace.Provider> : null}
+      renderItem={({ item: option }) => <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Filter attendance: ${option.label}`} accessibilityState={{ selected: statusFilter === option.value, disabled: busy }} onPress={() => { if (busyRef.current) return; clearSelection(); setStatusFilter(option.value); }} style={filterSizes.widest ? { width: filterSizes.widest + 26 } : undefined} className={`min-h-12 flex-row items-center justify-center gap-2 rounded-lg border px-3 focus:border-primary ${statusFilter === option.value ? 'border-transparent' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'}`}><Text className={`text-sm font-semibold ${statusFilter === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text><Text className="text-xs font-semibold text-text-secondary">{option.value === 'all' ? total : counts[option.value]}</Text></Pressable>} /></FilterPlace.Provider></View> : null}
     <Reveal open={pane === 'daily' && Boolean(data) && loadedDate === date && !loading && selecting}><View className="gap-2 border-y border-border bg-surface-tint px-3 py-2" testID="attendance-selection-toolbar">
       <>
         <View className="flex-row flex-wrap items-center justify-between gap-2">

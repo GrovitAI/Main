@@ -422,6 +422,48 @@ export function SearchBox({ value, onChange, placeholder = 'Search', autoFocus }
 
 export type ChipOption<T extends string> = { value: T; label: string; hint?: string; searchText?: string };
 
+/**
+ * Same-size choices (owner rule, tasks 218 and 223): every option in a row of choices takes the
+ * width of the widest one, so the highlight keeps one size as it moves. Each label is measured
+ * from an invisible copy (`MeasureLabels`), which re-measures once the font has loaded.
+ * - When all of them fit on one line, each gets the widest label plus `pad`, or an equal share
+ *   of the line when that is narrower (never below the label plus `tightPad`).
+ * - Otherwise they wrap as a grid of equal cells (`fallback: 'grid'`), or keep their own widths
+ *   on a very narrow screen (`fallback: 'natural'`, for tabs that must stay on one line).
+ * `width` is undefined until both the labels and the line have been measured.
+ */
+export function useEqualChoices(count: number, { gap, pad, tightPad = pad, fallback = 'grid' }: { gap: number; pad: number; tightPad?: number; fallback?: 'grid' | 'natural' }): {
+  measure: (i: number) => (e: LayoutChangeEvent) => void; onLine: (e: LayoutChangeEvent) => void; width: number | undefined; widest: number;
+} {
+  const sizes = useRef<number[]>([]);
+  const [widest, setWidest] = useState(0);
+  const [line, setLine] = useState(0);
+  const measure = useCallback((i: number) => (e: LayoutChangeEvent) => {
+    sizes.current[i] = e.nativeEvent.layout.width;
+    // Two pixels of slack so rounding never wraps or clips the widest label.
+    const max = Math.ceil(Math.max(0, ...sizes.current.slice(0, count).filter((w) => w !== undefined))) + 2;
+    setWidest((w) => (w === max ? w : max));
+  }, [count]);
+  const onLine = useCallback((e: LayoutChangeEvent) => { const w = Math.floor(e.nativeEvent.layout.width); setLine((old) => (old === w ? old : w)); }, []);
+  let width: number | undefined;
+  if (widest > 0 && line > 0 && count > 0) {
+    const share = Math.floor((line - gap * (count - 1)) / count);
+    if (share >= widest + tightPad) width = Math.min(widest + pad, share);
+    else if (fallback === 'grid') width = Math.min(widest + pad, line);
+  }
+  return { measure, onLine, width, widest };
+}
+
+/** Draws its children invisibly and out of the layout, only so their natural widths can be measured. */
+export function MeasureLabels({ children }: { children: React.ReactNode }) {
+  return (
+    <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none"
+      style={{ position: 'absolute', left: 0, top: 0, height: 0, overflow: 'hidden', opacity: 0, alignItems: 'flex-start' }}>
+      {children}
+    </View>
+  );
+}
+
 type ChipsProps<T extends string> = {
   options: readonly ChipOption<T>[];
   value: T | null;
@@ -441,10 +483,23 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
     [options, query, showSearch, value],
   );
   const slide = useSlidingRect(shown.findIndex((o) => o.value === value));
+  // Every chip is as wide as the widest of all the options (task 223), so the highlight keeps one
+  // size and the widths hold while a search narrows the list. A list with an add chip after it
+  // always wraps as a grid.
+  const equal = useEqualChoices(options.length, { gap: 6, pad: 28, tightPad: trailing ? Number.POSITIVE_INFINITY : 16 });
+  const chipFace = (o: ChipOption<T>, on: boolean) => (
+    <>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+      {o.hint ? <Text style={{ fontSize: 12, fontWeight: '600', color: on ? colors.textOnPrimary : colors.textSecondary, opacity: 0.85 }} numberOfLines={1}>{o.hint}</Text> : null}
+    </>
+  );
   return (
     <View style={{ gap: 10 }}>
       {showSearch ? <SearchBox value={query} onChange={setQuery} placeholder={searchPlaceholder} /> : null}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, alignItems: 'center' }}>
+      <View onLayout={equal.onLine} style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, alignItems: 'center' }}>
+        <MeasureLabels>
+          {options.map((o, i) => <View key={o.value} onLayout={equal.measure(i)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>{chipFace(o, false)}</View>)}
+        </MeasureLabels>
         <Animated.View pointerEvents="none" style={{ position: 'absolute', height: TARGET, paddingVertical: BAND, ...slide.style, top: slide.top }}>
           <View style={{ flex: 1, borderRadius: 999, backgroundColor: colors.primary }} />
         </Animated.View>
@@ -458,11 +513,10 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
-              style={pressed({ minHeight: TARGET, justifyContent: 'center' })}
+              style={pressed({ minHeight: TARGET, justifyContent: 'center', ...(equal.width ? { width: equal.width } : {}) })}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: 14, gap: 6, backgroundColor: 'transparent', borderColor: on ? colors.primary : colors.border }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }}>{o.label}</Text>
-                {o.hint ? <Text style={{ fontSize: 12, fontWeight: '600', color: on ? colors.textOnPrimary : colors.textSecondary, opacity: 0.85 }}>{o.hint}</Text> : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: equal.width ? 6 : 14, gap: 6, backgroundColor: 'transparent', borderColor: on ? colors.primary : colors.border }}>
+                {chipFace(o, on)}
               </View>
             </Pressable>
           );

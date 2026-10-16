@@ -75,6 +75,12 @@ Never hardcode UUIDs outside tenant-context.ts.
   carrying small buttons, Save/Undo appear only once something changed, and
   load-more/retry are text links. Avoid unnecessary components and repeated
   copy; keep screens minimal and clean but never dull.
+- Same-size choices, always: every option in a row of choices (filters,
+  tabs, pills, segmented bars, pickers) has the same width, so the selection
+  highlight never changes size as it moves. Use Segmented/ChoiceButtons
+  (equal by design), Chips (widest option, wraps as an equal grid), or
+  useEqualChoices with MeasureLabels for custom rows. Never size a choice
+  to its own label.
 
 ## File ownership
 - UI screens → src/app/(app)/*.tsx
