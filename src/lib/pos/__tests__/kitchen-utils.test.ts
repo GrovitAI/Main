@@ -1,5 +1,6 @@
 import {
   allocateAcross,
+  amountReadBack,
   balanceFromEntries,
   describeKitchenError,
   entryAmountText,
@@ -275,5 +276,19 @@ describe('oftenSent (task 216)', () => {
     expect(oftenSent(list, 'p1')).toEqual([{ itemId: 'mousse', times: 2, lastQty: 24 }, { itemId: 'sauce', times: 1, lastQty: 2 }]);
     expect(oftenSent(list, 'p1', 1).map((r) => r.itemId)).toEqual(['mousse']);
     expect(oftenSent(list, 'nobody')).toEqual([]);
+  });
+});
+
+describe('amountReadBack', () => {
+  it('reads large amounts back the Indian way', () => {
+    expect(amountReadBack('112000')).toBe('₹1,12,000 · 1.12 lakh');
+    expect(amountReadBack('2500')).toBe('₹2,500');
+    expect(amountReadBack('15000000')).toBe('₹1,50,00,000 · 1.5 crore');
+    expect(amountReadBack('100000')).toBe('₹1,00,000 · 1 lakh');
+  });
+  it('stays quiet for small, empty or unreadable amounts', () => {
+    expect(amountReadBack('999')).toBeNull();
+    expect(amountReadBack('')).toBeNull();
+    expect(amountReadBack('12a')).toBeNull();
   });
 });

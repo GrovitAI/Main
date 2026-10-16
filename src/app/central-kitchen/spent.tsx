@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
@@ -70,6 +71,9 @@ export default function SpentScreen() {
     }
   };
 
+  // Task 221: Back asks first once an amount or a note is typed; never after the save.
+  const typed = useTypedChanges(JSON.stringify({ amountText, note }), prefilled);
+  useLeaveGuard(typed && !done.saved, 'The amount you typed');
   const save = async () => {
     if (!canSave) return;
     setSaving(true);

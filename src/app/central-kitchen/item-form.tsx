@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard } from '@/lib/pos/use-leave-guard';
 import { saveKitchenItem } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_UNITS, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
@@ -43,6 +44,11 @@ export default function ItemFormScreen() {
   const margin = kind === 'finished_good' && price.trim() && cost.trim() && Number.isFinite(sellNumber) && Number.isFinite(costNumber) && sellNumber > 0
     ? { each: sellNumber - costNumber, percent: Math.round(((sellNumber - costNumber) / sellNumber) * 100) } : null;
 
+  // Task 221: Back asks first once something differs from the saved item, or anything is typed for a new one.
+  const typed = existing
+    ? name !== existing.name || price !== (existing.sell_price === null ? '' : String(existing.sell_price)) || cost !== (existing.cost_price === null ? '' : String(existing.cost_price))
+    : Boolean(name.trim() || price.trim() || cost.trim() || opening.trim());
+  useLeaveGuard(typed && !done.saved, 'What you typed');
   const save = async () => {
     if (!name.trim() || (id && !existing)) return;
     const openingQty = Number(opening.replace(/[,\s]/g, ''));

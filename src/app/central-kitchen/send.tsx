@@ -3,6 +3,7 @@ import { Linking, Platform, Share, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { MessageCircle } from 'lucide-react-native';
 import { editKitchenEntry, postKitchenEntry, kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
@@ -52,6 +53,9 @@ export default function SendScreen() {
   const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
 
+  // Task 221: Back asks first once items or a note are typed; never after the save.
+  const typed = useTypedChanges(JSON.stringify({ lines, note }), prefilled);
+  useLeaveGuard(typed && saved === null, 'The items you typed');
   const save = async () => {
     if (!partyId || !chosen || chosen.length === 0 || missing) return;
     setSaving(true);

@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateKey } from '@/lib/pos/kitchen-utils';
@@ -59,6 +60,9 @@ export default function BoughtScreen() {
   const canSave = !missing && !archivedCategory && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
 
+  // Task 221: Back asks first once items or a note are typed; never after the save.
+  const typed = useTypedChanges(JSON.stringify({ lines, note }), prefilled);
+  useLeaveGuard(typed && !done.saved, 'The items you typed');
   const save = async () => {
     if (!canSave || !partyId || !chosen || chosen.length === 0) return;
     setSaving(true);

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard } from '@/lib/pos/use-leave-guard';
 import { saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
@@ -36,6 +37,11 @@ export default function PartyFormScreen() {
   const openingAbs = parseAmount(openingText);
   const opening = side === 'ahead' ? -openingAbs : openingAbs;
 
+  // Task 221: Back asks first once something differs from the saved entry, or anything is typed for a new one.
+  const typed = existing
+    ? name !== existing.name || phone !== (existing.phone ?? '') || openingText !== (existing.opening !== 0 ? String(Math.abs(existing.opening)) : '')
+    : Boolean(name.trim() || phone.trim() || openingText.trim());
+  useLeaveGuard(typed && !done.saved, 'What you typed');
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);

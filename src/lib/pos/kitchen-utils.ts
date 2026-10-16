@@ -226,6 +226,18 @@ export function stepFor(unit: KitchenUnit): number {
 
 export const formatMoney = (amount: number): string => formatINR(amount);
 
+/** "₹1,12,000 · 1.12 lakh" for a typed 112000; nothing below ₹1,000 or for text that is not a number. */
+export function amountReadBack(text: string): string | null {
+  const value = Number(text.replace(/,/g, '').trim());
+  if (!text.trim() || !Number.isFinite(value) || Math.abs(value) < 1000) return null;
+  const grouped = formatMoney(value);
+  const abs = Math.abs(value);
+  const short = (n: number): string => String(Number(n.toFixed(2)));
+  if (abs >= 1_00_00_000) return `${grouped} · ${short(abs / 1_00_00_000)} crore`;
+  if (abs >= 1_00_000) return `${grouped} · ${short(abs / 1_00_000)} lakh`;
+  return grouped;
+}
+
 // ─── Matching money to buys and sends ────────────────────────────────────────
 
 /**

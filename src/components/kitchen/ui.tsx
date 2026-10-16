@@ -11,11 +11,12 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronDown, ChevronLeft, MoreHorizontal, Search, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
+import { amountReadBack, formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
+import { useOnline } from '@/lib/pos/use-online';
 
 export type Tone = 'neutral' | 'in' | 'out' | 'buy' | 'primary';
 
@@ -457,10 +458,14 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
   /** Inside a card: a tinted well instead of a bordered box, so there is no box within a box. */
   flat?: boolean;
 }) {
+  // A rupee field reads a large amount back under the box (task 221), so a
+  // missing or extra zero shows before the save. The flat in-row price fields
+  // are small figures and skip it.
+  const readBack = prefix === '₹' && !flat;
   const shell: ViewStyle = flat
     ? { borderRadius: 12, backgroundColor: colors.surfaceTint, minHeight: TARGET, paddingHorizontal: 12 }
     : { borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, minHeight: 44, paddingHorizontal: 12, ...(big ? { maxWidth: 360, width: '100%' } : {}) };
-  return (
+  const box = (
     <View style={{ flexDirection: 'row', alignItems: 'center', ...shell }}>
       {prefix ? <Text style={{ color: colors.textSecondary, fontSize: big ? 17 : 16, fontWeight: '800', marginRight: 6 }}>{prefix}</Text> : null}
       <TextInput
@@ -478,7 +483,19 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
       />
     </View>
   );
+  if (!readBack) return box;
+  // Always wrapped, so the field keeps its focus when the line appears.
+  const spoken = amountReadBack(value);
+  return (
+    <View>
+      {box}
+      <Reveal open={spoken !== null}>
+        <Text accessibilityLiveRegion="polite" className="text-text-secondary" style={{ fontSize: 13, fontWeight: '700', marginTop: 4, ...tabular }}>{spoken}</Text>
+      </Reveal>
+    </View>
+  );
 }
+
 
 export function QtyStepper({ value, onChange, step, unit, label }: { value: number; onChange: (v: number) => void; step: number; unit: string; label: string }) {
   const [text, setText] = useState<string | null>(null);
@@ -1051,6 +1068,24 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/**
+ * A slim warning across the top while the device has no network (task 221):
+ * entries cannot save, so it says so before anyone presses Save. It slides
+ * away when the connection returns.
+ */
+export function OfflineBar() {
+  const online = useOnline();
+  const insets = useSafeAreaInsets();
+  return (
+    <Reveal open={!online}>
+      <View accessibilityRole="alert" accessibilityLiveRegion="assertive" className="flex-row items-center justify-center gap-2 px-4 py-2" style={{ backgroundColor: semantic.warningSoft, paddingTop: Platform.OS === 'web' ? 8 : insets.top + 6 }}>
+        <WifiOff size={15} color={semantic.warning} />
+        <Text style={{ color: semantic.warning, fontSize: 13, fontWeight: '700' }}>No internet. Entries can’t save until it’s back.</Text>
+      </View>
+    </Reveal>
   );
 }
 

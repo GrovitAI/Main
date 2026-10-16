@@ -241,6 +241,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 218 (2026-10-16, staging source): Analytics report tabs all share one width (the widest name), so the highlight keeps its size as it slides. On phones the row scrolls with edge fades and keeps the chosen tab in view. Checked at 360, 390 and desktop.
 ✅ Task 219 (2026-10-16, staging source): Fewer buttons. New shared Toggle, SelectRow, SettingsGroup and MoreMenu. Team and day lock uses a switch and value rows (no hour or date pills, no typed date), with Save/Undo shown only after a change. Branch, vendor and item Edit/Remove share one menu; the Cash and bank opening line has a Change link; the attendance selection bar shows only while selecting. Rule added to AGENTS.md: buttons only where no lighter control works.
 ✅ Task 220 (2026-10-16, staging source): Kitchen login permissions, option C. Desktop shows the logins beside one person's 25 ticks in three balanced columns; phones fold the six groups with counts. Unsaved changes are kept per login. DESKTOP_LAYOUT = 'fold' switches desktop to option A.
+✅ Task 221 (2026-10-16, staging source): Guideline fixes. Keyboard-only focus ring, browser tab titles per kitchen screen, rupee amount read-back (₹1,12,000 · 1.12 lakh), a question before leaving a form with typing, an offline bar (NetInfo added; phones need the next build), and a brand caret, selection and theme-color.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

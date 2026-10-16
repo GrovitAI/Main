@@ -292,3 +292,35 @@ The owner chose option C, and may return to A after trying it on staging.
 - **Switching to option A** is one line: set `DESKTOP_LAYOUT` in
   `TeamWorkspace.tsx` to `'fold'`. The desktop then uses the phone's folded
   cards.
+
+## Task 221: guideline fixes from the design audit (2026-10-16)
+
+An audit against NN/g, Baymard, WCAG 2.2 and Material guidance measured all 16
+kitchen pages on phone and desktop. The owner chose these six fixes:
+
+- **Keyboard focus ring** (WCAG 2.4.7): a blue ring drawn inside the control,
+  with a white gap, for keyboard focus only. It never shows after a click or
+  tap, and a text field rings its whole box. The app's global reset
+  (`:focus { outline: none !important }`) is outranked with a `:root` rule in
+  `src/lib/pos/kitchen-web.ts`, injected only while the kitchen is open.
+- **Browser tab titles**, such as "Send · Le Laban Kitchen". An item or branch
+  page uses its own name. Titles are read from the already-loaded lists, so
+  they never start a load.
+- **Amount read-back**: every rupee field shows "₹1,12,000 · 1.12 lakh" under
+  the box from ₹1,000 up (`amountReadBack`). The small in-row price fields
+  skip it.
+- **Ask before leaving a form with typing** (Send, Received, Bought, Spent,
+  item, branch and vendor):
+  - The kitchen's own Back asks first (`backToKitchen` with `setLeaveCheck`).
+  - Phones also ask on the back gesture and Android's back button.
+  - Browsers ask when the tab is closed or reloaded.
+  - It never asks after a save, or on an untouched form.
+  - The browser's own Back button can't be held, so it isn't covered.
+- **Offline bar**: "No internet. Entries can't save until it's back." It
+  appears across the top and slides away when the connection returns.
+  Browsers use navigator.onLine. Phones use NetInfo
+  (`@react-native-community/netinfo`, added with `npx expo install`), loaded
+  safely so an older app build without it simply never shows the bar. It needs
+  the next app build to work on phones.
+- **Browser details**: a blue caret, a light-blue text selection, and a
+  `theme-color` meta in the kitchen canvas colour.
