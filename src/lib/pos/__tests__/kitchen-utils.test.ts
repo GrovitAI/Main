@@ -17,6 +17,7 @@ import {
   oftenSent,
   slipText,
   statementRows,
+  stockLevels,
   sumDues,
   whatsappUrl,
 } from '../kitchen-utils';
@@ -290,5 +291,26 @@ describe('amountReadBack', () => {
     expect(amountReadBack('999')).toBeNull();
     expect(amountReadBack('')).toBeNull();
     expect(amountReadBack('12a')).toBeNull();
+  });
+});
+
+describe('stockLevels', () => {
+  test('measures against the latest count, low at a quarter or less, out at zero', () => {
+    const entries = [
+      entry({ type: 'count', item_id: 'a', qty: 40, entry_date: '2026-10-01' }),
+      entry({ type: 'count', item_id: 'a', qty: 56, entry_date: '2026-10-12' }),
+      entry({ type: 'count', item_id: 'b', qty: 8, entry_date: '2026-10-14' }),
+      entry({ type: 'count', item_id: 'c', qty: 99, entry_date: '2026-10-15', voided_at: '2026-10-15T12:00:00Z' }),
+    ];
+    const levels = stockLevels(entries, [{ id: 'a', stock: 40 }, { id: 'b', stock: 1.2 }, { id: 'c', stock: 0 }, { id: 'd', stock: 12 }, { id: 'e', stock: 70 }]);
+    expect(levels.get('a')).toEqual({ ref: 56, countedOn: '2026-10-12', state: 'ok', share: 40 / 56 });
+    expect(levels.get('b')?.state).toBe('low');
+    // A voided count is ignored; zero stock is out with or without a count.
+    expect(levels.get('c')).toEqual({ ref: null, countedOn: null, state: 'out', share: 0 });
+    expect(levels.get('d')).toEqual({ ref: null, countedOn: null, state: 'unknown', share: 0 });
+  });
+  test('stock grown past the last count fills the bar instead of overflowing it', () => {
+    const levels = stockLevels([entry({ type: 'count', item_id: 'a', qty: 20 })], [{ id: 'a', stock: 50 }]);
+    expect(levels.get('a')).toMatchObject({ ref: 50, share: 1, state: 'ok' });
   });
 });

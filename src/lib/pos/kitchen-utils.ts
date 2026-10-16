@@ -419,3 +419,42 @@ export function oftenSent(entries: readonly KitchenEntry[], partyId: string, lim
     .slice(0, limit)
     .map(({ itemId, times, lastQty }) => ({ itemId, times, lastQty }));
 }
+
+// ─── Stock levels (task 230) ─────────────────────────────────────────────────
+
+export type StockLevel = {
+  /** What the bar measures against: the latest count, or more if stock has since grown past it. */
+  ref: number | null;
+  /** The day of the latest count, or null when the item has never been counted. */
+  countedOn: string | null;
+  state: 'out' | 'low' | 'ok' | 'unknown';
+  /** Stock as a share of `ref`, from 0 to 1, when there is a count. */
+  share: number;
+};
+
+/** Below this share of its last count an item shows as low. */
+export const LOW_STOCK_SHARE = 0.25;
+
+/**
+ * Each item's level against its latest stock count (task 230). Nothing at or below zero is out;
+ * at or under a quarter of the last count is low. An item never counted has no bar, only "out"
+ * when it is at zero.
+ */
+export function stockLevels(entries: readonly KitchenEntry[], items: readonly { id: string; stock: number }[]): Map<string, StockLevel> {
+  const latest = new Map<string, KitchenEntry>();
+  for (const e of entries) {
+    if (e.type !== 'count' || e.voided_at !== null || e.item_id === null || e.qty === null) continue;
+    const seen = latest.get(e.item_id);
+    if (!seen || e.entry_date > seen.entry_date || (e.entry_date === seen.entry_date && e.created_at > seen.created_at)) latest.set(e.item_id, e);
+  }
+  const out = new Map<string, StockLevel>();
+  for (const item of items) {
+    const count = latest.get(item.id);
+    const counted = count?.qty ?? null;
+    const ref = counted === null ? null : Math.max(counted, item.stock);
+    const share = ref && ref > 0 ? Math.min(1, Math.max(0, item.stock / ref)) : 0;
+    const state: StockLevel['state'] = item.stock <= 0 ? 'out' : ref === null || ref <= 0 ? 'unknown' : share <= LOW_STOCK_SHARE ? 'low' : 'ok';
+    out.set(item.id, { ref, countedOn: count?.entry_date ?? null, state, share });
+  }
+  return out;
+}
