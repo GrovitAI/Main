@@ -14,12 +14,64 @@ import { fetchKitchenReport, KITCHEN_REPORT_PAGE_SIZE } from '@/lib/pos/kitchen-
 import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
-import { formatMoney } from '@/lib/pos/kitchen-utils';
+import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import { Empty, KScreen, LoadingBar, Notice, Reveal, SkeletonRows, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 
 const money = (paise: number): string => formatMoney(paise / 100);
+
+/**
+ * A phone's item sales (task 232, owner's pick Analytics A): the best-selling items by value,
+ * each with its rank, sales, quantity, share of all sales and a bar against the top seller. The
+ * report's rows are item and branch pairs loaded 50 at a time, so the ranking adds up the rows on
+ * hand and says so when more are still to load.
+ */
+function ItemSales({ rows, totalPaise, partial }: { rows: readonly KitchenReportRow[]; totalPaise: number; partial: boolean }) {
+  const items = useMemo(() => {
+    const byItem = new Map<string, { id: string; name: string; unit: string | null; qty: number; paise: number }>();
+    for (const row of rows) {
+      if (row.kind !== 'sale' || !row.item_id) continue;
+      const seen = byItem.get(row.item_id) ?? { id: row.item_id, name: row.item ?? 'Item', unit: row.unit, qty: 0, paise: 0 };
+      seen.qty += row.quantity ?? 0;
+      seen.paise += row.amount_paise;
+      byItem.set(row.item_id, seen);
+    }
+    return [...byItem.values()].sort((a, b) => b.paise - a.paise).slice(0, 5);
+  }, [rows]);
+  const top = items[0]?.paise ?? 0;
+  if (items.length === 0 || top <= 0) return null;
+  return (
+    <View className="gap-1.5" testID="kitchen-item-sales">
+      <View className="flex-row items-center justify-between px-1">
+        <Text className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">Item sales</Text>
+        {partial ? <Text className="text-xs font-semibold text-text-secondary">From the rows loaded</Text> : null}
+      </View>
+      <View className="rounded-[18px] border border-border-soft bg-surface-elevated px-3.5 py-1">
+        {items.map((item, i) => (
+          <View key={item.id} className={'py-2.5 ' + (i === 0 ? '' : 'border-t border-border-soft')}>
+            <View className="flex-row items-center gap-2.5">
+              <View className="h-7 w-7 items-center justify-center rounded-[9px] bg-surface-tint"><Text className="text-[13px] font-extrabold text-primary">{i + 1}</Text></View>
+              <View className="min-w-0 flex-1">
+                <View className="flex-row items-center justify-between gap-2">
+                  <Text className="min-w-0 flex-1 text-[15px] font-bold text-text-primary" numberOfLines={1}>{item.name}</Text>
+                  <Text className="text-[15px] font-bold text-text-primary" style={tabular}>{money(item.paise)}</Text>
+                </View>
+                <View className="flex-row items-center justify-between gap-2">
+                  <Text className="text-xs font-semibold text-text-secondary" style={tabular}>{item.unit ? formatQty(item.qty, item.unit) : item.qty}</Text>
+                  <Text className="text-xs font-semibold text-text-secondary" style={tabular}>{totalPaise > 0 ? Math.round(item.paise / totalPaise * 100) + '%' : ''}</Text>
+                </View>
+              </View>
+            </View>
+            <View className="ml-[38px] mt-1.5 h-2 overflow-hidden rounded-full" style={{ backgroundColor: colors.surfaceTint }}>
+              <View className="h-full rounded-full bg-primary" style={{ width: Math.max(2, Math.round(item.paise / top * 100)) + '%' as `${number}%` }} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 const tabular = { fontVariant: ['tabular-nums' as const] };
 const controls = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 hover:bg-accent-soft active:opacity-60 focus:border focus:border-primary';
 const ALL_TABS: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales', label: 'Sales' }, { id: 'purchases', label: 'Purchases' }, { id: 'cash', label: 'Cash' }, { id: 'bank', label: 'Bank' }, { id: 'profit', label: 'Profit' }];
@@ -290,6 +342,7 @@ export function AnalyticsWorkspace() {
             <Text className={'text-base font-bold text-text-primary ' + (desktop ? '' : 'leading-5')} style={tabular}>{metric.value === undefined ? '—' : money(metric.value)}</Text>
           </View>)}
         </View></Animated.View>}
+        {!desktop && rowKind === 'sales' && !rowDetail && report ? <Animated.View style={[reportEnter, stale ? dim : null]}><ItemSales rows={report.rows} totalPaise={report.summary.sales_paise} partial={report.total_rows > report.rows.length} /></Animated.View> : null}
       <Reveal open={notesOpen}><View className="gap-1 rounded-xl bg-surface-elevated p-3">
         <Text className="text-xs font-bold text-text-primary">{kitchenBranch().name}</Text>
         {!desktop ? period : null}
