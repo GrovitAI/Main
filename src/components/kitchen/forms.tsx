@@ -269,11 +269,35 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
   };
   const chosen = Object.values(lines).filter((l) => l.qty > 0);
   const total = linesTotal(chosen.map((l) => ({ qty: l.qty, price: l.price ?? 0 })));
+  const phone = !useResponsive().isTablet;
 
   return (
     <View style={{ gap: 10 }}>
       <SearchBox value={query} onChange={setQuery} placeholder={mode === 'sell' ? 'Search finished goods to add' : 'Search raw materials to add'} />
-      {shownPicks.length > 0 ? (
+      {/* Task 231: on a phone the often-used items are rows with Add; the quantity is still typed. */}
+      {phone && shownPicks.length > 0 ? (
+        <View style={{ gap: 6 }}>
+          {picksTitle ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{picksTitle}</Text> : null}
+          <View className="overflow-hidden rounded-2xl border border-border-soft bg-surface-elevated">
+            {shownPicks.map((it, i) => {
+              const unitPrice = mode === 'sell' ? it.sell_price : defaultCost?.get(it.id) ?? null;
+              return (
+                <View key={it.id} className={`flex-row items-center gap-3 px-3.5 py-2.5 ${i === 0 ? '' : 'border-t border-border-soft'}`}>
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{it.name}</Text>
+                    <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{formatQty(it.stock, it.unit)} in stock{unitPrice !== null && showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : ''}{lastQty.has(it.id) ? ` · last time ${formatQty(lastQty.get(it.id) ?? 0, it.unit)}` : ''}</Text>
+                  </View>
+                  <Pressable onPress={() => setPinned((p) => [...p, it.id])} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`}
+                    className="h-10 flex-row items-center gap-1 rounded-xl border border-border bg-surface-elevated px-3.5 hover:bg-surface-tint active:bg-surface-tint">
+                    <Plus size={15} color={colors.primary} /><Text className="text-sm font-bold text-primary">Add</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+      {!phone && shownPicks.length > 0 ? (
         <View style={{ gap: 2 }}>
           {picksTitle ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>{picksTitle}</Text> : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 6 }}>
@@ -334,7 +358,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
           );
         })}
       </View>
-      {chosen.length > 0 ? (
+      {chosen.length > 0 && !phone ? (
         <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '700', textAlign: 'right' }}>
           {chosen.length} {chosen.length === 1 ? 'item' : 'items'}{showAmounts ? ` · ${formatMoney(total)}` : ''}
         </Text>

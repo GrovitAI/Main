@@ -75,9 +75,11 @@ type ScreenProps = {
   bottomPad?: number;
   /** Overview/list surfaces may use more width; entry forms stay readable. */
   wide?: boolean;
+  /** The footer floats on the canvas instead of a white strip (a phone's SummaryBar, task 231). */
+  floatingFooter?: boolean;
 };
 
-export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24, wide = false }: ScreenProps) {
+export function KScreen({ children, scroll = true, refreshing = false, onRefresh, footer, bottomPad = 24, wide = false, floatingFooter = false }: ScreenProps) {
   const { isTablet } = useResponsive();
   const compact = useDesktopDensity();
   const widthClass = compact && wide ? 'max-w-[1120px] self-center' : isTablet ? 'max-w-[720px] self-center' : 'self-center';
@@ -100,7 +102,7 @@ export function KScreen({ children, scroll = true, refreshing = false, onRefresh
         <View className="flex-1">{children}</View>
       )}
       {footer ? (
-        <View className="border-t border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 }}>
+        <View className={floatingFooter ? 'bg-kitchen-canvas' : 'border-t border-border-soft bg-surface-elevated'} style={{ paddingHorizontal: floatingFooter ? 12 : 16, paddingTop: floatingFooter ? 6 : 10, paddingBottom: 10 }}>
           <View className={`w-full ${widthClass}`}>{footer}</View>
         </View>
       ) : null}
@@ -1242,6 +1244,22 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+/**
+ * A phone's footer for a send or a buy (task 231): a dark bar with what is on the entry and its
+ * total, and the save button at its end. Totals stay hidden from logins that may not see amounts.
+ */
+export function SummaryBar({ caption, total, showTotal = true, children }: { caption: string; total: number; showTotal?: boolean; children: React.ReactNode }) {
+  return (
+    <View className="flex-row items-center rounded-3xl px-2 py-2" style={{ backgroundColor: colors.primaryNavy, gap: 10 }}>
+      <View className="min-w-0 flex-1 pl-2.5">
+        <Text style={{ color: colors.textOnPrimary, opacity: 0.75, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{caption}</Text>
+        {showTotal ? <Text style={{ color: colors.textOnPrimary, fontSize: 22, fontWeight: '800', letterSpacing: -0.3, ...tabular }} numberOfLines={1}>{formatMoney(total)}</Text> : null}
+      </View>
+      <View style={{ flex: 1.1 }}>{children}</View>
     </View>
   );
 }

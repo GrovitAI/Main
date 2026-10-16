@@ -10,7 +10,8 @@ import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use
 import { balanceFromEntries, formatDayLabel, formatMoney, formatQty, linesTotal, localDateKey, oftenSent, slipText, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry, KitchenEntryType, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, TextField } from '@/components/kitchen/ui';
+import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, SummaryBar, TextField } from '@/components/kitchen/ui';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, LinesEditor, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
@@ -47,6 +48,8 @@ export default function SendScreen() {
   const chosen = useMemo(() => draftToLines(lines), [lines]);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
+  const itemCount = Object.values(lines).filter((l) => l.qty > 0).length;
+  const phone = !useResponsive().isTablet;
   // One-tap chips for what this branch usually gets (task 216); none while editing.
   const picks = useMemo(() => (partyId && !editing ? oftenSent(data.entries, partyId) : []), [data.entries, partyId, editing]);
   const dateOk = useDateGuard(date, lockReason);
@@ -103,7 +106,13 @@ export default function SendScreen() {
   return (
     <KeyboardAvoider>
       <KScreen
-        footer={
+        floatingFooter={phone}
+        footer={phone ? (
+          // Task 231: a phone's footer is the dark summary bar.
+          <SummaryBar caption={itemCount === 0 ? 'No items yet' : `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`} total={total} showTotal={showAmounts}>
+            <PrimaryButton label={editing ? 'Save changes' : 'Send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add a quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
+          </SummaryBar>
+        ) : (
           <View className="flex-row items-center" style={{ gap: 12 }}>
             <View className="flex-1" style={showAmounts ? undefined : { opacity: 0 }} accessibilityElementsHidden={!showAmounts} importantForAccessibility={showAmounts ? 'auto' : 'no-hide-descendants'}>
               <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>Total</Text>
@@ -113,7 +122,7 @@ export default function SendScreen() {
               <PrimaryButton label={editing ? 'Save changes' : 'Save send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add an item quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
             </View>
           </View>
-        }
+        )}
       >
         <KHeader
           title={editing ? 'Edit send' : 'Send to a branch'}

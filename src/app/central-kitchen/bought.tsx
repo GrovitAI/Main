@@ -9,7 +9,8 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateKey } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SummaryBar, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, LinesEditor, ModePicker, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
@@ -56,6 +57,8 @@ export default function BoughtScreen() {
   const chosen = useMemo(() => draftToLines(lines), [lines]);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
+  const itemCount = Object.values(lines).filter((l) => l.qty > 0).length;
+  const phone = !useResponsive().isTablet;
   const dateOk = useDateGuard(date, lockReason);
   const canSave = !missing && !archivedCategory && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
@@ -90,7 +93,13 @@ export default function BoughtScreen() {
   return (
     <KeyboardAvoider>
       <KScreen
-        footer={
+        floatingFooter={phone}
+        footer={phone ? (
+          // Task 231: a phone's footer is the dark summary bar.
+          <SummaryBar caption={`${itemCount === 0 ? 'No items yet' : `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`} · ${paidNow === 'now' ? 'paid now' : 'pay later'}`} total={total}>
+            <PrimaryButton label={editing ? 'Save changes' : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a vendor' : archivedCategory ? 'Choose a category' : !isValidDateKey(date) || !dateOk ? 'Check the date' : !hasQty ? 'Add a quantity' : undefined} />
+          </SummaryBar>
+        ) : (
           <View className="flex-row items-center" style={{ gap: 12 }}>
             <View className="flex-1">
               <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>Total</Text>
@@ -100,7 +109,7 @@ export default function BoughtScreen() {
               <PrimaryButton label={editing ? 'Save changes' : paidNow === 'now' ? 'Save, paid' : 'Save, pay later'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a vendor' : archivedCategory ? 'Choose an active category' : !isValidDateKey(date) || !dateOk ? 'Check the date' : !hasQty ? 'Add an item quantity' : undefined} />
             </View>
           </View>
-        }
+        )}
       >
         <KHeader
           title={editing ? 'Edit buy' : 'Bought from a vendor'}
