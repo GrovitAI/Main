@@ -240,6 +240,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 217 (2026-10-15, staging source): Phone fixes. The Stock switch (Raw materials / Finished goods) changes the list in place, so its highlight slides and the rows slide in; the Analytics report tabs size to their names on phones and scroll on very narrow screens. AGENTS.md now requires every UI change to be done and checked on both phone and desktop.
 ✅ Task 218 (2026-10-16, staging source): Analytics report tabs all share one width (the widest name), so the highlight keeps its size as it slides. On phones the row scrolls with edge fades and keeps the chosen tab in view. Checked at 360, 390 and desktop.
 ✅ Task 219 (2026-10-16, staging source): Fewer buttons. New shared Toggle, SelectRow, SettingsGroup and MoreMenu. Team and day lock uses a switch and value rows (no hour or date pills, no typed date), with Save/Undo shown only after a change. Branch, vendor and item Edit/Remove share one menu; the Cash and bank opening line has a Change link; the attendance selection bar shows only while selecting. Rule added to AGENTS.md: buttons only where no lighter control works.
+✅ Task 220 (2026-10-16, staging source): Kitchen login permissions, option C. Desktop shows the logins beside one person's 25 ticks in three balanced columns; phones fold the six groups with counts. Unsaved changes are kept per login. DESKTOP_LAYOUT = 'fold' switches desktop to option A.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

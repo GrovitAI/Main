@@ -276,3 +276,19 @@ control works.
 - **Considered for later:** the attendance group-mark bar (four status buttons
   plus Mark), the Analytics desktop toolbar icons, and the attendance Refresh
   icon (phones can pull to refresh).
+
+## Task 220: kitchen login permissions without the long scroll (2026-10-16)
+
+The owner chose option C, and may return to A after trying it on staging.
+
+- **Desktop:** the logins sit in a 280 px list beside the chosen person's
+  permissions. All 25 ticks show at once in three balanced columns
+  (`GRID_COLUMNS`), under the starting-role row.
+- **Phone:** each login card opens to the starting role and six folded
+  groups, each with a count ("Entries · 4 of 8"). One group opens at a time.
+- **Unsaved changes** are kept per login until saved or undone. Switching
+  people on desktop, or closing a card on the phone, loses nothing, and the
+  login's row says "Unsaved changes". Save and Undo appear only after a change.
+- **Switching to option A** is one line: set `DESKTOP_LAYOUT` in
+  `TeamWorkspace.tsx` to `'fold'`. The desktop then uses the phone's folded
+  cards.
