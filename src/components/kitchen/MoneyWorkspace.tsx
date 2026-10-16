@@ -153,15 +153,17 @@ export function MoneyWorkspace() {
           <View className="min-w-0 flex-1 flex-row items-start gap-2 pl-3"><Landmark size={18} color={colors.textSecondary} /><StatTile label="Bank · UPI" value={summary.bank_paise / 100} tone={summary.bank_paise < 0 ? 'out' : 'neutral'} /></View>
         </View>
       </Card>
-      <Text className="mt-2 text-xs leading-5 text-text-secondary">
-        {summary.has_opening && summary.as_of
-          ? `From the opening on ${historyDateLabel(summary.as_of)}: cash ${rupees(summary.opening_cash_paise)}, bank ${rupees(summary.opening_bank_paise)}${summary.opening_updated_by ? `, set by ${summary.opening_updated_by}` : ''}.`
-          : 'Opening balances are not set, so these count every money entry from zero. Set them to match the cash box and the bank.'}
-      </Text>
+      <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: 8 }}>
+        <Text className="shrink text-xs leading-5 text-text-secondary">
+          {summary.has_opening && summary.as_of
+            ? `From the opening on ${historyDateLabel(summary.as_of)}: cash ${rupees(summary.opening_cash_paise)}, bank ${rupees(summary.opening_bank_paise)}${summary.opening_updated_by ? `, set by ${summary.opening_updated_by}` : ''}.`
+            : 'Opening balances are not set, so these count every money entry from zero. Set them to match the cash box and the bank.'}
+        </Text>
+        {mayOpening && !busy && !editor ? <LinkButton label={summary.has_opening ? 'Change' : 'Set opening balances'} onPress={openOpening} /> : null}
+      </View>
       {message ? <Text accessibilityRole="alert" className="mt-2 text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
       <View className="mt-3 flex-row flex-wrap gap-2">
         {mayMove ? <PrimaryButton label="Move money" icon={ArrowRightLeft} disabled={busy || !!editor} onPress={openMove} /> : null}
-        {mayOpening ? <GhostButton small tone="primary" label={summary.has_opening ? 'Change opening balances' : 'Set opening balances'} disabled={busy || !!editor} onPress={openOpening} /> : null}
       </View>
       {pane}
       <View className="mt-4 flex-row gap-3 border-y border-border-soft py-3">

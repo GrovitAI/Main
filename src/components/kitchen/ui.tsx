@@ -8,10 +8,10 @@
  * NativeWind drops that function. Class-styled controls use active variants.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Search, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, MoreHorizontal, Search, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
@@ -626,6 +626,138 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
       <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '800' }}>{label}</Text>
     </Pressable>
+  );
+}
+
+// ─── Settings rows and menus (task 219) ──────────────────────────────────────
+// Lighter than buttons. An on/off setting is a switch, a one-of-many choice is
+// a row that shows its value and opens a short list, and occasional actions
+// (edit, remove) share one menu. Rows sit in a SettingsGroup, which draws one
+// card with a hairline between rows.
+
+/** One white card of rows separated by hairlines; rows draw their own top line. */
+export function SettingsGroup({ children }: { children: React.ReactNode }) {
+  return <Card padded={false} style={{ overflow: 'hidden' }}><View style={{ marginTop: -1 }}>{children}</View></Card>;
+}
+
+const rowClass = 'min-h-[56px] flex-row items-center gap-3 border-t border-border-soft px-3.5 py-2.5 hover:bg-surface-tint active:bg-surface-tint';
+
+function RowText({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <View className="min-w-0 flex-1 gap-0.5">
+      <Text className="text-[15px] font-bold leading-5 text-text-primary">{label}</Text>
+      {hint ? <Text className="text-xs leading-[17px] text-text-secondary">{hint}</Text> : null}
+    </View>
+  );
+}
+
+/** A whole-row on/off switch. The thumb glides across and the track fills blue. */
+export function Toggle({ label, hint, on, onChange, disabled = false }: { label: string; hint?: string; on: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
+  const reduce = useReducedMotion();
+  const progress = useRef(new Animated.Value(on ? 1 : 0)).current;
+  const before = useRef(on);
+  useEffect(() => {
+    if (before.current !== on) buzz('select');
+    before.current = on;
+    if (reduce) { progress.setValue(on ? 1 : 0); return; }
+    // The track colour can't run on the native driver, so the thumb shares the JS one.
+    const run = Animated.timing(progress, { toValue: on ? 1 : 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+    run.start();
+    return () => run.stop();
+  }, [on, reduce, progress]);
+  const track = progress.interpolate({ inputRange: [0, 1], outputRange: [colors.border, colors.primary] });
+  const x = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 18] });
+  return (
+    <Pressable onPress={() => onChange(!on)} disabled={disabled} accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on, disabled }} aria-checked={on}
+      className={rowClass + (disabled ? ' opacity-50' : '')}>
+      <RowText label={label} hint={hint} />
+      <Animated.View style={{ width: 44, height: 26, borderRadius: 13, padding: 2, backgroundColor: track }}>
+        <Animated.View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.surfaceElevated, transform: [{ translateX: x }] }} />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+export type SelectOption<T extends string> = { value: T; label: string; detail?: string };
+
+/**
+ * A row naming a setting and its current value; a tap opens the choices in a
+ * sheet (rising from the bottom on a phone, centred on a wider screen). Use it
+ * instead of a row of pills once there are more than a few choices.
+ */
+export function SelectRow<T extends string>({ label, hint, value, valueLabel, options, onChange, disabled = false }: {
+  label: string; hint?: string; value: T; options: readonly SelectOption<T>[]; onChange: (value: T) => void;
+  /** Shown instead of the option's label, for a value no option names (a picked date). */
+  valueLabel?: string; disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = valueLabel ?? options.find((o) => o.value === value)?.label ?? '';
+  return (
+    <>
+      <Pressable onPress={() => setOpen(true)} disabled={disabled} accessibilityRole="button" accessibilityLabel={`${label}: ${current}`} accessibilityState={{ expanded: open, disabled }}
+        className={rowClass + (disabled ? ' opacity-50' : '')}>
+        <RowText label={label} hint={hint} />
+        <View className="max-w-[50%] shrink-0 flex-row items-center gap-1">
+          <Text className="text-sm font-bold text-primary" numberOfLines={1}>{current}</Text>
+          <ChevronDown size={16} color={colors.primary} />
+        </View>
+      </Pressable>
+      <Sheet visible={open} onClose={() => setOpen(false)} title={label}>
+        <View style={{ gap: 4 }}>
+          {options.map((o) => {
+            const on = o.value === value;
+            return (
+              <Pressable key={o.value} onPress={() => { setOpen(false); onChange(o.value); }} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={o.detail ? `${o.label}, ${o.detail}` : o.label}
+                className={'min-h-12 flex-row items-center gap-3 rounded-xl px-3 py-2 hover:bg-accent-soft active:bg-accent-soft ' + (on ? 'bg-surface-tint' : '')}>
+                <View className="min-w-0 flex-1">
+                  <Text className={'text-[15px] text-text-primary ' + (on ? 'font-bold' : 'font-semibold')}>{o.label}</Text>
+                  {o.detail ? <Text className="text-xs text-text-secondary">{o.detail}</Text> : null}
+                </View>
+                {on ? <Check size={18} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Sheet>
+    </>
+  );
+}
+
+export type MenuItem = { label: string; icon: LucideIcon; onPress: () => void; tone?: Tone };
+
+/**
+ * One "more" button that opens a small menu under it, for actions used now and
+ * then (edit, remove). It replaces a row of icon buttons.
+ */
+export function MoreMenu({ label, items }: { label: string; items: readonly MenuItem[] }) {
+  const anchor = useRef<View>(null);
+  const { width } = useWindowDimensions();
+  const [place, setPlace] = useState<{ top: number; right: number } | null>(null);
+  const shown = useRef(place);
+  if (place) shown.current = place;
+  const menu = usePresence(place !== null, 160);
+  const close = (): void => setPlace(null);
+  const open = (): void => anchor.current?.measureInWindow((x, y, w, h) => setPlace({ top: y + h + 6, right: Math.max(8, width - (x + w)) }));
+  if (!items.length) return null;
+  return (
+    <>
+      <View ref={anchor} collapsable={false}><IconButton icon={MoreHorizontal} label={label} onPress={open} /></View>
+      <Modal visible={menu.mounted} transparent animationType="none" onRequestClose={close}>
+        <Pressable accessible={false} onPress={close} style={{ flex: 1 }}>
+          <Animated.View accessibilityRole="menu" style={{ position: 'absolute', top: shown.current?.top ?? 0, right: shown.current?.right ?? 0, minWidth: 196, opacity: menu.progress, transform: [{ translateY: menu.progress.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }] }}>
+            <View className="rounded-2xl border border-border bg-surface-elevated p-1">
+              {items.map((item) => (
+                <Pressable key={item.label} accessibilityRole="menuitem" accessibilityLabel={item.label} onPress={() => { close(); item.onPress(); }}
+                  className="min-h-12 flex-row items-center gap-3 rounded-xl px-3 hover:bg-surface-tint active:bg-surface-tint">
+                  <item.icon size={18} color={toneColor[item.tone ?? 'primary']} />
+                  <Text className="text-[15px] font-semibold" style={{ color: item.tone === 'out' ? toneColor.out : colors.textPrimary }}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 

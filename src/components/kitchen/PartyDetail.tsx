@@ -10,7 +10,7 @@ import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
 import { entrySubline, formatDayLabel, formatMoney, statementRows, typeLabel, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, IconButton, KHeader, Notice, PrimaryButton, Row, Section, useDesktopDensity } from './ui';
+import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Row, Section, useDesktopDensity } from './ui';
 import { EntryActions } from './EntryActions';
 
 type Props = {
@@ -65,12 +65,10 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         subtitle={isBranch ? 'Branch' : 'Vendor'}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
-        right={
-          <View className="flex-row" style={{ gap: 8 }}>
-            {can('setup.parties') ? <IconButton icon={Pencil} label={`Edit ${party.name}`} onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } })} /> : null}
-            {can('setup.parties') ? <IconButton icon={Trash2} label={`Remove ${party.name}`} tone="out" onPress={remove} /> : null}
-          </View>
-        }
+        right={can('setup.parties') ? <MoreMenu label={`More for ${party.name}`} items={[
+          { label: `Edit ${isBranch ? 'branch' : 'vendor'}`, icon: Pencil, onPress: () => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } }) },
+          { label: `Remove ${isBranch ? 'branch' : 'vendor'}`, icon: Trash2, tone: 'out', onPress: remove },
+        ]} /> : undefined}
       />
       <Card>
         <View className={desktop ? 'flex-row items-center gap-4' : undefined}>

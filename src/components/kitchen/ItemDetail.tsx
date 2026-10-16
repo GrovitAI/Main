@@ -10,7 +10,7 @@ import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use
 import { confirmAction } from '@/lib/pos/dialogs';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, IconButton, KHeader, Notice, PrimaryButton, Section, Skeleton, TextField, useDesktopDensity } from './ui';
+import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Section, Skeleton, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
 import { EntryActions } from './EntryActions';
 
@@ -103,12 +103,10 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
         subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : `${item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}${item.cost_price !== null ? ` · costs ${formatMoney(item.cost_price)}` : ' · no cost set'}`}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
-        right={
-          <View className="flex-row" style={{ gap: 8 }}>
-            {can('setup.items') ? <IconButton icon={Pencil} label={`Edit ${item.name}`} onPress={() => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } })} /> : null}
-            {can('setup.items') ? <IconButton icon={Trash2} label={`Remove ${item.name}`} tone="out" onPress={remove} /> : null}
-          </View>
-        }
+        right={can('setup.items') ? <MoreMenu label={`More for ${item.name}`} items={[
+          { label: 'Edit item', icon: Pencil, onPress: () => router.push({ pathname: '/central-kitchen/item-form', params: { id: item.id } }) },
+          { label: 'Remove item', icon: Trash2, tone: 'out', onPress: remove },
+        ]} /> : undefined}
       />
       <Card>
         <View className={desktop ? 'flex-row items-center gap-4' : undefined}>

@@ -243,3 +243,36 @@ live in `src/components/kitchen/ui.tsx`.
   Choosing a tab scrolls it into view. "Purchases" keeps its name; the owner
   declined renaming it to "Bought".
 - **Desktop:** the same equal tabs sit in one row, with no scrolling.
+
+## Task 219: fewer buttons (2026-10-16)
+
+The owner's rule, now in AGENTS.md: use a button only where no lighter
+control works.
+
+- **New shared controls** in `ui.tsx`:
+  - `SettingsGroup`: one card of rows separated by hairlines.
+  - `Toggle`: a whole-row on/off switch. The thumb glides, the track fills
+    blue, the phone ticks, and Reduce Motion is respected.
+  - `SelectRow`: a row naming a setting and its current value, which opens
+    the choices in the existing `Sheet`.
+  - `MoreMenu`: one "⋯" button whose small menu opens under it.
+- **Team and day lock:**
+  - "Lock each day automatically" is a switch. Before, it was On/Off buttons.
+  - "Yesterday stays open until" is a value row. Before, it was 8 hour pills.
+  - "Lock everything up to" is a value row offering No date, Yesterday, End
+    of last month and Another date. Another date opens the shared calendar,
+    which replaces the typed date field.
+  - Save and Undo appear only once something has changed.
+  - A login's starting role is a value row, and its Save and Undo also appear
+    only after a change.
+  - "Show older changes" is a text link.
+- **Branch, vendor and item pages:** Edit and Remove share one "⋯" menu
+  instead of two icon buttons.
+- **Cash and bank:** the opening-balance line carries a "Change" link instead
+  of a second button beside Move money.
+- **Attendance:** the selection bar appears only while selecting. A "Select
+  several" link on the count line starts it. Pressing or holding a name still
+  works.
+- **Considered for later:** the attendance group-mark bar (four status buttons
+  plus Mark), the Analytics desktop toolbar icons, and the attendance Refresh
+  icon (phones can pull to refresh).

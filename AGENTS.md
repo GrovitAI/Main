@@ -69,6 +69,12 @@ Never hardcode UUIDs outside tenant-context.ts.
   on both layouts (390 px phone and desktop) for every component and screen
   variant it touches, including the separate phone/desktop branches. Do not
   wait for the owner to point out the other device.
+- Buttons are the last resort: use one only where no lighter control works.
+  On/off settings are switches (Toggle), one-of-many choices are select rows
+  (SelectRow) rather than rows of pills, whole rows are tappable instead of
+  carrying small buttons, Save/Undo appear only once something changed, and
+  load-more/retry are text links. Avoid unnecessary components and repeated
+  copy; keep screens minimal and clean but never dull.
 
 ## File ownership
 - UI screens → src/app/(app)/*.tsx

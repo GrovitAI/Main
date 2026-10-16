@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
 import { AttendanceAction } from '@/components/kitchen/AttendanceAction';
 import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
-import { Empty, GhostButton, IconButton, KScreen, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
+import { Empty, GhostButton, IconButton, KScreen, LinkButton, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useSlidingRect } from '@/components/kitchen/ui';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
@@ -241,8 +241,8 @@ export default function KitchenAttendanceScreen() {
     {pane === 'daily' && data && loadedDate === date ? <FilterPlace.Provider value={statusSlide.measure}><FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} CellRendererComponent={FilterCell}
       ListHeaderComponentStyle={{ marginRight: -4 }} ListHeaderComponent={<Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, ...statusSlide.style }} />}
       renderItem={({ item: option }) => <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Filter attendance: ${option.label}`} accessibilityState={{ selected: statusFilter === option.value, disabled: busy }} onPress={() => { if (busyRef.current) return; clearSelection(); setStatusFilter(option.value); }} className={`min-h-12 flex-row items-center gap-2 rounded-lg border px-3 focus:border-primary ${statusFilter === option.value ? 'border-transparent' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'}`}><Text className={`text-sm font-semibold ${statusFilter === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text><Text className="text-xs font-semibold text-text-secondary">{option.value === 'all' ? total : counts[option.value]}</Text></Pressable>} /></FilterPlace.Provider> : null}
-    {pane === 'daily' && data && loadedDate === date && !loading ? <View className="gap-2 border-y border-border bg-surface-tint px-3 py-2" testID="attendance-selection-toolbar">
-      {selecting ? <>
+    <Reveal open={pane === 'daily' && Boolean(data) && loadedDate === date && !loading && selecting}><View className="gap-2 border-y border-border bg-surface-tint px-3 py-2" testID="attendance-selection-toolbar">
+      <>
         <View className="flex-row flex-wrap items-center justify-between gap-2">
           <Text className="text-sm font-semibold text-text-primary" accessibilityLiveRegion="polite">{selectedPeople.length} selected · {attendanceDateLabel(date)}</Text>
           <AttendanceAction label="Cancel" accessibilityLabel="Cancel selection" disabled={busy} onPress={clearSelection} />
@@ -266,16 +266,13 @@ export default function KitchenAttendanceScreen() {
             disabled={busy || !selectedPeople.length || !groupStatus} onPress={() => void markGroup()} />
           <Text className="text-xs text-text-secondary">Existing marks will be updated. Notes are kept.</Text>
         </View>
-      </> : <View className="flex-row flex-wrap items-center gap-2">
-        <AttendanceAction label="Select staff" disabled={busy || !rows.length || !mayMark} onPress={() => { setSelecting(true); setSaved(null); }} />
-        <Text className="flex-1 text-xs text-text-secondary">Select or hold a name to mark several staff.</Text>
-      </View>}
-    </View> : null}
+      </>
+    </View></Reveal>
     {error ? <Notice text={error} /> : null}
     {markNotice && pane === 'daily' ? <Notice tone="neutral" text={markNotice} /> : null}
     {saved ? <Text className="text-sm font-semibold text-primary" accessibilityLiveRegion="polite">{saved}</Text> : null}
     {busy ? <ActivityIndicator accessibilityLabel="Saving attendance change" color={colors.primary} /> : null}
-    {!loading && data ? <View className="flex-row items-center justify-between gap-2 pb-2"><Text className="text-xs text-text-secondary">{rows.length} staff{query || (pane === 'daily' && statusFilter !== 'all') ? ' in this view' : ''}</Text>{pane === 'daily' ? <Text className="text-xs text-text-secondary">{total - counts.unmarked} of {total} marked</Text> : null}</View> : null}
+    {!loading && data ? <View className="flex-row items-center justify-between gap-2 pb-2"><Text className="text-xs text-text-secondary">{rows.length} staff{query || (pane === 'daily' && statusFilter !== 'all') ? ' in this view' : ''}</Text>{pane === 'daily' ? <View className="flex-row items-center gap-3">{!selecting && mayMark && rows.length > 1 ? <LinkButton label="Select several" onPress={() => { if (busyRef.current) return; setSelecting(true); setSaved(null); }} /> : null}<Text className="text-xs text-text-secondary">{total - counts.unmarked} of {total} marked</Text></View> : null}</View> : null}
     {desktop && !selecting && pane === 'daily' && data && rows.length ? <View className="flex-row items-center gap-3 border-y border-border-soft bg-surface-tint px-3 py-2"><Text className="flex-1 text-xs font-semibold text-text-secondary">Staff member</Text><Text className="w-[320px] text-xs font-semibold text-text-secondary">Attendance</Text><Text className="w-[168px] text-xs font-semibold text-text-secondary">Last updated</Text><Text className="w-12 text-xs font-semibold text-text-secondary">Edit</Text></View> : null}
   </View>;
   if (monthly) return <KScreen scroll={false} wide><MonthlyAttendance header={navigationHeader} onLockChange={setMonthlyLocked} /></KScreen>;

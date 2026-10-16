@@ -12,8 +12,8 @@ import { fetchKitchenAudit, fetchKitchenTeam, saveKitchenLock, saveKitchenStaffA
 import { PERMISSION_GROUPS, PRESETS, auditText, dayText, hourText, lockSummary, presetFor, presetLabel } from '@/lib/pos/kitchen-access-utils';
 import type { KitchenAuditRow, KitchenPermission, KitchenPreset, KitchenTeamMember } from '@/lib/pos/kitchen-access-types';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { Card, Chips, Empty, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Reveal, Section, Segmented, Skeleton, TextField, Tick } from './ui';
-import { isValidDateKey } from './forms';
+import { Card, Empty, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Reveal, Section, SelectRow, SettingsGroup, Skeleton, Tick, Toggle } from './ui';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 const HOURS = [6, 8, 10, 11, 12, 14, 18, 22] as const;
 
@@ -41,21 +41,30 @@ export function TeamWorkspace() {
   );
 }
 
+/** What "Lock everything up to" is set to: nothing, one of the two usual days, or a picked date. */
+type ThroughChoice = 'none' | 'yesterday' | 'month' | 'pick' | 'other';
+
 function LockCard() {
   const { access } = useKitchenAccess();
   const today = access.today || kitchenToday();
   const [autoLock, setAutoLock] = useState(access.autoLock);
   const [hour, setHour] = useState(access.openUntilHour);
   const [through, setThrough] = useState(access.lockThrough ?? '');
+  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const yesterday = useMemo(() => { const d = new Date(`${today}T12:00:00`); d.setDate(d.getDate() - 1); return kitchenToday(d); }, [today]);
   const lastMonthEnd = useMemo(() => { const d = new Date(`${today}T12:00:00`); d.setDate(0); return kitchenToday(d); }, [today]);
-  const throughValid = through === '' || (isValidDateKey(through) && through <= today);
   const changed = autoLock !== access.autoLock || hour !== access.openUntilHour || (through || null) !== access.lockThrough;
+  const choice: ThroughChoice = through === '' ? 'none' : through === yesterday ? 'yesterday' : through === lastMonthEnd ? 'month' : 'other';
 
+  const undo = (): void => { setAutoLock(access.autoLock); setHour(access.openUntilHour); setThrough(access.lockThrough ?? ''); setError(null); };
+  const chooseThrough = (next: ThroughChoice): void => {
+    setError(null);
+    if (next === 'pick') { setPicking(true); return; }
+    if (next !== 'other') setThrough(next === 'none' ? '' : next === 'yesterday' ? yesterday : lastMonthEnd);
+  };
   const save = async () => {
-    if (!throughValid) return;
     setBusy(true); setError(null);
     const result = await saveKitchenLock({ autoLock, openUntilHour: hour, lockThrough: through || null }, today);
     setBusy(false);
@@ -66,33 +75,42 @@ function LockCard() {
 
   return (
     <Section title="Day lock">
-      <Card>
-        <View className="flex-row items-center gap-2">
-          <Lock size={16} color={colors.textSecondary} />
-          <Text className="flex-1 text-[13px] font-semibold text-text-secondary">{lockSummary(access)}</Text>
+      <SettingsGroup>
+        <View className="flex-row items-center gap-2 border-t border-border-soft bg-surface-tint px-3.5 py-2.5">
+          <Lock size={15} color={colors.primary} />
+          <Text className="flex-1 text-[13px] font-semibold text-text-primary">{lockSummary(access)}</Text>
         </View>
-        <Field label="Lock each day automatically" hint={autoLock ? `Staff can still fix yesterday until ${hourText(hour)} today. After that only you can, with a reason.` : 'Staff can change any day their permissions allow.'}>
-          <Segmented options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} value={autoLock ? 'on' : 'off'} onChange={(v) => setAutoLock(v === 'on')} />
-        </Field>
-        {autoLock ? (
-          <Field label="Yesterday stays open until">
-            <Chips options={HOURS.map((h) => ({ value: String(h), label: hourText(h) }))} value={String(hour)} onChange={(v) => setHour(Number(v))} />
-          </Field>
-        ) : null}
-        <Field label="Lock everything up to" hint={through ? `Nothing dated ${dayText(through)} or earlier can change without your reason.` : 'For example, after the month’s accounts are done.'}>
-          <Chips
-            options={[{ value: '', label: 'No date' }, { value: yesterday, label: 'Yesterday' }, { value: lastMonthEnd, label: `End of last month · ${dayText(lastMonthEnd)}` }]}
-            value={[yesterday, lastMonthEnd, ''].includes(through) ? through : '__other'}
-            onChange={setThrough}
-          />
-          <View style={{ marginTop: 8 }}>
-            <TextField value={through} onChange={setThrough} label="Lock up to date" placeholder="Year-month-day, for example 2026-09-30" keyboardType="numeric" />
+        <Toggle label="Lock each day automatically" on={autoLock} onChange={setAutoLock}
+          hint={autoLock ? `Staff can fix yesterday until ${hourText(hour)} today. After that only you can, with a reason.` : 'Staff can change any day their permissions allow.'} />
+        <Reveal open={autoLock}>
+          <SelectRow label="Yesterday stays open until" value={String(hour)} onChange={(v) => setHour(Number(v))}
+            options={HOURS.map((h) => ({ value: String(h), label: hourText(h) }))} />
+        </Reveal>
+        <SelectRow<ThroughChoice> label="Lock everything up to" value={choice} onChange={chooseThrough}
+          valueLabel={choice === 'other' ? dayText(through) : undefined}
+          hint={through ? `Nothing dated ${dayText(through)} or earlier changes without your reason.` : 'For example, once the month’s accounts are done.'}
+          options={[
+            { value: 'none', label: 'No date' },
+            { value: 'yesterday', label: 'Yesterday', detail: dayText(yesterday) },
+            { value: 'month', label: 'End of last month', detail: dayText(lastMonthEnd) },
+            { value: 'pick', label: choice === 'other' ? `Another date · ${dayText(through)}` : 'Another date…' },
+          ]} />
+        <Reveal open={changed || Boolean(error)}>
+          <View className="gap-2 border-t border-border-soft px-3.5 py-3">
+            {error ? <Notice text={error} /> : null}
+            <View className="flex-row items-center justify-end gap-3">
+              <LinkButton label="Undo" onPress={undo} />
+              <PrimaryButton label="Save day lock" onPress={() => void save()} disabled={!changed} loading={busy} />
+            </View>
           </View>
-          {!throughValid ? <View style={{ marginTop: 8 }}><Notice text="Enter a date up to today, as year-month-day." /></View> : null}
-        </Field>
-        {error ? <View style={{ marginTop: 10 }}><Notice text={error} /></View> : null}
-        <View style={{ marginTop: 14 }}><PrimaryButton label="Save day lock" onPress={() => void save()} disabled={!changed || !throughValid} loading={busy} /></View>
-      </Card>
+        </Reveal>
+      </SettingsGroup>
+      <DatePickerModal visible={picking} mode="single" startDate={through || yesterday} endDate={through || yesterday} onClose={() => setPicking(false)}
+        onApply={(day) => {
+          setPicking(false);
+          if (day > today) { setError('Pick a day up to today.'); return; }
+          setThrough(day);
+        }} />
     </Section>
   );
 }
@@ -110,7 +128,7 @@ function TeamSection() {
 
   return (
     <Section title="Kitchen logins">
-      <Text className="mb-2 text-[13px] leading-5 text-text-secondary">Each person signs in with their own login. Add one under Settings › Staff with the role Kitchen. You always have every permission.</Text>
+      <Text className="mb-2 text-[13px] leading-5 text-text-secondary">Add a login under Settings › Staff with the role Kitchen. You always have every permission.</Text>
       {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load()} />} /> : null}
       {team === null && !error ? (
         <View style={{ gap: 8 }}><Skeleton height={64} /><Skeleton height={64} /></View>
@@ -160,10 +178,11 @@ function MemberCard({ member, open, onToggle, onSaved }: { member: KitchenTeamMe
       </Pressable>
       <Reveal open={open}>
         <View className="border-t border-border-soft px-4 pb-4 pt-3" style={{ gap: 14 }}>
-          <Field label="Starting role" hint={PRESETS.find((p) => p.id === preset)?.summary ?? 'Custom: switched on one by one below.'}>
-            <Chips options={[...PRESETS.map((p) => ({ value: p.id as KitchenPreset, label: p.label })), ...(preset === 'custom' ? [{ value: 'custom' as KitchenPreset, label: 'Custom' }] : [])]}
-              value={preset} onChange={(id) => { const p = PRESETS.find((x) => x.id === id); if (p) setPerms([...p.permissions]); }} />
-          </Field>
+          <View className="-mx-4 -mt-3">
+            <SelectRow<KitchenPreset> label="Starting role" value={preset} hint={PRESETS.find((p) => p.id === preset)?.summary ?? 'Custom: switched on one by one below.'}
+              options={[...PRESETS.map((p) => ({ value: p.id as KitchenPreset, label: p.label, detail: p.summary })), ...(preset === 'custom' ? [{ value: 'custom' as KitchenPreset, label: 'Custom', detail: 'Switched on one by one' }] : [])]}
+              onChange={(id) => { const p = PRESETS.find((x) => x.id === id); if (p) setPerms([...p.permissions]); }} />
+          </View>
           {PERMISSION_GROUPS.map((group) => (
             <View key={group.title}>
               <Text className="mb-1 text-xs font-extrabold uppercase tracking-wide text-text-secondary">{group.title}</Text>
@@ -183,10 +202,12 @@ function MemberCard({ member, open, onToggle, onSaved }: { member: KitchenTeamMe
             </View>
           ))}
           {error ? <Notice text={error} /> : null}
-          <View className="flex-row" style={{ gap: 10 }}>
-            <View className="flex-1"><GhostButton label="Undo changes" onPress={() => setPerms(member.permissions)} disabled={!changed || busy} /></View>
-            <View className="flex-1"><PrimaryButton label="Save" onPress={() => void save()} disabled={!changed} loading={busy} /></View>
-          </View>
+          <Reveal open={changed}>
+            <View className="flex-row items-center justify-end gap-3">
+              <LinkButton label="Undo" onPress={() => setPerms(member.permissions)} />
+              <PrimaryButton label={`Save ${member.name.split(' ')[0]}’s permissions`} onPress={() => void save()} disabled={!changed} loading={busy} />
+            </View>
+          </Reveal>
         </View>
       </Reveal>
     </Card>
@@ -231,7 +252,7 @@ function AuditSection() {
           })
         )}
       </Card>
-      {more ? <View style={{ marginTop: 10 }}><GhostButton label="Show older changes" onPress={() => void load(page + 1)} /></View> : null}
+      {more ? <View className="items-center"><LinkButton label="Show older changes" onPress={() => void load(page + 1)} /></View> : null}
     </Section>
   );
 }
