@@ -884,6 +884,7 @@ export default function OrdersScreen() {
           <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 8, padding: 3 }}>
             <Pressable
               accessibilityRole="button"
+              aria-selected={activeTab === 'active'}
               onPress={() => setActiveTab('active')}
               style={{
                 paddingHorizontal: 14,
@@ -903,6 +904,7 @@ export default function OrdersScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              aria-selected={activeTab === 'history'}
               onPress={() => setActiveTab('history')}
               style={{
                 paddingHorizontal: 14,

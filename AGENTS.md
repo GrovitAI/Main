@@ -87,7 +87,10 @@ Never hardcode UUIDs outside tenant-context.ts.
   hover: class); a dark container whose items all do is hoverScope; a pill or
   segment drawn smaller than its 44 px target uses hoverFace on the target and
   hoverFaceMark on the drawn face; a text link uses hoverLink (underline).
-  Every new clickable control must show a hover on desktop.
+  Every new clickable control must show a hover on desktop, except one that
+  is already selected: give choice controls aria-selected (or aria-checked for
+  a radio), since RN-web drops accessibilityState, and never put a hover:
+  class on the selected state.
 
 ## File ownership
 - UI screens → src/app/(app)/*.tsx

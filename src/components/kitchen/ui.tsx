@@ -353,6 +353,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={selected ? { selected: true } : undefined}
+      aria-selected={selected ? true : undefined}
       className="active:opacity-60"
       style={reach}
     >
@@ -523,6 +524,7 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
               onLayout={slide.measure(i)}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
+              aria-selected={on}
               accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
               {...hoverFace}
               style={pressed({ minHeight: TARGET, justifyContent: 'center', ...(equal.width ? { width: equal.width } : {}) })}
@@ -830,8 +832,8 @@ export function SelectRow<T extends string>({ label, hint, value, valueLabel, op
           {options.map((o) => {
             const on = o.value === value;
             return (
-              <Pressable key={o.value} onPress={() => { setOpen(false); onChange(o.value); }} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={o.detail ? `${o.label}, ${o.detail}` : o.label}
-                className={'min-h-12 flex-row items-center gap-3 rounded-xl px-3 py-2 hover:bg-accent-soft active:bg-accent-soft ' + (on ? 'bg-surface-tint' : '')}>
+              <Pressable key={o.value} onPress={() => { setOpen(false); onChange(o.value); }} accessibilityRole="button" accessibilityState={{ selected: on }} aria-selected={on} accessibilityLabel={o.detail ? `${o.label}, ${o.detail}` : o.label}
+                className={'min-h-12 flex-row items-center gap-3 rounded-xl px-3 py-2 ' + (on ? 'bg-surface-tint' : 'hover:bg-accent-soft active:bg-accent-soft')}>
                 <View className="min-w-0 flex-1">
                   <Text className={'text-[15px] text-text-primary ' + (on ? 'font-bold' : 'font-semibold')}>{o.label}</Text>
                   {o.detail ? <Text className="text-xs text-text-secondary">{o.detail}</Text> : null}
@@ -900,7 +902,7 @@ export function ChoiceButtons<T extends string>({ options, value, onChange, labe
           const on = o.value === value;
           const Icon = o.icon;
           return (
-            <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={o.label}
+            <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={o.label}
               {...hoverFace} style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
               <View {...hoverFaceMark} style={{ flex: 1, minHeight: VISUAL, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, borderRadius: 10 }}>
                 <Icon size={16} color={on ? colors.textOnPrimary : colors.primary} />
@@ -925,7 +927,7 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
         {options.map((o, i) => {
           const on = o.value === value;
           return (
-            <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+            <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on}
               {...hoverFace} style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
               <View {...hoverFaceMark} style={{ flex: 1, minHeight: VISUAL, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }}>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>

@@ -430,3 +430,26 @@ so their tint floated 14 px in from each side with square corners.
   - hover shots of the lists, tiles, pills, the Branch dropdown, the More
     menu, the date picker and the category sheet show each tint matching the
     exact area that takes the click.
+
+## Task 227: no hover on what is already selected (2026-10-16)
+
+The owner pointed out that a selected choice, such as "Finished goods", needs
+no hover: clicking it changes nothing.
+
+- RN-web 0.21 ignores `accessibilityState`, so selected controls had no
+  selected mark on the page at all. Choice controls now set `aria-selected`
+  (or `aria-checked` for a radio):
+  - in the kitchen: Chips, Segmented, ChoiceButtons, Row, SelectRow and
+    ReportSelect options, team logins, the phone tab bar and its More list,
+    Attendance tabs, filters, days and month statuses;
+  - in the main app: POS categories and the Orders tabs.
+  This also tells screen readers on the web which option is selected.
+- `web-hover.ts` gives nothing selected a tint (`aria-selected`, a checked
+  radio, `aria-pressed`, `aria-current`). Tick boxes and switches keep their
+  hover, since a click still toggles them.
+- Controls with their own `hover:` classes drop them while selected. This
+  covers the kitchen lists above and the main app's inventory and recipe
+  pickers.
+- Checked with mocked data on phone and desktop: every selected control on
+  14 page views looks the same before and during a hover, while unselected
+  neighbours still light up.

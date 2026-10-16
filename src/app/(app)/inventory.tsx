@@ -3282,8 +3282,8 @@ export default function InventoryScreen() {
                             setPurchaseSupplierId(s.id);
                             setIsSupDropdownOpen(false);
                           }}
-                          className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                            purchaseSupplierId === s.id ? 'bg-blue-50/50' : ''
+                          className={`p-2 rounded-lg ${
+                            purchaseSupplierId === s.id ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                           }`}
                         >
                           <Text className={`text-xs font-bold ${purchaseSupplierId === s.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{s.supplier_name}</Text>
@@ -3430,8 +3430,8 @@ export default function InventoryScreen() {
                           setPurchasePaymentMode(mode);
                           setIsPayDropdownOpen(false);
                         }}
-                        className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                          purchasePaymentMode === mode ? 'bg-blue-50/50' : ''
+                        className={`p-2 rounded-lg ${
+                          purchasePaymentMode === mode ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                         }`}
                       >
                         <Text className={`text-xs font-bold ${purchasePaymentMode === mode ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{mode}</Text>
@@ -3626,8 +3626,8 @@ export default function InventoryScreen() {
                                   });
                                   setOpenLineMatDropdownIdx(null);
                                 }}
-                                className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                  itm.material_id === m.id ? 'bg-blue-50/50' : ''
+                                className={`p-1.5 rounded-md ${
+                                  itm.material_id === m.id ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                                 }`}
                               >
                                 <Text className={`text-xs font-bold ${itm.material_id === m.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
@@ -3669,8 +3669,8 @@ export default function InventoryScreen() {
                                   handleUpdatePurchaseLine(idx, 'unit_short_name', u.short_name);
                                   setOpenLineUnitDropdownIdx(null);
                                 }}
-                                className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                  (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : ''
+                                className={`p-1.5 rounded-md ${
+                                  (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                                 }`}
                               >
                                 <Text className={`text-xs font-bold ${(itm.unit_short_name || matUnitShort) === u.short_name ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
@@ -3744,8 +3744,8 @@ export default function InventoryScreen() {
                                 handleUpdatePurchaseLine(idx, 'gst', gstVal);
                                 setOpenLineGstDropdownIdx(null);
                               }}
-                              className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                itm.gst === gstVal ? 'bg-blue-50/50' : ''
+                              className={`p-1.5 rounded-md ${
+                                itm.gst === gstVal ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                               }`}
                             >
                               <Text className={`text-xs font-bold ${itm.gst === gstVal ? 'text-blue-600 font-extrabold' : 'text-slate-700'} text-center`}>{gstVal}%</Text>

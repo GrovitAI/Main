@@ -99,8 +99,9 @@ export function CategoryTabs({
             return (
               <Pressable
                 accessibilityRole="button"
+                aria-selected={isActive}
                 onPress={() => onSelectCategory(item.id)}
-                className="mb-1.5"
+                className="mb-1.5 rounded-[20px]"
               >
                 {isActive ? (
                   // ACTIVE CATEGORY

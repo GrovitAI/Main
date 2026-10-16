@@ -221,8 +221,8 @@ function MemberRow({ member, draft, selected = false, expanded, first, onPress }
   const detail = `${presetLabel(member.preset)} · ${member.permissions.length} of ${PERMISSION_TOTAL}`;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${member.name}, ${detail}${draft ? ', unsaved changes' : ''}`}
-      accessibilityState={expanded === undefined ? { selected } : { expanded }}
-      className={'min-h-[64px] flex-row items-center gap-3 px-4 py-3 hover:bg-surface-tint active:bg-surface-tint ' + (first ? '' : 'border-t border-border-soft ') + (selected ? 'bg-surface-tint' : '')}>
+      accessibilityState={expanded === undefined ? { selected } : { expanded }} aria-selected={expanded === undefined ? selected : undefined}
+      className={'min-h-[64px] flex-row items-center gap-3 px-4 py-3 ' + (first ? '' : 'border-t border-border-soft ') + (selected ? 'bg-surface-tint' : 'hover:bg-surface-tint active:bg-surface-tint')}>
       <View className={'h-10 w-10 items-center justify-center rounded-full ' + (selected ? 'bg-primary' : 'bg-accent-soft')}><UserRound size={18} color={selected ? colors.textOnPrimary : colors.primary} /></View>
       <View className="min-w-0 flex-1">
         <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{member.name}</Text>

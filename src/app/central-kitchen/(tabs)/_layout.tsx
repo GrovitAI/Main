@@ -96,7 +96,7 @@ function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: Kitc
       accessibilityState={{ selected: focused }}
       aria-selected={focused}
       accessibilityLabel={tab.label}
-      className={`items-center active:opacity-80 ${rail ? 'overflow-hidden rounded-[14px] border' : 'rounded-xl hover:bg-surface-tint focus:border focus:border-primary'} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
+      className={`items-center active:opacity-80 ${rail ? 'overflow-hidden rounded-[14px] border' : `rounded-xl focus:border focus:border-primary ${focused ? '' : 'hover:bg-surface-tint'}`} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
     >
       <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused && !rail ? 'bg-accent-soft' : ''}`}`}>
         <Icon size={compact ? 18 : 21} color={color} />
@@ -147,7 +147,7 @@ function BottomBar({ state, navigation }: BarProps) {
           <Pressable accessibilityRole="button" accessibilityLabel="Close more sections" onPress={() => setMoreOpen(false)} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary"><X size={18} color={colors.primary} /></Pressable>
         </View>
         <FlatList data={more} keyExtractor={tab => tab.name} extraData={activeName}
-          renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: activeName === item.name }} onPress={() => openTab(item)} className="min-h-12 flex-row items-center gap-3 rounded-xl px-3 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
+          renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: activeName === item.name }} aria-selected={activeName === item.name} onPress={() => openTab(item)} className={`min-h-12 flex-row items-center gap-3 rounded-xl px-3 active:opacity-60 focus:border focus:border-primary ${activeName === item.name ? '' : 'hover:bg-surface-tint'}`}>
             <item.icon size={20} color={colors.primary} /><Text className="text-sm font-semibold text-text-primary">{item.label}</Text>
           </Pressable>} />
       </View></Animated.View> : null}

@@ -1395,8 +1395,8 @@ export default function RecipeManagement() {
                               updateIngredientUnit(idx, opt);
                               setOpenLineUnitDropdownIdx(null);
                             }}
-                            className={`p-1.5 rounded hover:bg-slate-50 active:bg-slate-100 ${
-                              (itm.selected_unit || mat.unit_short_name) === opt ? 'bg-blue-50/50' : ''
+                            className={`p-1.5 rounded ${
+                              (itm.selected_unit || mat.unit_short_name) === opt ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                             }`}
                           >
                             <Text className={`text-xs font-bold ${

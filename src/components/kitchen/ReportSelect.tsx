@@ -45,8 +45,8 @@ export function ReportSelect({ label, value, options, onChange, emptyLabel = 'Al
               className="mt-3 max-h-[360px] shrink" ListEmptyComponent={<Text className="py-4 text-sm text-text-secondary">No matches. Try another name.</Text>}
               ItemSeparatorComponent={() => <View className="h-1" />}
               renderItem={({ item }) => (
-                <Pressable accessibilityRole="button" accessibilityState={{ selected: item.id === (value ?? '') }}
-                  onPress={() => { onChange(item.id || null); close(); }} className={'min-h-12 flex-row items-center gap-2 rounded-lg border border-transparent px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus:border-primary ' + (item.id === (value ?? '') ? 'bg-surface-tint' : 'bg-surface-elevated')}>
+                <Pressable accessibilityRole="button" accessibilityState={{ selected: item.id === (value ?? '') }} aria-selected={item.id === (value ?? '')}
+                  onPress={() => { onChange(item.id || null); close(); }} className={'min-h-12 flex-row items-center gap-2 rounded-lg border border-transparent px-3 py-2 focus:border-primary ' + (item.id === (value ?? '') ? 'bg-surface-tint' : 'bg-surface-elevated hover:bg-accent-soft active:bg-accent-soft')}>
                   <Text className="flex-1 text-sm font-semibold text-text-primary">{item.label}</Text>
                   {item.id === (value ?? '') ? <Check size={18} color={colors.primary} /> : null}
                 </Pressable>

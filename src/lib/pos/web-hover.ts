@@ -6,12 +6,17 @@ const STYLE_ID = 'app-hover';
 const clickable = ':is([role="button"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="menuitem"], [role="option"], [role="link"], a[href], [tabindex="0"])';
 const enabled = `${clickable}:not(input):not(textarea):not([aria-disabled="true"])`;
 /**
+ * Already chosen: a selected tab, pill, segment, row or option (task 227). Clicking it changes
+ * nothing, so it takes no hover. Tick boxes and switches still do, as a click toggles them.
+ */
+const chosen = ':is([aria-selected="true"], [role="radio"][aria-checked="true"], [aria-pressed="true"], [aria-current="page"])';
+/**
  * The controls the shared tint is drawn on. Left out: controls with their own hover, items of a
  * container whose items draw their own, and wrappers that hold other controls or fields (a
  * modal's backdrop or body, a card around buttons), which would otherwise light up as a whole
  * when the pointer is over one of the things inside them.
  */
-const tinted = `${enabled}:not([class*="hover:"]):not([data-hover]):not([data-hover="scope"] *):not(:has(${clickable}, input, textarea))`;
+const tinted = `${enabled}:not(${chosen}):not([class*="hover:"]):not([data-hover]):not([data-hover="scope"] *):not(:has(${clickable}, input, textarea))`;
 const fade = 'opacity 140ms ease-out';
 
 /**
@@ -27,6 +32,7 @@ const fade = 'opacity 140ms ease-out';
  * - `hoverFace` on a control whose drawn face is smaller than its finger target (a 36 px pill in a
  *   44 px target): the tint goes on the face marked `hoverFaceMark`, not on the whole target;
  * - `hoverLink` on a text link, which underlines instead.
+ * A control that is already selected takes no hover at all (`chosen`).
  */
 const css = `
 @media (hover: hover) and (pointer: fine) {
@@ -35,7 +41,7 @@ const css = `
     content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
     background-color: ${colors.hoverTint}; opacity: 0; transition: ${fade};
   }
-  ${tinted}:hover::after, [data-hover="face"]:not([aria-disabled="true"]):hover [data-hover-face]::after { opacity: 1; }
+  ${tinted}:hover::after, [data-hover="face"]:not([aria-disabled="true"]):not(${chosen}):hover [data-hover-face]::after { opacity: 1; }
   ${enabled}[class*="hover:"] { transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out; }
   [data-hover="link"]:not([aria-disabled="true"]):hover * { text-decoration-line: underline; }
 }
