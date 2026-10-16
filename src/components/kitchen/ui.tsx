@@ -16,6 +16,7 @@ import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { amountReadBack, formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
+import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
 
 export type Tone = 'neutral' | 'in' | 'out' | 'buy' | 'primary';
@@ -412,7 +413,7 @@ export function SearchBox({ value, onChange, placeholder = 'Search', autoFocus }
         returnKeyType="search"
       />
       {value ? (
-        <Pressable onPress={() => onChange('')} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} style={pressed({ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' })}>
+        <Pressable onPress={() => onChange('')} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} style={pressed({ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' })}>
           <X size={16} color={colors.textSecondary} />
         </Pressable>
       ) : null}
@@ -513,9 +514,10 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
+              {...hoverFace}
               style={pressed({ minHeight: TARGET, justifyContent: 'center', ...(equal.width ? { width: equal.width } : {}) })}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: equal.width ? 6 : 14, gap: 6, backgroundColor: 'transparent', borderColor: on ? colors.primary : colors.border }}>
+              <View {...hoverFaceMark} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 999, borderWidth: 1, minHeight: VISUAL, paddingHorizontal: equal.width ? 6 : 14, gap: 6, backgroundColor: 'transparent', borderColor: on ? colors.primary : colors.border }}>
                 {chipFace(o, on)}
               </View>
             </Pressable>
@@ -530,8 +532,8 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
 
 export function AddChip({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.surfaceTint, minHeight: VISUAL, paddingHorizontal: 14, gap: 4 }}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} {...hoverFace} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
+      <View {...hoverFaceMark} style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, backgroundColor: colors.surfaceTint, minHeight: VISUAL, paddingHorizontal: 14, gap: 4 }}>
         <Plus size={14} color={colors.primary} />
         <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>{label}</Text>
       </View>
@@ -726,15 +728,15 @@ export function GhostButton({ label, onPress, icon: Icon, tone = 'neutral', smal
   // A small button is drawn 36 high inside a full-height target.
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }}
-      style={pressed(small ? { minHeight: TARGET, justifyContent: 'center' } : face)}>
-      {small ? <View style={face}>{content}</View> : content}
+      {...(small ? hoverFace : {})} style={pressed(small ? { minHeight: TARGET, justifyContent: 'center' } : face)}>
+      {small ? <View {...hoverFaceMark} style={face}>{content}</View> : content}
     </Pressable>
   );
 }
 
 export function LinkButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} {...hoverLink} style={pressed({ minHeight: TARGET, justifyContent: 'center' })}>
       <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '800' }}>{label}</Text>
     </Pressable>
   );
@@ -889,8 +891,8 @@ export function ChoiceButtons<T extends string>({ options, value, onChange, labe
           const Icon = o.icon;
           return (
             <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={o.label}
-              style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
-              <View style={{ flex: 1, minHeight: VISUAL, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 }}>
+              {...hoverFace} style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
+              <View {...hoverFaceMark} style={{ flex: 1, minHeight: VISUAL, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6, borderRadius: 10 }}>
                 <Icon size={16} color={on ? colors.textOnPrimary : colors.primary} />
                 <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
               </View>
@@ -914,8 +916,8 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
           const on = o.value === value;
           return (
             <Pressable key={o.value} onPress={() => onChange(o.value)} onLayout={slide.measure(i)} accessibilityRole="tab" accessibilityState={{ selected: on }}
-              style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
-              <View style={{ flex: 1, minHeight: VISUAL, alignItems: 'center', justifyContent: 'center' }}>
+              {...hoverFace} style={pressed({ flex: 1, minHeight: TARGET, paddingVertical: BAND })}>
+              <View {...hoverFaceMark} style={{ flex: 1, minHeight: VISUAL, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }}>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: on ? colors.primary : colors.textSecondary }}>{o.label}</Text>
               </View>
             </Pressable>
@@ -1153,7 +1155,7 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '800' }}>{title}</Text>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} style={pressed({ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' })}>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} style={pressed({ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' })}>
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>

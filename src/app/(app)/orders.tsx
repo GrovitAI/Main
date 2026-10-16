@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
@@ -1478,7 +1479,7 @@ export default function OrdersScreen() {
                   </Text>
                 )}
               </View>
-              <Pressable
+              <Pressable {...ownHover}
                 accessibilityRole="button"
                 accessibilityLabel="Close preview"
                 onPress={closeViewModal}
@@ -1605,7 +1606,7 @@ export default function OrdersScreen() {
               if (isDraftOrKitchen) {
                 return (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Open in POS"
                       onPress={() => {
@@ -1643,7 +1644,7 @@ export default function OrdersScreen() {
                       </Text>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
@@ -1676,7 +1677,7 @@ export default function OrdersScreen() {
               if (isUnpaidBill) {
                 return (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Reprint Bill"
                       onPress={handleReprintPreviousBill}
@@ -1702,7 +1703,7 @@ export default function OrdersScreen() {
                       </LinearGradient>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Edit Bill"
                       onPress={async () => {
@@ -1735,7 +1736,7 @@ export default function OrdersScreen() {
                       </LinearGradient>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
@@ -1767,7 +1768,7 @@ export default function OrdersScreen() {
               if (isHeld) {
                 return (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Close"
                       onPress={closeViewModal}
@@ -1803,7 +1804,7 @@ export default function OrdersScreen() {
                       </Text>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Resume Billing"
                       onPress={() => {
@@ -1843,7 +1844,7 @@ export default function OrdersScreen() {
               const showReprint = status === 'paid' || status === 'completed';
               return (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                  <Pressable
+                  <Pressable {...ownHover}
                     accessibilityRole="button"
                     accessibilityLabel="Close"
                     onPress={closeViewModal}
@@ -2037,7 +2038,7 @@ function FilterPill({
   }
 
   return (
-    <Pressable
+    <Pressable {...ownHover}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [

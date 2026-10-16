@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
@@ -62,7 +63,7 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
               const on = active === i;
               const delta = p.previous ? (p.value - p.previous) / p.previous : null;
               return (
-                <Pressable key={p.label + i} className="h-full flex-1 items-center justify-end" accessibilityRole="button"
+                <Pressable {...ownHover} key={p.label + i} className="h-full flex-1 items-center justify-end" accessibilityRole="button"
                   accessibilityLabel={`${p.label}: ${format(p.value)}${hasPrevious && p.previous !== undefined ? `, ${p.previousLabel ?? previousName.toLowerCase()} ${format(p.previous)}` : ''}`}
                   onHoverIn={() => setActive(i)} onHoverOut={() => setActive((a) => (a === i ? null : a))} onFocus={() => setActive(i)} onBlur={() => setActive(null)}
                   onPress={() => setActive((a) => (a === i ? null : i))}

@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Pressable, FlatList, ActivityIndicator, Alert, Platform, ScrollView, Modal } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
@@ -293,7 +294,7 @@ function Autocomplete<T extends { id: string }>({
                 </View>
               ) : (
                 filtered.map((item, idx) => (
-                  <Pressable
+                  <Pressable {...ownHover}
                     key={item.id}
                     onPress={() => handleSelect(item)}
                     style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => ({

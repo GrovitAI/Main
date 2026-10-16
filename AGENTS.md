@@ -81,6 +81,13 @@ Never hardcode UUIDs outside tenant-context.ts.
   (equal by design), Chips (widest option, wraps as an equal grid), or
   useEqualChoices with MeasureLabels for custom rows. Never size a choice
   to its own label.
+- Hover on everything clickable (web): useWebHover (src/lib/pos/web-hover.ts,
+  called in the root layout) tints any clickable control under a mouse. A
+  control that draws its own hover marks itself ownHover (or a NativeWind
+  hover: class); a dark container whose items all do is hoverScope; a pill or
+  segment drawn smaller than its 44 px target uses hoverFace on the target and
+  hoverFaceMark on the drawn face; a text link uses hoverLink (underline).
+  Every new clickable control must show a hover on desktop.
 
 ## File ownership
 - UI screens → src/app/(app)/*.tsx

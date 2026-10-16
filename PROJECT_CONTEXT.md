@@ -245,6 +245,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 222 (2026-10-16, staging source): Page layouts. Phone Home shows the four actions first with figures in two calm cards; desktop branch, vendor and item pages split into a list column and a sticky summary column; Team and day lock uses the annotated settings layout on desktop; optional fields say (optional) in the label, hints cut to one sentence.
 ✅ Task 223 (2026-10-16, staging source): Same-size choices everywhere. Chips (Invoices status, item type, unit, branch/vendor pickers) and the Attendance tabs and status filters take the widest option width, so the highlight keeps one size; rule added to AGENTS.md.
 ✅ Task 224 (2026-10-16, staging source): Invoice status is a dropdown with ticks and Select all (ReportMultiSelect) instead of pills; several statuses at once via migration 20261016100000_kitchen_invoice_status_list.sql (staging only, in staging-pending.txt).
+✅ Task 225 (2026-10-16, staging source): Hover highlight on everything clickable, app-wide on the web (useWebHover in the root layout; ownHover/hoverScope/hoverFace/hoverLink markers for controls with their own hover, pills and text links); rule added to AGENTS.md.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

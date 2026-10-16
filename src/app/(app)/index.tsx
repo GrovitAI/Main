@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, useWindowDimensions, View, StyleSheet, Modal, Platform, Alert, Easing, Animated } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
@@ -206,7 +207,7 @@ function CustomConfirmModal({ visible, title, description, buttons, onClose }: C
               }
               
               return (
-                <Pressable
+                <Pressable {...ownHover}
                   key={index}
                   accessibilityRole="button"
                   onPress={btn.onPress}

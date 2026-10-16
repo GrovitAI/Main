@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import React, { useEffect, useState } from 'react';
 import { View, Pressable, Modal, ScrollView } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
@@ -152,7 +153,7 @@ export function DatePickerModal({
     const hovered = hoverDay === day;
     const ink = isEdge ? colors.textOnPrimary : inBand ? colors.primaryDeep : colors.textPrimary;
     return (
-      <Pressable
+      <Pressable {...ownHover}
         key={day}
         accessibilityRole="button"
         accessibilityLabel={longDate(day)}

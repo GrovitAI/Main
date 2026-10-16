@@ -12,6 +12,7 @@ import { useSupabaseAutoRefresh } from '@/lib/pos/use-supabase-auto-refresh';
 import { TestDatabaseBanner } from '@/components/ui/TestDatabaseBanner';
 import { AppFontProvider } from '@/components/ui/Typography';
 import { useAppFonts } from '@/lib/pos/use-app-fonts';
+import { useWebHover } from '@/lib/pos/web-hover';
 
 // A render error in an installed app would otherwise close it; this shows the message instead.
 export { ErrorBoundary } from 'expo-router';
@@ -32,6 +33,8 @@ export default function RootLayout() {
   const isPhone = width < BREAKPOINTS.tablet;
 
   useSupabaseAutoRefresh();
+  // A hover highlight on everything clickable in a browser (task 225).
+  useWebHover();
 
   useEffect(() => {
     async function checkSession() {

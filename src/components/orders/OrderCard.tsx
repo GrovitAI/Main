@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
@@ -90,7 +91,7 @@ export const OrderCard = memo(function OrderCard({
   const ticketsText = ticketsCount === 1 ? '1 kitchen ticket' : `${ticketsCount} kitchen tickets`;
 
   return (
-    <Pressable
+    <Pressable {...ownHover}
       accessibilityRole="button"
       accessibilityLabel={`Open ${billId}`}
       onPress={onOpenBill}
@@ -228,7 +229,7 @@ export const OrderCard = memo(function OrderCard({
         }}>
           
           {/* Bigger, clean View button in the footer */}
-          <Pressable
+          <Pressable {...ownHover}
             accessibilityRole="button"
             accessibilityLabel={`View ${billId}`}
             hitSlop={10}

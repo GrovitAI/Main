@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ActivityIndicator, Modal, Pressable, View, Platform } from 'react-native';
 import { Text } from '@/components/ui/Typography';
@@ -259,7 +260,7 @@ export function SettlementModal({
               const isSelected = selectedMethod === option;
               const isFocused = focusIndex === idx && Platform.OS === 'web';
               return (
-                <Pressable
+                <Pressable {...ownHover}
                   key={option}
                   disabled={isProcessing}
                   onPress={() => {
@@ -298,7 +299,7 @@ export function SettlementModal({
           </View>
 
           <View className="mt-6 flex-row gap-3">
-            <Pressable
+            <Pressable {...ownHover}
               accessibilityRole="button"
               disabled={isProcessing}
               onPress={() => { onClose(); }}
@@ -320,7 +321,7 @@ export function SettlementModal({
               <Text className="text-sm font-bold text-primary-mid">Cancel</Text>
             </Pressable>
 
-            <Pressable
+            <Pressable {...ownHover}
               accessibilityRole="button"
               disabled={isProcessing}
               onPress={() => {

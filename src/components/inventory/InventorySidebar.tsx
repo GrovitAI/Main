@@ -1,3 +1,4 @@
+import { hoverScope, ownHover } from '@/lib/pos/web-hover';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, Platform, Pressable, ScrollView, View, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/Typography';
@@ -218,7 +219,7 @@ export function InventorySidebar({
   ];
 
   return (
-    <Animated.View
+    <Animated.View {...hoverScope}
       style={
         Platform.OS === 'web'
           ? webStyle({
@@ -289,7 +290,7 @@ export function InventorySidebar({
 
       {/* Nav items */}
       <ScrollView style={{ flex: 1, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
-        <Pressable
+        <Pressable {...ownHover}
           onPress={() => onSelectTab('dashboard')}
           style={mainItemStyle(activeTab === 'dashboard')}
           accessibilityRole="tab"
@@ -316,7 +317,7 @@ export function InventorySidebar({
         </Pressable>
 
         {/* Master Collapsible Group Header */}
-        <Pressable
+        <Pressable {...ownHover}
           onPress={onToggleMaster}
           accessibilityRole="button"
           accessibilityLabel={isMasterExpanded ? 'Collapse master setup' : 'Expand master setup'}
@@ -367,7 +368,7 @@ export function InventorySidebar({
               const SubIcon = sub.icon;
               const isActive = activeTab === sub.id;
               return (
-                <Pressable
+                <Pressable {...ownHover}
                   key={sub.id}
                   onPress={() => onSelectTab(sub.id)}
                   accessibilityRole="tab"
@@ -423,7 +424,7 @@ export function InventorySidebar({
           const IconComponent = item.icon;
           const isActive = activeTab === item.id;
           return (
-            <Pressable
+            <Pressable {...ownHover}
               key={item.id}
               onPress={() => onSelectTab(item.id)}
               style={mainItemStyle(isActive)}
@@ -448,7 +449,7 @@ export function InventorySidebar({
         })}
       </ScrollView>
 
-      <Pressable
+      <Pressable {...ownHover}
         onPress={onTogglePinned}
         style={({ hovered }: PressableStateLike) => ({
           padding: 12,

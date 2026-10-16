@@ -382,3 +382,28 @@ multi-select and Select all.
   `kitchen_invoice_workspace` accept the list. The signature and grants are
   unchanged and a single status works as before. It is applied to staging only
   and listed in `supabase/staging-pending.txt`.
+
+## Task 225: hover highlight on everything clickable (2026-10-16)
+
+The owner asked for a hover highlight on every clickable field, everywhere.
+
+- `useWebHover` (`src/lib/pos/web-hover.ts`) is called once in
+  `src/app/_layout.tsx`. It covers the kitchen and the main app.
+- It injects one rule. With a mouse (`hover: hover` and `pointer: fine`), any
+  clickable control gets a soft tint over its own background:
+  - the colour is `colors.hoverTint`, navy at 6%;
+  - it keeps the control's rounded corners;
+  - it works on white, tinted and blue controls;
+  - touch screens never see it.
+- Controls that already have their own hover keep it:
+  - NativeWind `hover:` classes;
+  - `ownHover`, marked on about 30 main-app Pressables whose style reads
+    `hovered`;
+  - `hoverScope` on the POS sidebar, the inventory sidebar and the kitchen
+    rail.
+- Pills, segments and small ghost buttons are drawn 36 px tall inside a 44 px
+  target. They use `hoverFace` and `hoverFaceMark`, so only the drawn pill
+  takes the tint. Text links (`LinkButton`, Inventory's "View all") underline
+  instead.
+- A desktop audit of 20 kitchen and 13 main-app pages found no control whose
+  tint is hidden or spills past its drawn shape.

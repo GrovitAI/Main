@@ -1,3 +1,4 @@
+import { hoverScope } from '@/lib/pos/web-hover';
 import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Animated, BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
@@ -240,7 +241,7 @@ function Rail({ state, navigation }: BarProps) {
   return (
     <View nativeID="kitchen-navigation-shell" testID="kitchen-navigation-shell"
       className={`relative shrink-0 ${compact ? `${pinned ? 'w-44' : 'w-16'} z-50` : 'w-[88px]'}`}>
-    <View nativeID="kitchen-navigation-rail" testID="kitchen-navigation-rail" className={`items-center gap-1.5 overflow-hidden px-2 ${compact ? 'absolute inset-y-0 left-0' : 'relative h-full w-[88px]'}`} style={drawerStyle}>
+    <View {...hoverScope} nativeID="kitchen-navigation-rail" testID="kitchen-navigation-rail" className={`items-center gap-1.5 overflow-hidden px-2 ${compact ? 'absolute inset-y-0 left-0' : 'relative h-full w-[88px]'}`} style={drawerStyle}>
       <SidebarSurface />
       <View className="h-[68px] w-full items-center justify-center border-b border-sidebar-divider pb-3">
         <Image source={leLabanLogo} accessibilityLabel="Le Laban logo" resizeMode="contain"

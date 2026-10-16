@@ -1,3 +1,4 @@
+import { ownHover, hoverScope } from '@/lib/pos/web-hover';
 import React, { useState, useEffect } from 'react';
 import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
@@ -193,7 +194,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
   };
 
   return (
-    <Pressable
+    <Pressable {...hoverScope}
       accessible={false}
       focusable={false}
       style={wrapperStyle}
@@ -256,7 +257,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           {tabs.map((item) => {
             const isActive = selectedCategoryId === item.id;
             return (
-              <Pressable
+              <Pressable {...ownHover}
                 key={item.id ?? 'all'}
                 accessibilityRole="button"
                 accessibilityLabel={item.name}
@@ -324,7 +325,7 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
         </ScrollView>
 
         {/* Pin / collapse footer */}
-        <Pressable
+        <Pressable {...ownHover}
           onPress={() => setPinned(!pinned)}
           accessibilityRole="button"
           accessibilityLabel={pinned ? 'Unpin sidebar' : 'Pin sidebar open'}

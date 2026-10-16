@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { Redirect, Tabs, router, useSegments, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Pressable, LayoutAnimation, Animated, Easing, useWindowDimensions, ScrollView, ActivityIndicator, StyleSheet, Image } from 'react-native';
@@ -316,7 +317,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
 
         // ── Tablet / Desktop Floating Tab Button ──
         return (
-          <Pressable
+          <Pressable {...ownHover}
             key={tabName}
             onPress={onPress}
             onLayout={(event) => {

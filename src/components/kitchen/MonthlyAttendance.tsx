@@ -1,3 +1,4 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { Animated, FlatList, Pressable, View } from 'react-native';
@@ -123,7 +124,7 @@ export function MonthlyAttendance({ header, onLockChange }: { header: ReactEleme
       // inside it and the selection ring sits on the cell edge, outside the colour.
       const fill = unavailable ? null : fills[status];
       const chosen = date === day;
-      return <View className="flex-1">{day ? <Pressable testID={`month-attendance-day-${day}`} disabled={unavailable || locked} accessibilityRole="button" accessibilityLabel={`${attendanceDateLabel(day)}: ${unavailable ? 'Unavailable' : labels[status]}`} accessibilityState={{ selected: chosen, disabled: unavailable || locked }} onPress={() => chooseDate(day)}
+      return <View className="flex-1">{day ? <Pressable {...ownHover} testID={`month-attendance-day-${day}`} disabled={unavailable || locked} accessibilityRole="button" accessibilityLabel={`${attendanceDateLabel(day)}: ${unavailable ? 'Unavailable' : labels[status]}`} accessibilityState={{ selected: chosen, disabled: unavailable || locked }} onPress={() => chooseDate(day)}
         style={{ minHeight: 48, padding: 2, borderRadius: 12, borderWidth: 2, borderColor: chosen ? colors.primary : 'transparent' }}>
         {({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => <View style={{ flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, backgroundColor: fill ? fill.bg : 'transparent', borderColor: fill ? fill.border : 'transparent', opacity: unavailable ? 0.35 : pressed ? 0.7 : hovered && !chosen ? 0.85 : 1 }}>
           <Text style={{ fontSize: 14, fontWeight: day === today ? '800' : '600', color: fill ? fill.fg : colors.textSecondary, textDecorationLine: day === today ? 'underline' : 'none' }}>{Number(day.slice(-2))}</Text>

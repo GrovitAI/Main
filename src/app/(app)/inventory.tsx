@@ -1,3 +1,4 @@
+import { hoverLink, ownHover } from '@/lib/pos/web-hover';
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { ActivityIndicator, Animated, Easing, FlatList, Image, Modal, Platform, Pressable, PressableProps, ScrollView, View, useWindowDimensions } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
@@ -1956,7 +1957,7 @@ export default function InventoryScreen() {
                   <Text className="text-xs font-extrabold text-amber-700">{lowStockMaterials.length}</Text>
                 </View>
               </View>
-              <Pressable onPress={() => setActiveTab('materials')}>
+              <Pressable {...hoverLink} onPress={() => setActiveTab('materials')}>
                 <Text className="text-xs font-bold text-blue-600">View all</Text>
               </Pressable>
             </View>
@@ -1993,7 +1994,7 @@ export default function InventoryScreen() {
               </View>
             )}
 
-            <Pressable
+            <Pressable {...hoverLink}
               onPress={() => setActiveTab('materials')}
               className="border-t border-slate-100 pt-3 mt-4 flex-row items-center justify-center gap-1"
             >
@@ -2254,7 +2255,7 @@ export default function InventoryScreen() {
                   Low Stock Alerts ({lowStockMaterials.length})
                 </Text>
               </View>
-              <Pressable 
+              <Pressable {...hoverLink}
                 onPress={() => { setStatusFilter('low'); setCurrentPage(1); }}
                 className="active:opacity-80"
               >
@@ -5714,7 +5715,7 @@ export default function InventoryScreen() {
           {/* Nav items */}
           <ScrollView style={{ flex: 1, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
             {/* Dashboard */}
-            <Pressable
+            <Pressable {...ownHover}
               onPress={() => {
                 setActiveTab('dashboard');
                 setIsMobileMenuOpen(false);
@@ -5761,7 +5762,7 @@ export default function InventoryScreen() {
             </Pressable>
 
             {/* Master Collapsible Group Header */}
-            <Pressable
+            <Pressable {...ownHover}
               onPress={() => setIsMasterExpanded(!isMasterExpanded)}
               style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
                 {
@@ -5826,7 +5827,7 @@ export default function InventoryScreen() {
                   const SubIcon = sub.icon;
                   const isActive = activeTab === sub.id;
                   return (
-                    <Pressable
+                    <Pressable {...ownHover}
                       key={sub.id}
                       onPress={() => {
                         setActiveTab(sub.id as TabName);
@@ -5889,7 +5890,7 @@ export default function InventoryScreen() {
               const IconComponent = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <Pressable
+                <Pressable {...ownHover}
                   key={item.id}
                   onPress={() => {
                     setActiveTab(item.id as TabName);
@@ -5937,7 +5938,7 @@ export default function InventoryScreen() {
             })}
           </ScrollView>
 
-          <Pressable
+          <Pressable {...ownHover}
             onPress={() => setSidebarPinned((v) => !v)}
             style={({ hovered }: { hovered?: boolean }) => ({
               padding: 12,
