@@ -180,7 +180,7 @@ export function Section({ title, action, children }: { title: string; action?: R
   const compact = useDesktopDensity();
   return (
     <View className={compact ? 'mt-3' : 'mt-[18px]'}>
-      <View className="flex-row items-end justify-between" style={{ marginBottom: 8, minHeight: 24 }}>
+      <View className="flex-row items-center justify-between" style={{ marginBottom: 4, minHeight: 24 }}>
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>
           {title}
         </Text>
@@ -1176,6 +1176,29 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/**
+ * One choice in a sheet's list (task 228): an icon in a soft chip, the name with an optional
+ * badge, one line under it and a chevron. The whole row is the target.
+ */
+export function SheetRow({ icon: Icon, iconColor = colors.primary, label, caption, badge, selected = false, onPress }: {
+  icon: LucideIcon; iconColor?: string; label: string; caption?: string; badge?: string; selected?: boolean; onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" aria-selected={selected} accessibilityLabel={caption ? `${label}, ${caption}` : label}
+      className={`min-h-[64px] flex-row items-center gap-3.5 rounded-2xl px-2 py-2 active:opacity-70 ${selected ? 'bg-surface-tint' : 'hover:bg-surface-tint'}`}>
+      <View className="h-11 w-11 items-center justify-center rounded-[15px] bg-accent-soft"><Icon size={21} color={iconColor} /></View>
+      <View className="min-w-0 flex-1">
+        <View className="flex-row items-center gap-2">
+          <Text className="text-base font-bold text-text-primary">{label}</Text>
+          {badge ? <View className="rounded-full bg-surface-tint px-2 py-0.5"><Text className="text-xs font-bold text-primary">{badge}</Text></View> : null}
+        </View>
+        {caption ? <Text className="text-[13px] font-semibold text-text-secondary" numberOfLines={1}>{caption}</Text> : null}
+      </View>
+      <ChevronRight size={18} color={colors.textSecondary} />
+    </Pressable>
   );
 }
 

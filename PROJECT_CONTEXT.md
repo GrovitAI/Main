@@ -248,6 +248,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 225 (2026-10-16, staging source): Hover highlight on everything clickable, app-wide on the web (useWebHover in the root layout; ownHover/hoverScope/hoverFace/hoverLink markers for controls with their own hover, pills and text links); rule added to AGENTS.md.
 ✅ Task 226 (2026-10-16, staging source): Tidy hover areas. List rows reach their card edges (RowInset) so hover runs edge to edge inside rounded cards; the shared tint fades in, matches the surface-tint blue, and never lights up whole wrappers or modal panels.
 ✅ Task 227 (2026-10-16, staging source): No hover on selected choices (tabs, segments, pills, rows, options); choice controls now carry aria-selected/aria-checked on the web since RN-web drops accessibilityState.
+✅ Task 228 (2026-10-16, staging source): Phone redesign, step 1 (owner picked the Dribbble-inspired mockups in output/previews/task-228; the old phone design is kept at git tag phone-design-classic and branch backup/phone-design-before-228). Floating bar Home, Analytics, raised + (Record sheet), Stock, More (sheet with Branches, Vendors, Invoices, Attendance and the owner-only Team and day lock); Home B on phones with round actions, a Money now card and two who-owes tiles; History is a header icon on the phone Home. Tablet and desktop unchanged.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

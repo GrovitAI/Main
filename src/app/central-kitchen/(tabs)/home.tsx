@@ -2,16 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router, useFocusEffect } from 'expo-router';
-import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, LogOut, Plus, ArrowLeft, ShieldCheck, Lock, type LucideIcon } from 'lucide-react-native';
-import { colors } from '@/lib/pos/brand';
+import { LogOut, Plus, ArrowLeft, ShieldCheck, Lock, History, ChevronRight } from 'lucide-react-native';
+import { chart, colors, semantic } from '@/lib/pos/brand';
+import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
+import { recordActions } from '@/components/kitchen/record-actions';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
-import type { Tone } from '@/components/kitchen/ui';
 import { fetchKitchenMoney, type MoneySummary } from '@/lib/pos/kitchen-money-service';
-import { formatLongDate, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
+import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
 import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, RowInset, Section, Skeleton, StatTile, GhostButton, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
@@ -96,14 +97,7 @@ export default function KitchenHome() {
   );
 
   // The four things the kitchen records, each shown only to logins allowed to record it.
-  const mayPay = access.can('entries.pay');
-  const maySpend = access.can('entries.spend');
-  const tiles: { key: string; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string }[] = [
-    ...(access.can('entries.send') ? [{ key: 'send', icon: ArrowUpRight, label: 'Send', caption: 'Items to a branch', tone: 'primary' as const, href: '/central-kitchen/send' }] : []),
-    ...(access.can('entries.receive') ? [{ key: 'received', icon: ArrowDownLeft, label: 'Received', caption: 'Money from a branch', tone: 'in' as const, href: '/central-kitchen/received' }] : []),
-    ...(access.can('entries.buy') ? [{ key: 'bought', icon: ShoppingBag, label: 'Bought', caption: 'From a vendor', tone: 'buy' as const, href: '/central-kitchen/bought' }] : []),
-    ...(mayPay || maySpend ? [{ key: 'spent', icon: ArrowUp, label: 'Spent', caption: mayPay && maySpend ? 'Pay a vendor or a bill' : mayPay ? 'Pay a vendor' : 'Pay a bill', tone: 'out' as const, href: '/central-kitchen/spent' }] : []),
-  ];
+  const tiles = recordActions(access.can);
   const tileRows = [tiles.slice(0, 2), tiles.slice(2, 4)].filter((row) => row.length > 0);
   const actions = tiles.length === 0 ? null : (
     <View className={desktop ? 'flex-row gap-3' : undefined} style={desktop ? undefined : { gap: 10 }}>
@@ -112,6 +106,65 @@ export default function KitchenHome() {
           {row.map((t) => <ActionTile key={t.key} icon={t.icon} label={t.label} caption={t.caption} tone={t.tone} onPress={() => router.push(t.href as never)} />)}
         </View>
       ))}
+    </View>
+  );
+  // Task 228 (owner's pick, Home B): a phone shows the four actions as round buttons, one quiet
+  // money card, the two who-owes tiles and today's entries. Tablets and desktops keep their layouts.
+  const phone = !isTablet;
+  const roundActions = tiles.length === 0 ? null : (
+    <View className="flex-row" style={{ marginTop: 4 }}>
+      {tiles.map((t) => {
+        const lead = t.key === 'send';
+        return (
+          <Pressable key={t.key} onPress={() => router.push(t.href as never)} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.caption}`} {...hoverFace}
+            className="flex-1 items-center gap-1.5 py-1 active:opacity-70">
+            <View {...hoverFaceMark} className={`h-14 w-14 items-center justify-center rounded-full border ${lead ? 'border-primary bg-primary' : 'border-border bg-surface-elevated'}`}>
+              <t.icon size={22} color={lead ? colors.textOnPrimary : colors.primary} />
+            </View>
+            <Text className="text-[13px] font-bold text-text-primary">{t.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+  const cash = money ? money.cash_paise / 100 : 0;
+  const bank = money ? money.bank_paise / 100 : 0;
+  const moneyCard = money ? (
+    <Pressable onPress={() => router.push('/central-kitchen/money')} accessibilityRole="button" accessibilityLabel={`Money now, ${formatMoney(cash + bank)}: cash ${formatMoney(cash)}, bank ${formatMoney(bank)}`}
+      className="rounded-[20px] border border-border-soft bg-surface-elevated p-4 active:opacity-80">
+      <View className="flex-row items-center justify-between">
+        <Text className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">Money now</Text>
+        <ChevronRight size={16} color={colors.textSecondary} />
+      </View>
+      <Text className="mt-1 text-[34px] font-extrabold leading-10 text-text-primary" style={{ letterSpacing: -1, fontVariant: ['tabular-nums'] }}>{formatMoney(cash + bank)}</Text>
+      {/* How the money splits between cash and bank; a negative side shows as empty. */}
+      <View className="mt-2 flex-row gap-1">
+        {cash > 0 ? <View className="h-2.5 rounded-full" style={{ flex: cash, backgroundColor: chart.series2 }} /> : null}
+        {bank > 0 ? <View className="h-2.5 rounded-full" style={{ flex: bank, backgroundColor: colors.primary }} /> : null}
+        {cash <= 0 && bank <= 0 ? <View className="h-2.5 flex-1 rounded-full" style={{ backgroundColor: chart.grid }} /> : null}
+      </View>
+      <View className="mt-2 flex-row gap-4">
+        <View className="flex-row items-center gap-1.5"><View className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: chart.series2 }} /><Text className="text-[13px] font-bold text-text-secondary">Cash {formatMoney(cash)}</Text></View>
+        <View className="flex-row items-center gap-1.5"><View className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: colors.primary }} /><Text className="text-[13px] font-bold text-text-secondary">Bank {formatMoney(bank)}</Text></View>
+      </View>
+    </Pressable>
+  ) : null;
+  const dueCount = (kind: 'branch' | 'vendor'): number => data.balances.filter((b) => b.kind === kind && b.balance > 0).length;
+  const oweTile = (label: string, value: number, count: number, noun: string, tone: string, href: string) => (
+    <Pressable onPress={() => router.navigate(href as never)} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`}
+      className="flex-1 rounded-[18px] border border-border-soft bg-surface-elevated px-3.5 py-3 active:opacity-80">
+      <View className="flex-row items-center gap-0.5"><Text className="text-xs font-bold text-text-secondary">{label}</Text><ChevronRight size={13} color={colors.textSecondary} /></View>
+      <Text className="mt-0.5 text-xl font-extrabold" style={{ color: value > 0 ? tone : colors.textPrimary, fontVariant: ['tabular-nums'] }}>{formatMoney(value)}</Text>
+      <Text className="text-xs font-semibold text-text-secondary">{count === 0 ? 'All settled' : `${count} ${count === 1 ? noun : noun === 'branch' ? 'branches' : 'vendors'}`}</Text>
+    </Pressable>
+  );
+  const phoneSummary = !access.showAmounts ? null : (
+    <View style={{ gap: 10 }}>
+      {moneyCard}
+      <View className="flex-row" style={{ gap: 10 }}>
+        {oweTile('Yet to pay', owed, dueCount('branch'), 'branch', semantic.success, '/central-kitchen/(tabs)/branches')}
+        {oweTile('We owe', owe, dueCount('vendor'), 'vendor', semantic.danger, '/central-kitchen/(tabs)/vendors')}
+      </View>
     </View>
   );
   const lockedThrough = access.access.lockedThrough;
@@ -131,7 +184,7 @@ export default function KitchenHome() {
         subtitle={isKitchenLogin ? formatLongDate(today) : `${branchName} · ${formatLongDate(today)}`}
         right={
           <View className="flex-row items-center" style={{ gap: 4 }}>
-          {access.isOwner ? <IconButton icon={ShieldCheck} label="Team and day lock" tone="neutral" onPress={() => router.push('/central-kitchen/team' as never)} /> : null}
+          {phone ? <IconButton icon={History} label="History" onPress={() => router.navigate('/central-kitchen/(tabs)/history')} /> : access.isOwner ? <IconButton icon={ShieldCheck} label="Team and day lock" tone="neutral" onPress={() => router.push('/central-kitchen/team' as never)} /> : null}
           {isKitchenLogin ? (
             <Pressable onPress={() => void useSessionStore.getState().signOut()} accessibilityRole="button" accessibilityLabel="Sign out" hitSlop={8} style={({ pressed }) => ({ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
               <LogOut size={20} color={colors.textSecondary} />
@@ -197,9 +250,9 @@ export default function KitchenHome() {
           <View className="flex-1">{actions}</View>
         </View>
       ) : (
-        <View style={{ gap: 12, marginTop: 4 }}>
-          {actions}
-          {summary}
+        <View style={{ gap: 14, marginTop: 2 }}>
+          {roundActions}
+          {phoneSummary}
         </View>
       )}
 

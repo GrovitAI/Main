@@ -1,17 +1,19 @@
 import { hoverScope } from '@/lib/pos/web-hover';
 import { useEffect, useState } from 'react';
-import { Tabs } from 'expo-router';
-import { Animated, BackHandler, FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
+import { Tabs, router } from 'expo-router';
+import { FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, Boxes, PackageCheck, Store, Truck, History, BarChart3, ClipboardCheck, Receipt, Ellipsis, X, PanelLeft, PanelLeftClose, type LucideIcon } from 'lucide-react-native';
+import { Home, Boxes, PackageCheck, Store, Truck, History, BarChart3, ClipboardCheck, Receipt, Ellipsis, PanelLeft, PanelLeftClose, Plus, ShieldCheck, Lock, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { SidebarSurface } from '@/components/ui/SidebarSurface';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
-import { usePresence } from '@/components/kitchen/ui';
+import { Sheet, SheetRow, toneColor } from '@/components/kitchen/ui';
+import { recordActions } from '@/components/kitchen/record-actions';
+import { dayText } from '@/lib/pos/kitchen-access-utils';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
 
@@ -27,8 +29,10 @@ export const KITCHEN_TABS: readonly KitchenTab[] = [
   { name: 'vendors', label: 'Vendors', icon: Truck },
   { name: 'history', label: 'History', icon: History },
 ];
-const phoneTabs = KITCHEN_TABS.filter(tab => !['branches', 'invoices', 'vendors', 'finished-goods', 'attendance'].includes(tab.name)).map(tab => tab.name === 'items' ? { ...tab, label: 'Stock' } : tab);
-const moreTabs = KITCHEN_TABS.filter(tab => ['attendance', 'branches', 'invoices', 'vendors'].includes(tab.name));
+/** A phone's bar (task 228): Home and Analytics, the + that records, Stock, and More. History opens from Home's header. */
+const phoneTabs = KITCHEN_TABS.filter(tab => ['home', 'analytics', 'items'].includes(tab.name)).map(tab => tab.name === 'items' ? { ...tab, label: 'Stock' } : tab);
+const moreTabs = ['branches', 'vendors', 'invoices', 'attendance'].flatMap(name => KITCHEN_TABS.filter(tab => tab.name === name));
+const MORE_CAPTIONS: Record<string, string> = { branches: 'Who owes the kitchen', vendors: 'Who the kitchen owes', invoices: 'Branch invoices and payments', attendance: 'Daily register and month' };
 
 /** Sections a login has no use for are left off the navigation; the database refuses their data anyway. */
 function useTabAllowed(): (name: string) => boolean {
@@ -110,67 +114,71 @@ function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: Kitc
 
 type BarProps = Pick<BottomTabBarProps, 'state' | 'navigation'>;
 
+/**
+ * The phone's bar (task 228): a rounded bar floating on the canvas, with a raised + in the middle
+ * that opens the four entries from any tab, and More for the sections that do not fit. The bar
+ * sits in its own band of canvas, tall enough to hold the raised +, so every part of the + is
+ * inside the bar's bounds and takes a tap on Android too.
+ */
 function BottomBar({ state, navigation }: BarProps) {
   const insets = useSafeAreaInsets();
-  const [moreOpen, setMoreOpen] = useState(false);
-  // The list rises 16 px out of the bar as it fades in, and sinks back (task 215).
-  const moreMenu = usePresence(moreOpen, 220);
-  useEffect(() => {
-    if (!moreOpen) return;
-    if (Platform.OS === 'web') {
-      const onKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === 'Escape') setMoreOpen(false);
-      };
-      document.addEventListener('keydown', onKeyDown);
-      return () => document.removeEventListener('keydown', onKeyDown);
-    }
-    const listener = BackHandler.addEventListener('hardwareBackPress', () => { setMoreOpen(false); return true; });
-    return () => listener.remove();
-  }, [moreOpen]);
+  const [sheet, setSheet] = useState<'record' | 'more' | null>(null);
+  const access = useKitchenAccess();
   const allowed = useTabAllowed();
+  const records = recordActions(access.can);
   const phone = phoneTabs.filter((tab) => allowed(tab.name));
   const more = moreTabs.filter((tab) => allowed(tab.name));
   const activeName = state.routes[state.index]?.name;
-  const openTab = (tab: KitchenTab): void => {
-    const route = state.routes.find(entry => entry.name === tab.name);
+  const moreActive = more.some(tab => tab.name === activeName);
+  const openTab = (name: string): void => {
+    const route = state.routes.find(entry => entry.name === name);
     if (!route) return;
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
     if (event.defaultPrevented) return;
-    setMoreOpen(false);
+    setSheet(null);
     if (activeName !== route.name) navigation.navigate(route.name, route.params);
   };
+  const go = (href: string): void => { setSheet(null); router.push(href as never); };
+  const tab = (t: KitchenTab) => {
+    // History is reached from Home, and Finished goods shares Stock.
+    const focused = activeName === t.name || (t.name === 'items' && activeName === 'finished-goods') || (t.name === 'home' && activeName === 'history');
+    return <TabButton key={t.name} tab={t} focused={focused} rail={false} onPress={() => openTab(t.name)} />;
+  };
+  const lockedThrough = access.access.lockedThrough;
   return (
-    <View>
-      {moreMenu.mounted ? <Animated.View pointerEvents={moreOpen ? 'auto' : 'none'} style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, opacity: moreMenu.progress, transform: [{ translateY: moreMenu.progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}><View className="border-t border-border-soft bg-surface-elevated p-3">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-sm font-bold text-text-primary">More kitchen sections</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close more sections" onPress={() => setMoreOpen(false)} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary"><X size={18} color={colors.primary} /></Pressable>
-        </View>
-        <FlatList data={more} keyExtractor={tab => tab.name} extraData={activeName}
-          renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: activeName === item.name }} aria-selected={activeName === item.name} onPress={() => openTab(item)} className={`min-h-12 flex-row items-center gap-3 rounded-xl px-3 active:opacity-60 focus:border focus:border-primary ${activeName === item.name ? '' : 'hover:bg-surface-tint'}`}>
-            <item.icon size={20} color={colors.primary} /><Text className="text-sm font-semibold text-text-primary">{item.label}</Text>
-          </Pressable>} />
-      </View></Animated.View> : null}
-    <View className="flex-row border-t border-border-soft bg-surface-elevated" style={{ paddingTop: 6, paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 8 : 6), paddingHorizontal: 6 }}>
-      {phone.map((tab) => {
-        const route = state.routes.find((r) => r.name === tab.name);
-        if (!route) return null;
-        const focused = activeName === tab.name || (tab.name === 'items' && activeName === 'finished-goods');
-        return (
-          <TabButton
-            key={tab.name}
-            tab={tab}
-            focused={focused}
-            rail={false}
-            onPress={() => openTab(tab)}
-          />
-        );
-      })}
-      {more.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="More kitchen sections" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen(value => !value)} className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
-        <View className={'h-[30px] w-11 items-center justify-center rounded-xl ' + (moreOpen || more.some(tab => tab.name === activeName) ? 'bg-accent-soft' : '')}><Ellipsis size={21} color={moreOpen || more.some(tab => tab.name === activeName) ? colors.primary : colors.textSecondary} /></View>
-        <Text className="mt-0.5 text-xs font-semibold text-text-secondary">More</Text>
-      </Pressable> : null}
-    </View>
+    <View className="bg-kitchen-canvas" style={{ paddingHorizontal: 14, paddingTop: 34, paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8) }}>
+      <View className="h-16 flex-row items-center rounded-[30px] border border-border-soft bg-surface-elevated px-1.5">
+        {phone.filter(t => t.name !== 'items').map(tab)}
+        {records.length > 0 ? (
+          <View className="flex-1 items-center">
+            <Pressable accessibilityRole="button" accessibilityLabel="Record an entry" accessibilityState={{ expanded: sheet === 'record' }} onPress={() => setSheet('record')}
+              style={{ marginTop: -34 }} className="h-[60px] w-[60px] items-center justify-center rounded-full border-[5px] border-kitchen-canvas bg-primary hover:bg-primary-deep active:bg-primary-deep">
+              <Plus size={26} color={colors.textOnPrimary} strokeWidth={2.6} />
+            </Pressable>
+          </View>
+        ) : null}
+        {phone.filter(t => t.name === 'items').map(tab)}
+        {more.length > 0 || access.isOwner ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="More kitchen sections" accessibilityState={{ expanded: sheet === 'more' }} onPress={() => setSheet('more')}
+            className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
+            <View className={'h-[30px] w-11 items-center justify-center rounded-xl ' + (moreActive ? 'bg-accent-soft' : '')}><Ellipsis size={21} color={moreActive ? colors.primary : colors.textSecondary} /></View>
+            <Text className={`mt-0.5 text-xs ${moreActive ? 'font-extrabold' : 'font-semibold'}`} style={{ color: moreActive ? colors.primary : colors.textSecondary }}>More</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <Sheet visible={sheet === 'record'} onClose={() => setSheet(null)} title="Record">
+        {records.map(r => <SheetRow key={r.key} icon={r.icon} iconColor={toneColor[r.tone]} label={r.label} caption={r.caption} onPress={() => go(r.href)} />)}
+        {lockedThrough ? (
+          <View className="mt-2 flex-row items-center gap-2 rounded-2xl bg-surface-tint px-3.5 py-3">
+            <Lock size={15} color={colors.textSecondary} />
+            <Text className="flex-1 text-[13px] font-semibold text-text-secondary">Entries up to {dayText(lockedThrough)} are locked.</Text>
+          </View>
+        ) : null}
+      </Sheet>
+      <Sheet visible={sheet === 'more'} onClose={() => setSheet(null)} title="More">
+        {more.map(t => <SheetRow key={t.name} icon={t.icon} label={t.label} caption={MORE_CAPTIONS[t.name]} selected={activeName === t.name} onPress={() => openTab(t.name)} />)}
+        {access.isOwner ? <SheetRow icon={ShieldCheck} label="Team and day lock" caption="Logins, permissions, locks" badge="Owner" onPress={() => go('/central-kitchen/team')} /> : null}
+      </Sheet>
     </View>
   );
 }
@@ -282,8 +290,8 @@ function Rail({ state, navigation }: BarProps) {
 }
 
 /**
- * Direct sections on the rail. Phones keep Home, Analytics, Stock,
- * History and More, with Attendance, Branches, Invoices and Vendors in the expanded list.
+ * Direct sections on the rail. Phones show Home, Analytics, the + menu, Stock and More (task 228),
+ * with Branches, Vendors, Invoices, Attendance and the owner's Team and day lock in More.
  */
 export default function KitchenTabsLayout() {
   const { isTablet } = useResponsive();
