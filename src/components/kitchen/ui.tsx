@@ -8,7 +8,7 @@
  * NativeWind drops that function. Class-styled controls use active variants.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, ChevronLeft, ChevronRight, Delete, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
@@ -314,6 +314,8 @@ type RowProps = {
   accessibilityLabel?: string;
   /** Lines the title may use before it is cut; long item names use two. */
   titleLines?: number;
+  /** Drawn before the text in place of an icon, such as a name's circle (task 233). */
+  lead?: React.ReactNode;
 };
 
 /**
@@ -323,14 +325,15 @@ type RowProps = {
  */
 export const RowInset = React.createContext(14);
 
-export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel, titleLines = 1 }: RowProps) {
+export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel, titleLines = 1, lead }: RowProps) {
   const compact = useDesktopDensity();
   const inset = React.useContext(RowInset);
   const reach: ViewStyle = { marginHorizontal: -inset, paddingHorizontal: inset };
   const rowClass = `flex-row items-center gap-3 border-b border-border-soft ${compact ? 'min-h-[52px] py-2' : 'min-h-[58px] py-3'}`;
   const content = (
     <>
-      {Icon ? (
+      {lead ?? null}
+      {Icon && !lead ? (
         <View style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: toneSoft[iconTone] }}>
           <Icon size={18} color={toneColor[iconTone]} />
         </View>
@@ -1260,6 +1263,31 @@ export function SummaryBar({ caption, total, showTotal = true, children }: { cap
         {showTotal ? <Text style={{ color: colors.textOnPrimary, fontSize: 22, fontWeight: '800', letterSpacing: -0.3, ...tabular }} numberOfLines={1}>{formatMoney(total)}</Text> : null}
       </View>
       <View style={{ flex: 1.1 }}>{children}</View>
+    </View>
+  );
+}
+
+/**
+ * One-of-many pills in a row that scrolls sideways (task 233), all as wide as the widest, for
+ * quick filters on a phone. Each pill is drawn 36 high inside a 44 high target.
+ */
+export function ScrollPills<T extends string>({ options, value, onChange, label }: { options: readonly { value: T; label: string }[]; value: T; onChange: (next: T) => void; label: string }) {
+  const sizes = useEqualChoices(options.length, { gap: 6, pad: 28 });
+  return (
+    <View accessibilityLabel={label}>
+      <MeasureLabels>{options.map((o, i) => <Text key={o.value} onLayout={sizes.measure(i)} style={{ fontSize: 13, fontWeight: '700' }}>{o.label}</Text>)}</MeasureLabels>
+      <FlatList horizontal showsHorizontalScrollIndicator={false} data={options} keyExtractor={(o) => o.value} contentContainerStyle={{ gap: 6 }} extraData={`${value}-${sizes.widest}`}
+        renderItem={({ item: o }) => {
+          const on = o.value === value;
+          return (
+            <Pressable onPress={() => onChange(o.value)} accessibilityRole="button" aria-selected={on} accessibilityLabel={o.label} {...hoverFace}
+              style={{ minHeight: TARGET, justifyContent: 'center', ...(sizes.widest ? { width: sizes.widest + 28 } : {}) }}>
+              <View {...hoverFaceMark} style={{ height: VISUAL, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: sizes.widest ? 0 : 14, borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+              </View>
+            </Pressable>
+          );
+        }} />
     </View>
   );
 }

@@ -14,7 +14,7 @@ import { historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceStatus, type InvoiceWorkspace as WorkspaceData, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
-import { KHeader, KScreen, Notice, TextField, Tick } from '@/components/kitchen/ui';
+import { Avatar, KHeader, KScreen, Notice, TextField, Tick } from '@/components/kitchen/ui';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { ReportMultiSelect, ReportSelect } from '@/components/kitchen/ReportSelect';
 import { DateField, useDateGuard, ModePicker } from '@/components/kitchen/forms';
@@ -40,8 +40,11 @@ function Action({ label, onPress, primary = false, disabled = false }: { label: 
     <Text className={'text-sm font-semibold leading-5 ' + (primary && !disabled ? 'text-text-on-primary' : disabled ? 'text-text-secondary' : 'text-primary')}>{label}</Text>
   </Pressable>;
 }
-function Status({ invoice }: { invoice: KitchenInvoice }) {
-  return <Text className="text-xs font-bold leading-5" style={{ color: invoice.status === 'paid' ? semantic.success : invoice.status === 'cancelled' ? colors.textSecondary : semantic.warning }}>{invoiceStatus(invoice.status)}</Text>;
+function Status({ invoice, pill = false }: { invoice: KitchenInvoice; pill?: boolean }) {
+  const color = invoice.status === 'paid' ? semantic.success : invoice.status === 'cancelled' ? colors.textSecondary : semantic.warning;
+  // Task 233: a phone shows the status as a soft pill.
+  if (pill) return <View className="mt-0.5 rounded-full px-2 py-0.5" style={{ backgroundColor: invoice.status === 'paid' ? semantic.successSoft : invoice.status === 'cancelled' ? colors.surfaceTint : semantic.warningSoft }}><Text className="text-xs font-bold" style={{ color }}>{invoiceStatus(invoice.status)}</Text></View>;
+  return <Text className="text-xs font-bold leading-5" style={{ color }}>{invoiceStatus(invoice.status)}</Text>;
 }
 
 export function InvoiceWorkspace() {
@@ -228,8 +231,9 @@ export function InvoiceWorkspace() {
         ListFooterComponent={preview ? docFooter : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
         renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
           className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">
+          {desktop ? null : <Avatar name={item.value.party_name} size={38} />}
           <View className="min-w-0 flex-1"><Text className="text-sm font-bold leading-5 text-text-primary">{invoiceNumber(item.value.invoice_no)} · {item.value.party_name}</Text><Text className="text-xs leading-5 text-text-secondary">{kitchenRangeLabel({ startDate: item.value.start_date, endDate: item.value.end_date })}</Text></View>
-          <View className="items-end"><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.total_paise)}</Text><Status invoice={item.value} />
+          <View className="items-end"><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.total_paise)}</Text><Status invoice={item.value} pill={!desktop} />
             {item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{invoiceMoney(item.value.open_paise)} left</Text> : null}</View>
         </Pressable> : item.kind === 'delivery' ? <Pressable accessibilityRole="checkbox" accessibilityLabel={'Select delivery ' + invoiceDate(item.value.entry_date) + ' ' + invoiceMoney(item.value.amount_paise)} aria-checked={selected.has(item.value.id)} accessibilityState={{ checked: selected.has(item.value.id), disabled: busy || (!selected.has(item.value.id) && selected.size >= 100) }} disabled={busy || (!selected.has(item.value.id) && selected.size >= 100)} onPress={() => toggle(item.value)}
           className={'min-h-16 flex-row items-start gap-3 border-b border-border-soft px-3 py-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary ' + (selected.has(item.value.id) ? 'bg-surface-tint' : 'bg-surface-elevated')}>

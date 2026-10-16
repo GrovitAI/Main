@@ -10,7 +10,8 @@ import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
 import { entrySubline, formatDayLabel, formatMoney, statementRows, typeLabel, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity } from './ui';
+import { Avatar, Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity } from './ui';
+import { useResponsive } from '@/lib/pos/useResponsive';
 import { EntryActions } from './EntryActions';
 
 type Props = {
@@ -31,6 +32,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const { can, showAmounts } = useKitchenAccess();
   const [width, setWidth] = useState(0);
   const split = desktop && width >= SPLIT_FROM;
+  const phone = !useResponsive().isTablet;
   // Both the empty and the loaded view measure, so the width is known from the first render.
   const measure = (e: LayoutChangeEvent): void => setWidth(e.nativeEvent.layout.width);
 
@@ -152,9 +154,12 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         <>
           <Card>
             <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
-              <View className={desktop ? 'min-w-0 flex-1' : undefined}>
-                {balanceLabel}
-                <View className="mt-0.5">{figure}</View>
+              <View className={desktop ? 'min-w-0 flex-1' : 'flex-row items-start justify-between gap-3'}>
+                <View className="min-w-0 flex-1">
+                  {balanceLabel}
+                  <View className="mt-0.5">{figure}</View>
+                </View>
+                {phone ? <Avatar name={party.name} size={48} /> : null}
               </View>
               <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>{actions}</View>
             </View>

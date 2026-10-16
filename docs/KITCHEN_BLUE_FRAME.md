@@ -453,3 +453,42 @@ no hover: clicking it changes nothing.
 - Checked with mocked data on phone and desktop: every selected control on
   14 page views looks the same before and during a hover, while unselected
   neighbours still light up.
+
+## Tasks 228–233: phone redesign (2026-10-16)
+
+The owner picked these from Dribbble-inspired mockups, rendered in
+`output/previews/task-228` (phones.html, phones-2 to phones-5). The previous
+phone design is kept at git tag `phone-design-classic` and branch
+`backup/phone-design-before-228`. Tablet and desktop are unchanged.
+
+- **228, bar and Home B.**
+  - A floating bar: Home, Analytics, a raised + (the Record sheet), Stock and
+    More.
+  - More is a sheet with Branches, Vendors, Invoices, Attendance and the
+    owner-only Team and day lock.
+  - Home shows round actions, a Money now card with a cash/bank split bar, two
+    who-owes tiles and Today.
+  - History is an icon in the phone Home header.
+  - New pieces: `recordActions`, `SheetRow`.
+- **229, circles and keypad.**
+  - Branches and vendors are picked from initial circles (`Avatar`, with the
+    colour fixed by the name, and Search and New at the end).
+  - Received and Spent use `AmountPad`: a big amount, the lakh read-back and a
+    keypad with 00. Nothing is pre-filled.
+  - A chip shows the balance before and after, and Save names the amount.
+- **230, Stock levels.**
+  - `stockLevels` measures each item against its latest count: low at 25% or
+    less, out at zero, and no bar before a first count.
+  - Rows show a level bar and the count date, with All, Low and Out filters.
+- **231, Send and Bought.** A dark `SummaryBar` floats on the canvas, and
+  often-used items are rows with Add.
+- **232, Analytics.** An Item sales ranking sits under the figures on the
+  phone Sales report: the top five by value, with rank, quantity, share and a
+  bar.
+- **233, other pages.**
+  - Name circles on the Branches, Vendors and Invoices lists and the branch
+    page, and status pills on invoices.
+  - A level bar on the item page.
+  - History gets quick type pills (`ScrollPills`).
+  - Attendance gets a seven-day strip with a calendar button.
+  - Section headings centre their action link.

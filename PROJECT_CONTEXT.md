@@ -253,6 +253,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 230 (2026-10-16, staging source): Phone redesign, step 3. Phone Stock rows show a level bar against the latest count (stockLevels: low at a quarter or less, out at zero, no bar before a first count) with All, Low and Out filters and the last count date. Tablet and desktop unchanged.
 ✅ Task 231 (2026-10-16, staging source): Phone redesign, step 4. Send and Bought on a phone end in a dark SummaryBar (item count, total, Send or Save) floating on the canvas, and often-used items are rows with Add instead of chips (quantities are still typed). Tablet and desktop unchanged.
 ✅ Task 232 (2026-10-16, staging source): Phone redesign, step 5. The phone Sales report shows an Item sales ranking under the figures (top five items by value with rank, quantity, share and a bar; says "From the rows loaded" while more rows are to load). Desktop unchanged.
+✅ Task 233 (2026-10-16, staging source): Phone redesign, step 6. Name circles on Branches, Vendors and Invoices lists and the branch page, invoice status pills, a level bar on the item page, quick type pills on History (ScrollPills), and a seven-day strip on Attendance. Tablet and desktop unchanged. See docs/KITCHEN_BLUE_FRAME.md, tasks 228-233.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

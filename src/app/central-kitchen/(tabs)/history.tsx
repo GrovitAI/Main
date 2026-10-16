@@ -7,7 +7,7 @@ import { useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { entryAmountText, entryHeadline, entrySubline } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
-import { Empty, KHeader, KScreen, Notice, Reveal, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, Notice, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
 import { HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
@@ -27,6 +27,8 @@ const SORTS: readonly { id: HistorySort; label: string }[] = [
   { id: 'recorded-newest', label: 'Entry date · newest' }, { id: 'recorded-oldest', label: 'Entry date · oldest' },
 ];
 const DATE_BASES = [{ id: 'transaction', label: 'Transaction date' }, { id: 'recorded', label: 'Entry date (recorded)' }] as const;
+/** A phone's quick type filter (task 233); the filter sheet still holds every filter. */
+const QUICK_KINDS = [{ value: 'all', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'received', label: 'Received' }, { value: 'bought', label: 'Bought' }, { value: 'spent', label: 'Spent' }, { value: 'stock', label: 'Stock' }] as const;
 const DEFAULTS: HistoryFilters = { kind: null, status: null, enteredBy: null, dateBasis: 'transaction', range: null, query: '', sort: 'transaction-newest' };
 const button = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary';
 
@@ -87,6 +89,7 @@ export default function HistoryScreen() {
       <View className={'min-w-0 ' + (desktop ? 'w-[220px]' : 'flex-1')}><ReportSelect toolbar allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} triggerText={filters.sort.startsWith('transaction') ? desktop ? 'Transaction date' : 'Transaction' : 'Entry date'} triggerIcon={filters.sort.endsWith('newest') ? ArrowDownWideNarrow : ArrowUpWideNarrow} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} /></View>
       </View>
     </View>
+    {phone ? <ScrollPills label="Entry type" options={QUICK_KINDS} value={filters.kind ?? 'all'} onChange={value => update('kind', value === 'all' ? null : value)} /> : null}
     {!phone ? <Reveal open={showFilters}><View testID="kitchen-history-filters" className={'rounded-xl border border-border-soft bg-surface-elevated ' + (phone ? 'gap-2 p-2' : 'gap-4 p-3 ') + (desktop ? 'flex-row' : '')}>
       <View className={'min-w-0 ' + (phone ? 'gap-1.5 ' : 'gap-3 ') + (desktop ? 'flex-1' : '')}>
         {!phone ? <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Entry details</Text> : null}

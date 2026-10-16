@@ -8,19 +8,40 @@ import { kitchenCalendarDays, kitchenMonthLabel, kitchenToday, shiftKitchenMonth
 import { shiftAttendanceDate, attendanceDateLabel } from '@/lib/pos/kitchen-attendance-utils';
 
 const button = 'min-h-12 min-w-12 items-center justify-center rounded-xl border border-transparent hover:bg-accent-soft focus:border-primary active:bg-accent-soft';
-export function AttendanceDate({ value, onChange, disabled }: { value: string; onChange: (date: string) => void; disabled: boolean }) {
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
+
+/**
+ * The attendance day. A desktop steps a day at a time beside the date; a phone (`strip`, task 233)
+ * taps one of seven days around it, with the calendar for any other day.
+ */
+export function AttendanceDate({ value, onChange, disabled, strip = false }: { value: string; onChange: (date: string) => void; disabled: boolean; strip?: boolean }) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(value.slice(0, 7));
   // A later month slides in from the right, an earlier one from the left (task 215).
   const monthSlide = useEnterOnChange(month, 'x');
   const today = kitchenToday();
   const close = (): void => setOpen(false);
+  // Seven days with the chosen one in view: up to three after it, never past today.
+  let end = value;
+  for (let i = 0; i < 3 && end < today; i++) end = shiftAttendanceDate(end, 1);
+  const days = Array.from({ length: 7 }, (_, i) => shiftAttendanceDate(end, i - 6));
   return <View>
-    <View className="flex-row items-center gap-1">
+    {strip ? <View className="flex-row items-center gap-1" testID="attendance-week-strip">
+      {days.map(day => {
+        const on = day === value;
+        const future = day > today;
+        return <Pressable key={day} accessibilityRole="button" aria-selected={on} accessibilityLabel={attendanceDateLabel(day)} disabled={disabled || future} onPress={() => onChange(day)}
+          className={`min-h-12 flex-1 items-center justify-center rounded-xl py-1.5 ${on ? 'bg-primary' : 'hover:bg-accent-soft active:bg-accent-soft'} ${future ? 'opacity-40' : ''}`}>
+          <Text className={`text-xs font-bold ${on ? 'text-text-on-primary' : 'text-text-secondary'}`}>{WEEKDAYS[new Date(`${day}T12:00:00`).getDay()]}</Text>
+          <Text className={`text-base font-extrabold ${on ? 'text-text-on-primary' : 'text-text-primary'}`}>{Number(day.slice(8))}</Text>
+        </Pressable>;
+      })}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Attendance date: ${attendanceDateLabel(value)}`} accessibilityState={{ expanded: open, disabled }} disabled={disabled} onPress={() => { setMonth(value.slice(0, 7)); setOpen(true); }} className={button}><CalendarDays size={18} color={colors.primary} /></Pressable>
+    </View> : <View className="flex-row items-center gap-1">
       <Pressable accessibilityRole="button" accessibilityLabel="Previous attendance day" disabled={disabled} onPress={() => onChange(shiftAttendanceDate(value, -1))} className={button}><ChevronLeft size={18} color={colors.primary} /></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`Attendance date: ${attendanceDateLabel(value)}`} accessibilityState={{ expanded: open, disabled }} disabled={disabled} onPress={() => { setMonth(value.slice(0, 7)); setOpen(true); }} className={`${button} flex-1 flex-row gap-2 px-2`}><CalendarDays size={18} color={colors.primary} /><Text className="text-sm font-bold text-text-primary">{attendanceDateLabel(value)}</Text></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Next attendance day" disabled={disabled || value >= today} accessibilityState={{ disabled: disabled || value >= today }} onPress={() => onChange(shiftAttendanceDate(value, 1))} className={`${button} ${value >= today ? 'opacity-40' : ''}`}><ChevronRight size={18} color={colors.primary} /></Pressable>
-    </View>
+    </View>}
     <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <View className="flex-1 items-center justify-center px-3" style={{ backgroundColor: colors.overlay }}>
         <Pressable accessible={false} tabIndex={-1} onPress={close} className="absolute inset-0" />

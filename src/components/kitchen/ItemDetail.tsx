@@ -1,4 +1,3 @@
-import { semantic } from '@/lib/pos/brand';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@/components/ui/Typography';
@@ -8,7 +7,9 @@ import { Pencil, Trash2 } from 'lucide-react-native';
 import { fetchKitchenItemEntries, postKitchenEntry, setKitchenItemActive } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
+import { formatMoney, formatQty, stockLevels } from '@/lib/pos/kitchen-utils';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { chart, colors, semantic } from '@/lib/pos/brand';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Section, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
@@ -35,6 +36,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const { can, showAmounts } = useKitchenAccess();
   const [width, setWidth] = useState(0);
   const split = desktop && width >= SPLIT_FROM;
+  const phone = !useResponsive().isTablet;
   // Both the empty and the loaded view measure, so the width is known from the first render.
   const measure = (e: LayoutChangeEvent): void => setWidth(e.nativeEvent.layout.width);
 
@@ -100,12 +102,22 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
     });
   };
 
+  const level = stockLevels(data.entries, [item]).get(item.id);
   const figure = (
     <>
       <Text style={{ letterSpacing: desktop ? -0.4 : -0.8, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className={`font-extrabold text-text-primary ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`}>
         {formatQty(item.stock, item.unit)}
       </Text>
       {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
+      {phone && level?.ref ? (
+        // Task 233: the same level bar as the phone's stock list.
+        <View style={{ marginTop: 8 }}>
+          <Text className="text-[13px] font-semibold text-text-secondary">of {formatQty(level.ref, item.unit)} at the last count{level.state === 'low' ? ' · low' : ''}</Text>
+          <View className="mt-2 h-2.5 overflow-hidden rounded-full" style={{ backgroundColor: chart.grid }}>
+            <View className="h-full rounded-full" style={{ width: `${Math.round(level.share * 100)}%`, backgroundColor: level.state === 'low' ? chart.pending : colors.primary }} />
+          </View>
+        </View>
+      ) : null}
     </>
   );
   const actions = (

@@ -7,7 +7,7 @@ import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { formatDayLabel, formatMoney, matchesSearch, sumDues } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, StatTile, useDesktopDensity } from './ui';
+import { Avatar, Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, StatTile, useDesktopDensity } from './ui';
 import { PartyDetail } from './PartyDetail';
 
 const COPY = {
@@ -69,6 +69,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
               selected={isTablet && current === party.id}
               onPress={() => openParty(party.id)}
               accessibilityLabel={showAmounts ? `${party.name}, ${balance > 0 ? formatMoney(balance) : 'settled'}` : party.name}
+              lead={isTablet ? undefined : <Avatar name={party.name} size={40} />}
             />
           ))
         )}
