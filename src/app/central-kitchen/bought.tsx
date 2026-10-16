@@ -116,7 +116,7 @@ export default function BoughtScreen() {
             {owe > 0 ? `We owe ${party.name} ${formatMoney(owe)}.` : `${party.name} is settled up.`}
           </Text>
         ) : null}
-        <Field label="Category" hint={editing ? 'Keeping the category preserves its saved label, even if the category was renamed.' : 'Starts with the vendor default. Change it for this purchase if needed.'}>
+        <Field label="Category" hint={editing ? 'It keeps its saved name, even if the category was renamed.' : 'Starts with the vendor’s default; change it for this buy if needed.'}>
           <PurchaseCategoryPicker categories={data.purchaseCategories} value={categoryId} onChange={setCategoryOverride} historicalName={keepsSavedCategory ? editing?.purchase_category_name : null} />
           {archivedCategory ? <Notice text="The vendor's default category is archived. Choose an active category or Uncategorized for this purchase." /> : null}
         </Field>
@@ -129,11 +129,11 @@ export default function BoughtScreen() {
           </Field>
         ) : null}
         <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
-        <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a cost.' : 'The cost comes pre-filled from the last buy; change it when the price moved.'}>
+        <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a cost.' : 'The cost fills in from the last buy; change it if the price moved.'}>
           <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="cost" defaultCost={defaultCost} />
         </Field>
-        <Field label="Note">
-          <TextField value={note} onChange={setNote} label="Note" placeholder="Bill number, or anything to remember" />
+        <Field label="Note" optional hint="A bill number, or anything to remember.">
+          <TextField value={note} onChange={setNote} label="Note (optional)" />
         </Field>
         {error ? <Notice text={error} /> : null}
       </KScreen>

@@ -117,8 +117,8 @@ export function MoneyWorkspace() {
           {movePaise > available ? `More than the ${rupees(available)} ${from === 'cash' ? 'cash in hand' : 'in the bank'} shown here. Check the amount, or the balances are missing an entry.` : `${rupees(available)} ${from === 'cash' ? 'cash in hand' : 'in the bank'} now.`}
         </Text>
         <DateField value={moveDate} onChange={setMoveDate} lockReason={lockReason} onLockReason={setLockReason} />
-        <Field label="Note (optional)">
-          <TextField label="Note (optional)" value={note} onChange={setNote} placeholder="For example, deposited at the branch" />
+        <Field label="Note" optional hint="For example, deposited at the branch.">
+          <TextField label="Note (optional)" value={note} onChange={setNote} />
         </Field>
         <Text className="text-xs leading-5 text-text-secondary">A transfer only moves money between Cash and Bank. Sales, purchases and branch or vendor balances are unchanged.</Text>
       </> : <>

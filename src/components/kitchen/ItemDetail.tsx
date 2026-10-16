@@ -1,6 +1,6 @@
 import { semantic } from '@/lib/pos/brand';
 import React, { useCallback, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
@@ -10,7 +10,7 @@ import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use
 import { confirmAction } from '@/lib/pos/dialogs';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Section, Skeleton, TextField, useDesktopDensity } from './ui';
+import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Section, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
 import { EntryActions } from './EntryActions';
 
@@ -33,6 +33,10 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<KitchenEntry | null>(null);
   const { can, showAmounts } = useKitchenAccess();
+  const [width, setWidth] = useState(0);
+  const split = desktop && width >= SPLIT_FROM;
+  // Both the empty and the loaded view measure, so the width is known from the first render.
+  const measure = (e: LayoutChangeEvent): void => setWidth(e.nativeEvent.layout.width);
 
   const loadMoves = useCallback(async () => {
     const res = await fetchKitchenItemEntries(itemId);
@@ -49,7 +53,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
 
   if (!item) {
     return (
-      <View>
+      <View onLayout={measure}>
         {standalone ? <KHeader title="Item" onBack={() => backToKitchen()} /> : null}
         <Empty title="This item is no longer in the list" />
       </View>
@@ -96,8 +100,52 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
     });
   };
 
-  return (
+  const figure = (
+    <>
+      <Text style={{ letterSpacing: desktop ? -0.4 : -0.8, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className={`font-extrabold text-text-primary ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`}>
+        {formatQty(item.stock, item.unit)}
+      </Text>
+      {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
+    </>
+  );
+  const actions = (
+    <>
+      {item.item_kind === 'finished_good' && can('entries.batch') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Create batch" tone="primary" disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
+      {can('entries.count') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Count stock" disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
+    </>
+  );
+  const field = panel ? <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `Made, ${item.unit}` : `On the shelf now, ${item.unit}`} keyboardType="decimal-pad" autoFocus /> : null;
+  const submit = <PrimaryButton label={panel === 'made' ? 'Add' : 'Set'} onPress={() => void submitPanel()} loading={busy} />;
+  // In the narrow column the field and its button stack; elsewhere they share a line.
+  const form = panel ? (
     <View>
+      {panel === 'made' ? <Text className="mt-3 text-sm text-text-secondary">Record quantity produced. Raw material stock stays unchanged.</Text> : null}
+      {split ? (
+        <View style={{ gap: 8, marginTop: 10 }}>{field}{submit}</View>
+      ) : (
+        <View className="flex-row items-center" style={{ gap: 8, marginTop: 10 }}>
+          <View className="flex-1">{field}</View>
+          <View style={{ width: 96 }}>{submit}</View>
+        </View>
+      )}
+    </View>
+  ) : null;
+  const history = (
+    <Section title="Movements">
+      <Card padded={false} style={{ paddingHorizontal: 14 }}>
+        {moves === null ? (
+          <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={40} /><Skeleton height={40} /></View>
+        ) : moves.length === 0 ? (
+          <Empty title="No movements yet" body={item.item_kind === 'finished_good' ? 'Batches, sends and stock counts will show here.' : 'Purchases and stock counts will show here.'} />
+        ) : (
+          <EntryList entries={moves} itemsById={data.itemsById} partiesById={data.partiesById} onPress={setOpen} />
+        )}
+      </Card>
+    </Section>
+  );
+
+  return (
+    <View onLayout={measure}>
       <KHeader
         title={item.name}
         subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : `${item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}${item.cost_price !== null ? ` · costs ${formatMoney(item.cost_price)}` : ' · no cost set'}`}
@@ -108,44 +156,38 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
           { label: 'Remove item', icon: Trash2, tone: 'out', onPress: remove },
         ]} /> : undefined}
       />
-      <Card>
-        <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
-          <View className={desktop ? 'min-w-0 flex-1' : undefined}>
-            <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>In stock</Text>
-            <Text style={{ letterSpacing: desktop ? -0.4 : -0.8, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className={`mt-0.5 font-extrabold text-text-primary ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`}>
-              {formatQty(item.stock, item.unit)}
-            </Text>
-            {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
-          </View>
-          <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>
-            {item.item_kind === 'finished_good' && can('entries.batch') ? <View className="flex-1"><GhostButton label="Create batch" tone="primary" disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
-            {can('entries.count') ? <View className="flex-1"><GhostButton label="Count stock" disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
+      {split ? (
+        // Task 222 (Polaris details layout): movements take the wide column; the stock figure,
+        // its two actions and their quantity box sit in a narrow column beside it.
+        <View className="flex-row items-start gap-4">
+          <View className="min-w-0 flex-1">{history}</View>
+          <View className="w-64 shrink-0" style={stickySide}>
+            <Section title="In stock">
+              <Card>
+                {figure}
+                <View className="mt-3 gap-2">{actions}</View>
+                {form}
+                {error ? <Notice text={error} /> : null}
+              </Card>
+            </Section>
           </View>
         </View>
-        {panel ? (
-          <View>
-          {panel === 'made' ? <Text className="mt-3 text-sm text-text-secondary">Record quantity produced. Raw material stock stays unchanged.</Text> : null}
-          <View className="flex-row items-center" style={{ gap: 8, marginTop: 10 }}>
-            <View className="flex-1">
-              <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `How much was made (${item.unit})` : `What is on the shelf now (${item.unit})`} keyboardType="decimal-pad" autoFocus />
+      ) : (
+        <>
+          <Card>
+            <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
+              <View className={desktop ? 'min-w-0 flex-1' : undefined}>
+                <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>In stock</Text>
+                <View className="mt-0.5">{figure}</View>
+              </View>
+              <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>{actions}</View>
             </View>
-            <View style={{ width: 96 }}><PrimaryButton label={panel === 'made' ? 'Add' : 'Set'} onPress={() => void submitPanel()} loading={busy} /></View>
-          </View>
-          </View>
-        ) : null}
-        {error ? <Notice text={error} /> : null}
-      </Card>
-      <Section title="Movements">
-        <Card padded={false} style={{ paddingHorizontal: 14 }}>
-          {moves === null ? (
-            <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={40} /><Skeleton height={40} /></View>
-          ) : moves.length === 0 ? (
-            <Empty title="No movements yet" body={item.item_kind === 'finished_good' ? 'Batches, sends and stock counts will show here.' : 'Purchases and stock counts will show here.'} />
-          ) : (
-            <EntryList entries={moves} itemsById={data.itemsById} partiesById={data.partiesById} onPress={setOpen} />
-          )}
-        </Card>
-      </Section>
+            {form}
+            {error ? <Notice text={error} /> : null}
+          </Card>
+          {history}
+        </>
+      )}
       <EntryActions entry={open} onClose={() => { setOpen(null); void loadMoves(); }} itemsById={data.itemsById} partiesById={data.partiesById} />
     </View>
   );

@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronDown, ChevronLeft, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { amountReadBack, formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
@@ -190,18 +190,48 @@ export function Section({ title, action, children }: { title: string; action?: R
   );
 }
 
-export function Label({ children }: { children: string }) {
+/**
+ * A settings section (task 222, Polaris annotated layout). On a desktop its name and a one-line
+ * description sit in a narrow column, with the settings beside them at a readable width, so a
+ * switch never ends up a screen away from its label. `side={false}` keeps the name above a
+ * section that needs the full width. On a phone it is an ordinary Section.
+ */
+export function SettingsSection({ title, description, side = true, children }: { title: string; description?: string; side?: boolean; children: React.ReactNode }) {
+  const desktop = useDesktopDensity();
+  if (!desktop) return <Section title={title}>{children}</Section>;
+  const heading = (
+    <View>
+      <Text className="text-[15px] font-extrabold leading-5 text-text-primary">{title}</Text>
+      {description ? <Text className="mt-0.5 text-[13px] leading-5 text-text-secondary">{description}</Text> : null}
+    </View>
+  );
+  if (!side) return <View className="mt-6 gap-3">{heading}{children}</View>;
+  return (
+    <View className="mt-6 flex-row items-start gap-6">
+      <View className="w-60 shrink-0 pt-1">{heading}</View>
+      <View className="min-w-0 max-w-[640px] flex-1">{children}</View>
+    </View>
+  );
+}
+
+/**
+ * A field's name. An optional field says so in its name (task 222, GOV.UK question pages), in
+ * plain lower case after the capitals, rather than in a placeholder that vanishes on typing.
+ */
+export function Label({ children, optional = false }: { children: string; optional?: boolean }) {
   return (
     <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>
       {children}
+      {optional ? <Text style={{ fontSize: 12, fontWeight: '600', letterSpacing: 0, textTransform: 'none' }}> (optional)</Text> : null}
     </Text>
   );
 }
 
-export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+/** A labelled field. Its hint is one short sentence under the box. */
+export function Field({ label, children, hint, optional = false }: { label: string; children: React.ReactNode; hint?: string; optional?: boolean }) {
   return (
     <View style={{ marginTop: 10 }}>
-      <Label>{label}</Label>
+      <Label optional={optional}>{label}</Label>
       {children}
       {hint ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 4, lineHeight: 17 }}>{hint}</Text> : null}
     </View>
@@ -212,15 +242,20 @@ export function StatTile({ label, value, tone = 'neutral', onPress }: { label: s
   const compact = useDesktopDensity();
   const body = (
     <>
-      <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
+      <View className="flex-row items-center gap-0.5">
+        <Text className="shrink text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
+        {onPress ? <ChevronRight size={13} color={colors.textSecondary} /> : null}
+      </View>
       <Text className={`mt-0.5 font-extrabold ${compact ? 'text-xl leading-6' : 'text-[22px] leading-[26px]'}`} style={{ letterSpacing: -0.3, color: toneColor[tone], ...tabular }} numberOfLines={1} adjustsFontSizeToFit>
         {formatMoney(value)}
       </Text>
     </>
   );
+  // Task 222: a tappable figure is a cell of its card too, not a box of its own. A small chevron
+  // says it opens; the tint reaches a little past the text, which stays in line with plain cells.
   if (onPress) {
     return (
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`} className={`flex-1 border border-border-soft bg-surface-elevated px-3 active:opacity-60 ${compact ? 'min-h-[60px] rounded-xl py-2.5' : 'min-h-[66px] rounded-2xl py-3'}`}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${formatMoney(value)}`} className="-m-1.5 min-h-[44px] min-w-0 flex-1 rounded-lg p-1.5 hover:bg-surface-tint active:bg-surface-tint">
         {body}
       </Pressable>
     );
@@ -228,6 +263,11 @@ export function StatTile({ label, value, tone = 'neutral', onPress }: { label: s
   // Inside a card it is a plain cell; the card draws the dividers, so there is no card within a card.
   return <View style={{ flex: 1, minWidth: 0 }}>{body}</View>;
 }
+
+/** From this width a desktop detail page or pane puts its summary in a column of its own (task 222). */
+export const SPLIT_FROM = 640;
+/** That summary column stays in view while the list beside it scrolls (browsers only). */
+export const stickySide: ViewStyle = Platform.OS === 'web' ? ({ position: 'sticky', top: 0 } as object) : {};
 
 /** A hairline between two cells of one card: vertical between columns, horizontal between rows. */
 export function Divider({ vertical }: { vertical?: boolean }) {

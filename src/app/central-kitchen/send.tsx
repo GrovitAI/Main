@@ -133,8 +133,8 @@ export default function SendScreen() {
         <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a price.' : undefined}>
           <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="sell" picks={picks} picksTitle={party ? `Often sent to ${party.name}` : undefined} />
         </Field>
-        <Field label="Note">
-          <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />
+        <Field label="Note" optional>
+          <TextField value={note} onChange={setNote} label="Note (optional)" />
         </Field>
         {error ? <Notice text={error} /> : null}
       </KScreen>

@@ -12,7 +12,7 @@ import { fetchKitchenAudit, fetchKitchenTeam, saveKitchenLock, saveKitchenStaffA
 import { PERMISSION_GROUPS, PRESETS, auditText, dayText, hourText, lockSummary, presetFor, presetLabel } from '@/lib/pos/kitchen-access-utils';
 import type { KitchenAuditRow, KitchenPermission, KitchenPreset, KitchenTeamMember } from '@/lib/pos/kitchen-access-types';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { Card, Empty, KHeader, KScreen, Label, LinkButton, Notice, PrimaryButton, Reveal, Section, SelectRow, SettingsGroup, Skeleton, Tick, Toggle, useDesktopDensity } from './ui';
+import { Card, Empty, KHeader, KScreen, Label, LinkButton, Notice, PrimaryButton, Reveal, SelectRow, SettingsGroup, SettingsSection, Skeleton, Tick, Toggle, useDesktopDensity } from './ui';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 const HOURS = [6, 8, 10, 11, 12, 14, 18, 22] as const;
@@ -105,7 +105,7 @@ function LockCard() {
   };
 
   return (
-    <Section title="Day lock">
+    <SettingsSection title="Day lock" description="When staff can still change a day, and which days only you can correct.">
       <SettingsGroup>
         <View className="flex-row items-center gap-2 border-t border-border-soft bg-surface-tint px-3.5 py-2.5">
           <Lock size={15} color={colors.primary} />
@@ -142,12 +142,13 @@ function LockCard() {
           if (day > today) { setError('Pick a day up to today.'); return; }
           setThrough(day);
         }} />
-    </Section>
+    </SettingsSection>
   );
 }
 
 function TeamSection() {
-  const panes = useDesktopDensity() && DESKTOP_LAYOUT === 'panes';
+  const desktop = useDesktopDensity();
+  const panes = desktop && DESKTOP_LAYOUT === 'panes';
   const [team, setTeam] = useState<KitchenTeamMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -172,8 +173,9 @@ function TeamSection() {
   const current = list.find((m) => m.staffId === chosen) ?? list[0];
 
   return (
-    <Section title="Kitchen logins">
-      <Text className="mb-2 text-[13px] leading-5 text-text-secondary">Add a login under Settings › Staff with the role Kitchen. You always have every permission.</Text>
+    // The list and its permission grid keep the full width on a desktop (task 220).
+    <SettingsSection title="Kitchen logins" side={!panes} description="Add a login under Settings › Staff with the role Kitchen. You always have every permission.">
+      {desktop ? null : <Text className="mb-2 text-[13px] leading-5 text-text-secondary">Add a login under Settings › Staff with the role Kitchen. You always have every permission.</Text>}
       {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load()} />} /> : null}
       {team === null && !error ? (
         <View style={{ gap: 8 }}><Skeleton height={64} /><Skeleton height={64} /></View>
@@ -210,7 +212,7 @@ function TeamSection() {
           ))}
         </View>
       )}
-    </Section>
+    </SettingsSection>
   );
 }
 
@@ -333,7 +335,7 @@ function AuditSection() {
   useFocusEffect(useCallback(() => { void load(0); }, [load]));
 
   return (
-    <Section title="Change log">
+    <SettingsSection title="Change log" description="Edits, voids, locked-day changes and permission changes, newest first.">
       {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load(0)} />} /> : null}
       <Card padded={false} style={{ paddingHorizontal: 14 }}>
         {rows === null && !error ? (
@@ -354,6 +356,6 @@ function AuditSection() {
         )}
       </Card>
       {more ? <View className="items-center"><LinkButton label="Show older changes" onPress={() => void load(page + 1)} /></View> : null}
-    </Section>
+    </SettingsSection>
   );
 }

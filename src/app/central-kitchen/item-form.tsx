@@ -88,23 +88,23 @@ export default function ItemFormScreen() {
       <KScreen footer={<PrimaryButton label={id ? 'Save changes' : 'Add item'} onPress={() => void save()} disabled={!mayEdit || !name.trim() || Boolean(id && !existing)} loading={saving} done={done.saved} reason={mayEdit && !name.trim() ? 'Enter a name' : undefined} />}>
         <KHeader title={existing ? 'Edit item' : kind === 'finished_good' ? 'Add a finished good' : 'Add a raw material'} onBack={() => backToKitchen()} />
         {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change items. Ask the owner." /> : null}
-        <Field label="Item type" hint={existing ? 'Past entries stay unchanged. This controls which stock list and new entry pickers show the item.' : undefined}>
+        <Field label="Item type" hint={existing ? 'Decides which stock list shows it; past entries stay as they are.' : undefined}>
           <Chips options={[{ value: 'raw_material', label: 'Raw material' }, { value: 'finished_good', label: 'Finished good' }]} value={kind} onChange={setKind} />
         </Field>
         <Field label="Name">
           <TextField value={name} onChange={setName} label="Item name" placeholder="e.g. Nutella sauce" autoFocus={!existing} />
         </Field>
-        <Field label="Counted in" hint={existing ? 'Changing the unit does not convert the stock figure; count it again afterwards.' : undefined}>
+        <Field label="Counted in" hint={existing ? 'The stock figure is not converted, so count it again after a change.' : undefined}>
           <Chips options={KITCHEN_UNITS.map((u) => ({ value: u, label: UNIT_LABELS[u], hint: u }))} value={unit} onChange={setUnit} />
         </Field>
-        {kind === 'finished_good' ? <Field label={`Sells at, ₹ per ${unit}`} hint="Optional default for branch sends. A blank price does not change the item type; enter its price on each send.">
-          <TextField value={price} onChange={setPrice} label="Selling price" placeholder="Enter on each send" keyboardType="decimal-pad" prefix="₹" />
+        {kind === 'finished_good' ? <Field label={`Sells at, ₹ per ${unit}`} optional hint="Fills in on each send; leave it blank to type a price each time.">
+          <TextField value={price} onChange={setPrice} label="Selling price (optional)" keyboardType="decimal-pad" prefix="₹" />
         </Field> : null}
-        {kind === 'finished_good' && access.showAmounts ? <Field label={`Costs us, ₹ per ${unit}`} hint={margin ? `${formatMoney(margin.each)} profit per ${unit} at the selling price (${margin.percent}%). Each send keeps the cost of its day.` : 'What one ' + unit + ' costs the kitchen to make: ingredients and packing. Used for profit in Analytics; each send keeps the cost of its day.'}>
-          <TextField value={cost} onChange={setCost} label="Cost per unit" placeholder="Not set" keyboardType="decimal-pad" prefix="₹" />
+        {kind === 'finished_good' && access.showAmounts ? <Field label={`Costs us, ₹ per ${unit}`} optional hint={`${margin ? `${formatMoney(margin.each)} profit per ${unit} at the selling price (${margin.percent}%).` : `Ingredients and packing for one ${unit}, for profit in Analytics.`}${existing ? ' Past sends keep their cost.' : ''}`}>
+          <TextField value={cost} onChange={setCost} label="Cost per unit (optional)" keyboardType="decimal-pad" prefix="₹" />
         </Field> : null}
         {!existing ? (
-          <Field label={`In stock today, ${unit}`} hint={kind === 'finished_good' ? 'What is on the shelf now. Batches add stock; sends reduce it. Count stock corrects it.' : 'What is on the shelf now. Purchases add stock; Count stock corrects it. No batches needed.'}>
+          <Field label={`In stock today, ${unit}`} hint={kind === 'finished_good' ? 'What is on the shelf now; batches add to it and sends take from it.' : 'What is on the shelf now; purchases add to it.'}>
             <TextField value={opening} onChange={setOpening} label="Opening stock" placeholder="0" keyboardType="decimal-pad" />
           </Field>
         ) : null}

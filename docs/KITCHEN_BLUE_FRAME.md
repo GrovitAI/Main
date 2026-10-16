@@ -324,3 +324,26 @@ kitchen pages on phone and desktop. The owner chose these six fixes:
   the next app build to work on phones.
 - **Browser details**: a blue caret, a light-blue text selection, and a
   `theme-color` meta in the kitchen canvas colour.
+
+## Task 222: page layouts from published design guidance (2026-10-16)
+
+Sources: IBM Carbon dashboards, Linear's design refresh, Shopify Polaris
+(details and app settings layouts) and GOV.UK question pages.
+
+- **Home on a phone**: the four actions come first. The figures follow in two
+  calm cards: balances (branches yet to pay, we owe vendors, cash, bank), each
+  a tappable cell with a small chevron, then This month. Desktop uses the same
+  two cards in its left column. A tappable `StatTile` is now a cell of its
+  card, not a box of its own.
+- **Branch, vendor and item pages on desktop**: when the page or pane is at
+  least `SPLIT_FROM` (640 px) wide, the give-and-take or movements list takes
+  the wide column and the figure, actions and WhatsApp number (or the count
+  box) sit in a 256 px column beside it, sticky in browsers. Phones and
+  narrower panes keep one column. Standalone detail pages use `KScreen wide`.
+- **Team and day lock on desktop**: `SettingsSection` puts Day lock and Change
+  log in the annotated layout, with the name and a one-line description on the
+  left and the settings at most 640 px wide on the right. Kitchen logins keep
+  the full width for the approved list and grid. Phones are unchanged.
+- **Forms**: `Field optional` adds "(optional)" in lower case after the label,
+  replacing "Optional" placeholders, which vanish on typing. Hints are cut to
+  one short sentence.

@@ -125,7 +125,7 @@ export default function SpentScreen() {
           </Field>
         )}
         {isVendor && partyId ? (
-          <Field label="Against which buys (optional)" hint="Tick the buys this payment is for and the amount fills itself. Leave them unticked and it simply comes off what we owe.">
+          <Field label="Against which buys" optional hint="Tick the buys this pays for and the amount fills in.">
             <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
           </Field>
         ) : null}
@@ -143,8 +143,8 @@ export default function SpentScreen() {
           <ModePicker value={mode} onChange={setMode} />
         </Field>
         <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
-        <Field label="Note">
-          <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />
+        <Field label="Note" optional>
+          <TextField value={note} onChange={setNote} label="Note (optional)" />
         </Field>
         {error ? <Notice text={error} /> : null}
         <View style={{ height: 8 }} />

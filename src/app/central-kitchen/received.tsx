@@ -116,12 +116,12 @@ export default function ReceivedScreen() {
         </Field>
         <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         {partyId ? (
-          <Field label="Against which sends (optional)" hint="Tick what this money is for and the amount fills itself. Leave them all unticked and it simply comes off the balance.">
+          <Field label="Against which sends" optional hint="Tick what this money is for and the amount fills in.">
             <OpenDocsPicker partyId={partyId} kind="branch" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.id} />
           </Field>
         ) : null}
-        <Field label="Note">
-          <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />
+        <Field label="Note" optional>
+          <TextField value={note} onChange={setNote} label="Note (optional)" />
         </Field>
         {error ? <Notice text={error} /> : null}
         <View style={{ height: 8 }} />

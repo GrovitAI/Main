@@ -54,8 +54,27 @@ export default function KitchenHome() {
     return loadMoney();
   }, [data.entries, loadMoney]);
 
+  // Task 222: two calm cards. What is owed and held comes first, each figure opening its page;
+  // the month's totals follow. On a phone they sit below the four actions.
   const summary = !access.showAmounts ? null : (
-    <>
+    <View style={{ gap: 12 }}>
+      <Card>
+        <View className="flex-row">
+          <StatTile label="Branches yet to pay" value={owed} tone={owed > 0 ? 'in' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/branches')} />
+          <Divider vertical />
+          <StatTile label="We owe vendors" value={owe} tone={owe > 0 ? 'out' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/vendors')} />
+        </View>
+        {money ? (
+          <>
+            <Divider />
+            <View className="flex-row">
+              <StatTile label="Cash in hand" value={money.cash_paise / 100} tone={money.cash_paise < 0 ? 'out' : 'neutral'} onPress={() => router.push('/central-kitchen/money')} />
+              <Divider vertical />
+              <StatTile label="Bank · UPI" value={money.bank_paise / 100} tone={money.bank_paise < 0 ? 'out' : 'neutral'} onPress={() => router.push('/central-kitchen/money')} />
+            </View>
+          </>
+        ) : null}
+      </Card>
       <Card>
         <View className="flex-row items-center justify-between" style={{ marginBottom: 10 }}>
           <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>This month</Text>
@@ -73,17 +92,7 @@ export default function KitchenHome() {
           <StatTile label="Bought" value={month.bought} />
         </View>
       </Card>
-      <View className="flex-row" style={{ gap: 10, marginTop: 12 }}>
-        <StatTile label="Branches yet to pay" value={owed} tone={owed > 0 ? 'in' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/branches')} />
-        <StatTile label="We owe vendors" value={owe} tone={owe > 0 ? 'out' : 'neutral'} onPress={() => router.navigate('/central-kitchen/(tabs)/vendors')} />
-      </View>
-      {money ? (
-        <View className="flex-row" style={{ gap: 10, marginTop: 10 }}>
-          <StatTile label="Cash in hand" value={money.cash_paise / 100} tone={money.cash_paise < 0 ? 'out' : 'neutral'} onPress={() => router.push('/central-kitchen/money')} />
-          <StatTile label="Bank · UPI" value={money.bank_paise / 100} tone={money.bank_paise < 0 ? 'out' : 'neutral'} onPress={() => router.push('/central-kitchen/money')} />
-        </View>
-      ) : null}
-    </>
+    </View>
   );
 
   // The four things the kitchen records, each shown only to logins allowed to record it.
@@ -97,7 +106,7 @@ export default function KitchenHome() {
   ];
   const tileRows = [tiles.slice(0, 2), tiles.slice(2, 4)].filter((row) => row.length > 0);
   const actions = tiles.length === 0 ? null : (
-    <View className={desktop ? 'flex-row gap-3' : undefined} style={desktop ? undefined : { gap: 10, marginTop: isTablet ? 0 : 12 }}>
+    <View className={desktop ? 'flex-row gap-3' : undefined} style={desktop ? undefined : { gap: 10 }}>
       {tileRows.map((row) => (
         <View key={row[0]?.key} className={desktop ? 'flex-1 flex-row gap-3' : 'flex-row'} style={desktop ? undefined : { gap: 10 }}>
           {row.map((t) => <ActionTile key={t.key} icon={t.icon} label={t.label} caption={t.caption} tone={t.tone} onPress={() => router.push(t.href as never)} />)}
@@ -142,10 +151,9 @@ export default function KitchenHome() {
 
       {!data.loaded ? (
         <View style={{ gap: 12 }}>
-          <Skeleton height={190} />
-          <Skeleton height={66} />
-          <Skeleton height={100} />
-          <Skeleton height={100} />
+          {desktop ? null : <><Skeleton height={100} /><Skeleton height={100} /></>}
+          <Skeleton height={150} />
+          <Skeleton height={150} />
         </View>
       ) : nothingSetUp ? (
         <Card style={{ marginTop: 4 }}>
@@ -186,10 +194,10 @@ export default function KitchenHome() {
           <View className="flex-1">{actions}</View>
         </View>
       ) : (
-        <>
-          {summary}
+        <View style={{ gap: 12, marginTop: 4 }}>
           {actions}
-        </>
+          {summary}
+        </View>
       )}
 
       {data.loaded && !nothingSetUp && !desktop ? (

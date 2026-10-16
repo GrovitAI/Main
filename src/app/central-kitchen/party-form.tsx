@@ -71,19 +71,20 @@ export default function PartyFormScreen() {
         <Field label="Name">
           <TextField value={name} onChange={setName} label={`${noun} name`} placeholder={isBranch ? 'e.g. Kolathur' : 'e.g. Aavin dairy'} autoFocus={!existing} />
         </Field>
-        <Field label="WhatsApp number" hint={isBranch ? 'Optional. With a number, the slip after a send opens straight to their chat.' : 'Optional. Handy for sending a payment note.'}>
-          <TextField value={phone} onChange={setPhone} label="WhatsApp number" placeholder="98765 43210" keyboardType="phone-pad" />
+        <Field label="WhatsApp number" optional hint={isBranch ? 'The slip after a send opens straight to their chat.' : 'Handy for sending a payment note.'}>
+          <TextField value={phone} onChange={setPhone} label="WhatsApp number (optional)" placeholder="98765 43210" keyboardType="phone-pad" />
         </Field>
         {!isBranch ? (
-          <Field label="Default purchase category" hint="Used for new purchases. You can override it on a buy; past purchases keep their original category.">
+          <Field label="Default purchase category" hint="Fills in on new buys; past buys keep theirs.">
             <PurchaseCategoryPicker categories={data.purchaseCategories} value={categoryId} onChange={setCategoryId} />
           </Field>
         ) : null}
         <Field
           label="Opening balance"
-          hint={`What stood between you on the day this app started. It is the first line of the give-and-take and part of the figure; leave it at 0 if nothing was pending.`}
+          optional
+          hint="What stood between you on the day this app started, shown as the first line of the give-and-take."
         >
-          <TextField value={openingText} onChange={setOpeningText} label="Opening balance" placeholder="0" keyboardType="decimal-pad" prefix="₹" />
+          <TextField value={openingText} onChange={setOpeningText} label="Opening balance (optional)" placeholder="0" keyboardType="decimal-pad" prefix="₹" />
           {openingAbs > 0 ? (
             <>
               <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 12, marginBottom: 6 }}>Which way</Text>
