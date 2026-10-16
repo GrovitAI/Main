@@ -231,3 +231,15 @@ live in `src/components/kitchen/ui.tsx`.
   in view. Desktop is unchanged.
 - **Rule (AGENTS.md):** every UI change is designed and checked on both phone
   and desktop, for every component it touches.
+
+## Task 218: equal report tabs (2026-10-16)
+
+- **Every Analytics report tab is the same width**, so the blue highlight
+  keeps one size as it moves (owner's choice, option A). The width is the
+  widest name plus padding and the focus border. The names are measured in a
+  hidden copy that the tab width can't squeeze. Every tab always has a
+  transparent 1 px border, so focusing a tab never narrows its label.
+- **Phones:** the row scrolls sideways and fades at the edge that is cut off.
+  Choosing a tab scrolls it into view. "Purchases" keeps its name; the owner
+  declined renaming it to "Bought".
+- **Desktop:** the same equal tabs sit in one row, with no scrolling.

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
-import { ActivityIndicator, Animated, FlatList, Modal, Platform, Pressable, ScrollView, Share, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Modal, Platform, Pressable, ScrollView, Share, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,6 +58,26 @@ export function AnalyticsWorkspace() {
   const tabSlide = useSlidingRect(kindIndex);
   const tabScroll = useRef<ScrollView>(null);
   const tabLeft = useRef<number[]>([]);
+  // Every tab is the same width, so the highlight keeps one size as it moves:
+  // the widest name plus 12 px a side, or an equal share of the row when that is
+  // wider. A phone row that can't hold them all scrolls, faded at the cut edge.
+  const labelWidths = useRef<number[]>([]);
+  const [widestLabel, setWidestLabel] = useState(0);
+  const [tabView, setTabView] = useState({ width: 0, content: 0, x: 0 });
+  // Names are measured in a hidden copy the tab width can't squeeze, so a late font still resizes them.
+  const measureLabel = (i: number) => (width: number): void => {
+    labelWidths.current[i] = width;
+    setWidestLabel(Math.ceil(Math.max(...labelWidths.current.filter(w => w !== undefined))));
+  };
+  const share = desktop || !tabView.width ? 0 : Math.floor((tabView.width - 4 * (tabs.length - 1)) / tabs.length);
+  // 24 px of padding, 2 px of focus border, and 2 px because a measured width is rounded down.
+  const tabWidth = widestLabel ? Math.max(widestLabel + 28, share, desktop ? 80 : 0) : undefined;
+  const onTabScroll = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    const x = event.nativeEvent.contentOffset.x;
+    setTabView(value => (Math.abs(value.x - x) < 1 ? value : { ...value, x }));
+  };
+  const fadeLeft = !desktop && tabView.x > 1;
+  const fadeRight = !desktop && tabView.content > tabView.width + 1 && tabView.x < tabView.content - tabView.width - 1;
   useEffect(() => {
     const x = tabLeft.current[kindIndex];
     if (x !== undefined) tabScroll.current?.scrollTo({ x: Math.max(0, x - 24), animated: true });
@@ -203,15 +224,16 @@ export function AnalyticsWorkspace() {
     { id: 'refresh', label: 'Refresh reports', Icon: RefreshCw, disabled: loading, action: () => setRefresh(value => value + 1) },
     { id: 'info', label: 'About these reports', Icon: Info, disabled: false, action: () => setNotesOpen(value => !value) },
   ];
-  // On a phone each tab is as wide as its name plus an even share of the spare
-  // room, so "Purchases" never presses on its neighbours; on a very narrow
-  // screen the row scrolls and keeps the chosen tab in view.
-  const tabRow = <View className={'flex-row gap-1 ' + (desktop ? '' : 'flex-grow')}>
+  const tabRow = <View className="flex-row gap-1">
+    <View pointerEvents="none" aria-hidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', top: 0, left: 0, flexDirection: 'row', opacity: 0 }}>
+      {tabs.map((tab, i) => <Text key={tab.id} onLayout={event => measureLabel(i)(event.nativeEvent.layout.width)} className="text-sm font-bold" style={{ flexShrink: 0 }}>{tab.label}</Text>)}
+    </View>
     <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 12, backgroundColor: colors.primary, ...tabSlide.style }} />
     {tabs.map((tab, i) => (
       <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
         onLayout={event => { tabLeft.current[i] = event.nativeEvent.layout.x; tabSlide.measure(i)(event); }}
-        className={'min-h-12 items-center justify-center rounded-xl active:opacity-70 focus:border focus:border-primary ' + (desktop ? 'min-w-[80px] px-3 ' : 'flex-grow px-2.5 ') + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
+        style={tabWidth ? { width: tabWidth } : undefined}
+        className={'min-h-12 items-center justify-center rounded-xl border border-transparent px-3 active:opacity-70 focus:border-primary ' + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
         <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')} numberOfLines={1}>{tab.label}</Text>
       </Pressable>
     ))}
@@ -219,7 +241,13 @@ export function AnalyticsWorkspace() {
   const listHeader = (
     <View className="gap-2" style={{ paddingTop: Math.max(insets.top, 8) }}>
       <View testID="kitchen-report-selector" className="flex-row items-center justify-between gap-2 rounded-xl bg-surface-elevated p-1">
-        {desktop ? tabRow : <ScrollView ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>{tabRow}</ScrollView>}
+        {desktop ? tabRow : <View className="min-w-0 flex-1">
+          <ScrollView ref={tabScroll} horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16} onScroll={onTabScroll}
+            onLayout={event => { const width = event.nativeEvent.layout.width; setTabView(value => (value.width === width ? value : { ...value, width })); }}
+            onContentSizeChange={content => setTabView(value => (value.content === content ? value : { ...value, content }))}>{tabRow}</ScrollView>
+          {fadeLeft ? <LinearGradient pointerEvents="none" colors={[colors.surfaceElevated, colors.surfaceElevated + '00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 28 }} /> : null}
+          {fadeRight ? <LinearGradient pointerEvents="none" colors={[colors.surfaceElevated + '00', colors.surfaceElevated]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 28 }} /> : null}
+        </View>}
         {desktop ? headerActions : null}
       </View>
       <View testID="kitchen-report-period" className={'gap-1 rounded-xl border border-border-soft bg-surface-elevated py-1 ' + (desktop ? 'px-3' : 'px-1')}>
