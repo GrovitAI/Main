@@ -10,6 +10,11 @@ export type KitchenInvoice = {
   cancelled_at: string | null; cancel_reason: string | null; deliveries: InvoiceDelivery[];
 };
 export type InvoiceStatus = KitchenInvoice['status'];
-/** `status` narrows the register; absent or null means every status. */
-export type InvoiceFilter = KitchenDateRange & { partyId: string | null; page: number; candidates: boolean; status?: InvoiceStatus | null };
+/** Every invoice status, in the order the status filter lists them. */
+export const INVOICE_STATUSES: readonly InvoiceStatus[] = ['to_be_paid', 'paid', 'cancelled'];
+/**
+ * `statuses` narrows the register to the ticked statuses (task 224); absent, null or all of them
+ * means every status, and an empty list means none was ticked.
+ */
+export type InvoiceFilter = KitchenDateRange & { partyId: string | null; page: number; candidates: boolean; statuses?: readonly InvoiceStatus[] | null };
 export type InvoiceWorkspace = { rows: KitchenInvoice[]; deliveries: InvoiceDelivery[]; branches: ReportOption[]; total_rows: number };

@@ -11,12 +11,12 @@ import { printKitchenInvoice } from '@/lib/pos/kitchen-invoice-export';
 import { invoiceDate, invoiceIssuedDate, invoiceMoney, invoiceNumber, invoiceStatus } from '@/lib/pos/kitchen-invoice-utils';
 import { formatQty, parseAmount } from '@/lib/pos/kitchen-utils';
 import { historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
-import type { InvoiceDelivery, InvoiceFilter, InvoiceLine, InvoiceStatus, InvoiceWorkspace as WorkspaceData, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
+import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceStatus, type InvoiceWorkspace as WorkspaceData, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
-import { Chips, KHeader, KScreen, Notice, TextField, Tick } from '@/components/kitchen/ui';
+import { KHeader, KScreen, Notice, TextField, Tick } from '@/components/kitchen/ui';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
-import { ReportSelect } from '@/components/kitchen/ReportSelect';
+import { ReportMultiSelect, ReportSelect } from '@/components/kitchen/ReportSelect';
 import { DateField, useDateGuard, ModePicker } from '@/components/kitchen/forms';
 
 type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; value: InvoiceDelivery } | { kind: 'line' | 'docline'; value: InvoiceLine; date: string };
@@ -31,9 +31,7 @@ function routeFilter(params: RouteParams, today: string): Pick<InvoiceFilter, 's
 /** The preview mirrors the printed A4 page: one paper column, hairline edges. */
 const paper = 'w-full max-w-[794px] self-center border-x border-border-soft bg-surface-elevated px-5';
 const tabular = { fontVariant: ['tabular-nums' as const] };
-const STATUS_FILTERS: readonly { value: InvoiceStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' }, { value: 'to_be_paid', label: 'To be paid' }, { value: 'paid', label: 'Paid' }, { value: 'cancelled', label: 'Cancelled' },
-];
+const STATUS_OPTIONS: readonly { id: InvoiceStatus; label: string }[] = INVOICE_STATUSES.map(id => ({ id, label: invoiceStatus(id) }));
 const statusNoun: Record<InvoiceStatus, string> = { to_be_paid: 'to be paid', paid: 'paid', cancelled: 'cancelled' };
 function Action({ label, onPress, primary = false, disabled = false }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
@@ -49,7 +47,7 @@ function Status({ invoice }: { invoice: KitchenInvoice }) {
 export function InvoiceWorkspace() {
   const params = useLocalSearchParams<RouteParams>();
   const today = kitchenToday(); const { width } = useWindowDimensions(); const desktop = width >= 700;
-  const [filter, setFilter] = useState<InvoiceFilter>(() => ({ ...routeFilter(params, today), page: 0, candidates: false }));
+  const [filter, setFilter] = useState<InvoiceFilter>(() => ({ ...routeFilter(params, today), page: 0, candidates: false, statuses: INVOICE_STATUSES }));
   const [data, setData] = useState<WorkspaceData | null>(null); const [branches, setBranches] = useState<ReportOption[]>([]); const branchesLoaded = useRef(false);
   const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0); const [selected, setSelected] = useState<Map<string, InvoiceDelivery>>(new Map());
@@ -68,7 +66,7 @@ export function InvoiceWorkspace() {
     if (appliedParams.current === key || busyRef.current) return;
     appliedParams.current = key;
     setDetailId(null); setInvoice(null); setPreview(null); setEditor(null); setSelected(new Map()); setMessage(null);
-    setFilter(f => ({ ...routeFilter({ start: params.start, end: params.end, party: params.party }, kitchenToday()), page: 0, candidates: false, status: f.status ?? null }));
+    setFilter(f => ({ ...routeFilter({ start: params.start, end: params.end, party: params.party }, kitchenToday()), page: 0, candidates: false, statuses: f.statuses ?? INVOICE_STATUSES }));
   }, [params.start, params.end, params.party]);
   // Reload whenever the tab is shown again (payments may have been recorded on Received); the first focus is the initial load.
   const focusedOnce = useRef(false);
@@ -78,6 +76,8 @@ export function InvoiceWorkspace() {
     const controller = new AbortController(); setError(null); setData(null);
     const branchesOnly = filter.candidates && !filter.partyId;
     if (branchesOnly && branchesLoaded.current) { setLoading(false); return () => controller.abort(); }
+    // With no status ticked there is nothing to show, so nothing is fetched.
+    if (!filter.candidates && filter.statuses?.length === 0) { setLoading(false); setData({ rows: [], deliveries: [], branches, total_rows: 0 }); return () => controller.abort(); }
     setLoading(true);
     // Branch choices arrive with the register; New invoice reloads them if that read failed.
     void fetchKitchenInvoices(branchesOnly ? { ...filter, candidates: false } : filter, controller.signal).then(result => {
@@ -86,6 +86,7 @@ export function InvoiceWorkspace() {
       if (result.data) { setBranches(result.data.branches); branchesLoaded.current = true; }
     });
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- branches only fill the empty register; they must not refetch it.
   }, [filter, refresh, detailId]);
   useEffect(() => {
     if (!detailId) return;
@@ -93,6 +94,8 @@ export function InvoiceWorkspace() {
     void fetchKitchenInvoice(detailId).then(result => { if (!current) return; setLoading(false); setError(result.error); setInvoice(result.data); });
     return () => { current = false; };
   }, [detailId, refresh]);
+  // The statuses ticked in the filter, when that is fewer than all of them.
+  const narrowedTo = filter.statuses && filter.statuses.length < INVOICE_STATUSES.length ? INVOICE_STATUSES.filter(s => filter.statuses?.includes(s)) : null;
   const resetFilter = (change: Partial<InvoiceFilter>): void => { if (busy) return; setSelected(new Map()); setMessage(null); setFilter(f => ({ ...f, ...change, page: 0 })); };
   const chosen = [...selected.values()]; const total = chosen.reduce((n, d) => n + d.amount_paise, 0);
   const allPage = !!data?.deliveries.length && data.deliveries.every(d => selected.has(d.id));
@@ -177,12 +180,16 @@ export function InvoiceWorkspace() {
       onBack={busy ? undefined : preview ? () => { setPreview(null); setError(null); } : detailId ? backToList : filter.candidates ? () => resetFilter({ candidates: false }) : undefined}
       right={!detailId && !filter.candidates && access.can('invoices.create') ? <Action label="New invoice" primary onPress={() => resetFilter({ candidates: true })} disabled={loading || busy} /> : null} />
     {preview ? null : !detailId ? <>
+      {/* Task 224: the status filter is a dropdown with ticks beside the dates, not a row of pills. */}
       <View className={'gap-2 ' + (desktop ? 'flex-row items-end' : '')}>
         <View className={desktop ? 'max-w-[340px] flex-1' : ''}><ReportSelect label="Branch" value={filter.partyId} options={branches}
           allowEmpty={!filter.candidates} emptyLabel={filter.candidates ? 'Choose a branch' : 'All branches'} outlined onChange={partyId => resetFilter({ partyId })} /></View>
-        <View className={desktop ? 'shrink' : ''}><ReportDateRange label="Invoice delivery period" value={filter} outlined onChange={range => resetFilter(range)} /></View>
+        <View className="flex-row items-end gap-2">
+          <View className={desktop ? 'shrink' : 'min-w-0 flex-1'}><ReportDateRange label="Invoice delivery period" value={filter} outlined onChange={range => resetFilter(range)} /></View>
+          {filter.candidates ? null : <View className={desktop ? 'w-[240px]' : 'min-w-0 flex-1'}><ReportMultiSelect label="Invoice status" allLabel="All statuses" options={STATUS_OPTIONS}
+            value={filter.statuses ?? INVOICE_STATUSES} onChange={statuses => resetFilter({ statuses })} /></View>}
+        </View>
       </View>
-      {filter.candidates ? null : <View accessibilityLabel="Invoice status"><Chips options={STATUS_FILTERS} value={filter.status ?? 'all'} onChange={status => resetFilter({ status: status === 'all' ? null : status })} /></View>}
       <Text className="text-xs leading-5 text-text-secondary">{filter.candidates ? 'Select finished-goods deliveries. Each delivery includes all its items. Already invoiced deliveries are excluded.' : 'Invoices overlapping the selected delivery period. Paid status follows matched branch payments.'}</Text>
       {filter.candidates && data?.deliveries.length ? <View className="flex-row flex-wrap items-center justify-between gap-2">
         <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries on this page" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
@@ -214,9 +221,9 @@ export function InvoiceWorkspace() {
       <FlatList<Row> data={loading || (error && !preview) ? [] : rows} keyExtractor={r => r.kind + r.value.id} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 24 }} refreshing={false} onRefresh={preview ? undefined : reload}
         ListEmptyComponent={!loading && !error ? !detailId && !filter.candidates ? <View className="items-start gap-2 py-5">
-          <Text className="text-sm font-semibold leading-5 text-text-primary">{filter.status ? 'No invoices ' + statusNoun[filter.status] + ' for this period.' : 'No saved invoices for this period.'}</Text>
-          {filter.status ? <Action label="Show all invoices" disabled={busy} onPress={() => resetFilter({ status: null })} /> : <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its finished-goods deliveries to create an invoice.</Text>}
-          {access.can('invoices.create') && !filter.status ? <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} /> : null}
+          <Text className="text-sm font-semibold leading-5 text-text-primary">{narrowedTo ? narrowedTo.length === 0 ? 'No status is ticked. Tick one under Invoice status.' : 'No invoices ' + narrowedTo.map(s => statusNoun[s]).join(' or ') + ' for this period.' : 'No saved invoices for this period.'}</Text>
+          {narrowedTo ? <Action label="Show all invoices" disabled={busy} onPress={() => resetFilter({ statuses: INVOICE_STATUSES })} /> : <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its finished-goods deliveries to create an invoice.</Text>}
+          {access.can('invoices.create') && !narrowedTo ? <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} /> : null}
         </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'No uninvoiced finished-goods deliveries for this period. Try another date range.' : 'Choose a branch to load its deliveries.'}</Text> : null}
         ListFooterComponent={preview ? docFooter : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
         renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}

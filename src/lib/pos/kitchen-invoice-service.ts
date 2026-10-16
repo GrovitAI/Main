@@ -4,7 +4,7 @@ import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
 import { describeAccessError } from '@/lib/pos/kitchen-utils';
 import type { ServiceResult, KitchenMode } from '@/lib/pos/kitchen-types';
-import type { InvoiceDelivery, InvoiceFilter, InvoiceLine, InvoiceWorkspace, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
+import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceWorkspace, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 
 const record = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const text = (v: unknown): string => { if (typeof v !== 'string') throw Error('Invalid invoice'); return v; };
@@ -54,10 +54,14 @@ function safeError(error: unknown, write = false): string {
 export async function fetchKitchenInvoices(filter: InvoiceFilter, signal?: AbortSignal): Promise<ServiceResult<InvoiceWorkspace>> {
   try {
     if (!validFilter(filter)) return { data: null, error: 'Choose a branch and valid dates.' };
+    const statuses = filter.statuses ? INVOICE_STATUSES.filter(s => filter.statuses?.includes(s)) : INVOICE_STATUSES;
+    if (!filter.candidates && statuses.length === 0) return { data: null, error: 'Choose at least one status.' };
+    const narrowed = !filter.candidates && statuses.length < INVOICE_STATUSES.length;
     const request = supabase.rpc('kitchen_invoice_workspace', { ...scope(), p_start_date: filter.startDate, p_end_date: filter.endDate,
       p_party_id: filter.partyId, p_page: filter.page, p_candidates: filter.candidates,
-      // Sent only when chosen, so a database without the status filter still serves "All".
-      ...(filter.status && !filter.candidates ? { p_status: filter.status } : {}) });
+      // Sent only when narrowed, so a database without the status filter still serves every
+      // status. Several statuses go as one comma-separated list (task 224).
+      ...(narrowed ? { p_status: statuses.join(',') } : {}) });
     const { data, error } = await (signal ? request.abortSignal(signal) : request);
     if (error) return { data: null, error: safeError(error) };
     const r = object(data);

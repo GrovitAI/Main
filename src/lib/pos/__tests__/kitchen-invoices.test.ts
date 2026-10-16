@@ -86,13 +86,21 @@ test('invoice numbers are five digits from the kitchen sequence', () => {
   expect(invoiceNumber(1000)).toBe('01000'); expect(invoiceNumber(1001)).toBe('01001'); expect(invoiceNumber(12345)).toBe('12345');
   expect(() => parseKitchenInvoice({ ...invoice, invoice_no: undefined })).toThrow();
 });
-test('the register narrows by status only when one is chosen, and never for delivery selection', async () => {
+test('the register narrows by the ticked statuses only, and never for delivery selection', async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: { rows: [invoice], branches: [], total_rows: 1 }, error: null });
   const register: InvoiceFilter = { ...filter, candidates: false };
-  await fetchKitchenInvoices({ ...register, status: 'paid' });
+  await fetchKitchenInvoices({ ...register, statuses: ['paid'] });
   expect(supabase.rpc).toHaveBeenLastCalledWith('kitchen_invoice_workspace', expect.objectContaining({ p_status: 'paid', p_candidates: false }));
-  await fetchKitchenInvoices({ ...register, status: null });
+  // Several statuses go as one list, in the filter's order whatever order they were ticked in.
+  await fetchKitchenInvoices({ ...register, statuses: ['paid', 'to_be_paid'] });
+  expect(supabase.rpc).toHaveBeenLastCalledWith('kitchen_invoice_workspace', expect.objectContaining({ p_status: 'to_be_paid,paid' }));
+  await fetchKitchenInvoices({ ...register, statuses: null });
   expect((supabase.rpc as jest.Mock).mock.calls.at(-1)?.[1]).not.toHaveProperty('p_status');
-  await fetchKitchenInvoices({ ...filter, status: 'paid' });
+  await fetchKitchenInvoices({ ...register, statuses: ['cancelled', 'paid', 'to_be_paid'] });
   expect((supabase.rpc as jest.Mock).mock.calls.at(-1)?.[1]).not.toHaveProperty('p_status');
+  await fetchKitchenInvoices({ ...filter, statuses: ['paid'] });
+  expect((supabase.rpc as jest.Mock).mock.calls.at(-1)?.[1]).not.toHaveProperty('p_status');
+  const calls = (supabase.rpc as jest.Mock).mock.calls.length;
+  expect((await fetchKitchenInvoices({ ...register, statuses: [] })).error).toBe('Choose at least one status.');
+  expect((supabase.rpc as jest.Mock).mock.calls.length).toBe(calls);
 });

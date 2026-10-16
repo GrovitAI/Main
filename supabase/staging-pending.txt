@@ -15,3 +15,5 @@
 20261014100100_kitchen_report_bank.sql
 20261014100200_kitchen_finished_goods_cost.sql
 20261014100300_kitchen_report_profit.sql
+# Task 224 (2026-10-16), staging only: several invoice statuses at once.
+20261016100000_kitchen_invoice_status_list.sql

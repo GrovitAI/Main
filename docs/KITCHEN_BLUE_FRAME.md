@@ -363,3 +363,22 @@ row of choices has the same width, so the highlight never changes size.
   filters are equal too.
 - `Segmented` and `ChoiceButtons` were already equal.
 - The rule is in AGENTS.md (Component rules).
+
+## Task 224: invoice status as a dropdown with ticks (2026-10-16)
+
+The owner found the status pills unattractive and asked for a dropdown with
+multi-select and Select all.
+
+- `ReportMultiSelect` (in `ReportSelect.tsx`) has the same outlined trigger and
+  centred list as the Branch picker. The trigger reads "All statuses", the
+  ticked names ("To be paid, Paid"), or "None chosen".
+- The list has "Select all" at the top, then a row with a tick for each status.
+  Each tick applies straight away.
+- It sits beside the dates: half-and-half on a phone, 240 px on desktop.
+- `InvoiceFilter.statuses` replaces `status`. The service sends `p_status` only
+  when the list is narrowed, as a comma-separated list in a fixed order. With
+  nothing ticked, nothing is fetched and the page says "No status is ticked".
+- Migration `20261016100000_kitchen_invoice_status_list.sql` lets
+  `kitchen_invoice_workspace` accept the list. The signature and grants are
+  unchanged and a single status works as before. It is applied to staging only
+  and listed in `supabase/staging-pending.txt`.
