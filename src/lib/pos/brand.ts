@@ -41,8 +41,8 @@ export const colors = {
   overlay: 'rgba(0, 74, 141, 0.45)',
   /** Luminous glow — logo center zone radiance */
   glow: 'rgba(51, 153, 255, 0.15)',
-  /** The soft tint laid over anything clickable while a mouse is over it (task 225) */
-  hoverTint: 'rgba(15, 39, 68, 0.06)',
+  /** The soft tint laid over anything clickable under a mouse: primary at 9%, which reads as surfaceTint on white, so it matches the hover:bg-surface-tint controls (tasks 225-226) */
+  hoverTint: 'rgba(0, 102, 178, 0.09)',
 } as const;
 
 export const gradients = {

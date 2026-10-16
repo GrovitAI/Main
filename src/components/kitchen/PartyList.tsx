@@ -51,7 +51,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
         </Text>
       </Card> : null}
       <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />
-      <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12 }}>
+      <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12, overflow: 'hidden' }}>
         {!data.loaded ? (
           <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={44} /><Skeleton height={44} /><Skeleton height={44} /></View>
         ) : rows.length === 0 ? (

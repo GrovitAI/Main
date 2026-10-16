@@ -314,8 +314,17 @@ type RowProps = {
   titleLines?: number;
 };
 
+/**
+ * The side padding of the card a list row sits in (task 226). The row reaches back across it, so
+ * its hover and press tint run from card edge to card edge while its text and divider stay inset.
+ * A card whose sides differ from 14 says so with a Provider.
+ */
+export const RowInset = React.createContext(14);
+
 export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: Icon, iconTone = 'neutral', onPress, onLongPress, selected, muted, accessibilityLabel, titleLines = 1 }: RowProps) {
   const compact = useDesktopDensity();
+  const inset = React.useContext(RowInset);
+  const reach: ViewStyle = { marginHorizontal: -inset, paddingHorizontal: inset };
   const rowClass = `flex-row items-center gap-3 border-b border-border-soft ${compact ? 'min-h-[52px] py-2' : 'min-h-[58px] py-3'}`;
   const content = (
     <>
@@ -336,7 +345,7 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
       ) : null}
     </>
   );
-  if (!onPress && !onLongPress) return <View className={rowClass}>{content}</View>;
+  if (!onPress && !onLongPress) return <View style={reach}><View className={rowClass}>{content}</View></View>;
   return (
     <Pressable
       onPress={onPress}
@@ -344,9 +353,10 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={selected ? { selected: true } : undefined}
-      className={`${rowClass} active:opacity-60`}
+      className="active:opacity-60"
+      style={reach}
     >
-      {content}
+      <View className={rowClass}>{content}</View>
     </Pressable>
   );
 }

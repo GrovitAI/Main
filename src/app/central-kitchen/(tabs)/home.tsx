@@ -12,7 +12,7 @@ import { dayText } from '@/lib/pos/kitchen-access-utils';
 import type { Tone } from '@/components/kitchen/ui';
 import { fetchKitchenMoney, type MoneySummary } from '@/lib/pos/kitchen-money-service';
 import { formatLongDate, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
-import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Section, Skeleton, StatTile, GhostButton, useDesktopDensity } from '@/components/kitchen/ui';
+import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, RowInset, Section, Skeleton, StatTile, GhostButton, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
 /**
@@ -173,7 +173,9 @@ export default function KitchenHome() {
           <View className="flex-row items-start gap-4">
             {summary ? <View className="w-80 shrink-0">{summary}</View> : null}
             <View className="min-w-0 flex-1">
-              <Card>
+              {/* A desktop card is padded 12, so its entry rows reach back 12 (task 226). */}
+              <RowInset.Provider value={12}>
+              <Card style={{ overflow: 'hidden' }}>
                 <View className="flex-row items-center justify-between gap-3">
                   <Text className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">{showRecent ? 'Recent entries' : 'Today'}</Text>
                   <LinkButton label="All entries" onPress={() => router.navigate('/central-kitchen/(tabs)/history')} />
@@ -185,6 +187,7 @@ export default function KitchenHome() {
                   <EntryList entries={showRecent ? recent : todays} itemsById={data.itemsById} partiesById={data.partiesById} grouped={showRecent} />
                 )}
               </Card>
+              </RowInset.Provider>
             </View>
           </View>
         </View>
@@ -202,7 +205,7 @@ export default function KitchenHome() {
 
       {data.loaded && !nothingSetUp && !desktop ? (
         <Section title="Today" action={<LinkButton label="All entries" onPress={() => router.navigate('/central-kitchen/(tabs)/history')} />}>
-          <Card padded={false} style={{ paddingHorizontal: 14 }}>
+          <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
             {todays.length === 0 ? (
               <Empty title="Nothing recorded today yet" body="A send, a payment or a buy will show here the moment it is saved." />
             ) : (

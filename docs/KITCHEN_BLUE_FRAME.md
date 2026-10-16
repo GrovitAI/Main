@@ -407,3 +407,26 @@ The owner asked for a hover highlight on every clickable field, everywhere.
   instead.
 - A desktop audit of 20 kitchen and 13 main-app pages found no control whose
   tint is hidden or spills past its drawn shape.
+
+## Task 226: tidy hover areas and an eased hover (2026-10-16)
+
+The owner found the hover areas untidy. A hover screenshot of every kind of
+control showed the cause: list rows sat inside cards with 14 px side padding,
+so their tint floated 14 px in from each side with square corners.
+
+- `Row` now reaches back across its card's side padding (`RowInset`, 14 by
+  default, 12 on the desktop Home card, 18 in a sheet). Its hover runs edge to
+  edge, while its text and inset divider stay put.
+- The cards holding rows clip to their rounded corners. The open sends/buys
+  checklist does the same.
+- The shared tint now fades in (140 ms, none with reduced motion) as a layer
+  under the text, in `colors.hoverTint` (primary at 9%). That matches the
+  light blue of the existing `hover:bg-surface-tint` controls, so the app has
+  one hover colour. Class-based hovers ease in too.
+- A control that wraps other controls or fields (a modal's backdrop or body, a
+  card around buttons) never lights up as a whole.
+- Checked with mocked data on desktop:
+  - an audit of 33 pages found no wrapper left without a hover;
+  - hover shots of the lists, tiles, pills, the Branch dropdown, the More
+    menu, the date picker and the category sheet show each tint matching the
+    exact area that takes the click.

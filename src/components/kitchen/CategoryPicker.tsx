@@ -23,7 +23,7 @@ import { saveKitchenCategory } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { matchesSearch, orderCategories, shownCategories } from '@/lib/pos/kitchen-utils';
 import type { KitchenCategory, KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Label, Notice, PrimaryButton, Row, SearchBox, Sheet, TextField } from './ui';
+import { Label, Notice, PrimaryButton, Row, RowInset, SearchBox, Sheet, TextField } from './ui';
 
 const ICON_RULES: readonly { test: RegExp; icon: LucideIcon }[] = [
   { test: /salar|wage|staff|pay ?roll|labou?r/i, icon: Users },
@@ -114,6 +114,7 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
         {/* Only logins that may add categories see the add box. */}
         <View style={{ gap: 14 }}>
           <SearchBox value={query} onChange={setQuery} placeholder="Search categories" autoFocus />
+          <RowInset.Provider value={18}>
           <View>
             {filtered.map((c) => (
               <Row key={c.id} icon={categoryIcon(c.name)} iconTone="primary" title={c.name} selected={c.name === value} onPress={() => choose(c.name)} />
@@ -124,6 +125,7 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
               </Text>
             ) : null}
           </View>
+          </RowInset.Provider>
           {mayAdd ? <View>
             <Label>New category</Label>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

@@ -132,7 +132,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   ) : null;
   const history = (
     <Section title="Movements">
-      <Card padded={false} style={{ paddingHorizontal: 14 }}>
+      <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
         {moves === null ? (
           <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={40} /><Skeleton height={40} /></View>
         ) : moves.length === 0 ? (

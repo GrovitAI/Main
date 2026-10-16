@@ -86,7 +86,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   );
   const history = (
     <Section title="Give and take">
-      <Card padded={false} style={{ paddingHorizontal: 14 }}>
+      <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
         {rows.length === 0 && party.opening === 0 ? (
           <Empty title="Nothing yet" body={isBranch ? 'Sends and payments from this branch will show here, with the figure after each.' : 'Buys and payments to this vendor will show here, with the figure after each.'} />
         ) : (

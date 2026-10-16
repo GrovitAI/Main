@@ -3,16 +3,24 @@ import { Platform } from 'react-native';
 import { colors } from './brand';
 
 const STYLE_ID = 'app-hover';
-const tint = `linear-gradient(${colors.hoverTint}, ${colors.hoverTint})`;
-const clickable = ':is([role="button"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="menuitem"], [role="option"], [role="link"], a[href], [tabindex="0"]):not(input):not(textarea):not([aria-disabled="true"])';
+const clickable = ':is([role="button"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="menuitem"], [role="option"], [role="link"], a[href], [tabindex="0"])';
+const enabled = `${clickable}:not(input):not(textarea):not([aria-disabled="true"])`;
+/**
+ * The controls the shared tint is drawn on. Left out: controls with their own hover, items of a
+ * container whose items draw their own, and wrappers that hold other controls or fields (a
+ * modal's backdrop or body, a card around buttons), which would otherwise light up as a whole
+ * when the pointer is over one of the things inside them.
+ */
+const tinted = `${enabled}:not([class*="hover:"]):not([data-hover]):not([data-hover="scope"] *):not(:has(${clickable}, input, textarea))`;
+const fade = 'opacity 140ms ease-out';
 
 /**
- * A hover highlight on everything clickable, app-wide (task 225). With a mouse, a soft tint is laid
- * over the control's own background, so it works on white, tinted and blue controls alike and
- * keeps their rounded corners. Touch screens never see it.
+ * A hover highlight on everything clickable, app-wide (tasks 225 and 226). With a mouse, a soft
+ * tint fades in over the control's own background, under its text and icons, inside its rounded
+ * corners, and covering exactly the area that takes the click. Touch screens never see it.
  *
  * It stays out of the way of controls that draw their own hover:
- * - a NativeWind `hover:` class on the element itself;
+ * - a NativeWind `hover:` class on the element itself (these now ease in too);
  * - `ownHover` (data-hover="own"), for Pressables whose style function reads `hovered`;
  * - `hoverScope` (data-hover="scope") on a container, such as a dark sidebar, whose items
  *   all draw their own hover;
@@ -22,9 +30,17 @@ const clickable = ':is([role="button"], [role="tab"], [role="checkbox"], [role="
  */
 const css = `
 @media (hover: hover) and (pointer: fine) {
-  ${clickable}:not([class*="hover:"]):not([data-hover]):not([data-hover="scope"] *):hover { background-image: ${tint}; }
-  [data-hover="face"]:not([aria-disabled="true"]):hover [data-hover-face] { background-image: ${tint}; }
+  ${tinted}, [data-hover="face"] [data-hover-face] { isolation: isolate; }
+  ${tinted}::after, [data-hover="face"] [data-hover-face]::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+    background-color: ${colors.hoverTint}; opacity: 0; transition: ${fade};
+  }
+  ${tinted}:hover::after, [data-hover="face"]:not([aria-disabled="true"]):hover [data-hover-face]::after { opacity: 1; }
+  ${enabled}[class*="hover:"] { transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out; }
   [data-hover="link"]:not([aria-disabled="true"]):hover * { text-decoration-line: underline; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ${tinted}::after, [data-hover="face"] [data-hover-face]::after, ${enabled}[class*="hover:"] { transition: none; }
 }
 `;
 

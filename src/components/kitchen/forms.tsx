@@ -360,7 +360,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
     return <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600' }}>No open {noun} for this {kind}. The amount simply comes off the balance.</Text>;
   }
   return (
-    <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14 }}>
+    <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
       {loading ? <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', paddingVertical: 14 }}>Looking up open {noun}…</Text> : null}
       {docs.map((d) => {
         const on = ticked.has(d.entry_id);
@@ -378,8 +378,10 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
             accessibilityRole="checkbox"
             accessibilityState={{ checked: on }}
             accessibilityLabel={`${d.type === 'bought' ? 'Buy' : 'Send'} of ${formatDayLabel(d.entry_date)}, ${formatMoney(d.open)} open`}
-            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.borderSoft, gap: 12, paddingVertical: 12, minHeight: 58, opacity: pressed ? 0.6 : 1 })}
+            // Task 226: the row reaches the card edges so its hover does; the divider stays inset.
+            style={({ pressed }) => ({ marginHorizontal: -14, paddingHorizontal: 14, opacity: pressed ? 0.6 : 1 })}
           >
+            <View style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.borderSoft, gap: 12, paddingVertical: 12, minHeight: 58 }}>
             <Tick on={on} />
             <View className="flex-1" style={{ minWidth: 0 }}>
               <Text className="text-text-primary" style={{ fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
@@ -390,6 +392,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
             <View style={{ alignItems: 'flex-end' }}>
               <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(d.open)}</Text>
               {d.covered > 0 ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>of {formatMoney(d.amount)}</Text> : null}
+            </View>
             </View>
           </Pressable>
         );
