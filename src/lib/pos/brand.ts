@@ -100,6 +100,20 @@ export const semantic = {
  * earlier period (ordinal ramp, light end 2.22:1). `pending` is the warning
  * status mark; its label always stays in text colour.
  */
+/**
+ * Initial circles for branches, vendors and staff (task 229). Each pair is a soft fill and its dark
+ * text; a name always takes the same pair, so a branch keeps its colour on every screen.
+ */
+export const avatar = [
+  { bg: '#ede9fe', fg: '#5b3fd6' },
+  { bg: '#d6f5ee', fg: '#0d7a68' },
+  { bg: '#fef3c7', fg: '#92400e' },
+  { bg: '#e0f2fe', fg: '#0369a1' },
+  { bg: '#fce7f3', fg: '#9d174d' },
+  { bg: '#ecfccb', fg: '#3f6212' },
+  { bg: '#dbeafe', fg: '#004a8d' },
+] as const;
+
 export const chart = {
   /** Le Laban blue: sales, UPI, item revenue. */
   series1: '#0066b2',

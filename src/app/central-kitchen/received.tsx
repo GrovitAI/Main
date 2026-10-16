@@ -9,7 +9,9 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { AmountPad, Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { semantic } from '@/lib/pos/brand';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
@@ -32,6 +34,8 @@ export default function ReceivedScreen() {
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const done = useSavedThen();
+  // Task 229: a phone takes the amount on a number pad; a tablet or desktop types it.
+  const phone = !useResponsive().isTablet;
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
 
@@ -93,7 +97,7 @@ export default function ReceivedScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a branch' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />}>
+      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : phone && amount > 0 ? `Save ${formatMoney(amount)}` : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a branch' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />}>
         <KHeader
           title={editing ? 'Edit receipt' : 'Received from a branch'}
           subtitle={editing ? 'The earlier entry is voided; this one takes its place' : 'Any amount; it comes off what they owe'}
@@ -103,14 +107,20 @@ export default function ReceivedScreen() {
         <Field label="Branch">
           <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={(id) => { setPartyId(id); setTicked(new Set()); }} />
         </Field>
-        <Field label="Amount">
+        {phone ? (
+          <View style={{ marginTop: 14, gap: 4 }}>
+            {party ? <View className="items-center"><View className="rounded-full px-3 py-1" style={{ backgroundColor: semantic.successSoft }}><Text style={{ color: semantic.success, fontSize: 13, fontWeight: '700' }}>{party.name} owes {formatMoney(balanceNow)}{amount > 0 && !editing ? ` · then ${balanceNow - amount < 0 ? `${formatMoney(amount - balanceNow)} paid ahead` : formatMoney(balanceNow - amount)}` : ''}</Text></View></View> : null}
+            <AmountPad value={amountText} onChange={(t) => { setAmountText(t); setAmountTyped(t.trim().length > 0); }} />
+          </View>
+        ) : null}
+        {phone ? null : <Field label="Amount">
           <TextField value={amountText} onChange={(t) => { setAmountText(t); setAmountTyped(t.trim().length > 0); }} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big autoFocus={!!params.party} />
           {party ? (
             <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>
               {party.name}: {formatMoney(balanceNow)} yet to pay{amount > 0 && !editing ? ` → after this ${formatMoney(balanceNow - amount)}` : ''}
             </Text>
           ) : null}
-        </Field>
+        </Field>}
         <Field label="Mode">
           <ModePicker value={mode} onChange={setMode} />
         </Field>

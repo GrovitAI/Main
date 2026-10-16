@@ -4,15 +4,17 @@
  * mode, the date, and the open slips a payment can be set against.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
-import { Banknote, Landmark, Smartphone } from 'lucide-react-native';
+import { Banknote, Landmark, Plus, Search, Smartphone } from 'lucide-react-native';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { KITCHEN_MODES, formatDayLabel, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem, KitchenMode, KitchenOpenDocument, KitchenParty, KitchenPartyBalance, KitchenPartyKind } from '@/lib/pos/kitchen-types';
-import { AddChip, ChoiceButtons, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
+import { AddChip, Avatar, ChoiceButtons, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
 
 // ─── Who ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,9 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
     [parties, kind, balanceOf, showAmounts],
   );
   const noun = kind === 'branch' ? 'branch' : 'vendor';
+  const { isTablet } = useResponsive();
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
 
   const add = async () => {
     const trimmed = name.trim();
@@ -62,6 +67,46 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
     setName('');
     setAdding(false);
   };
+
+  // Task 229: a phone picks from a row of initial circles, with search and New at the end.
+  if (!isTablet) {
+    const shown = query.trim() ? options.filter((o) => matchesSearch(query, o.label) || o.value === value) : options;
+    const tool = (key: string, label: string, icon: React.ReactNode, onPress: () => void, on: boolean) => (
+      <Pressable key={key} onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: on }} {...hoverFace} className="w-[70px] items-center gap-1 py-1 active:opacity-70">
+        <View {...hoverFaceMark} style={{ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceTint, borderWidth: 1.5, borderStyle: 'dashed', borderColor: on ? colors.primary : colors.border }}>{icon}</View>
+        <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{label}</Text>
+      </Pressable>
+    );
+    return (
+      <View style={{ gap: 10 }}>
+        {searching ? <SearchBox value={query} onChange={setQuery} placeholder={`Search ${noun === 'branch' ? 'branches' : 'vendors'}`} autoFocus /> : null}
+        <FlatList horizontal showsHorizontalScrollIndicator={false} data={shown} keyExtractor={(o) => o.value} contentContainerStyle={{ gap: 4 }}
+          ListEmptyComponent={<Text className="py-4 text-[13px] font-semibold text-text-secondary">{options.length === 0 ? `No ${noun === 'branch' ? 'branches' : 'vendors'} yet. Add the first one.` : 'No match'}</Text>}
+          renderItem={({ item: o }) => (
+            <Pressable onPress={() => onChange(o.value)} accessibilityRole="button" aria-selected={o.value === value} accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
+              className="w-[70px] items-center gap-1 rounded-2xl py-1 active:opacity-70">
+              <Avatar name={o.label} size={46} selected={o.value === value} />
+              <Text className={`text-xs ${o.value === value ? 'font-extrabold text-primary' : 'font-semibold text-text-secondary'}`} numberOfLines={1}>{o.label}</Text>
+            </Pressable>
+          )}
+          ListFooterComponent={<View className="flex-row" style={{ gap: 4 }}>
+            {options.length > 6 ? tool('search', 'Search', <Search size={20} color={colors.primary} />, () => { setSearching((v) => !v); setQuery(''); }, searching) : null}
+            {mayAdd ? tool('new', 'New', <Plus size={20} color={colors.primary} />, () => setAdding((v) => !v), adding) : null}
+          </View>} />
+        {adding ? (
+          <View className="flex-row items-center" style={{ gap: 8 }}>
+            <View className="flex-1">
+              <TextField value={name} onChange={setName} label={`New ${noun} name`} placeholder={kind === 'branch' ? 'Branch name' : 'Vendor name'} autoFocus />
+            </View>
+            <View style={{ width: 96 }}>
+              <PrimaryButton label="Add" onPress={() => void add()} disabled={!name.trim()} loading={saving} />
+            </View>
+          </View>
+        ) : null}
+        {error ? <Notice text={error} /> : null}
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: 10 }}>

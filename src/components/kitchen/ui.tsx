@@ -11,8 +11,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
-import { colors, semantic } from '@/lib/pos/brand';
+import { ChevronDown, ChevronLeft, ChevronRight, Delete, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
+import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { amountReadBack, formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
@@ -1176,6 +1176,73 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/** Two letters for a name's circle: the first letters of two words, or the first two of one. */
+export function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters = words.length > 1 ? (Array.from(words[0] ?? '')[0] ?? '') + (Array.from(words[1] ?? '')[0] ?? '') : Array.from(words[0] ?? '').slice(0, 2).join('');
+  return letters.toLocaleUpperCase() || '?';
+}
+
+function toneOf(name: string): (typeof avatarTones)[number] {
+  let h = 0;
+  for (const ch of name.trim().toLocaleLowerCase()) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
+  return avatarTones[h % avatarTones.length] ?? avatarTones[0];
+}
+
+/**
+ * A name's initial circle (task 229). The colour comes from the name itself, so a branch looks the
+ * same in every list. A selected circle turns Le Laban blue inside a blue ring.
+ */
+export function Avatar({ name, size = 44, selected = false }: { name: string; size?: number; selected?: boolean }) {
+  const tone = toneOf(name);
+  return (
+    <View style={{ width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, borderWidth: 2.5, borderColor: selected ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.primary : tone.bg }}>
+        <Text style={{ fontSize: Math.round(size * 0.32), fontWeight: '800', color: selected ? colors.textOnPrimary : tone.fg }}>{initialsOf(name)}</Text>
+      </View>
+    </View>
+  );
+}
+
+const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'del'] as const;
+
+/**
+ * A phone's amount entry (task 229): the amount large and centred, its lakh read-back, and a
+ * number pad for one thumb. Nothing is filled in for the person; the pad only adds what is tapped.
+ */
+export function AmountPad({ value, onChange, note }: { value: string; onChange: (next: string) => void; note?: string | null }) {
+  const amount = Number(value.replace(/,/g, ''));
+  const shown = value.trim() && Number.isFinite(amount) ? formatMoney(amount) : formatMoney(0);
+  const lakh = amountReadBack(value)?.split(' · ')[1] ?? null;
+  const press = (key: (typeof PAD_KEYS)[number]): void => {
+    buzz('select');
+    if (key === 'del') { onChange(value.slice(0, -1)); return; }
+    const next = (value === '0' ? '' : value) + key;
+    if (next.replace(/\D/g, '').length > 9 || next === '00') return;
+    onChange(next);
+  };
+  return (
+    <View>
+      <View accessibilityLiveRegion="polite" accessibilityLabel={`Amount ${shown}`} style={{ alignItems: 'center', paddingVertical: 6 }}>
+        <Text style={{ fontSize: 46, lineHeight: 54, fontWeight: '800', letterSpacing: -1.5, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1} adjustsFontSizeToFit>{shown}</Text>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary, minHeight: 20 }}>{lakh ?? note ?? ''}</Text>
+      </View>
+      <View style={{ gap: 8, marginTop: 8 }}>
+        {[0, 1, 2, 3].map((row) => (
+          <View key={row} className="flex-row" style={{ gap: 8 }}>
+            {PAD_KEYS.slice(row * 3, row * 3 + 3).map((key) => (
+              <Pressable key={key} onPress={() => press(key)} accessibilityRole="button" accessibilityLabel={key === 'del' ? 'Delete a digit' : key}
+                className="h-14 flex-1 items-center justify-center rounded-2xl border border-border-soft bg-surface-elevated hover:bg-surface-tint active:bg-surface-tint">
+                {key === 'del' ? <Delete size={24} color={colors.textSecondary} /> : <Text style={{ fontSize: key === '00' ? 20 : 24, fontWeight: '700', color: colors.textPrimary }}>{key}</Text>}
+              </Pressable>
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
