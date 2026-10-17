@@ -7,8 +7,9 @@ import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
 import { AttendanceAction } from '@/components/kitchen/AttendanceAction';
 import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
-import { Empty, GhostButton, IconButton, KScreen, LinkButton, MeasureLabels, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useEqualChoices, useSlidingRect } from '@/components/kitchen/ui';
-import { colors } from '@/lib/pos/brand';
+import { Avatar, Empty, GhostButton, IconButton, KScreen, LinkButton, MeasureLabels, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useEqualChoices, useSlidingRect } from '@/components/kitchen/ui';
+import { colors, semantic } from '@/lib/pos/brand';
+import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
@@ -18,6 +19,14 @@ import { ATTENDANCE_OPTIONS } from '@/lib/pos/kitchen-attendance-types';
 import type { AttendanceStatus, KitchenAttendance, KitchenAttendanceDay, KitchenStaffMember } from '@/lib/pos/kitchen-attendance-types';
 
 const statusLabel = (status: AttendanceStatus): string => ATTENDANCE_OPTIONS.find(option => option.value === status)?.label ?? 'Unmarked';
+/** Each status's colours on a phone (task 239), matching the month overview's key. */
+const STATUS_TONE: Readonly<Record<AttendanceStatus, { fg: string; bg: string }>> = {
+  present: { fg: semantic.success, bg: semantic.successSoft },
+  absent: { fg: semantic.danger, bg: semantic.dangerSoft },
+  half_day: { fg: semantic.warning, bg: semantic.warningSoft },
+  leave: { fg: colors.primaryDeep, bg: colors.accentSoft },
+  unmarked: { fg: colors.textSecondary, bg: colors.surfaceTint },
+};
 const control = 'min-h-12 justify-center rounded-xl border border-transparent px-3 hover:bg-accent-soft focus:border-primary active:bg-accent-soft';
 type StatusFilter = AttendanceStatus | 'all';
 type FilterOption = { value: StatusFilter; label: string };
@@ -41,10 +50,12 @@ function FilterCell({ index, onLayout, style, children }: ComponentProps<NonNull
 
 function StaffIdentity({ person }: { person: KitchenStaffMember }) {
   const { width } = useResponsive();
+  const desktop = useDesktopDensity();
   const initials = person.name.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0] ?? '').join('').toLocaleUpperCase();
   return (
     <View className="min-w-0 flex-1 flex-row items-center gap-2">
-      {width >= 360 ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-tint">
+      {width >= 360 && !desktop ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Avatar name={person.name} size={38} /></View> : null}
+      {width >= 360 && desktop ? <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-tint">
         <Text className="text-xs font-bold text-primary">{initials}</Text>
       </View> : null}
       <View className="min-w-0 flex-1">
@@ -81,7 +92,7 @@ function AttendanceRow({ person, record, busy, selecting, selected, onSelect, on
         {selecting ? <Tick size={20} on={selected} /> : null}
         <StaffIdentity person={person} />
       </Pressable>
-      {selecting ? <Text className="text-sm font-semibold text-text-secondary">{statusLabel(status)}</Text> : desktop ? <View className="w-[320px] shrink-0">{choices}</View> : <Pressable className={`${control} min-w-[100px] shrink-0 flex-row items-center justify-center gap-1 ${status === 'unmarked' ? 'bg-surface-tint' : 'bg-accent-soft'}`} disabled={busy} accessibilityRole="button" accessibilityLabel={`Mark attendance for ${person.name}, ${statusLabel(status)}`} accessibilityState={{ expanded, disabled: busy }} onPress={open}><Text className={`text-sm font-semibold ${status === 'unmarked' ? 'text-text-secondary' : 'text-primary'}`}>{statusLabel(status)}</Text><ChevronDown size={14} color={colors.primary} /></Pressable>}
+      {selecting ? <Text className="text-sm font-semibold text-text-secondary">{statusLabel(status)}</Text> : desktop ? <View className="w-[320px] shrink-0">{choices}</View> : <Pressable {...hoverFace} className="min-h-12 shrink-0 justify-center" disabled={busy} accessibilityRole="button" accessibilityLabel={`Mark attendance for ${person.name}, ${statusLabel(status)}`} accessibilityState={{ expanded, disabled: busy }} onPress={open}><View {...hoverFaceMark} className="h-9 min-w-[96px] flex-row items-center justify-center gap-1 rounded-full px-3" style={{ backgroundColor: STATUS_TONE[status].bg }}><Text className="text-[13px] font-bold" style={{ color: STATUS_TONE[status].fg }}>{status === 'unmarked' ? 'Mark' : statusLabel(status)}</Text><ChevronDown size={14} color={STATUS_TONE[status].fg} /></View></Pressable>}
       {desktop ? <View className="w-[168px] shrink-0">{record ? <><Text className="text-sm text-text-primary">{record.updated_by_name}</Text><Text className="text-xs text-text-secondary">{updatedTime} IST</Text></> : <Text className="text-sm text-text-secondary">Not yet marked</Text>}</View> : null}
       {desktop && !selecting ? <AttendanceAction label="Edit" accessibilityLabel={`Edit attendance for ${person.name}`} disabled={busy} onPress={open} /> : null}
     </View>
@@ -245,7 +256,8 @@ export default function KitchenAttendanceScreen() {
       {pane === 'daily' ? <View className="flex-row items-center gap-1"><View className={desktop ? 'w-[272px]' : 'min-w-0 flex-1'}><AttendanceDate value={date} onChange={changeDate} disabled={busy || loading} strip={!desktop} /></View>{!desktop ? <Pressable className={`${control} items-center`} accessibilityRole="button" accessibilityLabel="Search attendance staff" accessibilityState={{ expanded: searchOpen || Boolean(query) }} onPress={() => setSearchOpen(value => !value)}><Search size={18} color={colors.primary} /></Pressable> : null}</View> : <View className={desktop ? 'w-[272px]' : ''}><Segmented options={[{ value: 'active', label: 'Active staff' }, { value: 'archived', label: 'Archived' }]} value={showArchived ? 'archived' : 'active'} onChange={value => setShowArchived(value === 'archived')} /></View>}
       {desktop ? <View className="flex-1">{search}</View> : <Reveal open={pane === 'staff' || searchOpen || Boolean(query)}>{search}</Reveal>}
     </View>
-    {pane === 'daily' && data && loadedDate === date ? <View><MeasureLabels>{FILTERS.map((option, i) => <View key={option.value} onLayout={filterSizes.measure(i)} className="flex-row items-center gap-2"><Text className="text-sm font-semibold">{option.label}</Text><Text className="text-xs font-semibold">{option.value === 'all' ? total : counts[option.value]}</Text></View>)}</MeasureLabels><FilterPlace.Provider value={statusSlide.measure}><FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} CellRendererComponent={FilterCell}
+    {pane === 'daily' && data && loadedDate === date && !desktop ? <StatusTiles counts={counts} total={total} value={statusFilter} disabled={busy} onChange={value => { if (busyRef.current) return; clearSelection(); setStatusFilter(value); }} /> : null}
+    {pane === 'daily' && data && loadedDate === date && desktop ? <View><MeasureLabels>{FILTERS.map((option, i) => <View key={option.value} onLayout={filterSizes.measure(i)} className="flex-row items-center gap-2"><Text className="text-sm font-semibold">{option.label}</Text><Text className="text-xs font-semibold">{option.value === 'all' ? total : counts[option.value]}</Text></View>)}</MeasureLabels><FilterPlace.Provider value={statusSlide.measure}><FlatList horizontal showsHorizontalScrollIndicator={false} data={FILTERS} keyExtractor={option => option.value} contentContainerStyle={{ gap: 4 }} CellRendererComponent={FilterCell}
       ListHeaderComponentStyle={{ marginRight: -4 }} ListHeaderComponent={<Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceElevated, ...statusSlide.style }} />}
       renderItem={({ item: option }) => <Pressable disabled={busy} accessibilityRole="button" accessibilityLabel={`Filter attendance: ${option.label}`} accessibilityState={{ selected: statusFilter === option.value, disabled: busy }} aria-selected={statusFilter === option.value} onPress={() => { if (busyRef.current) return; clearSelection(); setStatusFilter(option.value); }} style={filterSizes.widest ? { width: filterSizes.widest + 26 } : undefined} className={`min-h-12 flex-row items-center justify-center gap-2 rounded-lg border px-3 focus:border-primary ${statusFilter === option.value ? 'border-transparent' : 'border-transparent hover:bg-surface-tint active:bg-accent-soft'}`}><Text className={`text-sm font-semibold ${statusFilter === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text><Text className="text-xs font-semibold text-text-secondary">{option.value === 'all' ? total : counts[option.value]}</Text></Pressable>} /></FilterPlace.Provider></View> : null}
     <Reveal open={pane === 'daily' && Boolean(data) && loadedDate === date && !loading && selecting}><View className="gap-2 border-y border-border bg-surface-tint px-3 py-2" testID="attendance-selection-toolbar">
@@ -284,4 +296,27 @@ export default function KitchenAttendanceScreen() {
   </View>;
   if (monthly) return <KScreen scroll={false} wide><MonthlyAttendance header={navigationHeader} onLockChange={setMonthlyLocked} /></KScreen>;
   return <KScreen scroll={false} wide><FlatList className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 1120, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" data={loading || loadedDate !== date ? [] : rows} keyExtractor={person => person.id} extraData={{ data, busy, selecting, selectedIds }} ListHeaderComponent={header} refreshing={loading} onRefresh={() => { if (!busyRef.current) void load(); }} ListEmptyComponent={loading ? <SkeletonRows count={5} height={56} label="Loading attendance" /> : error && !data ? <Empty title="Attendance unavailable" body="Retry to load the register. No attendance has been changed." action={<GhostButton label="Retry attendance" onPress={() => void load()} />} /> : <Empty title={query || (pane === 'daily' && statusFilter !== 'all') ? 'No matching staff' : pane === 'staff' && showArchived ? 'No archived staff' : 'No staff for this view'} body={query || (pane === 'daily' && statusFilter !== 'all') ? 'Try another name or attendance status.' : pane === 'staff' && showArchived ? 'Archived staff appear here. Past attendance stays saved.' : 'Add kitchen staff to begin marking attendance.'} action={query || (pane === 'daily' && statusFilter !== 'all') ? <GhostButton label="Reset filters" onPress={() => { setQuery(''); setStatusFilter('all'); }} /> : pane === 'staff' && showArchived ? undefined : <GhostButton label="Add kitchen staff" onPress={() => startEditor()} />} />} renderItem={({ item }) => <Animated.View style={paneEnter}>{pane === 'daily' ? <AttendanceRow key={`${item.id}:${date}`} person={item} record={byStaff.get(item.id)} busy={busy || loading || !mayMark} selecting={selecting} selected={selectedIds.has(item.id)} onSelect={selectPerson} onMark={mark} /> : <View className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2"><StaffIdentity person={item} />{mayRoster ? <IconButton icon={Pencil} label={`Edit staff ${item.name}`} onPress={() => startEditor(item)} /> : null}</View>}</Animated.View>} /></KScreen>;
+}
+
+/**
+ * A phone's attendance counts (task 239, owner's pick): All and each status as equal tiles, the count
+ * in the status's colour. A tile filters the list; the chosen tile is outlined in blue.
+ */
+function StatusTiles({ counts, total, value, disabled, onChange }: {
+  counts: Readonly<Record<AttendanceStatus, number>>; total: number; value: StatusFilter; disabled: boolean; onChange: (next: StatusFilter) => void;
+}) {
+  const order: readonly StatusFilter[] = ['all', 'present', 'absent', 'half_day', 'leave', 'unmarked'];
+  return <View className="flex-row flex-wrap" style={{ gap: 8 }} accessibilityLabel="Attendance counts">
+    {order.map(option => {
+      const on = option === value;
+      const count = option === 'all' ? total : counts[option];
+      const label = FILTERS.find(f => f.value === option)?.label ?? option;
+      return <Pressable key={option} disabled={disabled} onPress={() => onChange(option)} accessibilityRole="button" aria-selected={on}
+        accessibilityState={{ selected: on, disabled }} accessibilityLabel={`Show ${label}: ${count}`}
+        className={`min-h-[60px] items-center justify-center rounded-2xl border ${on ? 'border-primary bg-surface-tint' : 'border-border-soft bg-surface-elevated'}`} style={{ flexBasis: '30%', flexGrow: 1 }}>
+        <Text className="text-xl font-bold" style={{ color: option === 'all' ? colors.textPrimary : count === 0 ? colors.textSecondary : STATUS_TONE[option].fg, fontVariant: ['tabular-nums'] }}>{count}</Text>
+        <Text className={`text-xs font-semibold ${on ? 'text-primary' : 'text-text-secondary'}`}>{label}</Text>
+      </Pressable>;
+    })}
+  </View>;
 }
