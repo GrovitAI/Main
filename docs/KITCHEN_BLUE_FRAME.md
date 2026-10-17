@@ -492,3 +492,13 @@ phone design is kept at git tag `phone-design-classic` and branch
   - History gets quick type pills (`ScrollPills`).
   - Attendance gets a seven-day strip with a calendar button.
   - Section headings centre their action link.
+
+## Task 235: decimal point on the phone amount pad (2026-10-17)
+
+- The phone pad on Received and Spent swaps its `00` key for a decimal
+  point, so amounts with paise (₹1,234.50) can be typed on a phone.
+- `padPress` (kitchen-utils) allows nine rupee digits, one point and two paise
+  digits; a point first reads as `0.`; a key that would break the amount is
+  ignored. `padDisplay` shows the amount as typed with Indian grouping, so
+  `12.` stays visible as `₹12.` while the paise are typed.
+- Tablet and desktop keep the typed Amount field, unchanged.

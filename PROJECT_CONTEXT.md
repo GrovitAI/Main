@@ -254,6 +254,8 @@ Will be replaced by auth session after Task 7.
 ✅ Task 231 (2026-10-16, staging source): Phone redesign, step 4. Send and Bought on a phone end in a dark SummaryBar (item count, total, Send or Save) floating on the canvas, and often-used items are rows with Add instead of chips (quantities are still typed). Tablet and desktop unchanged.
 ✅ Task 232 (2026-10-16, staging source): Phone redesign, step 5. The phone Sales report shows an Item sales ranking under the figures (top five items by value with rank, quantity, share and a bar; says "From the rows loaded" while more rows are to load). Desktop unchanged.
 ✅ Task 233 (2026-10-16, staging source): Phone redesign, step 6. Name circles on Branches, Vendors and Invoices lists and the branch page, invoice status pills, a level bar on the item page, quick type pills on History (ScrollPills), and a seven-day strip on Attendance. Tablet and desktop unchanged. See docs/KITCHEN_BLUE_FRAME.md, tasks 228-233.
+✅ Task 234 (2026-10-17, staging only): 20261017100000_pin_function_search_path.sql pins search_path = public on the 19 older functions the Supabase advisor flagged (order numbering and settlement, dispatch, analytics, finance summaries, updated_at triggers). None is SECURITY DEFINER; each is altered only when it exists. Applied and checked on staging; promote with the other staging-only migrations.
+✅ Task 235 (2026-10-17, staging source): The phone amount pad on Received and Spent has a decimal point in place of 00, so paise can be typed on a phone (padPress/padDisplay in kitchen-utils, with tests). Tablet and desktop unchanged.
 ⬜ Task 9: Dashboard screen (owner)
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)

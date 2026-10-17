@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, ChevronLeft, ChevronRight, Delete, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { amountReadBack, formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
+import { amountReadBack, formatMoney, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
@@ -1212,22 +1212,20 @@ export function Avatar({ name, size = 44, selected = false }: { name: string; si
   );
 }
 
-const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'del'] as const;
+// Task 235: a decimal point in place of 00, so paise can be typed on a phone.
+const PAD_KEYS: readonly PadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'];
 
 /**
  * A phone's amount entry (task 229): the amount large and centred, its lakh read-back, and a
  * number pad for one thumb. Nothing is filled in for the person; the pad only adds what is tapped.
  */
 export function AmountPad({ value, onChange, note }: { value: string; onChange: (next: string) => void; note?: string | null }) {
-  const amount = Number(value.replace(/,/g, ''));
-  const shown = value.trim() && Number.isFinite(amount) ? formatMoney(amount) : formatMoney(0);
+  const shown = padDisplay(value);
   const lakh = amountReadBack(value)?.split(' · ')[1] ?? null;
-  const press = (key: (typeof PAD_KEYS)[number]): void => {
+  const press = (key: PadKey): void => {
     buzz('select');
-    if (key === 'del') { onChange(value.slice(0, -1)); return; }
-    const next = (value === '0' ? '' : value) + key;
-    if (next.replace(/\D/g, '').length > 9 || next === '00') return;
-    onChange(next);
+    const next = padPress(value, key);
+    if (next !== value) onChange(next);
   };
   return (
     <View>
@@ -1239,9 +1237,9 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
         {[0, 1, 2, 3].map((row) => (
           <View key={row} className="flex-row" style={{ gap: 8 }}>
             {PAD_KEYS.slice(row * 3, row * 3 + 3).map((key) => (
-              <Pressable key={key} onPress={() => press(key)} accessibilityRole="button" accessibilityLabel={key === 'del' ? 'Delete a digit' : key}
+              <Pressable key={key} onPress={() => press(key)} accessibilityRole="button" accessibilityLabel={key === 'del' ? 'Delete a digit' : key === '.' ? 'Decimal point' : key}
                 className="h-14 flex-1 items-center justify-center rounded-2xl border border-border-soft bg-surface-elevated hover:bg-surface-tint active:bg-surface-tint">
-                {key === 'del' ? <Delete size={24} color={colors.textSecondary} /> : <Text style={{ fontSize: key === '00' ? 20 : 24, fontWeight: '700', color: colors.textPrimary }}>{key}</Text>}
+                {key === 'del' ? <Delete size={24} color={colors.textSecondary} /> : <Text style={{ fontSize: key === '.' ? 28 : 24, fontWeight: '700', color: colors.textPrimary }}>{key}</Text>}
               </Pressable>
             ))}
           </View>

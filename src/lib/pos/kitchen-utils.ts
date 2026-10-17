@@ -238,6 +238,29 @@ export function amountReadBack(text: string): string | null {
   return grouped;
 }
 
+/** A key on a phone's amount pad (task 235). */
+export type PadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'del';
+
+/**
+ * The amount text after a key on the pad: up to nine rupee digits, one decimal point and two
+ * paise digits. A point first reads as "0."; a key that would break the amount is ignored.
+ */
+export function padPress(value: string, key: PadKey): string {
+  if (key === 'del') return value.slice(0, -1);
+  const [rupees = '', paise] = value.split('.');
+  if (key === '.') return paise !== undefined ? value : (rupees || '0') + '.';
+  if (paise !== undefined) return paise.length >= 2 ? value : value + key;
+  if (rupees === '0') return key;
+  return rupees.length >= 9 ? value : value + key;
+}
+
+/** The pad's amount as typed, grouped the Indian way: "₹1,12,000", "₹12." and "₹1,234.5". */
+export function padDisplay(value: string): string {
+  const [rupees = '', paise] = value.split('.');
+  const whole = Number(rupees || '0');
+  return formatMoney(Number.isFinite(whole) ? whole : 0) + (paise !== undefined ? '.' + paise : '');
+}
+
 // ─── Matching money to buys and sends ────────────────────────────────────────
 
 /**

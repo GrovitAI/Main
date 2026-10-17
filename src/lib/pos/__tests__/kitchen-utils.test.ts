@@ -17,10 +17,13 @@ import {
   oftenSent,
   slipText,
   statementRows,
+  padDisplay,
+  padPress,
   stockLevels,
   sumDues,
   whatsappUrl,
 } from '../kitchen-utils';
+import type { PadKey } from '../kitchen-utils';
 import type { KitchenEntry, KitchenItem, KitchenOpenDocument, KitchenPartyBalance } from '../kitchen-types';
 
 const item = (id: string, name: string, unit: KitchenItem['unit'], price: number | null): KitchenItem => ({
@@ -312,5 +315,27 @@ describe('stockLevels', () => {
   test('stock grown past the last count fills the bar instead of overflowing it', () => {
     const levels = stockLevels([entry({ type: 'count', item_id: 'a', qty: 20 })], [{ id: 'a', stock: 50 }]);
     expect(levels.get('a')).toMatchObject({ ref: 50, share: 1, state: 'ok' });
+  });
+});
+
+describe('padPress and padDisplay', () => {
+  const typed = (keys: readonly PadKey[]): string => keys.reduce<string>((v, k) => padPress(v, k), '');
+  it('types rupees and up to two paise digits after one point', () => {
+    expect(typed(['1', '2', '3', '4', '.', '5', '0', '9'])).toBe('1234.50');
+    expect(typed(['5', '.', '.', '2'])).toBe('5.2');
+  });
+  it('starts a lone point as zero and drops a leading zero', () => {
+    expect(typed(['.', '7', '5'])).toBe('0.75');
+    expect(typed(['0', '0', '8'])).toBe('8');
+  });
+  it('stops at nine rupee digits and deletes one character at a time', () => {
+    expect(typed(['9', '9', '9', '9', '9', '9', '9', '9', '9', '9'])).toBe('999999999');
+    expect(typed(['1', '.', '5', 'del', 'del'])).toBe('1');
+  });
+  it('shows the amount as typed, grouped the Indian way', () => {
+    expect(padDisplay('')).toBe('₹0');
+    expect(padDisplay('112000')).toBe('₹1,12,000');
+    expect(padDisplay('12.')).toBe('₹12.');
+    expect(padDisplay('1234.5')).toBe('₹1,234.5');
   });
 });
