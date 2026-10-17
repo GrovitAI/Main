@@ -33,8 +33,8 @@ const paper = 'w-full max-w-[794px] self-center border-x border-border-soft bg-s
 const tabular = { fontVariant: ['tabular-nums' as const] };
 const STATUS_OPTIONS: readonly { id: InvoiceStatus; label: string }[] = INVOICE_STATUSES.map(id => ({ id, label: invoiceStatus(id) }));
 const statusNoun: Record<InvoiceStatus, string> = { to_be_paid: 'to be paid', paid: 'paid', cancelled: 'cancelled' };
-function Action({ label, onPress, primary = false, disabled = false }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
+function Action({ label, accessibilityLabel, onPress, primary = false, disabled = false }: { label: string; accessibilityLabel?: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
     className={'min-h-[44px] min-w-[44px] max-w-full self-start items-center justify-center rounded-lg border px-3 py-1.5 ' +
       (disabled ? 'border-border bg-surface-tint' : primary ? 'border-primary bg-primary hover:bg-primary-deep active:bg-primary-deep focus:border-primary-deep' : 'border-border bg-surface-elevated hover:bg-accent-soft active:bg-accent-soft focus:border-primary')}>
     <Text className={'text-sm font-semibold leading-5 ' + (primary && !disabled ? 'text-text-on-primary' : disabled ? 'text-text-secondary' : 'text-primary')}>{label}</Text>
@@ -181,7 +181,7 @@ export function InvoiceWorkspace() {
   const header = <View className={'gap-3 ' + (preview ? '' : 'pb-3')}>
     <KHeader title={preview ? 'Invoice preview' : detailId && invoice ? invoiceNumber(invoice.invoice_no) : filter.candidates ? 'New invoice' : 'Invoices'} large={false}
       onBack={busy ? undefined : preview ? () => { setPreview(null); setError(null); } : detailId ? backToList : filter.candidates ? () => resetFilter({ candidates: false }) : undefined}
-      right={!detailId && !filter.candidates && access.can('invoices.create') ? <Action label="New invoice" primary onPress={() => resetFilter({ candidates: true })} disabled={loading || busy} /> : null} />
+      right={!detailId && !filter.candidates && access.can('invoices.create') ? <Action label={desktop ? 'New invoice' : '+ New'} accessibilityLabel="New invoice" primary onPress={() => resetFilter({ candidates: true })} disabled={loading || busy} /> : null} />
     {preview ? null : !detailId ? <>
       {/* Task 224: the status filter is a dropdown with ticks beside the dates, not a row of pills. */}
       <View className={'gap-2 ' + (desktop ? 'flex-row items-end' : '')}>

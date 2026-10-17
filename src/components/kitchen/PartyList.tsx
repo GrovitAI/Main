@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { colors, semantic } from '@/lib/pos/brand';
 import { formatDayLabel, formatMoney, matchesSearch, sumDues } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { Avatar, Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, StatTile, useDesktopDensity } from './ui';
@@ -33,6 +34,8 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
     [data.parties, kind, query, balanceOf],
   );
   const total = sumDues(data.balances, kind);
+  const ofKind = data.parties.filter((p) => p.kind === kind);
+  const owing = ofKind.filter((p) => (balanceOf.get(p.id)?.balance ?? 0) > 0).length;
   const openParty = (id: string) => (isTablet ? setSelected(id) : router.push({ pathname: '/central-kitchen/party/[id]', params: { id } }));
   const addParty = () => router.push({ pathname: '/central-kitchen/party-form', params: { kind } });
   const { can, showAmounts } = useKitchenAccess();
@@ -44,10 +47,18 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
       <KHeader title={copy.title} subtitle={copy.subtitle} right={mayAdd ? <IconButton icon={Plus} label={copy.add} onPress={addParty} /> : undefined} />
       {data.error ? <Notice text={data.error} /> : null}
       {showAmounts ? <Card style={{ marginBottom: 12 }}>
-        <StatTile label={copy.total} value={total} tone={total > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'} />
+        <View className="flex-row items-start justify-between gap-2">
+          <StatTile label={copy.total} value={total} tone={total > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'} />
+          {!isTablet && ofKind.length > 0 ? (
+            // Task 240: how many still owe, as in the mockup.
+            <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: owing === 0 ? colors.surfaceTint : kind === 'branch' ? semantic.successSoft : semantic.dangerSoft }}>
+              <Text className="text-xs font-bold" style={{ color: owing === 0 ? colors.textSecondary : kind === 'branch' ? semantic.success : semantic.danger }}>{owing === 0 ? 'All settled' : `${owing} of ${ofKind.length} ${kind === 'branch' ? (ofKind.length === 1 ? 'branch' : 'branches') : ofKind.length === 1 ? 'vendor' : 'vendors'}`}</Text>
+            </View>
+          ) : null}
+        </View>
         {/* Day-one balances are not in the app yet; say so rather than show a settled ₹0 as fact. */}
         <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 8 }}>
-          Includes each name’s opening balance from before this app. Set or correct it by editing the name.
+          {isTablet ? 'Includes each name’s opening balance from before this app. Set or correct it by editing the name.' : 'Includes opening balances from before this app.'}
         </Text>
       </Card> : null}
       <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />

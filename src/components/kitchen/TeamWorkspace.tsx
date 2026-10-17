@@ -12,7 +12,7 @@ import { fetchKitchenAudit, fetchKitchenTeam, saveKitchenLock, saveKitchenStaffA
 import { PERMISSION_GROUPS, PRESETS, auditText, dayText, hourText, lockSummary, presetFor, presetLabel } from '@/lib/pos/kitchen-access-utils';
 import type { KitchenAuditRow, KitchenPermission, KitchenPreset, KitchenTeamMember } from '@/lib/pos/kitchen-access-types';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { Card, Empty, KHeader, KScreen, Label, LinkButton, Notice, PrimaryButton, Reveal, SelectRow, SettingsGroup, SettingsSection, Skeleton, Tick, Toggle, useDesktopDensity } from './ui';
+import { Avatar, Card, Empty, KHeader, KScreen, Label, LinkButton, Notice, PrimaryButton, Reveal, SelectRow, SettingsGroup, SettingsSection, Skeleton, Tick, Toggle, useDesktopDensity } from './ui';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 
 const HOURS = [6, 8, 10, 11, 12, 14, 18, 22] as const;
@@ -219,11 +219,12 @@ function TeamSection() {
 /** A login in the list: a tap opens it on a phone, or shows it beside the list on a desktop. */
 function MemberRow({ member, draft, selected = false, expanded, first, onPress }: { member: KitchenTeamMember; draft?: KitchenPermission[]; selected?: boolean; expanded?: boolean; first: boolean; onPress: () => void }) {
   const detail = `${presetLabel(member.preset)} · ${member.permissions.length} of ${PERMISSION_TOTAL}`;
+  const desktop = useDesktopDensity();
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${member.name}, ${detail}${draft ? ', unsaved changes' : ''}`}
       accessibilityState={expanded === undefined ? { selected } : { expanded }} aria-selected={expanded === undefined ? selected : undefined}
       className={'min-h-[64px] flex-row items-center gap-3 px-4 py-3 ' + (first ? '' : 'border-t border-border-soft ') + (selected ? 'bg-surface-tint' : 'hover:bg-surface-tint active:bg-surface-tint')}>
-      <View className={'h-10 w-10 items-center justify-center rounded-full ' + (selected ? 'bg-primary' : 'bg-accent-soft')}><UserRound size={18} color={selected ? colors.textOnPrimary : colors.primary} /></View>
+      {desktop ? <View className={'h-10 w-10 items-center justify-center rounded-full ' + (selected ? 'bg-primary' : 'bg-accent-soft')}><UserRound size={18} color={selected ? colors.textOnPrimary : colors.primary} /></View> : <Avatar name={member.name} size={38} />}
       <View className="min-w-0 flex-1">
         <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{member.name}</Text>
         <Text className={'text-xs ' + (draft ? 'font-bold text-primary' : 'text-text-secondary')} numberOfLines={1}>{draft ? 'Unsaved changes' : detail}</Text>

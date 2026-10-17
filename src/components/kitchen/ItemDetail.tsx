@@ -3,7 +3,7 @@ import { View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
-import { Pencil, Trash2 } from 'lucide-react-native';
+import { ClipboardCheck, PackagePlus, Pencil, Trash2 } from 'lucide-react-native';
 import { fetchKitchenItemEntries, postKitchenEntry, setKitchenItemActive } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
@@ -122,8 +122,8 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   );
   const actions = (
     <>
-      {item.item_kind === 'finished_good' && can('entries.batch') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Create batch" tone="primary" disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
-      {can('entries.count') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Count stock" disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
+      {item.item_kind === 'finished_good' && can('entries.batch') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Create batch" tone="primary" icon={phone ? PackagePlus : undefined} disabled={busy} onPress={() => { setPanel(panel === 'made' ? null : 'made'); setQty(''); setError(null); }} /></View> : null}
+      {can('entries.count') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Count stock" icon={phone ? ClipboardCheck : undefined} disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
     </>
   );
   const field = panel ? <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `Made, ${item.unit}` : `On the shelf now, ${item.unit}`} keyboardType="decimal-pad" autoFocus /> : null;

@@ -3,7 +3,7 @@ import { Linking, Pressable, View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
-import { Pencil, Trash2, MessageCircle } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUp, ArrowUpRight, Flag, MessageCircle, Pencil, ShoppingBag, Trash2 } from 'lucide-react-native';
 import { setKitchenPartyActive } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
@@ -13,6 +13,7 @@ import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 import { Avatar, Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity } from './ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { EntryActions } from './EntryActions';
+import { ENTRY_ICONS, entryIconTone } from './EntryList';
 
 type Props = {
   partyId: string;
@@ -67,7 +68,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const figure = (
     <>
       <Text className={`font-extrabold ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`} style={{ letterSpacing: desktop ? -0.4 : -0.8, color: tone, fontVariant: ['tabular-nums'] }}>{showAmounts ? formatMoney(Math.abs(balance)) : '—'}</Text>
-      {party.phone ? (
+      {party.phone && !phone ? (
         <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
           <MessageCircle size={16} color={semantic.success} />
           <Text style={{ color: semantic.success, fontSize: 13, fontWeight: '700' }}>{party.phone}</Text>
@@ -75,15 +76,22 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
       ) : null}
     </>
   );
+  const whatsapp = party.phone && phone ? (
+    <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`}
+      className="mt-2 min-h-11 flex-row items-center gap-1.5 self-start rounded-lg px-1 active:opacity-60">
+      <MessageCircle size={18} color={semantic.success} />
+      <Text style={{ color: semantic.success, fontSize: 14, fontWeight: '700' }}>WhatsApp {party.name}</Text>
+    </Pressable>
+  ) : null;
   const actions = isBranch ? (
     <>
-      {can('entries.receive') ? <View className={split ? undefined : 'flex-1'}><PrimaryButton label="Received" onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View> : null}
-      {can('entries.send') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Send" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View> : null}
+      {can('entries.receive') ? <View className={split ? undefined : 'flex-1'}><PrimaryButton label="Received" icon={phone ? ArrowDownLeft : undefined} onPress={() => router.push({ pathname: '/central-kitchen/received', params: { party: party.id } })} /></View> : null}
+      {can('entries.send') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Send" tone="primary" icon={phone ? ArrowUpRight : undefined} onPress={() => router.push({ pathname: '/central-kitchen/send', params: { party: party.id } })} /></View> : null}
     </>
   ) : (
     <>
-      {can('entries.pay') ? <View className={split ? undefined : 'flex-1'}><PrimaryButton label="Pay" onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View> : null}
-      {can('entries.buy') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Bought" tone="primary" onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View> : null}
+      {can('entries.pay') ? <View className={split ? undefined : 'flex-1'}><PrimaryButton label="Pay" icon={phone ? ArrowUp : undefined} onPress={() => router.push({ pathname: '/central-kitchen/spent', params: { party: party.id, kind: 'vendor' } })} /></View> : null}
+      {can('entries.buy') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Bought" tone="primary" icon={phone ? ShoppingBag : undefined} onPress={() => router.push({ pathname: '/central-kitchen/bought', params: { party: party.id } })} /></View> : null}
     </>
   );
   const history = (
@@ -97,6 +105,8 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
             return (
               <Row
                 key={entry.id}
+                icon={phone ? ENTRY_ICONS[entry.type] : undefined}
+                iconTone={entryIconTone(entry)}
                 title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}
                 subtitle={entrySubline(entry, data.itemsById)}
                 right={showAmounts ? `${moneyBack ? '−' : ''}${formatMoney(entry.amount)}` : undefined}
@@ -110,6 +120,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         {party.opening !== 0 ? (
           // The oldest line: what stood between us before the app, set on the name's edit page.
           <Row
+            icon={phone ? Flag : undefined}
             title="Opening balance"
             subtitle="Before this app started"
             right={showAmounts ? formatMoney(Math.abs(party.opening)) : undefined}
@@ -127,7 +138,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
     <View onLayout={measure}>
       <KHeader
         title={party.name}
-        subtitle={isBranch ? 'Branch' : 'Vendor'}
+        subtitle={(isBranch ? 'Branch' : 'Vendor') + (phone && party.phone ? ` · ${party.phone}` : '')}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={can('setup.parties') ? <MoreMenu label={`More for ${party.name}`} items={[
@@ -163,6 +174,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
               </View>
               <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>{actions}</View>
             </View>
+            {whatsapp}
             {error ? <Notice text={error} /> : null}
           </Card>
           {history}
