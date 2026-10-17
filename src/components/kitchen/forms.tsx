@@ -6,13 +6,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
-import { Banknote, Landmark, Plus, Search, Smartphone } from 'lucide-react-native';
+import { Banknote, ChevronLeft, ChevronRight, Landmark, Plus, Search, Smartphone } from 'lucide-react-native';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
 import { colors } from '@/lib/pos/brand';
 import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { KITCHEN_MODES, formatDayLabel, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
+import { kitchenCalendarDays, kitchenMonthLabel, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
+import { KITCHEN_MODES, formatDayLabel, formatLongDate, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem, KitchenMode, KitchenOpenDocument, KitchenParty, KitchenPartyBalance, KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { AddChip, Avatar, ChoiceButtons, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
 
@@ -192,7 +193,7 @@ export function DateField({ value, onChange, lockReason = '', onLockReason, guar
     );
   }
   return (
-    <Field label="When" hint={other ? 'Year-month-day, for example 2026-10-04' : undefined}>
+    <Field label="When">
       <Segmented
         options={[{ value: 'today', label: 'Today' }, { value: 'yesterday', label: 'Yesterday' }, { value: 'other', label: 'Date' }]}
         value={other ? 'other' : choice}
@@ -202,11 +203,7 @@ export function DateField({ value, onChange, lockReason = '', onLockReason, guar
           else setOther(true);
         }}
       />
-      {other ? (
-        <View style={{ marginTop: 8 }}>
-          <TextField value={value} onChange={onChange} label="Date" placeholder="2026-10-04" keyboardType="numeric" />
-        </View>
-      ) : null}
+      {other ? <MiniCalendar value={value} onChange={onChange} today={today} isBlocked={guard ? (day) => access.dateBlock(day) !== null : undefined} /> : null}
       {block ? <View style={{ marginTop: 8 }}><Notice text={block} /></View> : null}
       {askReason && onLockReason ? (
         <View style={{ marginTop: 10, gap: 4 }}>
@@ -466,6 +463,60 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
+
+/**
+ * A small month under the When bar (task 241, owner's ask): one tap picks the day. Each day is a
+ * full 44 px cell with no gaps between them; future days and days this login may not change are
+ * greyed out. The chosen day is filled blue, today has a blue ring, and the month moves with the
+ * arrows (never past this month).
+ */
+export function MiniCalendar({ value, onChange, today, isBlocked }: { value: string; onChange: (day: string) => void; today: string; isBlocked?: (day: string) => boolean }) {
+  const [month, setMonth] = useState((isValidDateKey(value) ? value : today).slice(0, 7));
+  const atLatest = month >= today.slice(0, 7);
+  const cells = kitchenCalendarDays(month);
+  const weeks: (typeof cells[number])[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  const arrow = 'h-11 w-11 items-center justify-center rounded-xl hover:bg-surface-tint active:bg-surface-tint';
+  return (
+    <View className="mt-2 rounded-2xl border border-border-soft bg-surface-elevated px-1.5 pb-1.5 pt-1" testID="kitchen-mini-calendar">
+      <View className="flex-row items-center justify-between">
+        <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth(shiftKitchenMonth(month, -1))} className={arrow}>
+          <ChevronLeft size={20} color={colors.primary} />
+        </Pressable>
+        <Text accessibilityLiveRegion="polite" className="text-[15px] font-bold text-text-primary">{kitchenMonthLabel(month)}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Next month" disabled={atLatest} accessibilityState={{ disabled: atLatest }} onPress={() => setMonth(shiftKitchenMonth(month, 1))} className={arrow} style={{ opacity: atLatest ? 0.3 : 1 }}>
+          <ChevronRight size={20} color={colors.primary} />
+        </Pressable>
+      </View>
+      <View className="flex-row">
+        {WEEKDAYS.map((d) => <Text key={d} className="flex-1 py-1 text-center text-xs font-bold text-text-secondary">{d}</Text>)}
+      </View>
+      {weeks.map((week, w) => (
+        <View key={w} className="flex-row">
+          {week.map((cell) => {
+            if (!cell.date) return <View key={cell.key} className="h-11 flex-1" />;
+            const day = cell.date;
+            const on = day === value;
+            const off = day > today || (isBlocked ? isBlocked(day) : false);
+            return (
+              <Pressable key={cell.key} {...(on || off ? {} : hoverFace)} disabled={off} onPress={() => onChange(day)}
+                accessibilityRole="button" accessibilityLabel={formatLongDate(day)} aria-selected={on} accessibilityState={{ selected: on, disabled: off }}
+                className="h-11 flex-1 items-center justify-center">
+                <View {...(on || off ? {} : hoverFaceMark)} className="h-9 w-9 items-center justify-center rounded-full"
+                  style={{ backgroundColor: on ? colors.primary : 'transparent', borderWidth: day === today && !on ? 1.5 : 0, borderColor: colors.primary, opacity: off ? 0.3 : 1 }}>
+                  <Text className="text-sm font-bold" style={{ color: on ? colors.textOnPrimary : colors.textPrimary, fontVariant: ['tabular-nums'] }}>{Number(day.slice(8))}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+      <Text className="px-2 pb-1 pt-1.5 text-[13px] font-semibold text-text-secondary">{isValidDateKey(value) ? formatLongDate(value) : 'Pick a day'}</Text>
     </View>
   );
 }

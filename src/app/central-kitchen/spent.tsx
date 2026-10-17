@@ -63,7 +63,8 @@ export default function SpentScreen() {
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
   const dateOk = useDateGuard(date, lockReason);
-  const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category) && dateOk;
+  const needsNote = kind === 'expense' && !note.trim();
+  const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category) && dateOk && !needsNote;
   const isVendor = kind === 'vendor';
 
   const onTick = (list: KitchenOpenDocument[], next: Set<string>) => {
@@ -111,7 +112,7 @@ export default function SpentScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : phone && amount > 0 ? `Save ${formatMoney(amount)}` : isVendor ? 'Save payment' : 'Save expense'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={kind === 'vendor' && !partyId ? 'Choose a vendor' : kind !== 'vendor' && !category ? 'Choose what it was for' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />}>
+      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : phone && amount > 0 ? `Save ${formatMoney(amount)}` : isVendor ? 'Save payment' : 'Save expense'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={kind === 'vendor' && !partyId ? 'Choose a vendor' : kind !== 'vendor' && !category ? 'Choose what it was for' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : needsNote ? 'Add a note' : undefined} />}>
         <KHeader title={title} subtitle={subtitle} onBack={() => backToKitchen()} />
         {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a payment or expense." /> : null}
         {editing ? null : (
@@ -154,8 +155,8 @@ export default function SpentScreen() {
           <ModePicker value={mode} onChange={setMode} />
         </Field>
         <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
-        <Field label="Note" optional>
-          <TextField value={note} onChange={setNote} label="Note (optional)" />
+        <Field label="Note" optional={isVendor} hint={isVendor ? undefined : 'Required for an expense: what it was, for example "Gas cylinder for the week".'}>
+          <TextField value={note} onChange={setNote} label={isVendor ? 'Note (optional)' : 'Note'} />
         </Field>
         {error ? <Notice text={error} /> : null}
         <View style={{ height: 8 }} />
