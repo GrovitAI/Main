@@ -502,3 +502,30 @@ phone design is kept at git tag `phone-design-classic` and branch
   ignored. `padDisplay` shows the amount as typed with Indian grouping, so
   `12.` stays visible as `₹12.` while the paise are typed.
 - Tablet and desktop keep the typed Amount field, unchanged.
+
+## Tasks 236–240: the rest of the phone mockup pages (2026-10-17)
+
+The remaining round-5 pages from `output/previews/task-228/phones-5.html`,
+phone only; tablet and desktop are unchanged.
+
+- **History (236):** search and one square filter button (with a count badge);
+  the sort moved into the filter sheet. Entries are icon rows in one card per
+  day (`HistoryCardRow`), with the entry time on the right; corrections and
+  voids say so on the second line. Day headings show the count and the day's
+  net (`historySections` now carries `net`).
+- **Cash & bank (237):** two balance cards with today's change
+  (`moneyChangeOn`, the same cash/bank rules as `kitchen_money_summary`), a
+  Move money card on the page (amount first; date, note and "Move ₹X to the
+  bank" appear once an amount is typed), moves as icon rows. Tapping a move
+  offers to void it. The since-opening breakdown sits at the end.
+- **Bought (238):** purchase categories as tiles like Spent (most used first,
+  More for the full list, Uncategorized and a new one); items come straight
+  after. Category icons now cover dairy, dry goods, fruit and chocolate.
+- **Attendance (239):** name circles, a coloured status pill per person
+  ("Mark" when unmarked), and All plus each status as equal count tiles that
+  filter the list.
+- **Details (240):** branch/vendor page with icons on its actions and rows, the
+  phone number in the header and "WhatsApp <name>" under the actions; item
+  page action icons; login circles on Team; an "N of M branches" chip on
+  Branches and Vendors; "+ New" on Invoices.
+- Not done: the item page's "40 left" running stock after each movement.

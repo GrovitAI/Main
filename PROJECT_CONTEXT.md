@@ -257,6 +257,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 234 (2026-10-17, staging only): 20261017100000_pin_function_search_path.sql pins search_path = public on the 19 older functions the Supabase advisor flagged (order numbering and settlement, dispatch, analytics, finance summaries, updated_at triggers). None is SECURITY DEFINER; each is altered only when it exists. Applied and checked on staging; promote with the other staging-only migrations.
 ✅ Task 235 (2026-10-17, staging source): The phone amount pad on Received and Spent has a decimal point in place of 00, so paise can be typed on a phone (padPress/padDisplay in kitchen-utils, with tests). Tablet and desktop unchanged.
 ⬜ Task 9: Dashboard screen (owner)
+✅ Tasks 236-240 (2026-10-17, staging source): The rest of the phone mockup pages (phones-5.html): History icon rows in day cards with the day net and one filter button; Cash & bank balance cards with today's change and an on-page Move money card; Bought purchase category tiles; Attendance name circles, coloured status pills and count tiles; branch page icons and WhatsApp link, item page action icons, Team login circles, owing chip, short New on Invoices. Tablet and desktop unchanged. See docs/KITCHEN_BLUE_FRAME.md, tasks 236-240.
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)
 ⬜ Task 12: Responsive polish
