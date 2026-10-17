@@ -2,7 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import {
+  Apple,
   Coffee,
+  Cookie,
+  Egg,
+  Milk,
+  Wheat,
   Droplets,
   Flame,
   Home,
@@ -38,6 +43,12 @@ const ICON_RULES: readonly { test: RegExp; icon: LucideIcon }[] = [
   { test: /phone|internet|wifi|mobile|recharge|data/i, icon: Wifi },
   { test: /tea|coffee|food|snack|meal|refresh/i, icon: Coffee },
   { test: /licen|insur|tax|gst|fee|fssai|permit|audit/i, icon: ShieldCheck },
+  // Purchase categories (task 238).
+  { test: /dairy|milk|curd|paneer|butter|cream|cheese/i, icon: Milk },
+  { test: /dry|grain|flour|rice|atta|maida|pulse|dal|grocer/i, icon: Wheat },
+  { test: /fruit|veg|produce|green/i, icon: Apple },
+  { test: /choco|sugar|bak|sweet|syrup|nutella/i, icon: Cookie },
+  { test: /egg/i, icon: Egg },
 ];
 
 /** An icon that suits the name, so the tiles read at a glance; a plain tag otherwise. */
@@ -144,12 +155,13 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
   );
 }
 
-function CategoryTile({ label, icon: Icon, on, onPress, more }: { label: string; icon: LucideIcon; on: boolean; onPress: () => void; more?: boolean }) {
+export function CategoryTile({ label, icon: Icon, on, onPress, more }: { label: string; icon: LucideIcon; on: boolean; onPress: () => void; more?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: on }}
+      aria-selected={on}
       accessibilityLabel={more ? 'More categories' : label}
       style={({ pressed }) => ({
         flex: 1,
