@@ -1,5 +1,5 @@
 import { kitchenToday, type KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
-import { matchesSearch } from '@/lib/pos/kitchen-utils';
+import { isMoneyIn, isMoneyOut, matchesSearch } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 
 export type HistoryStatus = 'active' | 'edited' | 'replaced' | 'voided';
@@ -94,7 +94,7 @@ export function filterKitchenHistory(
 }
 
 export type HistoryListItem =
-  | { kind: 'day'; key: string; label: string; count: number }
+  | { kind: 'day'; key: string; label: string; count: number; net: number }
   | { kind: 'entry'; key: string; entry: KitchenEntry };
 
 /** "Today", "Yesterday", then "Mon, 13 Oct" (with the year once it is not this year). */
@@ -116,14 +116,16 @@ export function historyDayHeading(day: string, today: string = kitchenToday()): 
 export function historySections(entries: readonly KitchenEntry[], sort: HistorySort, today: string = kitchenToday()): { items: HistoryListItem[] } {
   const recorded = sort.startsWith('recorded');
   const items: HistoryListItem[] = [];
-  let heading: { kind: 'day'; key: string; label: string; count: number } | null = null;
+  let heading: { kind: 'day'; key: string; label: string; count: number; net: number } | null = null;
   for (const entry of entries) {
     const day = recorded ? historyRecordedDay(entry.created_at) : entry.entry_date;
     if (!heading || heading.key !== 'day:' + day) {
-      heading = { kind: 'day', key: 'day:' + day, label: historyDayHeading(day, today), count: 0 };
+      heading = { kind: 'day', key: 'day:' + day, label: historyDayHeading(day, today), count: 0, net: 0 };
       items.push(heading);
     }
     heading.count += 1;
+    // Task 236: the day's money in less money out, from the entries that still count.
+    if (!entry.voided_at) heading.net += isMoneyIn(entry) ? entry.amount : isMoneyOut(entry) ? -entry.amount : 0;
     items.push({ kind: 'entry', key: entry.id, entry });
   }
   return { items };

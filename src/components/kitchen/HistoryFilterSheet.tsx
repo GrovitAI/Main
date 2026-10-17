@@ -11,10 +11,12 @@ type Props = {
   onReset: () => void;
   fields: readonly [ReactNode, ReactNode, ReactNode, ReactNode];
   dates: ReactNode;
+  /** The list's order (task 236): on a phone it lives here rather than in the toolbar. */
+  sort?: ReactNode;
 };
 
 /** Phone-only disclosure; choices remain local and Done only closes it. */
-export function HistoryFilterSheet({ visible, onClose, onReset, fields, dates }: Props) {
+export function HistoryFilterSheet({ visible, onClose, onReset, fields, dates, sort }: Props) {
   const insets = useSafeAreaInsets();
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <View className="flex-1 justify-end" style={{ backgroundColor: colors.overlay, paddingTop: Math.max(insets.top, 8) }}>
@@ -29,6 +31,7 @@ export function HistoryFilterSheet({ visible, onClose, onReset, fields, dates }:
         {/* A static form, not a nested virtualized list: picker/calendar lists must scroll independently. */}
         <ScrollView className="min-h-0 shrink" keyboardShouldPersistTaps="handled">
           <View className="gap-2">
+            {sort ?? null}
             <View className="flex-row items-start gap-2">
               <View className="min-w-0 flex-1">{fields[0]}</View>
               <View className="min-w-0 flex-1">{fields[1]}</View>

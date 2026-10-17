@@ -95,4 +95,13 @@ describe('history day headings (task 216)', () => {
     expect(byRecorded.items.map(i => i.kind === 'day' ? i.label : i.key)).toEqual(['Today', 'a', 'b', 'c']);
     expect(historySections([], 'transaction-newest').items).toEqual([]);
   });
+
+  it("nets each day's money in against money out, skipping voided entries", () => {
+    const got = entry('r', { type: 'received', amount: 2000, entry_date: '2026-10-14' });
+    const gas = entry('s', { type: 'spent', amount: 1150, entry_date: '2026-10-14' });
+    const sent = entry('t', { type: 'sent', amount: 1350, entry_date: '2026-10-14' });
+    const gone = entry('v', { type: 'received', amount: 500, entry_date: '2026-10-14', voided_at: '2026-10-14T06:00:00Z' });
+    const day = historySections([got, gas, sent, gone], 'transaction-newest', '2026-10-14').items[0];
+    expect(day?.kind === 'day' ? day.net : null).toBe(850);
+  });
 });

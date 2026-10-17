@@ -7,7 +7,8 @@ import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnt
 import { Row, type Tone } from './ui';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
-const ICONS: Record<KitchenEntryType, LucideIcon> = {
+/** Each entry type's icon, shared with History's phone rows (task 236). */
+export const ENTRY_ICONS: Record<KitchenEntryType, LucideIcon> = {
   sent: ArrowUpRight,
   received: ArrowDownLeft,
   bought: ShoppingBag,
@@ -17,7 +18,7 @@ const ICONS: Record<KitchenEntryType, LucideIcon> = {
   count: ClipboardList,
 };
 
-function iconTone(e: KitchenEntry): Tone {
+export function entryIconTone(e: KitchenEntry): Tone {
   if (e.type === 'sent') return 'primary';
   if (e.type === 'bought') return 'buy';
   if (isMoneyIn(e)) return 'in';
@@ -64,8 +65,8 @@ export function EntryList({ entries, itemsById, partiesById, grouped = true, onP
               </Text>
             ) : null}
             <Row
-              icon={ICONS[e.type]}
-              iconTone={e.voided_at ? 'neutral' : iconTone(e)}
+              icon={ENTRY_ICONS[e.type]}
+              iconTone={e.voided_at ? 'neutral' : entryIconTone(e)}
               title={entryHeadline(e, names)}
               subtitle={entrySubline(e, itemsById)}
               right={amountOf(e) || undefined}

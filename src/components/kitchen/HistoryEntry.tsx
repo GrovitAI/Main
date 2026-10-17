@@ -2,8 +2,9 @@ import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryHeadline, entrySubline, isMoneyIn, isMoneyOut } from '@/lib/pos/kitchen-utils';
-import { historyAuditText, historyDateLabel, historyStatus, historyTimeLabel, HISTORY_STATUS_LABELS } from '@/lib/pos/kitchen-history-utils';
-import { toneColor, useDesktopDensity } from '@/components/kitchen/ui';
+import { historyAuditText, historyDateLabel, historyRecordedDay, historyStatus, historyTimeLabel, HISTORY_STATUS_LABELS } from '@/lib/pos/kitchen-history-utils';
+import { Row, toneColor, useDesktopDensity } from '@/components/kitchen/ui';
+import { ENTRY_ICONS, entryIconTone } from '@/components/kitchen/EntryList';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
 /** History keeps audit information visible without adding it to everyday Home rows. */
@@ -44,4 +45,42 @@ export function HistoryEntry({ entry, itemsById, partiesById, onPress }: {
     {audit && status !== 'edited' ? <Text className="text-xs leading-4 text-text-secondary">{audit}</Text> : null}
     </View>
   </Pressable>;
+}
+
+/** When an entry was keyed in, India time: the time alone on its own day, with the date otherwise. */
+function recordedAt(entry: KitchenEntry): string {
+  const date = new Date(entry.created_at);
+  if (!Number.isFinite(date.getTime())) return '';
+  const sameDay = historyRecordedDay(entry.created_at) === entry.entry_date;
+  return date.toLocaleString('en-IN', { ...(sameDay ? {} : { day: 'numeric', month: 'short' }), hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+}
+
+/**
+ * A phone's History row (task 236, owner's pick): the entry's icon, what and how much, and when it
+ * was keyed in, in a card that runs through the day. Corrections and voids say so on the second
+ * line; the full audit trail opens with the row.
+ */
+export function HistoryCardRow({ entry, itemsById, partiesById, onPress, first, last }: {
+  entry: KitchenEntry; itemsById: ReadonlyMap<string, KitchenItem>;
+  partiesById: ReadonlyMap<string, KitchenParty>; onPress: () => void; first: boolean; last: boolean;
+}) {
+  const { showAmounts } = useKitchenAccess();
+  const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
+  const title = entryHeadline(entry, names);
+  const status = historyStatus(entry);
+  const removed = entry.voided_at !== null;
+  // The status leads the line, so the subline's own "voided" at the end is dropped.
+  const detail = removed ? entrySubline(entry, itemsById).replace(/ · voided$/, '') : entrySubline(entry, itemsById);
+  const amount = showAmounts ? entryAmountText(entry) : '';
+  const note = status === 'voided' ? ['Voided', entry.void_reason].filter(Boolean).join(' · ') : status === 'active' ? '' : HISTORY_STATUS_LABELS[status];
+  const subtitle = [note, detail].filter(Boolean).join(' · ');
+  return (
+    <View testID="kitchen-history-entry" className={`overflow-hidden border-x border-border-soft bg-surface-elevated px-3.5 ${first ? 'rounded-t-[18px] border-t' : ''} ${last ? 'rounded-b-[18px] border-b' : ''}`}>
+      <View style={last ? { marginBottom: -1 } : undefined}>
+        <Row icon={ENTRY_ICONS[entry.type]} iconTone={removed ? 'neutral' : entryIconTone(entry)} title={title} subtitle={subtitle || undefined}
+          right={amount || undefined} rightSub={recordedAt(entry)} tone={removed ? 'neutral' : isMoneyIn(entry) ? 'in' : isMoneyOut(entry) ? 'out' : 'neutral'} muted={removed} onPress={onPress}
+          accessibilityLabel={`${title}, ${amount || detail}, ${HISTORY_STATUS_LABELS[status]}. Entered by ${entry.created_by}, ${historyTimeLabel(entry.created_at)}`} />
+      </View>
+    </View>
+  );
 }
