@@ -3,9 +3,8 @@ import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions, type
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
-import { formatMoney } from '@/lib/pos/kitchen-utils';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
-import { entryAmountText, entryHeadline, entrySubline } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entrySubline, formatMoney } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
 import { Empty, KHeader, KScreen, Notice, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';

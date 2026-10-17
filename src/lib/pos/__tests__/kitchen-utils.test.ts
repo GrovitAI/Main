@@ -17,6 +17,7 @@ import {
   oftenSent,
   slipText,
   statementRows,
+  moneyChangeOn,
   padDisplay,
   padPress,
   stockLevels,
@@ -337,5 +338,22 @@ describe('padPress and padDisplay', () => {
     expect(padDisplay('112000')).toBe('₹1,12,000');
     expect(padDisplay('12.')).toBe('₹12.');
     expect(padDisplay('1234.5')).toBe('₹1,234.5');
+  });
+});
+
+describe('moneyChangeOn', () => {
+  it('adds the day to cash or bank by mode, with transfers, skipping voided entries and other days', () => {
+    const day = '2026-10-16';
+    const entries = [
+      entry({ type: 'received', amount: 850, mode: 'cash', entry_date: day }),
+      entry({ type: 'received', amount: 2000, mode: 'upi', entry_date: day }),
+      entry({ type: 'spent', amount: 150, mode: null, entry_date: day }),
+      entry({ type: 'bought', amount: 400, paid: false, entry_date: day }),
+      entry({ type: 'paid', amount: 300, mode: 'bank', entry_date: day }),
+      entry({ type: 'received', amount: 999, mode: 'cash', entry_date: day, voided_at: '2026-10-16T08:00:00Z' }),
+      entry({ type: 'received', amount: 500, mode: 'cash', entry_date: '2026-10-15' }),
+    ];
+    const moves = [{ move_date: day, from_account: 'cash' as const, amount_paise: 50000 }, { move_date: '2026-10-15', from_account: 'bank' as const, amount_paise: 100 }];
+    expect(moneyChangeOn(entries, moves, day)).toEqual({ cash: 850 - 150 - 500, bank: 2000 - 300 + 500 });
   });
 });

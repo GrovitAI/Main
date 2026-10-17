@@ -1,18 +1,19 @@
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ArrowRightLeft, Landmark, Wallet } from 'lucide-react-native';
+import { ArrowRightLeft, Landmark, Wallet, type LucideIcon } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { colors, semantic } from '@/lib/pos/brand';
+import { chart, colors, semantic } from '@/lib/pos/brand';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
+import { formatMoney, localDateKey, moneyChangeOn, parseAmount } from '@/lib/pos/kitchen-utils';
 import { historyDateLabel } from '@/lib/pos/kitchen-history-utils';
 import { fetchKitchenMoney, moveKitchenMoney, setKitchenMoneyOpening, voidKitchenMoneyMove, MONEY_LIMIT_PAISE, type MoneyAccount, type MoneyMove, type MoneySummary } from '@/lib/pos/kitchen-money-service';
-import { Card, Divider, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, StatTile, TextField } from '@/components/kitchen/ui';
+import { Card, Divider, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Reveal, Row, Segmented, StatTile, TextField } from '@/components/kitchen/ui';
 import { DateField, isValidDateKey, useDateGuard } from '@/components/kitchen/forms';
-import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
+import { useResponsive } from '@/lib/pos/useResponsive';
 
 const tabular = { fontVariant: ['tabular-nums' as const] };
 const ACCOUNT_LABEL: Record<MoneyAccount, string> = { cash: 'Cash', bank: 'Bank' };
@@ -51,6 +52,8 @@ export function MoneyWorkspace() {
   const requestKey = useRef('');
   const today = localDateKey();
   const access = useKitchenAccess();
+  const phone = !useResponsive().isTablet;
+  const { entries } = useKitchenData();
   const mayView = access.can('money.view');
   const mayMove = access.can('money.move');
   const mayOpening = access.can('money.opening');
@@ -69,16 +72,24 @@ export function MoneyWorkspace() {
   // Reload whenever the screen is shown; entries recorded elsewhere change the balances.
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const run = async (save: () => Promise<{ error: string | null }>, done: string): Promise<void> => {
-    if (busyRef.current) return;
+  const run = async (save: () => Promise<{ error: string | null }>, done: string): Promise<boolean> => {
+    if (busyRef.current) return false;
     busyRef.current = true; setBusy(true); setError(null); setMessage(null);
     const result = await save();
     busyRef.current = false; setBusy(false);
-    if (result.error) { setError(result.error); return; }
+    if (result.error) { setError(result.error); return false; }
     setEditor(null); setMessage(done); void load();
+    return true;
+  };
+  const newRequestKey = (): string => Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  // Task 237: a phone moves money from a card on the page; it clears once the transfer is saved.
+  const savePhoneMove = async (): Promise<void> => {
+    if (!requestKey.current) requestKey.current = newRequestKey();
+    const ok = await run(() => moveKitchenMoney(moveDate, from, movePaise, note, requestKey.current, lockReason), from === 'cash' ? 'Cash moved to the bank' : 'Cash withdrawn from the bank');
+    if (ok) { requestKey.current = ''; setAmount(''); setNote(''); setMoveDate(today); setLockReason(''); }
   };
   const openMove = (): void => {
-    requestKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    requestKey.current = newRequestKey();
     setFrom('cash'); setAmount(''); setMoveDate(today); setNote(''); setLockReason(''); setError(null); setMessage(null); setEditor('move');
   };
   const openOpening = (): void => {
@@ -141,11 +152,69 @@ export function MoneyWorkspace() {
     </View>
   </Card> : null;
 
+  const change = moneyChangeOn(entries, summary?.moves ?? [], today);
+  const phoneTop = (s: MoneySummary) => <>
+    <View className="flex-row" style={{ gap: 10 }}>
+      <BalanceCard icon={Wallet} color={chart.series2} label="Cash in hand" paise={s.cash_paise} change={change.cash} />
+      <BalanceCard icon={Landmark} color={colors.primary} label="Bank · UPI" paise={s.bank_paise} change={change.bank} />
+    </View>
+    {!s.has_opening ? <Text className="mt-2 px-1 text-xs leading-5 text-text-secondary">Opening balances are not set, so these count every money entry from zero.</Text> : null}
+    {mayOpening && !busy && !editor ? <View className="mt-1 flex-row"><LinkButton label={s.has_opening ? 'Change opening balances' : 'Set opening balances'} onPress={openOpening} /></View> : null}
+    {message ? <Text accessibilityRole="alert" className="mt-1 px-1 text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
+    {pane}
+    {mayMove && editor !== 'opening' ? <Card style={{ marginTop: 10 }}>
+      <View className="gap-2.5">
+        <View className="flex-row items-center justify-between gap-2">
+          <Text className="text-[17px] font-bold text-text-primary">Move money</Text>
+          <Text className="text-xs font-semibold text-text-secondary">Sales and dues stay the same</Text>
+        </View>
+        <Segmented options={[{ value: 'cash', label: 'Cash → Bank' }, { value: 'bank', label: 'Bank → Cash' }]} value={from} onChange={setFrom} />
+        <TextField label={from === 'cash' ? 'Amount deposited' : 'Amount withdrawn'} value={amount} onChange={setAmount} prefix="₹" keyboardType="decimal-pad" placeholder="Amount" big />
+        <Text className="px-1 text-xs leading-5" style={{ color: movePaise > available ? semantic.warning : colors.textSecondary }}>
+          {movePaise > available ? `More than the ${rupees(available)} ${from === 'cash' ? 'cash in hand' : 'in the bank'} shown here. Check the amount, or the balances are missing an entry.` : `of ${rupees(available)} ${from === 'cash' ? 'cash in hand' : 'in the bank'}`}
+        </Text>
+        <Reveal open={movePaise > 0}>
+          <View className="gap-2.5">
+            <DateField value={moveDate} onChange={setMoveDate} lockReason={lockReason} onLockReason={setLockReason} />
+            <Field label="Note" optional hint="For example, deposited at the branch.">
+              <TextField label="Note (optional)" value={note} onChange={setNote} />
+            </Field>
+            <PrimaryButton label={`Move ${rupees(movePaise)} ${from === 'cash' ? 'to the bank' : 'to cash'}`} loading={busy} disabled={busy || !moveReady} onPress={() => void savePhoneMove()} />
+          </View>
+        </Reveal>
+      </View>
+    </Card> : null}
+    <Text className="mb-2 mt-4 px-1 text-xs font-extrabold uppercase tracking-wide text-text-secondary">Moves</Text>
+  </>;
+  const phoneMove = (item: MoneyMove, first: boolean, last: boolean) => {
+    const mayVoid = mayMove && (!access.isLocked(item.move_date) || access.isOwner);
+    return <View className={`overflow-hidden border-x border-border-soft bg-surface-elevated px-3.5 ${first ? 'rounded-t-[18px] border-t' : ''} ${last ? 'rounded-b-[18px] border-b' : ''}`}>
+      <View style={last && voiding !== item.id ? { marginBottom: -1 } : undefined}>
+        <Row icon={ArrowRightLeft} iconTone="primary" title={`${ACCOUNT_LABEL[item.from_account]} → ${ACCOUNT_LABEL[item.to_account]}`}
+          subtitle={historyDateLabel(item.move_date) + (item.note ? ' · ' + item.note : '')} right={rupees(item.amount_paise)} rightSub={`by ${item.created_by}`}
+          onPress={mayVoid && !busy ? () => startVoid(item) : undefined}
+          accessibilityLabel={`${rupees(item.amount_paise)} from ${ACCOUNT_LABEL[item.from_account]} to ${ACCOUNT_LABEL[item.to_account]}, ${historyDateLabel(item.move_date)}${mayVoid ? '. Opens void' : ''}`} />
+      </View>
+      {voiding === item.id ? <View className="gap-2 py-2.5">
+        <TextField label="Reason for changing a locked day" value={voidReason} onChange={setVoidReason} placeholder="Why this transfer is being voided" autoFocus />
+        <View className="flex-row gap-2">
+          <GhostButton small tone="out" label="Void transfer" disabled={busy || !voidReason.trim()} onPress={() => voidMove(item)} />
+          <GhostButton small label="Cancel" onPress={() => setVoiding(null)} />
+        </View>
+      </View> : null}
+    </View>;
+  };
+  const phoneFlows = (s: MoneySummary) => <View className="mt-4 flex-row gap-3 rounded-[18px] border border-border-soft bg-surface-elevated p-3.5">
+    <Flow label={s.has_opening && s.as_of ? `Cash since ${historyDateLabel(s.as_of)}` : 'Cash'} inPaise={s.cash_in_paise} outPaise={s.cash_out_paise} movedIn={s.moved_to_cash_paise} movedOut={s.moved_to_bank_paise} />
+    <Flow label={s.has_opening && s.as_of ? `Bank since ${historyDateLabel(s.as_of)}` : 'Bank'} inPaise={s.bank_in_paise} outPaise={s.bank_out_paise} movedIn={s.moved_to_bank_paise} movedOut={s.moved_to_cash_paise} />
+  </View>;
+
   const header = <View className="pb-3">
-    <KHeader title="Cash & bank" onBack={busy ? undefined : backToKitchen} />
+    <KHeader title="Cash & bank" subtitle={phone && summary ? summary.has_opening && summary.as_of ? `Opening set on ${historyDateLabel(summary.as_of)}` : 'Opening balances not set' : undefined} onBack={busy ? undefined : backToKitchen} />
     {loading && !summary ? <ActivityIndicator accessibilityLabel="Loading cash and bank" color={colors.primary} className="my-6" /> : null}
     {error && !editor ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load()} />} /> : null}
-    {summary ? <>
+    {summary && phone ? phoneTop(summary) : null}
+    {summary && !phone ? <>
       <Card>
         <View className="flex-row">
           <View className="min-w-0 flex-1 flex-row items-start gap-2"><Wallet size={18} color={colors.textSecondary} /><StatTile label="Cash in hand" value={summary.cash_paise / 100} tone={summary.cash_paise < 0 ? 'out' : 'neutral'} /></View>
@@ -182,8 +251,9 @@ export function MoneyWorkspace() {
     <FlatList<MoneyMove> className="flex-1" data={summary?.moves ?? []} keyExtractor={m => m.id} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 720, alignSelf: 'center' }}
       refreshing={false} onRefresh={() => { if (!busyRef.current) void load(); }}
-      ListEmptyComponent={summary ? <Text className="py-3 text-sm leading-5 text-text-secondary">No transfers yet. Use Move money when cash is deposited into the bank or withdrawn from it.</Text> : null}
-      renderItem={({ item }) => <View className="min-h-16 flex-row flex-wrap items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2">
+      ListEmptyComponent={summary ? <Text className={phone ? 'px-1 pb-2 text-sm leading-5 text-text-secondary' : 'py-3 text-sm leading-5 text-text-secondary'}>No transfers yet. Use Move money when cash is deposited into the bank or withdrawn from it.</Text> : null}
+      ListFooterComponent={phone && summary ? phoneFlows(summary) : null}
+      renderItem={({ item, index }) => phone ? phoneMove(item, index === 0, index === (summary?.moves.length ?? 0) - 1) : <View className="min-h-16 flex-row flex-wrap items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2">
         <View className="min-w-0 flex-1">
           <Text className="text-sm font-bold leading-5 text-text-primary">{ACCOUNT_LABEL[item.from_account]} → {ACCOUNT_LABEL[item.to_account]}</Text>
           <Text className="text-xs leading-5 text-text-secondary" numberOfLines={2}>{historyDateLabel(item.move_date)}{item.note ? ' · ' + item.note : ''} · {item.created_by}</Text>
@@ -199,4 +269,13 @@ export function MoneyWorkspace() {
         </View> : null}
       </View>} />
   </KScreen></KeyboardAvoider>;
+}
+
+/** A phone's balance card (task 237): the account's icon and name in its colour, the balance, and today's change. */
+function BalanceCard({ icon: Icon, color, label, paise, change }: { icon: LucideIcon; color: string; label: string; paise: number; change: number }) {
+  return <View className="min-w-0 flex-1 rounded-[18px] border border-border-soft bg-surface-elevated p-3.5">
+    <View className="flex-row items-center gap-1.5"><Icon size={17} color={color} /><Text className="text-[13px] font-bold" style={{ color }}>{label}</Text></View>
+    <Text className="mt-1 text-[26px] font-bold" style={{ color: paise < 0 ? semantic.danger : colors.textPrimary, letterSpacing: -0.5, ...tabular }} numberOfLines={1} adjustsFontSizeToFit>{rupees(paise)}</Text>
+    <Text className="text-xs font-semibold text-text-secondary" style={tabular}>{change === 0 ? 'No change today' : `${change > 0 ? '+' : '−'}${formatMoney(Math.abs(change))} today`}</Text>
+  </View>;
 }
