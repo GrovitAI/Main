@@ -320,6 +320,7 @@ export function typeLabel(type: KitchenEntryType): string {
     case 'spent': return 'Spent';
     case 'made': return 'Made';
     case 'count': return 'Counted';
+    case 'issued': return 'Given to kitchen';
   }
 }
 
@@ -334,6 +335,7 @@ export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
     case 'spent': return e.category ?? 'Spent';
     case 'made': return `Made ${item}`;
     case 'count': return `Counted ${item}`;
+    case 'issued': return 'Given to the kitchen';
   }
 }
 
@@ -348,7 +350,7 @@ export function linesSummary(e: Pick<KitchenEntry, 'lines'>, itemsById: Readonly
 
 export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, KitchenItem>): string {
   const parts: string[] = [];
-  if (e.type === 'sent' || e.type === 'bought') parts.push(linesSummary(e, itemsById));
+  if (e.type === 'sent' || e.type === 'bought' || e.type === 'issued') parts.push(linesSummary(e, itemsById));
   if (e.type === 'bought') parts.push(e.paid ? `paid${e.mode ? ` · ${modeLabel(e.mode)}` : ''}` : 'pay later');
   if (e.type === 'received' || e.type === 'paid' || e.type === 'spent') parts.push(modeLabel(e.mode));
   if (e.type === 'made' || e.type === 'count') {
@@ -364,7 +366,7 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
 
 /** Signed money text for a list row; empty for a stock-only entry. */
 export function entryAmountText(e: KitchenEntry): string {
-  if (e.type === 'made' || e.type === 'count') return '';
+  if (e.type === 'made' || e.type === 'count' || e.type === 'issued') return '';
   if (isMoneyIn(e)) return formatINR(e.amount, { signed: true });
   if (isMoneyOut(e)) return formatINR(-e.amount);
   return formatINR(e.amount);
@@ -453,6 +455,26 @@ export function oftenSent(entries: readonly KitchenEntry[], partyId: string, lim
   const seen = new Map<string, { itemId: string; times: number; lastQty: number; lastAt: string }>();
   for (const entry of entries) {
     if (entry.type !== 'sent' || entry.party_id !== partyId || entry.voided_at) continue;
+    const at = entry.entry_date + ' ' + entry.created_at;
+    for (const line of entry.lines) {
+      if (!(line.qty > 0)) continue;
+      const row = seen.get(line.item_id) ?? { itemId: line.item_id, times: 0, lastQty: line.qty, lastAt: '' };
+      row.times += 1;
+      if (at > row.lastAt) { row.lastAt = at; row.lastQty = line.qty; }
+      seen.set(line.item_id, row);
+    }
+  }
+  return [...seen.values()]
+    .sort((a, b) => b.times - a.times || b.lastAt.localeCompare(a.lastAt))
+    .slice(0, limit)
+    .map(({ itemId, times, lastQty }) => ({ itemId, times, lastQty }));
+}
+
+/** The raw materials most often given to the kitchen, with the last quantity (task 242). */
+export function oftenGiven(entries: readonly KitchenEntry[], limit = 6): { itemId: string; times: number; lastQty: number }[] {
+  const seen = new Map<string, { itemId: string; times: number; lastQty: number; lastAt: string }>();
+  for (const entry of entries) {
+    if (entry.type !== 'issued' || entry.voided_at) continue;
     const at = entry.entry_date + ' ' + entry.created_at;
     for (const line of entry.lines) {
       if (!(line.qty > 0)) continue;

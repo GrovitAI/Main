@@ -10,6 +10,7 @@ export const PERMISSION_GROUPS: readonly { title: string; items: readonly { key:
     { key: 'entries.spend', label: 'Record other expenses' },
     { key: 'entries.batch', label: 'Record batches made' },
     { key: 'entries.count', label: 'Record stock counts' },
+    { key: 'entries.issue', label: 'Give raw materials to the kitchen', hint: 'Out of the store, counted as used' },
     { key: 'entries.backdate', label: 'Enter earlier dates', hint: 'Without this, entries are for today only' },
   ] },
   { title: 'Corrections', items: [
@@ -47,9 +48,9 @@ const ALL: readonly KitchenPermission[] = KITCHEN_PERMISSIONS;
 export const PRESETS: readonly { id: Exclude<KitchenPreset, 'custom'>; label: string; summary: string; permissions: readonly KitchenPermission[] }[] = [
   { id: 'manager', label: 'Kitchen manager', summary: 'Everything except permissions and day locks', permissions: ALL },
   { id: 'clerk', label: 'Entry clerk', summary: 'Sends, purchases, batches and counts; fixes own entries the same day',
-    permissions: ['entries.send', 'entries.buy', 'entries.batch', 'entries.count', 'fix.own', 'attendance.mark', 'amounts.view'] },
+    permissions: ['entries.send', 'entries.buy', 'entries.batch', 'entries.count', 'entries.issue', 'fix.own', 'attendance.mark', 'amounts.view'] },
   { id: 'storekeeper', label: 'Store keeper', summary: 'Quantities only: batches, counts and sends, no money',
-    permissions: ['entries.send', 'entries.batch', 'entries.count', 'fix.own', 'attendance.mark'] },
+    permissions: ['entries.send', 'entries.batch', 'entries.count', 'entries.issue', 'fix.own', 'attendance.mark'] },
   { id: 'accounts', label: 'Accounts', summary: 'Money, payments, invoices and reports; no stock entries',
     permissions: ['entries.receive', 'entries.pay', 'entries.spend', 'entries.backdate', 'fix.own', 'invoices.create', 'invoices.receive', 'invoices.cancel',
       'money.view', 'money.move', 'money.opening', 'reports.view', 'reports.export', 'amounts.view', 'audit.view'] },

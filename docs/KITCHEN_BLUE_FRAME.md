@@ -529,3 +529,30 @@ phone only; tablet and desktop are unchanged.
   page action icons; login circles on Team; an "N of M branches" chip on
   Branches and Vendors; "+ New" on Invoices.
 - Not done: the item page's "40 left" running stock after each movement.
+
+## Task 241: required expense note and a mini calendar (2026-10-17)
+
+- Spent → Expense needs a note (Save says "Add a note"); a vendor payment keeps it optional.
+- Date in every When field opens a mini calendar under the bar (`MiniCalendar` in
+  forms.tsx): full 44 px day cells, future days and days this login may not change
+  greyed out, arrows that never pass this month. It replaces the typed YYYY-MM-DD box.
+
+## Task 242: Give to kitchen (2026-10-17)
+
+- The owner's flow: raw materials are bought into the store and given to the kitchen;
+  what is given counts as used. A new entry type, `issued` (migration
+  20261017110000_kitchen_give_to_kitchen.sql), takes the quantities out of the store's
+  stock; voiding or editing it puts them back. Permission `entries.issue`, added to
+  logins that could record counts, and to the Entry clerk and Store keeper presets.
+- Entry points: the + sheet (after the four), and a row on the raw materials page.
+  Home keeps its four actions. The form (`GiveToKitchenForm`) is quantities only, offers
+  "Often given", and points out a quantity above what the store shows.
+- An earlier store-and-kitchen version (separate kitchen stock and a "Used in kitchen"
+  entry) was tried on staging and undone at the owner's request; it was never promoted.
+
+## Task 243: quieter placeholders and quantity units (2026-10-17)
+
+- Placeholders are regular weight and 15 px until something is typed, so a hint never
+  reads like a value. The count box says "Count on the shelf (kg)".
+- `QtyFigure` draws the unit smaller and grey beside the number (item page, phone stock
+  list), as in the approved mockup.

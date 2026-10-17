@@ -2,14 +2,15 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, Pressable, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
-import { Plus, RefreshCw } from 'lucide-react-native';
+import { ChevronRight, Plus, RefreshCw } from 'lucide-react-native';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import type { KitchenItem, KitchenItemKind } from '@/lib/pos/kitchen-types';
 import { formatDayLabel, formatMoney, formatQty, matchesSearch, stockLevels, type StockLevel } from '@/lib/pos/kitchen-utils';
-import { Chips, Empty, GhostButton, IconButton, KHeader, Notice, Row, SearchBox, Segmented, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
+import { Chips, Empty, GhostButton, IconButton, KHeader, Notice, Row, SearchBox, Segmented, QtyFigure, toneColor, toneSoft, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
 import { ItemDetail } from '@/components/kitchen/ItemDetail';
+import { stockActions } from '@/components/kitchen/record-actions';
 
 type LevelFilter = 'all' | 'low' | 'out';
 
@@ -30,7 +31,7 @@ function StockRow({ item, level, subtitle, onPress, first, last }: { item: Kitch
           <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{subtitle}{level?.countedOn ? ` · counted ${formatDayLabel(level.countedOn)}` : ' · not counted yet'}</Text>
         </View>
         <View className="items-end">
-          <Text className="text-base font-extrabold" style={{ color: tone, fontVariant: ['tabular-nums'] }}>{formatQty(item.stock, item.unit)}</Text>
+          <QtyFigure qty={item.stock} unit={item.unit} size={16} color={tone} />
           <Text className="text-xs font-bold" style={{ color: state === 'ok' || state === 'unknown' ? colors.textSecondary : tone }}>{side}</Text>
         </View>
       </View>
@@ -69,10 +70,21 @@ export function StockItems({ kind: routeKind }: { kind: KitchenItemKind }) {
   const addItem = () => router.push({ pathname: '/central-kitchen/item-form', params: { kind } });
   const { can, showAmounts } = useKitchenAccess();
   const mayAdd = can('setup.items');
+  // Task 242: raw materials leave the store when they are given to the kitchen.
+  const give = finished ? null : stockActions(can)[0] ?? null;
   const header = <View className="pb-3">
     <KHeader title={title} subtitle={finished ? 'Create batches, then send goods to branches' : 'Purchased and stored as they are · no batches'} right={mayAdd ? <IconButton icon={Plus} label={finished ? 'Add a finished good' : 'Add a raw material'} onPress={addItem} /> : undefined} />
     {!isTablet ? <View className="mb-3"><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setPhoneKind} /></View> : null}
     {data.error ? <Notice text={data.error} /> : null}
+    {give ? <Pressable onPress={() => router.push(give.href as never)} accessibilityRole="button" accessibilityLabel={`${give.label}: ${give.caption}`}
+      className="mb-3 min-h-[56px] flex-row items-center gap-3 rounded-2xl border border-border-soft bg-surface-elevated px-3.5 py-2.5 hover:bg-surface-tint active:bg-surface-tint">
+      <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: toneSoft[give.tone] }}><give.icon size={18} color={toneColor[give.tone]} /></View>
+      <View className="min-w-0 flex-1">
+        <Text className="text-[15px] font-bold text-text-primary">{give.label}</Text>
+        <Text className="text-xs font-semibold text-text-secondary">{give.caption}</Text>
+      </View>
+      <ChevronRight size={18} color={colors.textSecondary} />
+    </Pressable> : null}
     <SearchBox value={query} onChange={setQuery} placeholder={`Search ${title.toLowerCase()}`} />
     {!isTablet ? <View className="mt-2"><Chips options={[{ value: 'all', label: 'All', hint: String(kindItems.length) }, { value: 'low', label: 'Low', hint: String(lowCount) }, { value: 'out', label: 'Out', hint: String(outCount) }]} value={levelFilter} onChange={setLevelFilter} /></View> : null}
   </View>;

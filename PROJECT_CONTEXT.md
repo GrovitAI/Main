@@ -258,6 +258,9 @@ Will be replaced by auth session after Task 7.
 ✅ Task 235 (2026-10-17, staging source): The phone amount pad on Received and Spent has a decimal point in place of 00, so paise can be typed on a phone (padPress/padDisplay in kitchen-utils, with tests). Tablet and desktop unchanged.
 ⬜ Task 9: Dashboard screen (owner)
 ✅ Tasks 236-240 (2026-10-17, staging source): The rest of the phone mockup pages (phones-5.html): History icon rows in day cards with the day net and one filter button; Cash & bank balance cards with today's change and an on-page Move money card; Bought purchase category tiles; Attendance name circles, coloured status pills and count tiles; branch page icons and WhatsApp link, item page action icons, Team login circles, owing chip, short New on Invoices. Tablet and desktop unchanged. See docs/KITCHEN_BLUE_FRAME.md, tasks 236-240.
+✅ Task 241 (2026-10-17, staging source): A note is required on a Spent expense; Date in every When field opens a mini calendar.
+✅ Task 242 (2026-10-17, staging only): Give to kitchen. Raw materials are bought into the store and given to the kitchen, which counts as used (entry type issued, permission entries.issue, migration 20261017110000_kitchen_give_to_kitchen.sql, applied and checked on staging). In the + sheet and on the raw materials page.
+✅ Task 243 (2026-10-17, staging source): Placeholders are lighter until typed; quantity units are drawn smaller and grey (QtyFigure).
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)
 ⬜ Task 12: Responsive polish

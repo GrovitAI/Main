@@ -73,7 +73,7 @@ export function filterKitchenHistory(
   const result = entries.filter(entry => {
     if (filters.status && !STATUS_FILTER_MATCHES[filters.status].includes(historyStatus(entry))) return false;
     if (filters.enteredBy !== null && entry.created_by !== filters.enteredBy) return false;
-    if (filters.kind === 'stock' && entry.type !== 'made' && entry.type !== 'count') return false;
+    if (filters.kind === 'stock' && entry.type !== 'made' && entry.type !== 'count' && entry.type !== 'issued') return false;
     if (filters.kind === 'spent' && entry.type !== 'spent' && entry.type !== 'paid') return false;
     if (filters.kind && filters.kind !== 'stock' && filters.kind !== 'spent' && entry.type !== filters.kind) return false;
     if (filters.range) {

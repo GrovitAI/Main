@@ -12,7 +12,7 @@ import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { SidebarSurface } from '@/components/ui/SidebarSurface';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { Sheet, SheetRow, toneColor } from '@/components/kitchen/ui';
-import { recordActions } from '@/components/kitchen/record-actions';
+import { recordActions, stockActions } from '@/components/kitchen/record-actions';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
@@ -126,6 +126,7 @@ function BottomBar({ state, navigation }: BarProps) {
   const access = useKitchenAccess();
   const allowed = useTabAllowed();
   const records = recordActions(access.can);
+  const moves = stockActions(access.can);
   const phone = phoneTabs.filter((tab) => allowed(tab.name));
   const more = moreTabs.filter((tab) => allowed(tab.name));
   const activeName = state.routes[state.index]?.name;
@@ -149,7 +150,7 @@ function BottomBar({ state, navigation }: BarProps) {
     <View className="bg-kitchen-canvas" style={{ paddingHorizontal: 14, paddingTop: 34, paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 10 : 8) }}>
       <View className="h-16 flex-row items-center rounded-[30px] border border-border-soft bg-surface-elevated px-1.5">
         {phone.filter(t => t.name !== 'items').map(tab)}
-        {records.length > 0 ? (
+        {records.length + moves.length > 0 ? (
           <View className="flex-1 items-center">
             <Pressable accessibilityRole="button" accessibilityLabel="Record an entry" accessibilityState={{ expanded: sheet === 'record' }} onPress={() => setSheet('record')}
               style={{ marginTop: -34 }} className="h-[60px] w-[60px] items-center justify-center rounded-full border-[5px] border-kitchen-canvas bg-primary hover:bg-primary-deep active:bg-primary-deep">
@@ -168,6 +169,7 @@ function BottomBar({ state, navigation }: BarProps) {
       </View>
       <Sheet visible={sheet === 'record'} onClose={() => setSheet(null)} title="Record">
         {records.map(r => <SheetRow key={r.key} icon={r.icon} iconColor={toneColor[r.tone]} label={r.label} caption={r.caption} onPress={() => go(r.href)} />)}
+        {moves.map(r => <SheetRow key={r.key} icon={r.icon} iconColor={toneColor[r.tone]} label={r.label} caption={r.caption} onPress={() => go(r.href)} />)}
         {lockedThrough ? (
           <View className="mt-2 flex-row items-center gap-2 rounded-2xl bg-surface-tint px-3.5 py-3">
             <Lock size={15} color={colors.textSecondary} />

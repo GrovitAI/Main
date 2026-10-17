@@ -18,6 +18,7 @@ import {
   slipText,
   statementRows,
   moneyChangeOn,
+  oftenGiven,
   padDisplay,
   padPress,
   stockLevels,
@@ -355,5 +356,21 @@ describe('moneyChangeOn', () => {
     ];
     const moves = [{ move_date: day, from_account: 'cash' as const, amount_paise: 50000 }, { move_date: '2026-10-15', from_account: 'bank' as const, amount_paise: 100 }];
     expect(moneyChangeOn(entries, moves, day)).toEqual({ cash: 850 - 150 - 500, bank: 2000 - 300 + 500 });
+  });
+});
+
+describe('give to the kitchen (task 242)', () => {
+  it('names the move and lists its lines, with no amount', () => {
+    const items = new Map([['m', item('m', 'Milk', 'L', null)]]);
+    const gave = entry({ type: 'issued', lines: [{ id: 'l1', item_id: 'm', qty: 12, price: 0, line_total: 0 }] });
+    expect(entryHeadline(gave, {})).toBe('Given to the kitchen');
+    expect(entrySubline(gave, items)).toBe('Milk 12 L');
+    expect(entryAmountText(gave)).toBe('');
+  });
+  it('offers the raw materials most often given, with the last quantity', () => {
+    const a = entry({ type: 'issued', entry_date: '2026-10-10', created_at: '2026-10-10T05:00:00Z', lines: [{ id: '1', item_id: 'm', qty: 10, price: 0, line_total: 0 }] });
+    const b = entry({ type: 'issued', entry_date: '2026-10-12', created_at: '2026-10-12T05:00:00Z', lines: [{ id: '2', item_id: 'm', qty: 14, price: 0, line_total: 0 }, { id: '3', item_id: 's', qty: 2, price: 0, line_total: 0 }] });
+    const voided = entry({ type: 'issued', voided_at: '2026-10-12T06:00:00Z', lines: [{ id: '4', item_id: 'x', qty: 1, price: 0, line_total: 0 }] });
+    expect(oftenGiven([a, b, voided])).toEqual([{ itemId: 'm', times: 2, lastQty: 14 }, { itemId: 's', times: 1, lastQty: 2 }]);
   });
 });

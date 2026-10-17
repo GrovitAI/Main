@@ -13,7 +13,8 @@ export type KitchenItemKind = 'raw_material' | 'finished_good';
 
 export type KitchenPartyKind = 'branch' | 'vendor';
 export type KitchenMode = 'cash' | 'upi' | 'bank';
-export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent' | 'made' | 'count';
+/** 'issued' (task 242): raw materials given to the kitchen from the store, which counts as used. */
+export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent' | 'made' | 'count' | 'issued';
 
 export type KitchenItem = {
   id: string;
@@ -146,7 +147,8 @@ export type PostEntryInput =
   | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null; purchase_category_id?: string | null }
   | { type: 'received' | 'paid'; party_id: string; entry_date?: string; amount: number; mode: KitchenMode; note?: string | null; covers?: CoverInput[] }
   | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode; category: string; note?: string | null }
-  | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null };
+  | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null }
+  | { type: 'issued'; entry_date?: string; lines: { item_id: string; qty: number }[]; note?: string | null };
 
 export type KitchenEntryFilter = {
   /** Inclusive, 'YYYY-MM-DD'. */

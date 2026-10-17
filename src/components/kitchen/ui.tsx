@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, ChevronLeft, ChevronRight, Delete, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { amountReadBack, formatMoney, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
+import { amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
@@ -592,7 +592,7 @@ export function TextField({ value, onChange, placeholder, label, keyboardType, a
         multiline={multiline}
         accessibilityLabel={label}
         className={big ? 'text-xl' : undefined}
-        style={{ flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: big ? 20 : 16, fontWeight: big ? '800' : '600', paddingVertical: multiline ? 12 : 8, letterSpacing: big ? -0.3 : 0, ...tabular, ...webNoOutline }}
+        style={{ flex: 1, minWidth: 0, color: colors.textPrimary, fontSize: big ? 20 : value ? 16 : 15, fontWeight: value ? (big ? '800' : '600') : '400', paddingVertical: multiline ? 12 : 8, letterSpacing: big && value ? -0.3 : 0, ...tabular, ...webNoOutline }}
       />
     </View>
   );
@@ -1287,6 +1287,20 @@ export function ScrollPills<T extends string>({ options, value, onChange, label 
           );
         }} />
     </View>
+  );
+}
+
+/**
+ * A quantity with its unit drawn smaller and grey (task 243), as in the approved mockup: "40 pcs"
+ * reads as the number first. Small figures keep the unit close to the number's size.
+ */
+export function QtyFigure({ qty, unit, size, color = colors.textPrimary, className }: { qty: number; unit: string; size: number; color?: string; className?: string }) {
+  const number = formatQty(qty, '').trim();
+  const unitSize = size >= 24 ? Math.round(size * 0.5) : Math.max(12, Math.round(size * 0.8));
+  return (
+    <Text className={className} style={{ fontSize: size, fontWeight: '800', color, letterSpacing: size >= 24 ? -0.8 : 0, ...tabular }} numberOfLines={1}>
+      {number}<Text style={{ fontSize: unitSize, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0 }}> {unit}</Text>
+    </Text>
   );
 }
 

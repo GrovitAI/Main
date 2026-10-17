@@ -1,6 +1,7 @@
 /** Every permission a kitchen login can hold (kitchen_all_permissions in the database). */
 export const KITCHEN_PERMISSIONS = [
   'entries.send', 'entries.receive', 'entries.buy', 'entries.pay', 'entries.spend', 'entries.batch', 'entries.count', 'entries.backdate',
+  'entries.issue',
   'fix.own', 'fix.any',
   'invoices.create', 'invoices.receive', 'invoices.cancel',
   'money.view', 'money.move', 'money.opening',

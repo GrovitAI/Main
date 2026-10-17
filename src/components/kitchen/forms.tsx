@@ -226,8 +226,11 @@ type LinesEditorProps = {
   items: readonly KitchenItem[];
   lines: DraftLines;
   onChange: (lines: DraftLines) => void;
-  /** Selling to a branch (price from the item) or buying from a vendor (price from the last buy). */
-  mode: 'sell' | 'cost';
+  /**
+   * Selling to a branch (price from the item) or buying from a vendor (price from the last buy);
+   * or, quantities only (task 242), giving raw materials from the store to the kitchen ('issue').
+   */
+  mode: 'sell' | 'cost' | 'issue';
   defaultCost?: ReadonlyMap<string, number>;
   /**
    * Items to offer as one-tap chips before any search, with the quantity used
@@ -244,6 +247,8 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
   const lastQty = useMemo(() => new Map((picks ?? []).map((p) => [p.itemId, p.lastQty])), [picks]);
   const { showAmounts } = useKitchenAccess();
   const kind = mode === 'sell' ? 'finished_good' : 'raw_material';
+  const qtyOnly = mode === 'issue';
+  const onHand = (it: KitchenItem): string => `${formatQty(it.stock, it.unit)} ${qtyOnly ? 'in the store' : 'in stock'}`;
   const offered = useMemo(() => items.filter((i) => i.item_kind === kind), [items, kind]);
   // Search first: the list holds the items already on this entry, then whatever
   // matches the search. A match keeps its place when it gets a quantity, so rows
@@ -282,7 +287,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
                 <View key={it.id} className={`flex-row items-center gap-3 px-3.5 py-2.5 ${i === 0 ? '' : 'border-t border-border-soft'}`}>
                   <View className="min-w-0 flex-1">
                     <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{it.name}</Text>
-                    <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{formatQty(it.stock, it.unit)} in stock{unitPrice !== null && showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : ''}{lastQty.has(it.id) ? ` · last time ${formatQty(lastQty.get(it.id) ?? 0, it.unit)}` : ''}</Text>
+                    <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{onHand(it)}{unitPrice !== null && showAmounts && !qtyOnly ? ` · ${formatMoney(unitPrice)}/${it.unit}` : ''}{lastQty.has(it.id) ? ` · last time ${formatQty(lastQty.get(it.id) ?? 0, it.unit)}` : ''}</Text>
                   </View>
                   <Pressable onPress={() => setPinned((p) => [...p, it.id])} accessibilityRole="button" accessibilityLabel={`Add ${it.name}`}
                     className="h-10 flex-row items-center gap-1 rounded-xl border border-border bg-surface-elevated px-3.5 hover:bg-surface-tint active:bg-surface-tint">
@@ -320,14 +325,14 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
               <Text className="text-text-primary" style={{ fontSize: 15, fontWeight: '700' }} numberOfLines={2}>{it.name}</Text>
               <View className="flex-row items-center" style={{ gap: 10, marginTop: 4 }}>
                 <Text className="flex-1 text-text-secondary" style={{ fontSize: 12, fontWeight: '600', minWidth: 0 }} numberOfLines={2}>
-                  {formatQty(it.stock, it.unit)} in stock{unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}{lastQty.has(it.id) ? ` · last time ${formatQty(lastQty.get(it.id) ?? 0, it.unit)}` : ''}
+                  {onHand(it)}{qtyOnly ? '' : unitPrice !== null ? (showAmounts ? ` · ${formatMoney(unitPrice)}/${it.unit}` : '') : mode === 'sell' ? ' · no price yet' : ''}{lastQty.has(it.id) ? ` · last time ${formatQty(lastQty.get(it.id) ?? 0, it.unit)}` : ''}
                 </Text>
                 <QtyStepper value={qty} onChange={(q) => setLine(it, { qty: q })} step={stepFor(it.unit)} unit={it.unit} label={it.name} />
               </View>
-              {qty > 0 && !showAmounts && price === null ? (
+              {qty > 0 && !qtyOnly && !showAmounts && price === null ? (
                 <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 8 }}>This item has no price yet. Ask the owner to set one before sending it.</Text>
               ) : null}
-              {qty > 0 && showAmounts ? (
+              {qty > 0 && showAmounts && !qtyOnly ? (
                 <View className="flex-row items-center justify-between" style={{ marginTop: 8, gap: 10 }}>
                   <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>{mode === 'sell' ? 'Price' : 'Cost'} per {it.unit}</Text>
                   <View className="flex-row items-center" style={{ gap: 10 }}>
@@ -357,7 +362,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
       </View>
       {chosen.length > 0 && !phone ? (
         <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '700', textAlign: 'right' }}>
-          {chosen.length} {chosen.length === 1 ? 'item' : 'items'}{showAmounts ? ` · ${formatMoney(total)}` : ''}
+          {chosen.length} {chosen.length === 1 ? 'item' : 'items'}{showAmounts && !qtyOnly ? ` · ${formatMoney(total)}` : ''}
         </Text>
       ) : null}
     </View>

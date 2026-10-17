@@ -93,7 +93,7 @@ const ENTRY_COLUMNS =
   'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_by_id, created_at, voided_at, voided_by, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
 const UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
-const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count'];
+const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count', 'issued'];
 const MODES: readonly KitchenMode[] = ['cash', 'upi', 'bank'];
 
 function mapItem(row: Record<string, unknown>): KitchenItem {
@@ -468,6 +468,9 @@ function entryPayload(input: PostEntryInput): Record<string, unknown> {
     case 'count':
       payload.item_id = input.item_id;
       payload.qty = input.qty;
+      break;
+    case 'issued':
+      payload.lines = input.lines.map((l) => ({ item_id: l.item_id, qty: l.qty }));
       break;
   }
   return payload;

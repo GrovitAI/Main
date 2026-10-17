@@ -1,8 +1,8 @@
-import { ArrowDownLeft, ArrowUp, ArrowUpRight, ShoppingBag, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUp, ArrowUpRight, PackageOpen, ShoppingBag, type LucideIcon } from 'lucide-react-native';
 import type { KitchenPermission } from '@/lib/pos/kitchen-access-types';
 import type { Tone } from './ui';
 
-export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent'; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string };
+export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent' | 'give'; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string };
 
 /**
  * The four things the kitchen records, each offered only to logins allowed to
@@ -17,4 +17,12 @@ export function recordActions(can: (permission: KitchenPermission) => boolean): 
     ...(can('entries.buy') ? [{ key: 'bought' as const, icon: ShoppingBag, label: 'Bought', caption: 'From a vendor', tone: 'buy' as const, href: '/central-kitchen/bought' }] : []),
     ...(mayPay || maySpend ? [{ key: 'spent' as const, icon: ArrowUp, label: 'Spent', caption: mayPay && maySpend ? 'Pay a vendor or a bill' : mayPay ? 'Pay a vendor' : 'Pay a bill', tone: 'out' as const, href: '/central-kitchen/spent' }] : []),
   ];
+}
+
+/**
+ * Task 242: raw materials given to the kitchen from the store, which counts as used. It sits after
+ * the four on the phone's + menu and on the raw materials page; Home keeps its four.
+ */
+export function stockActions(can: (permission: KitchenPermission) => boolean): RecordAction[] {
+  return can('entries.issue') ? [{ key: 'give', icon: PackageOpen, label: 'Give to kitchen', caption: 'Out of the store, counted as used', tone: 'primary', href: '/central-kitchen/give' }] : [];
 }

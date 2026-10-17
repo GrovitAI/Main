@@ -28,6 +28,7 @@ function editHref(entry: KitchenEntry): { pathname: string; params: Record<strin
     case 'bought': return { pathname: '/central-kitchen/bought', params: { edit: entry.id } };
     case 'paid': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'vendor' } };
     case 'spent': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'expense' } };
+    case 'issued': return { pathname: '/central-kitchen/give', params: { edit: entry.id } };
     default: return null;
   }
 }

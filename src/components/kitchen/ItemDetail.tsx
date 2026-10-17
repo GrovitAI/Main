@@ -11,7 +11,7 @@ import { formatMoney, formatQty, stockLevels } from '@/lib/pos/kitchen-utils';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Section, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
+import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, QtyFigure, Section, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
 import { EntryActions } from './EntryActions';
 
@@ -105,9 +105,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const level = stockLevels(data.entries, [item]).get(item.id);
   const figure = (
     <>
-      <Text style={{ letterSpacing: desktop ? -0.4 : -0.8, color: item.stock < 0 ? semantic.danger : undefined, fontVariant: ['tabular-nums'] }} className={`font-extrabold text-text-primary ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`}>
-        {formatQty(item.stock, item.unit)}
-      </Text>
+      <QtyFigure qty={item.stock} unit={item.unit} size={desktop ? 28 : 40} color={item.stock < 0 ? semantic.danger : colors.textPrimary} />
       {item.stock < 0 ? <Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700', marginTop: 4 }}>More has gone out than came in. A count sets it right.</Text> : null}
       {phone && level?.ref ? (
         // Task 233: the same level bar as the phone's stock list.
@@ -126,7 +124,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
       {can('entries.count') ? <View className={split ? undefined : 'flex-1'}><GhostButton label="Count stock" icon={phone ? ClipboardCheck : undefined} disabled={busy} onPress={() => { setPanel(panel === 'count' ? null : 'count'); setQty(''); setError(null); }} /></View> : null}
     </>
   );
-  const field = panel ? <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `Made, ${item.unit}` : `On the shelf now, ${item.unit}`} keyboardType="decimal-pad" autoFocus /> : null;
+  const field = panel ? <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `Quantity made (${item.unit})` : `Count on the shelf (${item.unit})`} keyboardType="decimal-pad" autoFocus /> : null;
   const submit = <PrimaryButton label={panel === 'made' ? 'Add' : 'Set'} onPress={() => void submitPanel()} loading={busy} />;
   // In the narrow column the field and its button stack; elsewhere they share a line.
   const form = panel ? (
