@@ -24,7 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
-import { saveKitchenCategory } from '@/lib/pos/kitchen-service';
+import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { matchesSearch, orderCategories, shownCategories } from '@/lib/pos/kitchen-utils';
 import type { KitchenCategory, KitchenEntry } from '@/lib/pos/kitchen-types';
@@ -66,6 +66,7 @@ type Props = {
 /**
  * What an expense was for: the kitchen's most-used categories as tiles, and
  * "More" for the whole list, searchable, with a new one added in place.
+ * Task 255: the list is the same one Bought uses, so a new category shows on both.
  */
 export function CategoryPicker({ categories, entries, value, onChange }: Props) {
   const mayAdd = useKitchenAccess().can('setup.categories');
@@ -90,15 +91,16 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
     if (!candidate) return;
     setSaving(true);
     setError(null);
-    const res = await saveKitchenCategory(candidate);
+    const res = await saveKitchenPurchaseCategory(candidate);
     setSaving(false);
-    if (res.error || !res.data) {
+    const added = res.data;
+    if (res.error || !added) {
       setError(res.error ?? 'Unable to add the category.');
       return;
     }
-    await useKitchenStore.getState().load(true);
+    useKitchenStore.setState((state) => ({ purchaseCategories: [...state.purchaseCategories, added].sort((a, b) => a.name.localeCompare(b.name)) }));
     setName('');
-    choose(res.data.name);
+    choose(added.name);
   };
 
   type Tile = { key: string; label: string; icon: LucideIcon; on: boolean; onPress: () => void; more?: boolean };
@@ -124,7 +126,7 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
       <Sheet visible={open} onClose={() => setOpen(false)} dirty={name.trim().length > 0} title="What for">
         {/* Only logins that may add categories see the add box. */}
         <View style={{ gap: 14 }}>
-          <SearchBox value={query} onChange={setQuery} placeholder="Search categories" autoFocus />
+          <SearchBox value={query} onChange={setQuery} placeholder="Search categories" />
           <RowInset.Provider value={18}>
           <View>
             {filtered.map((c) => (

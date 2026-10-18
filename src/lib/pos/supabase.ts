@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { isSupabaseAnonKeyValid, isSupabaseUrlValid } from './supabase-env';
 import { logSupabaseError } from './supabase-debug';
+import { retryingFetch } from './supabase-retry-fetch';
 
 const PLACEHOLDER_URL = 'https://placeholder.supabase.co';
 const PLACEHOLDER_KEY = 'placeholder-key';
@@ -65,4 +66,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
+  // Reads that never reached the server are tried again (task 256).
+  global: { fetch: retryingFetch((input, init) => fetch(input, init)) },
 });

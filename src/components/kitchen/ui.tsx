@@ -9,12 +9,13 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, FlatList, Modal, Platform, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent, type PressableStateCallbackType, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, ChevronLeft, ChevronRight, Delete, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
+import { figureSize, amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
@@ -244,14 +245,16 @@ export function Field({ label, children, hint, optional = false }: { label: stri
 
 export function StatTile({ label, value, tone = 'neutral', onPress }: { label: string; value: number; tone?: Tone; onPress?: () => void }) {
   const compact = useDesktopDensity();
+  const money = formatMoney(value);
+  const figure = figureSize(money, compact ? 20 : 22, 10);
   const body = (
     <>
       <View className="flex-row items-center gap-0.5">
         <Text className="shrink text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
         {onPress ? <ChevronRight size={13} color={colors.textSecondary} /> : null}
       </View>
-      <Text className={`mt-0.5 font-extrabold ${compact ? 'text-xl leading-6' : 'text-[22px] leading-[26px]'}`} style={{ letterSpacing: -0.3, color: toneColor[tone], ...tabular }} numberOfLines={1} adjustsFontSizeToFit>
-        {formatMoney(value)}
+      <Text className="mt-0.5 font-extrabold" style={{ fontSize: figure, lineHeight: Math.round(figure * 1.2), letterSpacing: -0.3, color: toneColor[tone], ...tabular }} numberOfLines={1}>
+        {money}
       </Text>
     </>
   );
@@ -518,7 +521,7 @@ export function Chips<T extends string>({ options, value, onChange, searchable, 
         <MeasureLabels>
           {options.map((o, i) => <View key={o.value} onLayout={equal.measure(i)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>{chipFace(o, false)}</View>)}
         </MeasureLabels>
-        <Animated.View pointerEvents="none" style={{ position: 'absolute', height: TARGET, paddingVertical: BAND, ...slide.style, top: slide.top }}>
+        <Animated.View pointerEvents="none" style={{ position: 'absolute', top: 0, height: TARGET, paddingVertical: BAND, ...slide.style }}>
           <View style={{ flex: 1, borderRadius: 999, backgroundColor: colors.primary }} />
         </Animated.View>
         {shown.map((o, i) => {
@@ -896,8 +899,9 @@ export function MoreMenu({ label, items }: { label: string; items: readonly Menu
  * A few mutually exclusive choices as equal buttons across the row, each with an
  * icon: the whole button is the target and the chosen one is filled blue.
  */
-export function ChoiceButtons<T extends string>({ options, value, onChange, label }: { options: readonly { value: T; label: string; icon: LucideIcon }[]; value: T; onChange: (v: T) => void; label: string }) {
+export function ChoiceButtons<T extends string>({ options, value: chosen, onChange: report, label }: { options: readonly { value: T; label: string; icon: LucideIcon }[]; value: T; onChange: (v: T) => void; label: string }) {
   // One connected bar drawn 40 high; the blue highlight slides to the chosen part.
+  const [value, onChange] = useSnappyChoice(chosen, report);
   const slide = useSlidingRect(options.findIndex((o) => o.value === value));
   return (
     <View style={{ paddingHorizontal: 2 }} accessibilityRole="radiogroup" accessibilityLabel={label}>
@@ -922,8 +926,9 @@ export function ChoiceButtons<T extends string>({ options, value, onChange, labe
   );
 }
 
-export function Segmented<T extends string>({ options, value, onChange }: { options: readonly { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+export function Segmented<T extends string>({ options, value: chosen, onChange: report }: { options: readonly { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   // The same connected bar as the payment mode; a raised white highlight slides to the chosen part.
+  const [value, onChange] = useSnappyChoice(chosen, report);
   const slide = useSlidingRect(options.findIndex((o) => o.value === value));
   return (
     <View style={{ paddingHorizontal: 2 }} accessibilityRole="tablist">
@@ -947,6 +952,9 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
 }
 
 
+/** Opacity and transforms run on the native thread on phones; the web animates them in JS. */
+const NATIVE_DRIVER = Platform.OS !== 'web';
+
 // ─── Sliding selection ───────────────────────────────────────────────────────
 
 /** True when the person has asked the device for less motion. */
@@ -961,45 +969,68 @@ export function useReducedMotion(): boolean {
   return reduce;
 }
 
+type SlideStyle = { left: number; width: number; opacity: number; transform: ({ translateX: Animated.Value } | { translateY: Animated.Value })[] };
+
 /**
  * One highlight that slides to the chosen option of a row (task 214). Each option
  * reports its place with `measure(i)`; the highlight is an absolute
  * Animated.View in the same row, given `style`. It moves in 220 ms with an
  * ease-out, appears in place the first time, jumps on resize, and jumps
  * when Reduce Motion is on. `index` -1 hides it.
+ *
+ * Task 257: it moves by transform, which phones animate on the native thread, so a busy screen
+ * re-rendering behind it cannot hold it up (it animated left and width in JavaScript before,
+ * which made the payment mode lag on phones). Choices are all one width, so the width only jumps.
  */
-export function useSlidingRect(index: number): { measure: (i: number) => (e: LayoutChangeEvent) => void; style: { left: Animated.Value; width: Animated.Value; opacity: number }; top: Animated.Value } {
+export function useSlidingRect(index: number): { measure: (i: number) => (e: LayoutChangeEvent) => void; style: SlideStyle } {
   const reduce = useReducedMotion();
   const places = useRef<({ x: number; y: number; width: number } | undefined)[]>([]);
-  const left = useRef(new Animated.Value(0)).current;
-  const width = useRef(new Animated.Value(0)).current;
-  const top = useRef(new Animated.Value(0)).current;
+  const x = useRef(new Animated.Value(0)).current;
+  const y = useRef(new Animated.Value(0)).current;
+  const [width, setWidth] = useState(0);
   const shown = useRef(false);
   const [ready, setReady] = useState(false);
   const jump = useCallback((to: { x: number; y: number; width: number }) => {
-    left.setValue(to.x); width.setValue(to.width); top.setValue(to.y); shown.current = true; setReady(true);
-  }, [left, width, top]);
+    x.setValue(to.x); y.setValue(to.y); setWidth(to.width); shown.current = true; setReady(true);
+  }, [x, y]);
   useEffect(() => {
     const to = places.current[index];
     if (!to) return;
     if (!shown.current || reduce) { jump(to); return; }
-    const timing = { duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: false };
-    const run = Animated.parallel([Animated.timing(left, { toValue: to.x, ...timing }), Animated.timing(width, { toValue: to.width, ...timing }), Animated.timing(top, { toValue: to.y, ...timing })]);
+    setWidth(to.width);
+    const timing = { duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: NATIVE_DRIVER };
+    const run = Animated.parallel([Animated.timing(x, { toValue: to.x, ...timing }), Animated.timing(y, { toValue: to.y, ...timing })]);
     run.start();
     return () => run.stop();
-  }, [index, reduce, jump, left, width, top]);
+  }, [index, reduce, jump, x, y]);
   const measure = useCallback((i: number) => (e: LayoutChangeEvent) => {
-    const { x, y, width: w } = e.nativeEvent.layout;
-    places.current[i] = { x, y, width: w };
-    if (i === index) jump({ x, y, width: w });
+    const { x: left, y: top, width: w } = e.nativeEvent.layout;
+    places.current[i] = { x: left, y: top, width: w };
+    if (i === index) jump({ x: left, y: top, width: w });
   }, [index, jump]);
-  return { measure, style: { left, width, opacity: ready && index >= 0 ? 1 : 0 }, top };
+  return { measure, style: { left: 0, width, opacity: ready && index >= 0 ? 1 : 0, transform: [{ translateX: x }, { translateY: y }] } };
+}
+
+/**
+ * A choice that answers the tap at once (task 257). The control shows the new option and starts
+ * its slide straight away; the screen hears about it two frames later, once that frame is
+ * painted, so a heavy form re-rendering behind it cannot delay the tap's answer.
+ */
+export function useSnappyChoice<T>(value: T, onChange: (next: T) => void): [T, (next: T) => void] {
+  const [shown, setShown] = useState(value);
+  useEffect(() => { setShown(value); }, [value]);
+  const latest = useRef(onChange);
+  latest.current = onChange;
+  const choose = useCallback((next: T) => {
+    setShown(next);
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn: () => void) => setTimeout(fn, 16);
+    raf(() => raf(() => latest.current(next)));
+  }, []);
+  return [shown, choose];
 }
 
 // ─── Smooth show, hide and change (task 215) ─────────────────────────────────
 
-/** Opacity and transforms run on the native thread on phones; the web animates them in JS. */
-const NATIVE_DRIVER = Platform.OS !== 'web';
 
 /**
  * Keeps something on screen while it fades away. `progress` runs 0 → 1 as it
@@ -1155,6 +1186,8 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
   return (
     // On a phone the sheet rises from the bottom edge; centred on a tablet, it fades in.
     <Modal visible={visible} transparent animationType={isTablet ? 'fade' : 'slide'} onRequestClose={onClose}>
+      {/* Task 259: the sheet rises above the keyboard, so a search box never covers the list under it. */}
+      <KeyboardAvoider>
       <Pressable onPress={() => (dirty ? setHeld(true) : onClose())} accessibilityLabel="Close" style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: isTablet ? 'center' : 'flex-end', alignItems: 'center' }}>
         <Pressable
           onPress={() => undefined}
@@ -1181,6 +1214,7 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
           <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
         </Pressable>
       </Pressable>
+      </KeyboardAvoider>
     </Modal>
   );
 }
@@ -1222,6 +1256,7 @@ const PAD_KEYS: readonly PadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9'
  */
 export function AmountPad({ value, onChange, note }: { value: string; onChange: (next: string) => void; note?: string | null }) {
   const shown = padDisplay(value);
+  const padSize = figureSize(shown, 46, 11, 28);
   const lakh = amountReadBack(value)?.split(' · ')[1] ?? null;
   const press = (key: PadKey): void => {
     buzz('select');
@@ -1231,7 +1266,7 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
   return (
     <View>
       <View accessibilityLiveRegion="polite" accessibilityLabel={`Amount ${shown}`} style={{ alignItems: 'center', paddingVertical: 6 }}>
-        <Text style={{ fontSize: 46, lineHeight: 54, fontWeight: '800', letterSpacing: -1.5, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1} adjustsFontSizeToFit>{shown}</Text>
+        <Text style={{ fontSize: padSize, lineHeight: 54, fontWeight: '800', letterSpacing: -1.5, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1}>{shown}</Text>
         <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary, minHeight: 20 }}>{lakh ?? note ?? ''}</Text>
       </View>
       <View style={{ gap: 8, marginTop: 8 }}>

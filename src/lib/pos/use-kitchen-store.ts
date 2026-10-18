@@ -6,9 +6,9 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import {
   fetchKitchenBalances,
-  fetchKitchenCategories,
   fetchKitchenEntries,
   fetchKitchenItems,
   fetchKitchenParties,
@@ -69,20 +69,19 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
   load: async (silent = false) => {
     if (get().loading) return;
     set({ loading: true, error: silent ? get().error : null });
-    const [items, parties, categories, balances, entries, purchaseCategories, access] = await Promise.all([
+    // Task 255: Spent uses the purchase categories too, so the old expense list is not loaded.
+    const [items, parties, balances, entries, purchaseCategories, access] = await Promise.all([
       fetchKitchenItems(),
       fetchKitchenParties(),
-      fetchKitchenCategories(),
       fetchKitchenBalances(),
       fetchKitchenEntries({ from: daysAgoKey(RECENT_DAYS), includeVoided: true }),
       fetchKitchenPurchaseCategories(true),
       fetchKitchenAccess(kitchenToday()),
     ]);
-    const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error ?? purchaseCategories.error ?? access.error;
+    const error = items.error ?? parties.error ?? balances.error ?? entries.error ?? purchaseCategories.error ?? access.error;
     set({
       items: keepIfSame(get().items, items.data),
       parties: keepIfSame(get().parties, parties.data),
-      categories: keepIfSame(get().categories, categories.data),
       purchaseCategories: keepIfSame(get().purchaseCategories, purchaseCategories.data),
       balances: keepIfSame(get().balances, balances.data),
       entries: keepIfSame(get().entries, entries.data),
@@ -102,7 +101,12 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
  * task 250 every focus of every screen reloaded everything, which made phones lag.
  */
 export function useKitchenData() {
-  const state = useKitchenStore();
+  // Task 258: everything but the passing notice, so a "Saved" line coming and going does not
+  // re-render every kitchen screen that is mounted.
+  const state = useKitchenStore(useShallow((s) => ({
+    items: s.items, parties: s.parties, categories: s.categories, purchaseCategories: s.purchaseCategories, balances: s.balances,
+    entries: s.entries, access: s.access, loaded: s.loaded, loading: s.loading, error: s.error, loadedAt: s.loadedAt, load: s.load, reset: s.reset,
+  })));
   const load = state.load;
   useEffect(() => {
     if (!state.loaded && !state.loading) void load();

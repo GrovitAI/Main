@@ -39,17 +39,17 @@ export default function PurchaseCategoriesScreen() {
       <FlatList data={categories} keyExtractor={category => category.id} className="w-full max-w-[720px] flex-1 self-center px-4"
         keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}
         ListHeaderComponent={<View className="gap-3">
-          <KHeader title="Purchase categories" onBack={() => router.back()} subtitle="Defaults for vendors and categories on buys" />
+          <KHeader title="Categories" onBack={() => router.back()} subtitle="One list for Bought and Spent; vendors can start with a default" />
           {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change categories. Ask the owner." /> : null}
-          <Text className="text-sm leading-5 text-text-secondary">Rename or archive a category here. Saved purchases keep their original category label; expense categories are managed on Spent.</Text>
+          <Text className="text-sm leading-5 text-text-secondary">Rename or archive a category here. Saved buys and spends keep the name they were saved with.</Text>
           <Text className="text-sm font-bold text-text-primary">{editing ? 'Rename ' + editing.name : 'Add a category'}</Text>
-          <TextInput value={name} onChangeText={setName} placeholder="e.g. Dairy" accessibilityLabel="Purchase category name" maxLength={80} placeholderTextColor={colors.textSecondary} className="min-h-12 rounded-xl bg-surface-elevated px-3 text-base text-text-primary" />
+          <TextInput value={name} onChangeText={setName} placeholder="e.g. Dairy" accessibilityLabel="Category name" maxLength={80} placeholderTextColor={colors.textSecondary} className="min-h-12 rounded-xl bg-surface-elevated px-3 text-base text-text-primary" />
           <PrimaryButton label={editing ? 'Save name' : 'Add category'} disabled={!mayEdit || !name.trim() || loading} loading={saving} onPress={() => void save()} />
           {editing ? <Pressable accessibilityRole="button" onPress={() => { setEditing(null); setName(''); }} className="min-h-12 items-center justify-center"><Text className="font-bold text-primary">Cancel rename</Text></Pressable> : null}
           {error ? <Notice text={error} action={<Pressable accessibilityRole="button" onPress={() => void load()} className="min-h-12 justify-center px-3"><Text className="font-bold text-primary">Retry</Text></Pressable>} /> : null}
           {loading ? <ActivityIndicator color={colors.primary} /> : null}
         </View>}
-        ListEmptyComponent={!loading && !error ? <Empty title="No purchase categories yet" body="Add categories such as Ingredients, Dairy or Packaging, then choose a default on each vendor." /> : null}
+        ListEmptyComponent={!loading && !error ? <Empty title="No categories yet" body="Add categories such as Dairy, Gas or Packaging. Buys and spends both use them." /> : null}
         renderItem={({ item }) => <View className="mt-3 gap-2 border-b border-border-soft py-3">
           <Text className="text-base font-bold text-text-primary">{item.name}{!item.is_active ? ' · Archived' : ''}</Text>
           <View className="flex-row gap-3">
