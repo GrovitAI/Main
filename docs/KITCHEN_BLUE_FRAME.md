@@ -556,3 +556,47 @@ phone only; tablet and desktop are unchanged.
   reads like a value. The count box says "Count on the shelf (kg)".
 - `QtyFigure` draws the unit smaller and grey beside the number (item page, phone stock
   list), as in the approved mockup.
+
+## Tasks 254-260: the client's first round on the phone app (2026-10-18)
+
+- **Order (254):** goods first, then money. Home's actions (round buttons on a phone, tiles on
+  a desktop, where they sit as one row of four), the + sheet and History's type filters read
+  Send, Bought, Received, Spent, so the two money entries sit side by side.
+- **One category list (255):** Spent's "What for" offers the same categories as Bought
+  (`kitchen_purchase_categories`); a category added on either shows on both, and the tiles
+  order by uses on both. Migration 20261018100000_kitchen_shared_categories.sql copied the old
+  expense list across. Spent still saves the category as text, and reports group by name.
+- **Loads that fail on the device (256):** reads are tried again twice (400 ms, 1.2 s) when
+  fetch throws or the gateway answers 502-504. Writes are never repeated. A load that still
+  fails says "Can't reach the server right now".
+- **Answering a tap (257):** `useSnappyChoice` shows the tapped option and starts the slide,
+  then tells the screen two frames later; `useSlidingRect` moves by transform (native driver
+  on phones) with the width as a plain number, since every choice in a row is one width.
+- **Fewer re-renders (258):** `useKitchenData` selects everything but the notice, and
+  `LinesEditor` is memoised.
+- **Sheets and the keyboard (259):** the kitchen `Sheet` sits inside `KeyboardAvoider`, and
+  the What for search waits for a tap, so the list is in view when the sheet opens.
+- **Amounts on phones (260):** `figureSize` gives a big figure its size from its length
+  (StatTile, AmountPad, the cash and bank cards), replacing iOS's adjustsFontSizeToFit.
+
+## Tasks 261-268: phone analytics and review rounds (2026-10-18)
+
+- **Phone POS analytics (261):** `PhoneStatement` (layout A of three previews) folds the desktop
+  statement for a phone: money card with the change against the previous period and a
+  collected/pending bar, sales by day, how customers paid, when customers come, the other figures,
+  what sold (top six, then all), selling slowly, exports as links. Branch, business hours and
+  royalty sit in a filter sheet; the period is a row of equal pills. One-day periods skip the
+  day chart.
+- **Spread before key (261):** `<Pressable {...ownHover} key={k} className=…>` compiles to the
+  classic `createElement`, which skips NativeWind, so the className is lost on the web. Put
+  `key` first. The chart columns now use plain styles.
+- **Browsers (263, 267):** `installWebAlert` (root layout) sends `Alert.alert` to the browser's
+  dialogs. Focus styles on controls use `focus-visible:` so a click or tap leaves no border;
+  text fields keep `focus:`.
+- **Start without a connection (266):** a network failure while restoring the session keeps
+  the sign-in and shows "Can't reach the server" with Try again; only a missing or inactive staff
+  record signs the device out. supabase-js retries table reads itself (1, 2, 4 s); the app's
+  retry wrapper covers only the read-only kitchen functions.
+- **Smoothness (265):** history rows are memoised and opened by id; `ScrollPills` answers the tap
+  through `useSnappyChoice`. Measured on the production web build at 4x CPU throttle: kitchen
+  switches 0 ms blocking, pad 70 ms, first tab opens about 200 ms.
