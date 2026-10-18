@@ -10,6 +10,9 @@ import { getDefaultHrefForSession } from '@/lib/pos/tab-config';
 import { BREAKPOINTS } from '@/lib/pos/useResponsive';
 import { useSupabaseAutoRefresh } from '@/lib/pos/use-supabase-auto-refresh';
 import { TestDatabaseBanner } from '@/components/ui/TestDatabaseBanner';
+import { AppFontProvider } from '@/components/ui/Typography';
+import { useAppFonts } from '@/lib/pos/use-app-fonts';
+import { useWebHover } from '@/lib/pos/web-hover';
 
 // A render error in an installed app would otherwise close it; this shows the message instead.
 export { ErrorBoundary } from 'expo-router';
@@ -19,6 +22,7 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const { loaded: fontsLoaded } = useAppFonts();
   const [isRestoring, setIsRestoring] = useState(true);
   const session = useSessionStore((state) => state.session);
   const restoreSession = useSessionStore((state) => state.restoreSession);
@@ -29,6 +33,8 @@ export default function RootLayout() {
   const isPhone = width < BREAKPOINTS.tablet;
 
   useSupabaseAutoRefresh();
+  // A hover highlight on everything clickable in a browser (task 225).
+  useWebHover();
 
   useEffect(() => {
     async function checkSession() {
@@ -62,38 +68,40 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ApprovalProvider>
-        <StatusBar style="dark" />
-        <View style={{ flex: 1 }}>
-          {/* Only on the staging copy of the database; nothing on the live one. */}
-          <TestDatabaseBanner />
-          {/* Routes mount only after session restore so screens never fetch without tenant context. */}
-          {!isRestoring && (
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(app)" />
-              <Stack.Screen name="central-kitchen" />
-            </Stack>
-          )}
-          {isRestoring && (
-            <View
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: '#004a8d',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 999999,
-              }}
-            >
-              <ActivityIndicator size="large" color="#ffffff" />
-            </View>
-          )}
-        </View>
-      </ApprovalProvider>
+      <AppFontProvider value={fontsLoaded}>
+        <ApprovalProvider>
+          <StatusBar style="dark" />
+          <View style={{ flex: 1 }}>
+            {/* Routes mount only after session restore so screens never fetch without tenant context. */}
+            {!isRestoring && (
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(app)" />
+                <Stack.Screen name="central-kitchen" />
+              </Stack>
+            )}
+            {/* Only on the staging copy of the database; a small tag drawn over the screens. */}
+            <TestDatabaseBanner />
+            {isRestoring && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: '#004a8d',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  zIndex: 999999,
+                }}
+              >
+                <ActivityIndicator size="large" color="#ffffff" />
+              </View>
+            )}
+          </View>
+        </ApprovalProvider>
+      </AppFontProvider>
     </SafeAreaProvider>
   );
 }

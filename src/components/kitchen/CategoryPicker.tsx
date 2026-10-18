@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import {
+  Apple,
   Coffee,
+  Cookie,
+  Egg,
+  Milk,
+  Wheat,
   Droplets,
   Flame,
   Home,
@@ -19,10 +25,10 @@ import {
 } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
 import { saveKitchenCategory } from '@/lib/pos/kitchen-service';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { matchesSearch, orderCategories, shownCategories } from '@/lib/pos/kitchen-utils';
 import type { KitchenCategory, KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Label, Notice, PrimaryButton, Row, SearchBox, Sheet, TextField } from './ui';
+import { Label, Notice, PrimaryButton, Row, RowInset, SearchBox, Sheet, TextField } from './ui';
 
 const ICON_RULES: readonly { test: RegExp; icon: LucideIcon }[] = [
   { test: /salar|wage|staff|pay ?roll|labou?r/i, icon: Users },
@@ -37,6 +43,12 @@ const ICON_RULES: readonly { test: RegExp; icon: LucideIcon }[] = [
   { test: /phone|internet|wifi|mobile|recharge|data/i, icon: Wifi },
   { test: /tea|coffee|food|snack|meal|refresh/i, icon: Coffee },
   { test: /licen|insur|tax|gst|fee|fssai|permit|audit/i, icon: ShieldCheck },
+  // Purchase categories (task 238).
+  { test: /dairy|milk|curd|paneer|butter|cream|cheese/i, icon: Milk },
+  { test: /dry|grain|flour|rice|atta|maida|pulse|dal|grocer/i, icon: Wheat },
+  { test: /fruit|veg|produce|green/i, icon: Apple },
+  { test: /choco|sugar|bak|sweet|syrup|nutella/i, icon: Cookie },
+  { test: /egg/i, icon: Egg },
 ];
 
 /** An icon that suits the name, so the tiles read at a glance; a plain tag otherwise. */
@@ -56,6 +68,7 @@ type Props = {
  * "More" for the whole list, searchable, with a new one added in place.
  */
 export function CategoryPicker({ categories, entries, value, onChange }: Props) {
+  const mayAdd = useKitchenAccess().can('setup.categories');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [name, setName] = useState('');
@@ -108,20 +121,23 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
         </View>
       ))}
 
-      <Sheet visible={open} onClose={() => setOpen(false)} title="What for">
+      <Sheet visible={open} onClose={() => setOpen(false)} dirty={name.trim().length > 0} title="What for">
+        {/* Only logins that may add categories see the add box. */}
         <View style={{ gap: 14 }}>
           <SearchBox value={query} onChange={setQuery} placeholder="Search categories" autoFocus />
+          <RowInset.Provider value={18}>
           <View>
             {filtered.map((c) => (
               <Row key={c.id} icon={categoryIcon(c.name)} iconTone="primary" title={c.name} selected={c.name === value} onPress={() => choose(c.name)} />
             ))}
             {filtered.length === 0 ? (
               <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600', paddingVertical: 12 }}>
-                No category called that yet. Add it below and it stays in the list.
+                {mayAdd ? 'No category called that yet. Add it below and it stays in the list.' : 'No category called that yet. Ask the owner to add it.'}
               </Text>
             ) : null}
           </View>
-          <View>
+          </RowInset.Provider>
+          {mayAdd ? <View>
             <Label>New category</Label>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={{ flex: 1 }}>
@@ -132,19 +148,20 @@ export function CategoryPicker({ categories, entries, value, onChange }: Props) 
               </View>
             </View>
             {error ? <Notice text={error} /> : null}
-          </View>
+          </View> : null}
         </View>
       </Sheet>
     </View>
   );
 }
 
-function CategoryTile({ label, icon: Icon, on, onPress, more }: { label: string; icon: LucideIcon; on: boolean; onPress: () => void; more?: boolean }) {
+export function CategoryTile({ label, icon: Icon, on, onPress, more }: { label: string; icon: LucideIcon; on: boolean; onPress: () => void; more?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: on }}
+      aria-selected={on}
       accessibilityLabel={more ? 'More categories' : label}
       style={({ pressed }) => ({
         flex: 1,

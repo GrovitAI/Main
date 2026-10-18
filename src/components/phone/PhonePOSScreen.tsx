@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, TextInput, FlatList, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Pressable, FlatList, ActivityIndicator, ScrollView } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, ShoppingCart, ChevronRight, Trash2, Minus, Plus } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';

@@ -1,15 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-  Alert,
-  Platform,
-  TextInput,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, View, Alert, Platform } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { Minus, Plus, Trash2, Percent } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 

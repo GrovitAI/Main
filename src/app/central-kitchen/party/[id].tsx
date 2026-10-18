@@ -5,7 +5,7 @@ import { PartyDetail } from '@/components/kitchen/PartyDetail';
 export default function PartyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   return (
-    <KScreen>
+    <KScreen wide>
       <PartyDetail partyId={id} standalone />
     </KScreen>
   );

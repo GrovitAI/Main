@@ -1,5 +1,6 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import type { LucideIcon } from 'lucide-react-native';
 
 import { colors, semantic } from '@/lib/pos/brand';

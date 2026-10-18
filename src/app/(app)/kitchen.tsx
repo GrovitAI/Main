@@ -1,5 +1,7 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useRef, useCallback } from 'react';
-import { View, Text, Pressable, Platform } from 'react-native';
+import { View, Pressable, Platform } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useFocusEffect } from 'expo-router';
 import { ChefHat } from 'lucide-react-native';
 import { colors } from '@/lib/pos/brand';
@@ -27,7 +29,7 @@ export default function KitchenScreen() {
         <Text className="mt-2 text-center text-base text-text-secondary mb-6">
           KOT tracking and kitchen display console
         </Text>
-        <Pressable
+        <Pressable {...ownHover}
           ref={refreshButtonRef}
           focusable={true}
           accessibilityRole="button"

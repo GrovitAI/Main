@@ -1,16 +1,7 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  FlatList,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Modal,
-} from 'react-native';
+import { View, Pressable, FlatList, ActivityIndicator, Alert, Platform, ScrollView, Modal } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Plus,
   Trash2,
@@ -303,7 +294,7 @@ function Autocomplete<T extends { id: string }>({
                 </View>
               ) : (
                 filtered.map((item, idx) => (
-                  <Pressable
+                  <Pressable {...ownHover}
                     key={item.id}
                     onPress={() => handleSelect(item)}
                     style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => ({
@@ -1404,8 +1395,8 @@ export default function RecipeManagement() {
                               updateIngredientUnit(idx, opt);
                               setOpenLineUnitDropdownIdx(null);
                             }}
-                            className={`p-1.5 rounded hover:bg-slate-50 active:bg-slate-100 ${
-                              (itm.selected_unit || mat.unit_short_name) === opt ? 'bg-blue-50/50' : ''
+                            className={`p-1.5 rounded ${
+                              (itm.selected_unit || mat.unit_short_name) === opt ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                             }`}
                           >
                             <Text className={`text-xs font-bold ${

@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField } from '@/components/kitchen/ui';
-import { DateField, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
+import { AmountPad, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { semantic } from '@/lib/pos/brand';
+import { buzz } from '@/lib/pos/kitchen-haptics';
+import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { CategoryPicker } from '@/components/kitchen/CategoryPicker';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
@@ -28,9 +33,13 @@ export default function SpentScreen() {
   const [mode, setMode] = useState<KitchenMode>('cash');
   const [date, setDate] = useState(localDateKey());
   const [note, setNote] = useState('');
+  const [lockReason, setLockReason] = useState('');
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const done = useSavedThen();
+  // Task 229: a phone takes the amount on a number pad; a tablet or desktop types it.
+  const phone = !useResponsive().isTablet;
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
 
@@ -53,7 +62,9 @@ export default function SpentScreen() {
   const owe = partyId ? balanceFromEntries(data.entries, partyId, 'vendor', party?.opening ?? 0) : 0;
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
-  const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category);
+  const dateOk = useDateGuard(date, lockReason);
+  const needsNote = kind === 'expense' && !note.trim();
+  const canSave = !missing && amount > 0 && isValidDateKey(date) && (kind === 'vendor' ? !!partyId : !!category) && dateOk && !needsNote;
   const isVendor = kind === 'vendor';
 
   const onTick = (list: KitchenOpenDocument[], next: Set<string>) => {
@@ -65,6 +76,9 @@ export default function SpentScreen() {
     }
   };
 
+  // Task 221: Back asks first once an amount or a note is typed; never after the save.
+  const typed = useTypedChanges(JSON.stringify({ amountText, note }), prefilled);
+  useLeaveGuard(typed && !done.saved, 'The amount you typed');
   const save = async () => {
     if (!canSave) return;
     setSaving(true);
@@ -73,12 +87,14 @@ export default function SpentScreen() {
       isVendor && partyId
         ? { type: 'paid', party_id: partyId, entry_date: date, amount, mode, note: note.trim() || null, covers }
         : { type: 'spent', entry_date: date, amount, mode, category: category ?? 'Other', note: note.trim() || null };
-    const res = editing ? await editKitchenEntry(editing.id, input) : await postKitchenEntry(input);
+    const res = editing ? await editKitchenEntry(editing.id, input, lockReason) : await postKitchenEntry(input, lockReason);
     setSaving(false);
     if (res.error) {
       setError(res.error);
+      buzz('error');
       return;
     }
+    done.mark();
     await data.load(true);
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
@@ -88,7 +104,7 @@ export default function SpentScreen() {
     } else {
       useKitchenStore.getState().setNotice(`${category ?? 'Expense'} · ${formatMoney(amount)} recorded`);
     }
-    backToKitchen();
+    done.finish(backToKitchen);
   };
 
   const title = editing ? (isVendor ? 'Edit payment' : 'Edit expense') : 'Spent';
@@ -96,7 +112,7 @@ export default function SpentScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : isVendor ? 'Save payment' : 'Save expense'} onPress={() => void save()} disabled={!canSave} loading={saving} />}>
+      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : phone && amount > 0 ? `Save ${formatMoney(amount)}` : isVendor ? 'Save payment' : 'Save expense'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={kind === 'vendor' && !partyId ? 'Choose a vendor' : kind !== 'vendor' && !category ? 'Choose what it was for' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : needsNote ? 'Add a note' : undefined} />}>
         <KHeader title={title} subtitle={subtitle} onBack={() => backToKitchen()} />
         {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a payment or expense." /> : null}
         {editing ? null : (
@@ -114,11 +130,18 @@ export default function SpentScreen() {
           </Field>
         )}
         {isVendor && partyId ? (
-          <Field label="Against which buys (optional)" hint="Tick the buys this payment is for and the amount fills itself. Leave them unticked and it simply comes off what we owe.">
+          <Field label="Against which buys" optional hint="Tick the buys this pays for and the amount fills in.">
             <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
           </Field>
         ) : null}
-        <Field label="Amount">
+        {phone ? (
+          <View style={{ marginTop: 14, gap: 4 }}>
+            {isVendor && party ? <View className="items-center"><View className="rounded-full px-3 py-1" style={{ backgroundColor: semantic.dangerSoft }}><Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700' }}>We owe {party.name} {formatMoney(owe)}{amount > 0 && !editing ? ` · then ${owe - amount < 0 ? `${formatMoney(amount - owe)} overpaid` : formatMoney(owe - amount)}` : ''}</Text></View></View> : null}
+            <AmountPad value={amountText} onChange={(t) => { setAmountText(t); setAmountTyped(t.trim().length > 0); }} />
+            {!isVendor ? <Text className="text-center text-text-secondary" style={{ fontSize: 12, fontWeight: '600' }}>Counts as money out this month.</Text> : null}
+          </View>
+        ) : null}
+        {phone ? null : <Field label="Amount">
           <TextField value={amountText} onChange={(t) => { setAmountText(t); setAmountTyped(t.trim().length > 0); }} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big />
           {isVendor && party ? (
             <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>
@@ -127,13 +150,13 @@ export default function SpentScreen() {
           ) : !isVendor ? (
             <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>Counts as money out this month.</Text>
           ) : null}
-        </Field>
+        </Field>}
         <Field label="Mode">
           <ModePicker value={mode} onChange={setMode} />
         </Field>
-        <DateField value={date} onChange={setDate} />
-        <Field label="Note">
-          <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />
+        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
+        <Field label="Note" optional={isVendor} hint={isVendor ? undefined : 'Required for an expense: what it was, for example "Gas cylinder for the week".'}>
+          <TextField value={note} onChange={setNote} label={isVendor ? 'Note (optional)' : 'Note'} />
         </Field>
         {error ? <Notice text={error} /> : null}
         <View style={{ height: 8 }} />

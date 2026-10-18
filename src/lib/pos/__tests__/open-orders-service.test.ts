@@ -16,7 +16,7 @@ jest.mock('../supabase-debug', () => ({ logSupabaseError: jest.fn() }));
 
 import { supabase } from '../supabase';
 import { getTenantContext } from '../tenant-context';
-import { ACTIVE_ORDER_STATUSES, fetchOpenOrders } from '../open-orders-service';
+import { ACTIVE_ORDER_STATUSES, fetchOpenOrders, fetchOrderItemCounts } from '../open-orders-service';
 
 const mockFrom = supabase.from as unknown as jest.Mock;
 const mockTenantContext = getTenantContext as unknown as jest.Mock;
@@ -65,6 +65,14 @@ const ROWS = [
 beforeEach(() => {
   jest.clearAllMocks();
   mockTenantContext.mockReturnValue(CASHIER);
+});
+
+test('batched item counts scope child rows through their parent order', async () => {
+  const { query, calls } = makeQuery({ data: [{ open_order_id: 'o-1', qty: 2 }, { open_order_id: 'o-1', qty: 3 }], error: null });
+  mockFrom.mockReturnValue(query);
+  expect(await fetchOrderItemCounts(['o-1'])).toEqual({ data: { 'o-1': 5 }, error: null });
+  expect(eqFilters(calls)).toEqual({ 'open_orders.tenant_id': 'tenant-1', 'open_orders.branch_id': 'branch-1' });
+  expect(calls).toContainEqual(['select', ['open_order_id, qty, open_orders!inner(tenant_id, branch_id)']]);
 });
 
 describe('ACTIVE_ORDER_STATUSES', () => {

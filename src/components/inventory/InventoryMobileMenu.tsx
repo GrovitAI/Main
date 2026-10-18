@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, Modal, Pressable, ScrollView, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart3, ChevronDown, ChevronRight, Database, X } from 'lucide-react-native';
 

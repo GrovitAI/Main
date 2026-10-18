@@ -1,11 +1,14 @@
 import React, { useMemo } from 'react';
-import { Text, View } from 'react-native';
-import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, type LucideIcon } from 'lucide-react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
+import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, PackageOpen, type LucideIcon } from 'lucide-react-native';
 import type { KitchenEntry, KitchenEntryType, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
 import { Row, type Tone } from './ui';
+import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
-const ICONS: Record<KitchenEntryType, LucideIcon> = {
+/** Each entry type's icon, shared with History's phone rows (task 236). */
+export const ENTRY_ICONS: Record<KitchenEntryType, LucideIcon> = {
   sent: ArrowUpRight,
   received: ArrowDownLeft,
   bought: ShoppingBag,
@@ -13,9 +16,10 @@ const ICONS: Record<KitchenEntryType, LucideIcon> = {
   spent: Receipt,
   made: CookingPot,
   count: ClipboardList,
+  issued: PackageOpen,
 };
 
-function iconTone(e: KitchenEntry): Tone {
+export function entryIconTone(e: KitchenEntry): Tone {
   if (e.type === 'sent') return 'primary';
   if (e.type === 'bought') return 'buy';
   if (isMoneyIn(e)) return 'in';
@@ -45,6 +49,8 @@ type Props = {
  */
 export function EntryList({ entries, itemsById, partiesById, grouped = true, onPress }: Props) {
   const ordered = useMemo(() => newestFirst(entries), [entries]);
+  const { showAmounts } = useKitchenAccess();
+  const amountOf = (e: KitchenEntry): string => (showAmounts ? entryAmountText(e) : '');
   let lastDay = '';
   return (
     <View>
@@ -60,16 +66,16 @@ export function EntryList({ entries, itemsById, partiesById, grouped = true, onP
               </Text>
             ) : null}
             <Row
-              icon={ICONS[e.type]}
-              iconTone={e.voided_at ? 'neutral' : iconTone(e)}
+              icon={ENTRY_ICONS[e.type]}
+              iconTone={e.voided_at ? 'neutral' : entryIconTone(e)}
               title={entryHeadline(e, names)}
               subtitle={entrySubline(e, itemsById)}
-              right={entryAmountText(e) || undefined}
+              right={amountOf(e) || undefined}
               rightSub={formatEnteredAt(e.created_at)}
               tone={amountTone(e)}
               muted={e.voided_at !== null}
               onPress={onPress ? () => onPress(e) : undefined}
-              accessibilityLabel={`${entryHeadline(e, names)}, ${entryAmountText(e) || entrySubline(e, itemsById)}${e.voided_at ? ', voided' : ''}`}
+              accessibilityLabel={`${entryHeadline(e, names)}, ${amountOf(e) || entrySubline(e, itemsById)}${e.voided_at ? ', voided' : ''}`}
             />
           </React.Fragment>
         );

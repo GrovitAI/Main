@@ -1,15 +1,7 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { router, useFocusEffect } from 'expo-router';
 import { RefreshCw, Search, X, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -851,7 +843,7 @@ export default function OrdersScreen() {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', letterSpacing: -0.5 }}>
               Orders Management
             </Text>
             <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
@@ -892,6 +884,7 @@ export default function OrdersScreen() {
           <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 8, padding: 3 }}>
             <Pressable
               accessibilityRole="button"
+              aria-selected={activeTab === 'active'}
               onPress={() => setActiveTab('active')}
               style={{
                 paddingHorizontal: 14,
@@ -911,6 +904,7 @@ export default function OrdersScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              aria-selected={activeTab === 'history'}
               onPress={() => setActiveTab('history')}
               style={{
                 paddingHorizontal: 14,
@@ -1487,7 +1481,7 @@ export default function OrdersScreen() {
                   </Text>
                 )}
               </View>
-              <Pressable
+              <Pressable {...ownHover}
                 accessibilityRole="button"
                 accessibilityLabel="Close preview"
                 onPress={closeViewModal}
@@ -1614,7 +1608,7 @@ export default function OrdersScreen() {
               if (isDraftOrKitchen) {
                 return (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Open in POS"
                       onPress={() => {
@@ -1652,7 +1646,7 @@ export default function OrdersScreen() {
                       </Text>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
@@ -1685,7 +1679,7 @@ export default function OrdersScreen() {
               if (isUnpaidBill) {
                 return (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Reprint Bill"
                       onPress={handleReprintPreviousBill}
@@ -1711,7 +1705,7 @@ export default function OrdersScreen() {
                       </LinearGradient>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Edit Bill"
                       onPress={async () => {
@@ -1744,7 +1738,7 @@ export default function OrdersScreen() {
                       </LinearGradient>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Settle Bill"
                       onPress={() => { setSettlingOrder(viewingSummary); }}
@@ -1776,7 +1770,7 @@ export default function OrdersScreen() {
               if (isHeld) {
                 return (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Close"
                       onPress={closeViewModal}
@@ -1812,7 +1806,7 @@ export default function OrdersScreen() {
                       </Text>
                     </Pressable>
 
-                    <Pressable
+                    <Pressable {...ownHover}
                       accessibilityRole="button"
                       accessibilityLabel="Resume Billing"
                       onPress={() => {
@@ -1852,7 +1846,7 @@ export default function OrdersScreen() {
               const showReprint = status === 'paid' || status === 'completed';
               return (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
-                  <Pressable
+                  <Pressable {...ownHover}
                     accessibilityRole="button"
                     accessibilityLabel="Close"
                     onPress={closeViewModal}
@@ -1971,7 +1965,7 @@ function HeaderSection({
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', fontFamily: 'Outfit, "Avenir Next", system-ui, sans-serif', letterSpacing: -0.5 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#E2E8F0', letterSpacing: -0.5 }}>
             Orders Management
           </Text>
           <Text style={{ fontSize: 13, fontWeight: '500', color: '#E0F2FE', marginTop: 1, opacity: 0.9 }}>
@@ -2046,7 +2040,7 @@ function FilterPill({
   }
 
   return (
-    <Pressable
+    <Pressable {...ownHover}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [

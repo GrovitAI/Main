@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, Text, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { FlatList, Modal, Pressable, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router, type Href } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

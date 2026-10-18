@@ -1,0 +1,96 @@
+import { useState } from 'react';
+import { Animated, FlatList, Modal, Pressable, View, useWindowDimensions } from 'react-native';
+import { Text } from '@/components/ui/Typography';
+import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, semantic } from '@/lib/pos/brand';
+import { useEnterOnChange } from '@/components/kitchen/ui';
+import { kitchenCalendarDays, kitchenMonthLabel, kitchenMonthRange, kitchenRangeLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
+import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
+
+const control = 'min-h-12 min-w-12 items-center justify-center rounded-xl border border-transparent px-3 hover:bg-accent-soft active:bg-accent-soft focus:border-primary';
+const weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+/** Date selection is a draft: only Apply changes the report and starts a request. */
+export function ReportDateRange({ value, onChange, label = 'Report dates', placeholder, outlined = false, inlineLabel, triggerText }: { value: KitchenDateRange; onChange: (range: KitchenDateRange) => void; label?: string; placeholder?: string; outlined?: boolean; inlineLabel?: string; triggerText?: string }) {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const today = kitchenToday();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [choosing, setChoosing] = useState<'startDate' | 'endDate'>('startDate');
+  const [calendarMonth, setCalendarMonth] = useState(value.startDate.slice(0, 7));
+  // A later month slides in from the right, an earlier one from the left (task 215).
+  const monthSlide = useEnterOnChange(calendarMonth, 'x');
+  const monthRange = kitchenMonthRange(value.startDate.slice(0, 7), today);
+  const fullMonth = value.startDate === monthRange.startDate && value.endDate === monthRange.endDate;
+  const valid = draft.endDate >= draft.startDate && draft.endDate <= today;
+  const [held, setHeld] = useState(false);
+  const close = () => { setOpen(false); setHeld(false); };
+  const changed = draft.startDate !== value.startDate || draft.endDate !== value.endDate;
+  const outside = () => { if (changed) setHeld(true); else close(); };
+  const select = (date: string) => {
+    setDraft(current => ({ ...current, [choosing]: date }));
+    if (choosing === 'startDate') setChoosing('endDate');
+  };
+  const preset = (month: string) => {
+    setDraft(kitchenMonthRange(month, today)); setCalendarMonth(month); setChoosing('startDate');
+  };
+  const header = <View className="gap-2 px-1">
+    <View className="flex-row items-center justify-between">
+      <Text accessibilityRole="header" className="text-base font-bold text-text-primary">{label}</Text>
+      <Pressable accessibilityRole="button" onPress={() => preset(today.slice(0, 7))} className={control}><Text className="text-xs font-bold text-primary">This month</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close date picker" onPress={close} className={control}><X size={18} color={colors.textSecondary} /></Pressable>
+    </View>
+    <Text className="text-xs leading-4" style={{ color: held ? colors.primary : colors.textSecondary }} accessibilityLiveRegion="polite">{held ? 'Your new dates are kept. Apply them, or close with ✕.' : 'Choose start, then end. Both dates are included.'}</Text>
+    <View className="flex-row gap-2">
+      {(['startDate', 'endDate'] as const).map(field => <Pressable key={field} accessibilityRole="button" accessibilityLabel={(field === 'startDate' ? 'Start date: ' : 'End date: ') + draft[field]} accessibilityState={{ selected: choosing === field }} onPress={() => { setChoosing(field); setCalendarMonth(draft[field].slice(0, 7)); }}
+        className={'min-h-12 min-w-0 flex-1 rounded-xl border px-3 py-2 focus:border-primary ' + (choosing === field ? 'border-primary bg-accent-soft' : 'border-border-soft bg-surface-elevated hover:bg-surface-tint')}>
+        <Text className="text-xs font-semibold text-text-secondary">{field === 'startDate' ? 'Start date' : 'End date'}</Text>
+        <Text className="text-sm font-bold text-text-primary">{draft[field]}</Text>
+      </Pressable>)}
+    </View>
+    <View className="flex-row items-center justify-between">
+      <Pressable accessibilityRole="button" accessibilityLabel="Previous calendar month" disabled={calendarMonth === '1000-01'} onPress={() => setCalendarMonth(shiftKitchenMonth(calendarMonth, -1))} className={control}><ChevronLeft size={18} color={colors.primary} /></Pressable>
+      <Animated.View style={monthSlide}><Text className="text-sm font-bold text-text-primary">{kitchenMonthLabel(calendarMonth)}</Text></Animated.View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Next calendar month" accessibilityState={{ disabled: calendarMonth >= today.slice(0, 7) }} disabled={calendarMonth >= today.slice(0, 7)} onPress={() => setCalendarMonth(shiftKitchenMonth(calendarMonth, 1))} className={control + (calendarMonth >= today.slice(0, 7) ? ' opacity-40' : '')}><ChevronRight size={18} color={colors.primary} /></Pressable>
+    </View>
+    <View className="mb-1 flex-row">{weekdays.map(day => <Text key={day} className="flex-1 text-center text-xs font-semibold text-text-secondary">{day}</Text>)}</View>
+  </View>;
+  return <>
+    <Pressable accessibilityRole="button" accessibilityLabel={label + ': ' + (placeholder ?? value.startDate + ' through ' + value.endDate)} accessibilityState={{ expanded: open }} onPress={() => { setDraft(value); setChoosing('startDate'); setCalendarMonth(value.startDate.slice(0, 7)); setOpen(true); }}
+      className={(inlineLabel ? 'min-h-11 ' : 'min-h-12 ') + 'min-w-0 flex-row items-center gap-2 rounded-xl bg-surface-elevated px-3 py-2 hover:bg-accent-soft focus:border focus:border-primary ' + (outlined ? 'border border-border active:bg-accent-soft' : 'active:opacity-70')}>
+      {inlineLabel ? <Text className="w-20 shrink-0 text-xs font-semibold leading-4 text-text-secondary">{inlineLabel}</Text> : <CalendarDays size={16} color={colors.primary} />}
+      <Text className={'min-w-0 text-sm font-bold text-primary ' + (inlineLabel ? 'flex-1' : 'shrink')}>{triggerText ?? placeholder ?? (fullMonth ? kitchenMonthLabel(value.startDate.slice(0, 7)) : kitchenRangeLabel(value))}</Text>
+      {inlineLabel ? <CalendarDays size={16} color={colors.primary} /> : null}
+    </Pressable>
+    <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+      <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.overlay, paddingTop: Math.max(insets.top, 8), paddingBottom: Math.max(insets.bottom, 8) }}>
+        <Pressable accessible={false} tabIndex={-1} onPress={outside} className="absolute inset-0" />
+        <View accessibilityViewIsModal className={'max-h-[92%] w-full max-w-[372px] rounded-2xl bg-surface-elevated p-1.5 ' + (width >= 360 ? 'mx-3' : '')} style={{ maxWidth: Math.min(372, width >= 360 ? width - 24 : width) }}>
+          <FlatList data={kitchenCalendarDays(calendarMonth)} numColumns={7} keyExtractor={day => day.key} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const date = item.date;
+              const cell = 'min-h-12 min-w-0 flex-1 p-0.5';
+              if (!date) return <View className={cell} />;
+              const selected = date === draft.startDate || date === draft.endDate;
+              const between = date > draft.startDate && date < draft.endDate;
+              return <Animated.View style={[{ flex: 1, minWidth: 0 }, monthSlide]}><Pressable accessibilityRole="button" accessibilityLabel={'Select ' + date + ' as ' + (choosing === 'startDate' ? 'start' : 'end') + ' date'} accessibilityState={{ selected, disabled: date > today }} disabled={date > today} onPress={() => select(date)}
+                className={'group ' + cell + (date > today ? ' opacity-40' : '')}>
+                <View pointerEvents="none" className={'w-full flex-1 items-center justify-center rounded-lg border border-transparent ' + (selected ? 'bg-primary group-hover:bg-primary-deep group-active:bg-primary-deep group-focus:border-text-on-primary' : (between ? 'bg-surface-tint ' : 'bg-surface-elevated ') + (date > today ? '' : 'group-hover:bg-accent-soft group-active:bg-accent-soft group-focus:border-primary'))}>
+                  <Text className={'text-sm font-semibold ' + (selected ? 'text-text-on-primary' : 'text-text-primary')}>{Number(date.slice(8))}</Text>
+                </View>
+              </Pressable></Animated.View>;
+            }}
+            ListFooterComponent={<View className="gap-2 px-1 pb-2 pt-3">
+              {!valid ? <Text accessibilityRole="alert" className="text-xs font-semibold" style={{ color: semantic.danger }}>End date must be on or after start, and no later than today.</Text> : <Text className="text-center text-xs text-text-secondary">{kitchenRangeLabel(draft)} · India time</Text>}
+              <View className="flex-row gap-2">
+                <Pressable accessibilityRole="button" onPress={close} className={control + ' flex-1'}><Text className="text-sm font-bold text-primary">Cancel</Text></Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Apply report dates" accessibilityState={{ disabled: !valid }} disabled={!valid} onPress={() => { onChange(draft); close(); }} className={'min-h-12 flex-1 items-center justify-center rounded-xl bg-primary px-3 hover:bg-primary-deep focus:border focus:border-accent ' + (!valid ? 'opacity-40' : '')}><Text className="text-sm font-bold text-text-on-primary">Apply dates</Text></Pressable>
+              </View>
+            </View>} />
+        </View>
+      </View>
+    </Modal>
+  </>;
+}

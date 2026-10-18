@@ -65,6 +65,32 @@ Never hardcode UUIDs outside tenant-context.ts.
 - Always handle loading state
 - Always handle error state
 - Always handle empty state
+- Phone and desktop, always: every UI change is designed, applied and checked
+  on both layouts (390 px phone and desktop) for every component and screen
+  variant it touches, including the separate phone/desktop branches. Do not
+  wait for the owner to point out the other device.
+- Buttons are the last resort: use one only where no lighter control works.
+  On/off settings are switches (Toggle), one-of-many choices are select rows
+  (SelectRow) rather than rows of pills, whole rows are tappable instead of
+  carrying small buttons, Save/Undo appear only once something changed, and
+  load-more/retry are text links. Avoid unnecessary components and repeated
+  copy; keep screens minimal and clean but never dull.
+- Same-size choices, always: every option in a row of choices (filters,
+  tabs, pills, segmented bars, pickers) has the same width, so the selection
+  highlight never changes size as it moves. Use Segmented/ChoiceButtons
+  (equal by design), Chips (widest option, wraps as an equal grid), or
+  useEqualChoices with MeasureLabels for custom rows. Never size a choice
+  to its own label.
+- Hover on everything clickable (web): useWebHover (src/lib/pos/web-hover.ts,
+  called in the root layout) tints any clickable control under a mouse. A
+  control that draws its own hover marks itself ownHover (or a NativeWind
+  hover: class); a dark container whose items all do is hoverScope; a pill or
+  segment drawn smaller than its 44 px target uses hoverFace on the target and
+  hoverFaceMark on the drawn face; a text link uses hoverLink (underline).
+  Every new clickable control must show a hover on desktop, except one that
+  is already selected: give choice controls aria-selected (or aria-checked for
+  a radio), since RN-web drops accessibilityState, and never put a hover:
+  class on the selected state.
 
 ## File ownership
 - UI screens → src/app/(app)/*.tsx
@@ -78,6 +104,17 @@ Never hardcode UUIDs outside tenant-context.ts.
 - Commit after every completed task
 - Never commit .env file
 - Commit message format: "task N: description"
+
+## Testing and Supabase usage budget
+- Read docs/TESTING_USAGE_BUDGET.md before live database/browser verification.
+- Run relevant local type/lint/unit checks first. Use mocked services or static sample previews for repeated UI iteration; do not connect them to production.
+- Reuse one staging app session. Check the changed flows in one desktop/phone batch, fix material issues, then confirm only affected states. Repeat checks only for a new change, failure or unresolved concern.
+- Keep existing Playwright one-worker/no-retry settings. Do not run the full live E2E suite for an unrelated visual change. Required correctness, tenant/branch and migration checks must still run.
+- Supabase log investigations default to one project, a specific service and an explicit 5–30 minute incident window. Widen only when necessary; never poll logs or repeat an identical scan without new evidence. Use the Usage dashboard for quota checks, not log queries.
+- Check and record a fresh All projects meter before a day's live testing when the previous reading is over 24 hours old; reuse that day's baseline. Dashboard readings can lag, so do not claim exact per-test byte savings or a guaranteed monthly total.
+- At the documented warning threshold, move discretionary UI exploration to local/sample checks and minimize cloud verification. Preserve essential release/security/data correctness checks and report budget risk promptly.
+- Close agent-created live test tabs after verification; preserve tabs the user is actively testing. Do not leave Orders/KOT test sessions polling unattended. Stop only task-owned servers no longer needed; do not stop the user's active staging server without a request.
+- Preserve live refresh speed, stock workers and useful diagnostics. Never suppress failures, alter security logging, pause projects or skip necessary verification just to improve a usage meter.
 
 ## What to do if uncertain
 - Read PROJECT_CONTEXT.md again

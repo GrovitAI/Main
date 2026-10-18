@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Platform, Share, Text, View } from 'react-native';
+import { Linking, Platform, Share, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
+import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { MessageCircle } from 'lucide-react-native';
 import { editKitchenEntry, postKitchenEntry, kitchenBranch } from '@/lib/pos/kitchen-service';
-import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { balanceFromEntries, formatDayLabel, formatMoney, formatQty, linesTotal, localDateKey, slipText, whatsappUrl } from '@/lib/pos/kitchen-utils';
+import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { balanceFromEntries, formatDayLabel, formatMoney, formatQty, linesTotal, localDateKey, oftenSent, slipText, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry, KitchenEntryType, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, TextField } from '@/components/kitchen/ui';
-import { DateField, LinesEditor, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
+import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, SummaryBar, TextField } from '@/components/kitchen/ui';
+import { useResponsive } from '@/lib/pos/useResponsive';
+import { buzz } from '@/lib/pos/kitchen-haptics';
+import { DateField, useDateGuard, LinesEditor, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['sent'];
@@ -23,6 +27,8 @@ export default function SendScreen() {
   const [date, setDate] = useState(localDateKey());
   const [lines, setLines] = useState<DraftLines>({});
   const [note, setNote] = useState('');
+  const [lockReason, setLockReason] = useState('');
+  const { showAmounts } = useKitchenAccess();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<KitchenEntry | null>(null);
@@ -42,20 +48,30 @@ export default function SendScreen() {
   const chosen = useMemo(() => draftToLines(lines), [lines]);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
   const hasQty = Object.values(lines).some((l) => l.qty > 0);
-  const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date);
+  const itemCount = Object.values(lines).filter((l) => l.qty > 0).length;
+  const phone = !useResponsive().isTablet;
+  // One-tap chips for what this branch usually gets (task 216); none while editing.
+  const picks = useMemo(() => (partyId && !editing ? oftenSent(data.entries, partyId) : []), [data.entries, partyId, editing]);
+  const dateOk = useDateGuard(date, lockReason);
+  const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
 
+  // Task 221: Back asks first once items or a note are typed; never after the save.
+  const typed = useTypedChanges(JSON.stringify({ lines, note }), prefilled);
+  useLeaveGuard(typed && saved === null, 'The items you typed');
   const save = async () => {
     if (!partyId || !chosen || chosen.length === 0 || missing) return;
     setSaving(true);
     setError(null);
     const input: PostEntryInput = { type: 'sent', party_id: partyId, entry_date: date, lines: chosen, note: note.trim() || null };
-    const res = editing ? await editKitchenEntry(editing.id, input) : await postKitchenEntry(input);
+    const res = editing ? await editKitchenEntry(editing.id, input, lockReason) : await postKitchenEntry(input, lockReason);
     setSaving(false);
     if (res.error || !res.data) {
       setError(res.error ?? 'Unable to save the send.');
+      buzz('error');
       return;
     }
+    buzz('success');
     await data.load(true);
     setSaved({ ...res.data, lines: chosen.map((l, i) => ({ id: String(i), item_id: l.item_id, qty: l.qty, price: l.price, line_total: Math.round(l.qty * l.price * 100) / 100 })) });
   };
@@ -82,7 +98,7 @@ export default function SendScreen() {
   };
 
   const done = () => {
-    useKitchenStore.getState().setNotice(editing ? 'Changes saved' : `Sent to ${party?.name ?? 'the branch'} · ${formatMoney(saved?.amount ?? total)}`);
+    useKitchenStore.getState().setNotice(editing ? 'Changes saved' : `Sent to ${party?.name ?? 'the branch'}${showAmounts ? ` · ${formatMoney(saved?.amount ?? total)}` : ''}`);
     setSaved(null);
     backToKitchen();
   };
@@ -90,17 +106,23 @@ export default function SendScreen() {
   return (
     <KeyboardAvoider>
       <KScreen
-        footer={
+        floatingFooter={phone}
+        footer={phone ? (
+          // Task 231: a phone's footer is the dark summary bar.
+          <SummaryBar caption={itemCount === 0 ? 'No items yet' : `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`} total={total} showTotal={showAmounts}>
+            <PrimaryButton label={editing ? 'Save changes' : 'Send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add a quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
+          </SummaryBar>
+        ) : (
           <View className="flex-row items-center" style={{ gap: 12 }}>
-            <View className="flex-1">
+            <View className="flex-1" style={showAmounts ? undefined : { opacity: 0 }} accessibilityElementsHidden={!showAmounts} importantForAccessibility={showAmounts ? 'auto' : 'no-hide-descendants'}>
               <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>Total</Text>
               <Text className="text-text-primary" style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, fontVariant: ['tabular-nums'] }}>{formatMoney(total)}</Text>
             </View>
             <View style={{ flex: 1.2 }}>
-              <PrimaryButton label={editing ? 'Save changes' : 'Save send'} onPress={() => void save()} disabled={!canSave} loading={saving} />
+              <PrimaryButton label={editing ? 'Save changes' : 'Save send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add an item quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
             </View>
           </View>
-        }
+        )}
       >
         <KHeader
           title={editing ? 'Edit send' : 'Send to a branch'}
@@ -111,17 +133,17 @@ export default function SendScreen() {
         <Field label="Branch">
           <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={setPartyId} />
         </Field>
-        {party ? (
+        {party && showAmounts ? (
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>
             {party.name} {balanceNow > 0 ? `is yet to pay ${formatMoney(balanceNow)}` : balanceNow < 0 ? `has ${formatMoney(-balanceNow)} in credit` : 'is settled up'}.
           </Text>
         ) : null}
-        <DateField value={date} onChange={setDate} />
+        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a price.' : undefined}>
-          <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="sell" />
+          <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="sell" picks={picks} picksTitle={party ? `Often sent to ${party.name}` : undefined} />
         </Field>
-        <Field label="Note">
-          <TextField value={note} onChange={setNote} label="Note" placeholder="Optional" />
+        <Field label="Note" optional>
+          <TextField value={note} onChange={setNote} label="Note (optional)" />
         </Field>
         {error ? <Notice text={error} /> : null}
       </KScreen>

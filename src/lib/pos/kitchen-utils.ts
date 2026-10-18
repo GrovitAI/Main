@@ -226,6 +226,66 @@ export function stepFor(unit: KitchenUnit): number {
 
 export const formatMoney = (amount: number): string => formatINR(amount);
 
+/** "₹1,12,000 · 1.12 lakh" for a typed 112000; nothing below ₹1,000 or for text that is not a number. */
+export function amountReadBack(text: string): string | null {
+  const value = Number(text.replace(/,/g, '').trim());
+  if (!text.trim() || !Number.isFinite(value) || Math.abs(value) < 1000) return null;
+  const grouped = formatMoney(value);
+  const abs = Math.abs(value);
+  const short = (n: number): string => String(Number(n.toFixed(2)));
+  if (abs >= 1_00_00_000) return `${grouped} · ${short(abs / 1_00_00_000)} crore`;
+  if (abs >= 1_00_000) return `${grouped} · ${short(abs / 1_00_000)} lakh`;
+  return grouped;
+}
+
+/**
+ * How much cash in hand and the bank changed on one day, in rupees (task 237): money received in,
+ * money paid out, and transfers between the two, by the same rules as kitchen_money_summary (cash,
+ * or no mode, is Cash; UPI and bank are Bank). Voided entries do not count.
+ */
+export function moneyChangeOn(
+  entries: readonly KitchenEntry[],
+  moves: readonly { move_date: string; from_account: 'cash' | 'bank'; amount_paise: number }[],
+  day: string,
+): { cash: number; bank: number } {
+  const out = { cash: 0, bank: 0 };
+  for (const e of entries) {
+    if (e.entry_date !== day || !isPosted(e)) continue;
+    const sign = isMoneyIn(e) ? 1 : isMoneyOut(e) ? -1 : 0;
+    if (sign === 0) continue;
+    out[e.mode === 'upi' || e.mode === 'bank' ? 'bank' : 'cash'] += sign * e.amount;
+  }
+  for (const m of moves) {
+    if (m.move_date !== day) continue;
+    const rupees = m.amount_paise / 100;
+    if (m.from_account === 'cash') { out.cash -= rupees; out.bank += rupees; } else { out.bank -= rupees; out.cash += rupees; }
+  }
+  return { cash: Math.round(out.cash * 100) / 100, bank: Math.round(out.bank * 100) / 100 };
+}
+
+/** A key on a phone's amount pad (task 235). */
+export type PadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'del';
+
+/**
+ * The amount text after a key on the pad: up to nine rupee digits, one decimal point and two
+ * paise digits. A point first reads as "0."; a key that would break the amount is ignored.
+ */
+export function padPress(value: string, key: PadKey): string {
+  if (key === 'del') return value.slice(0, -1);
+  const [rupees = '', paise] = value.split('.');
+  if (key === '.') return paise !== undefined ? value : (rupees || '0') + '.';
+  if (paise !== undefined) return paise.length >= 2 ? value : value + key;
+  if (rupees === '0') return key;
+  return rupees.length >= 9 ? value : value + key;
+}
+
+/** The pad's amount as typed, grouped the Indian way: "₹1,12,000", "₹12." and "₹1,234.5". */
+export function padDisplay(value: string): string {
+  const [rupees = '', paise] = value.split('.');
+  const whole = Number(rupees || '0');
+  return formatMoney(Number.isFinite(whole) ? whole : 0) + (paise !== undefined ? '.' + paise : '');
+}
+
 // ─── Matching money to buys and sends ────────────────────────────────────────
 
 /**
@@ -260,6 +320,7 @@ export function typeLabel(type: KitchenEntryType): string {
     case 'spent': return 'Spent';
     case 'made': return 'Made';
     case 'count': return 'Counted';
+    case 'issued': return 'Given to kitchen';
   }
 }
 
@@ -274,6 +335,7 @@ export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
     case 'spent': return e.category ?? 'Spent';
     case 'made': return `Made ${item}`;
     case 'count': return `Counted ${item}`;
+    case 'issued': return 'Given to the kitchen';
   }
 }
 
@@ -288,7 +350,7 @@ export function linesSummary(e: Pick<KitchenEntry, 'lines'>, itemsById: Readonly
 
 export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, KitchenItem>): string {
   const parts: string[] = [];
-  if (e.type === 'sent' || e.type === 'bought') parts.push(linesSummary(e, itemsById));
+  if (e.type === 'sent' || e.type === 'bought' || e.type === 'issued') parts.push(linesSummary(e, itemsById));
   if (e.type === 'bought') parts.push(e.paid ? `paid${e.mode ? ` · ${modeLabel(e.mode)}` : ''}` : 'pay later');
   if (e.type === 'received' || e.type === 'paid' || e.type === 'spent') parts.push(modeLabel(e.mode));
   if (e.type === 'made' || e.type === 'count') {
@@ -304,7 +366,7 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
 
 /** Signed money text for a list row; empty for a stock-only entry. */
 export function entryAmountText(e: KitchenEntry): string {
-  if (e.type === 'made' || e.type === 'count') return '';
+  if (e.type === 'made' || e.type === 'count' || e.type === 'issued') return '';
   if (isMoneyIn(e)) return formatINR(e.amount, { signed: true });
   if (isMoneyOut(e)) return formatINR(-e.amount);
   return formatINR(e.amount);
@@ -356,11 +418,25 @@ export function matchesSearch(query: string, ...fields: (string | null | undefin
 }
 
 /** Turns the database's short codes into a sentence the kitchen can act on. */
+/** Words for a permission or day-lock refusal from the database, or null for any other error. */
+export function describeAccessError(message: string | null | undefined): string | null {
+  const m = message ?? '';
+  if (m.includes('KITCHEN_DAY_LOCKED')) return 'That day is locked. Ask the owner to make the change.';
+  if (m.includes('KITCHEN_BACKDATE_NOT_ALLOWED')) return 'This login records today’s entries only.';
+  if (m.includes('KITCHEN_FUTURE_DATE')) return 'Entries cannot be dated in the future.';
+  if (m.includes('KITCHEN_NOT_ALLOWED') || m.includes('row-level security')) return 'Your login is not allowed to do this. Ask the owner.';
+  return null;
+}
+
 export function describeKitchenError(message: string | null | undefined, fallback: string): string {
   const m = message ?? '';
+  const access = describeAccessError(m);
+  if (access) return access;
   if (m.includes('KITCHEN_FORBIDDEN') || m.includes('42501')) return 'This login cannot write the kitchen’s books.';
   if (m.includes('KITCHEN_PARTY_NOT_FOUND')) return 'That branch or vendor is no longer in the list.';
   if (m.includes('KITCHEN_ITEM_NOT_FOUND')) return 'That item is no longer in the list.';
+  if (m.includes('KITCHEN_FINISHED_GOODS_ONLY')) return 'Batches can only be recorded for finished goods.';
+  if (m.includes('KITCHEN_DELIVERY_INVOICED')) return 'Cancel the invoice before editing or deleting this delivery.';
   if (m.includes('KITCHEN_INVALID_LINE')) return 'Every line needs a quantity and a price.';
   if (m.includes('KITCHEN_INVALID_MATCH')) return 'The matched amounts are more than what is open, or more than the money paid.';
   if (m.includes('KITCHEN_INVALID')) return 'Check the amount, the mode and who it is for.';
@@ -368,4 +444,87 @@ export function describeKitchenError(message: string | null | undefined, fallbac
   if (m.includes('kitchen_parties_name_key')) return 'That name is already in the list.';
   if (m.includes('kitchen_categories_name_key')) return 'That category is already in the list.';
   return fallback;
+}
+
+/**
+ * The items sent most often to one branch in the loaded entries, with the
+ * quantity sent the last time (task 216). Voided sends do not count. Ties go
+ * to the item sent most recently.
+ */
+export function oftenSent(entries: readonly KitchenEntry[], partyId: string, limit = 6): { itemId: string; times: number; lastQty: number }[] {
+  const seen = new Map<string, { itemId: string; times: number; lastQty: number; lastAt: string }>();
+  for (const entry of entries) {
+    if (entry.type !== 'sent' || entry.party_id !== partyId || entry.voided_at) continue;
+    const at = entry.entry_date + ' ' + entry.created_at;
+    for (const line of entry.lines) {
+      if (!(line.qty > 0)) continue;
+      const row = seen.get(line.item_id) ?? { itemId: line.item_id, times: 0, lastQty: line.qty, lastAt: '' };
+      row.times += 1;
+      if (at > row.lastAt) { row.lastAt = at; row.lastQty = line.qty; }
+      seen.set(line.item_id, row);
+    }
+  }
+  return [...seen.values()]
+    .sort((a, b) => b.times - a.times || b.lastAt.localeCompare(a.lastAt))
+    .slice(0, limit)
+    .map(({ itemId, times, lastQty }) => ({ itemId, times, lastQty }));
+}
+
+/** The raw materials most often given to the kitchen, with the last quantity (task 242). */
+export function oftenGiven(entries: readonly KitchenEntry[], limit = 6): { itemId: string; times: number; lastQty: number }[] {
+  const seen = new Map<string, { itemId: string; times: number; lastQty: number; lastAt: string }>();
+  for (const entry of entries) {
+    if (entry.type !== 'issued' || entry.voided_at) continue;
+    const at = entry.entry_date + ' ' + entry.created_at;
+    for (const line of entry.lines) {
+      if (!(line.qty > 0)) continue;
+      const row = seen.get(line.item_id) ?? { itemId: line.item_id, times: 0, lastQty: line.qty, lastAt: '' };
+      row.times += 1;
+      if (at > row.lastAt) { row.lastAt = at; row.lastQty = line.qty; }
+      seen.set(line.item_id, row);
+    }
+  }
+  return [...seen.values()]
+    .sort((a, b) => b.times - a.times || b.lastAt.localeCompare(a.lastAt))
+    .slice(0, limit)
+    .map(({ itemId, times, lastQty }) => ({ itemId, times, lastQty }));
+}
+
+// ─── Stock levels (task 230) ─────────────────────────────────────────────────
+
+export type StockLevel = {
+  /** What the bar measures against: the latest count, or more if stock has since grown past it. */
+  ref: number | null;
+  /** The day of the latest count, or null when the item has never been counted. */
+  countedOn: string | null;
+  state: 'out' | 'low' | 'ok' | 'unknown';
+  /** Stock as a share of `ref`, from 0 to 1, when there is a count. */
+  share: number;
+};
+
+/** Below this share of its last count an item shows as low. */
+export const LOW_STOCK_SHARE = 0.25;
+
+/**
+ * Each item's level against its latest stock count (task 230). Nothing at or below zero is out;
+ * at or under a quarter of the last count is low. An item never counted has no bar, only "out"
+ * when it is at zero.
+ */
+export function stockLevels(entries: readonly KitchenEntry[], items: readonly { id: string; stock: number }[]): Map<string, StockLevel> {
+  const latest = new Map<string, KitchenEntry>();
+  for (const e of entries) {
+    if (e.type !== 'count' || e.voided_at !== null || e.item_id === null || e.qty === null) continue;
+    const seen = latest.get(e.item_id);
+    if (!seen || e.entry_date > seen.entry_date || (e.entry_date === seen.entry_date && e.created_at > seen.created_at)) latest.set(e.item_id, e);
+  }
+  const out = new Map<string, StockLevel>();
+  for (const item of items) {
+    const count = latest.get(item.id);
+    const counted = count?.qty ?? null;
+    const ref = counted === null ? null : Math.max(counted, item.stock);
+    const share = ref && ref > 0 ? Math.min(1, Math.max(0, item.stock / ref)) : 0;
+    const state: StockLevel['state'] = item.stock <= 0 ? 'out' : ref === null || ref <= 0 ? 'unknown' : share <= LOW_STOCK_SHARE ? 'low' : 'ok';
+    out.set(item.id, { ref, countedOn: count?.entry_date ?? null, state, share });
+  }
+  return out;
 }

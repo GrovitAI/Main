@@ -1,5 +1,6 @@
 import {
   allocateAcross,
+  amountReadBack,
   balanceFromEntries,
   describeKitchenError,
   entryAmountText,
@@ -13,18 +14,27 @@ import {
   linesTotal,
   matchesSearch,
   monthTotals,
+  oftenSent,
   slipText,
   statementRows,
+  moneyChangeOn,
+  oftenGiven,
+  padDisplay,
+  padPress,
+  stockLevels,
   sumDues,
   whatsappUrl,
 } from '../kitchen-utils';
+import type { PadKey } from '../kitchen-utils';
 import type { KitchenEntry, KitchenItem, KitchenOpenDocument, KitchenPartyBalance } from '../kitchen-types';
 
 const item = (id: string, name: string, unit: KitchenItem['unit'], price: number | null): KitchenItem => ({
+  item_kind: price === null ? 'raw_material' : 'finished_good',
   id,
   name,
   unit,
   sell_price: price,
+  cost_price: null,
   stock: 0,
   is_active: true,
   updated_at: '',
@@ -256,5 +266,111 @@ describe('opening balances', () => {
   it('runs the statement from the opening figure', () => {
     const rows = statementRows([sent, got], 'b9', 'branch', 1200);
     expect(rows.map((r) => r.balanceAfter)).toEqual([500, 1500]);
+  });
+});
+
+describe('oftenSent (task 216)', () => {
+  const line = (item_id: string, qty: number) => ({ id: item_id + qty, item_id, qty, price: 10, line_total: qty * 10 });
+  it('ranks a branch\'s items by sends, keeps the latest quantity and skips voids and other branches', () => {
+    const list = [
+      entry({ type: 'sent', party_id: 'p1', entry_date: '2026-10-01', lines: [line('mousse', 10), line('sauce', 2)] }),
+      entry({ type: 'sent', party_id: 'p1', entry_date: '2026-10-03', lines: [line('mousse', 24)] }),
+      entry({ type: 'sent', party_id: 'p1', entry_date: '2026-10-04', voided_at: '2026-10-04T11:00:00Z', lines: [line('sauce', 9), line('cup', 5)] }),
+      entry({ type: 'sent', party_id: 'p2', lines: [line('cup', 50), line('cup', 50)] }),
+      entry({ type: 'bought', party_id: 'p1', lines: [line('milk', 30)] }),
+    ];
+    expect(oftenSent(list, 'p1')).toEqual([{ itemId: 'mousse', times: 2, lastQty: 24 }, { itemId: 'sauce', times: 1, lastQty: 2 }]);
+    expect(oftenSent(list, 'p1', 1).map((r) => r.itemId)).toEqual(['mousse']);
+    expect(oftenSent(list, 'nobody')).toEqual([]);
+  });
+});
+
+describe('amountReadBack', () => {
+  it('reads large amounts back the Indian way', () => {
+    expect(amountReadBack('112000')).toBe('₹1,12,000 · 1.12 lakh');
+    expect(amountReadBack('2500')).toBe('₹2,500');
+    expect(amountReadBack('15000000')).toBe('₹1,50,00,000 · 1.5 crore');
+    expect(amountReadBack('100000')).toBe('₹1,00,000 · 1 lakh');
+  });
+  it('stays quiet for small, empty or unreadable amounts', () => {
+    expect(amountReadBack('999')).toBeNull();
+    expect(amountReadBack('')).toBeNull();
+    expect(amountReadBack('12a')).toBeNull();
+  });
+});
+
+describe('stockLevels', () => {
+  test('measures against the latest count, low at a quarter or less, out at zero', () => {
+    const entries = [
+      entry({ type: 'count', item_id: 'a', qty: 40, entry_date: '2026-10-01' }),
+      entry({ type: 'count', item_id: 'a', qty: 56, entry_date: '2026-10-12' }),
+      entry({ type: 'count', item_id: 'b', qty: 8, entry_date: '2026-10-14' }),
+      entry({ type: 'count', item_id: 'c', qty: 99, entry_date: '2026-10-15', voided_at: '2026-10-15T12:00:00Z' }),
+    ];
+    const levels = stockLevels(entries, [{ id: 'a', stock: 40 }, { id: 'b', stock: 1.2 }, { id: 'c', stock: 0 }, { id: 'd', stock: 12 }, { id: 'e', stock: 70 }]);
+    expect(levels.get('a')).toEqual({ ref: 56, countedOn: '2026-10-12', state: 'ok', share: 40 / 56 });
+    expect(levels.get('b')?.state).toBe('low');
+    // A voided count is ignored; zero stock is out with or without a count.
+    expect(levels.get('c')).toEqual({ ref: null, countedOn: null, state: 'out', share: 0 });
+    expect(levels.get('d')).toEqual({ ref: null, countedOn: null, state: 'unknown', share: 0 });
+  });
+  test('stock grown past the last count fills the bar instead of overflowing it', () => {
+    const levels = stockLevels([entry({ type: 'count', item_id: 'a', qty: 20 })], [{ id: 'a', stock: 50 }]);
+    expect(levels.get('a')).toMatchObject({ ref: 50, share: 1, state: 'ok' });
+  });
+});
+
+describe('padPress and padDisplay', () => {
+  const typed = (keys: readonly PadKey[]): string => keys.reduce<string>((v, k) => padPress(v, k), '');
+  it('types rupees and up to two paise digits after one point', () => {
+    expect(typed(['1', '2', '3', '4', '.', '5', '0', '9'])).toBe('1234.50');
+    expect(typed(['5', '.', '.', '2'])).toBe('5.2');
+  });
+  it('starts a lone point as zero and drops a leading zero', () => {
+    expect(typed(['.', '7', '5'])).toBe('0.75');
+    expect(typed(['0', '0', '8'])).toBe('8');
+  });
+  it('stops at nine rupee digits and deletes one character at a time', () => {
+    expect(typed(['9', '9', '9', '9', '9', '9', '9', '9', '9', '9'])).toBe('999999999');
+    expect(typed(['1', '.', '5', 'del', 'del'])).toBe('1');
+  });
+  it('shows the amount as typed, grouped the Indian way', () => {
+    expect(padDisplay('')).toBe('₹0');
+    expect(padDisplay('112000')).toBe('₹1,12,000');
+    expect(padDisplay('12.')).toBe('₹12.');
+    expect(padDisplay('1234.5')).toBe('₹1,234.5');
+  });
+});
+
+describe('moneyChangeOn', () => {
+  it('adds the day to cash or bank by mode, with transfers, skipping voided entries and other days', () => {
+    const day = '2026-10-16';
+    const entries = [
+      entry({ type: 'received', amount: 850, mode: 'cash', entry_date: day }),
+      entry({ type: 'received', amount: 2000, mode: 'upi', entry_date: day }),
+      entry({ type: 'spent', amount: 150, mode: null, entry_date: day }),
+      entry({ type: 'bought', amount: 400, paid: false, entry_date: day }),
+      entry({ type: 'paid', amount: 300, mode: 'bank', entry_date: day }),
+      entry({ type: 'received', amount: 999, mode: 'cash', entry_date: day, voided_at: '2026-10-16T08:00:00Z' }),
+      entry({ type: 'received', amount: 500, mode: 'cash', entry_date: '2026-10-15' }),
+    ];
+    const moves = [{ move_date: day, from_account: 'cash' as const, amount_paise: 50000 }, { move_date: '2026-10-15', from_account: 'bank' as const, amount_paise: 100 }];
+    expect(moneyChangeOn(entries, moves, day)).toEqual({ cash: 850 - 150 - 500, bank: 2000 - 300 + 500 });
+  });
+});
+
+describe('give to the kitchen (task 242)', () => {
+  it('names the move and lists its lines, with no amount', () => {
+    const items = new Map([['m', item('m', 'Milk', 'L', null)]]);
+    const gave = entry({ type: 'issued', lines: [{ id: 'l1', item_id: 'm', qty: 12, price: 0, line_total: 0 }] });
+    expect(entryHeadline(gave, {})).toBe('Given to the kitchen');
+    expect(entrySubline(gave, items)).toBe('Milk 12 L');
+    expect(entryAmountText(gave)).toBe('');
+  });
+  it('offers the raw materials most often given, with the last quantity', () => {
+    const a = entry({ type: 'issued', entry_date: '2026-10-10', created_at: '2026-10-10T05:00:00Z', lines: [{ id: '1', item_id: 'm', qty: 10, price: 0, line_total: 0 }] });
+    const b = entry({ type: 'issued', entry_date: '2026-10-12', created_at: '2026-10-12T05:00:00Z', lines: [{ id: '2', item_id: 'm', qty: 14, price: 0, line_total: 0 }, { id: '3', item_id: 's', qty: 2, price: 0, line_total: 0 }] });
+    const voided = entry({ type: 'issued', voided_at: '2026-10-12T06:00:00Z', lines: [{ id: '4', item_id: 'x', qty: 1, price: 0, line_total: 0 }] });
+    expect(oftenGiven([a, b, voided])).toEqual([{ itemId: 'm', times: 2, lastQty: 14 }, { itemId: 's', times: 1, lastQty: 2 }]);
   });
 });

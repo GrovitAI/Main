@@ -1,5 +1,7 @@
+import { ownHover } from '@/lib/pos/web-hover';
 import { memo } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Pressable } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import type { PressableStateCallbackType, StyleProp, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -21,7 +23,7 @@ export const ProductCard = memo(function ProductCard({
   highlighted = false,
 }: ProductCardProps) {
   return (
-    <Pressable
+    <Pressable {...ownHover}
       accessibilityRole="button"
       accessibilityLabel={`Add ${product.name}`}
       accessibilityState={{ disabled }}

@@ -5,7 +5,7 @@ import { ItemDetail } from '@/components/kitchen/ItemDetail';
 export default function ItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   return (
-    <KScreen>
+    <KScreen wide>
       <ItemDetail itemId={id} standalone />
     </KScreen>
   );

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { Pencil } from 'lucide-react-native';
 import { voidKitchenEntry } from '@/lib/pos/kitchen-service';
-import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, formatLongDate, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
+import { historyAuditText, historyDateLabel, historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { GhostButton, Notice, Sheet, TextField } from './ui';
 
@@ -14,6 +16,8 @@ type Props = {
   onClose: () => void;
   itemsById: ReadonlyMap<string, KitchenItem>;
   partiesById: ReadonlyMap<string, KitchenParty>;
+  /** History passes the original when it is present in the loaded window. */
+  previousEntry?: KitchenEntry | null;
 };
 
 /** The form that corrects an entry of this kind; stock-only entries are redone from the item instead. */
@@ -24,17 +28,24 @@ function editHref(entry: KitchenEntry): { pathname: string; params: Record<strin
     case 'bought': return { pathname: '/central-kitchen/bought', params: { edit: entry.id } };
     case 'paid': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'vendor' } };
     case 'spent': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'expense' } };
+    case 'issued': return { pathname: '/central-kitchen/give', params: { edit: entry.id } };
     default: return null;
   }
 }
 
 /** One entry in full, and what can be done to it: edit it, or void it. */
-export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) {
+export function EntryActions({ entry, onClose, itemsById, partiesById, previousEntry }: Props) {
   const [reason, setReason] = useState('');
   const [voiding, setVoiding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const access = useKitchenAccess();
   if (!entry) return null;
+  const locked = access.isLocked(entry.entry_date);
+  // Who may change it: the owner always (a locked day needs a reason); others by permission, never on a locked day.
+  const mayChange = access.isOwner || (access.canFix(entry) && !locked);
+  const ownerLocked = locked && access.isOwner;
+  const blockedText = locked ? `${formatDayLabel(entry.entry_date)} is locked. Ask the owner to correct this entry.` : 'Your login cannot change this entry. Ask the owner or a kitchen manager.';
   const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
   const href = editHref(entry);
 
@@ -70,7 +81,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
   };
 
   return (
-    <Sheet visible onClose={onClose} title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}>
+    <Sheet visible onClose={onClose} dirty={reason.trim().length > 0} title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}>
       <View style={{ gap: 12 }}>
         <View>
           <Text className="text-text-primary" style={{ fontSize: 17, fontWeight: '800' }}>{entryHeadline(entry, names)}</Text>
@@ -90,17 +101,28 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
           </View>
         ) : null}
         <View className="flex-row flex-wrap" style={{ gap: 14 }}>
-          {entryAmountText(entry) ? <Meta label="Amount" value={entryAmountText(entry)} /> : null}
+          {entryAmountText(entry) && access.showAmounts ? <Meta label="Amount" value={entryAmountText(entry)} /> : null}
           {entry.mode ? <Meta label="Mode" value={modeLabel(entry.mode)} /> : null}
-          <Meta label="On" value={formatLongDate(entry.entry_date)} />
-          <Meta label="Entered" value={`${formatEnteredAt(entry.created_at)} · ${entry.created_by}`} />
+          <Meta label="Transaction date" value={historyDateLabel(entry.entry_date)} />
+          <Meta label="Entered by" value={entry.created_by} />
+          <Meta label="Entry date" value={historyTimeLabel(entry.created_at)} />
           {entry.replaces_id ? <Meta label="Edited" value="Replaces an earlier entry" /> : null}
           {entry.note ? <Meta label="Note" value={entry.note} /> : null}
         </View>
+        {historyAuditText(entry) ? <Notice tone="neutral" text={historyAuditText(entry) ?? ''} /> : null}
+        {previousEntry ? <View className="gap-1 border-t border-border-soft pt-3">
+          <Text className="text-sm font-bold text-text-primary">Before this edit</Text>
+          <Text className="text-sm text-text-primary">{entryHeadline(previousEntry, { party: previousEntry.party_id ? partiesById.get(previousEntry.party_id)?.name : null, item: previousEntry.item_id ? itemsById.get(previousEntry.item_id)?.name : null })} · {entryAmountText(previousEntry)}</Text>
+          <Text className="text-xs leading-4 text-text-secondary">{entrySubline(previousEntry, itemsById)}</Text>
+          <Text className="text-xs leading-4 text-text-secondary">Transaction {historyDateLabel(previousEntry.entry_date)} · Entered by {previousEntry.created_by} · {historyTimeLabel(previousEntry.created_at)}</Text>
+        </View> : previousEntry === null && entry.replaces_id ? <Text className="text-xs leading-4 text-text-secondary">The earlier version is outside the loaded history window.</Text> : null}
         {entry.voided_at ? (
           <Notice tone="neutral" text={entry.void_reason === 'Edited' ? 'Edited: a corrected entry took its place. This one no longer counts anywhere.' : `Voided${entry.void_reason ? `: ${entry.void_reason}` : ''}. It no longer counts anywhere.`} />
+        ) : !mayChange ? (
+          <Notice tone="neutral" text={blockedText} />
         ) : (
           <View style={{ gap: 10, marginTop: 4 }}>
+            {ownerLocked ? <Notice tone="neutral" text={`${formatDayLabel(entry.entry_date)} is locked. As the owner you can still change it; give a reason, which is kept in the change log.`} /> : null}
             <View className="flex-row" style={{ gap: 10 }}>
               {href ? <View className="flex-1"><GhostButton label="Edit" icon={Pencil} tone="primary" onPress={edit} /></View> : null}
               <View className="flex-1"><GhostButton label="Void…" tone="out" onPress={() => setVoiding((v) => !v)} /></View>
@@ -109,8 +131,8 @@ export function EntryActions({ entry, onClose, itemsById, partiesById }: Props) 
             {voiding ? (
               // The reason belongs to the void alone, so it opens with it.
               <View className="border-t border-border-soft" style={{ gap: 10, paddingTop: 12 }}>
-                <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder="Why it is being voided (optional)" autoFocus />
-                <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} />
+                <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder={ownerLocked ? 'Why it is being voided (needed for a locked day)' : 'Why it is being voided (optional)'} autoFocus />
+                <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} disabled={ownerLocked && !reason.trim()} />
               </View>
             ) : null}
             {error ? <Notice text={error} /> : null}

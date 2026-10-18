@@ -1,20 +1,7 @@
+import { hoverLink, ownHover } from '@/lib/pos/web-hover';
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  PressableProps,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { ActivityIndicator, Animated, Easing, FlatList, Image, Modal, Platform, Pressable, PressableProps, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import {
   AlertTriangle,
   ArrowDown,
@@ -1970,7 +1957,7 @@ export default function InventoryScreen() {
                   <Text className="text-xs font-extrabold text-amber-700">{lowStockMaterials.length}</Text>
                 </View>
               </View>
-              <Pressable onPress={() => setActiveTab('materials')}>
+              <Pressable {...hoverLink} onPress={() => setActiveTab('materials')}>
                 <Text className="text-xs font-bold text-blue-600">View all</Text>
               </Pressable>
             </View>
@@ -2007,7 +1994,7 @@ export default function InventoryScreen() {
               </View>
             )}
 
-            <Pressable
+            <Pressable {...hoverLink}
               onPress={() => setActiveTab('materials')}
               className="border-t border-slate-100 pt-3 mt-4 flex-row items-center justify-center gap-1"
             >
@@ -2268,7 +2255,7 @@ export default function InventoryScreen() {
                   Low Stock Alerts ({lowStockMaterials.length})
                 </Text>
               </View>
-              <Pressable 
+              <Pressable {...hoverLink}
                 onPress={() => { setStatusFilter('low'); setCurrentPage(1); }}
                 className="active:opacity-80"
               >
@@ -3295,8 +3282,8 @@ export default function InventoryScreen() {
                             setPurchaseSupplierId(s.id);
                             setIsSupDropdownOpen(false);
                           }}
-                          className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                            purchaseSupplierId === s.id ? 'bg-blue-50/50' : ''
+                          className={`p-2 rounded-lg ${
+                            purchaseSupplierId === s.id ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                           }`}
                         >
                           <Text className={`text-xs font-bold ${purchaseSupplierId === s.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{s.supplier_name}</Text>
@@ -3443,8 +3430,8 @@ export default function InventoryScreen() {
                           setPurchasePaymentMode(mode);
                           setIsPayDropdownOpen(false);
                         }}
-                        className={`p-2 rounded-lg hover:bg-slate-50 active:bg-slate-100 ${
-                          purchasePaymentMode === mode ? 'bg-blue-50/50' : ''
+                        className={`p-2 rounded-lg ${
+                          purchasePaymentMode === mode ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                         }`}
                       >
                         <Text className={`text-xs font-bold ${purchasePaymentMode === mode ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>{mode}</Text>
@@ -3639,8 +3626,8 @@ export default function InventoryScreen() {
                                   });
                                   setOpenLineMatDropdownIdx(null);
                                 }}
-                                className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                  itm.material_id === m.id ? 'bg-blue-50/50' : ''
+                                className={`p-1.5 rounded-md ${
+                                  itm.material_id === m.id ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                                 }`}
                               >
                                 <Text className={`text-xs font-bold ${itm.material_id === m.id ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
@@ -3682,8 +3669,8 @@ export default function InventoryScreen() {
                                   handleUpdatePurchaseLine(idx, 'unit_short_name', u.short_name);
                                   setOpenLineUnitDropdownIdx(null);
                                 }}
-                                className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                  (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : ''
+                                className={`p-1.5 rounded-md ${
+                                  (itm.unit_short_name || matUnitShort) === u.short_name ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                                 }`}
                               >
                                 <Text className={`text-xs font-bold ${(itm.unit_short_name || matUnitShort) === u.short_name ? 'text-blue-600 font-extrabold' : 'text-slate-700'}`}>
@@ -3757,8 +3744,8 @@ export default function InventoryScreen() {
                                 handleUpdatePurchaseLine(idx, 'gst', gstVal);
                                 setOpenLineGstDropdownIdx(null);
                               }}
-                              className={`p-1.5 rounded-md hover:bg-slate-50 active:bg-slate-100 ${
-                                itm.gst === gstVal ? 'bg-blue-50/50' : ''
+                              className={`p-1.5 rounded-md ${
+                                itm.gst === gstVal ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100'
                               }`}
                             >
                               <Text className={`text-xs font-bold ${itm.gst === gstVal ? 'text-blue-600 font-extrabold' : 'text-slate-700'} text-center`}>{gstVal}%</Text>
@@ -5728,7 +5715,7 @@ export default function InventoryScreen() {
           {/* Nav items */}
           <ScrollView style={{ flex: 1, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
             {/* Dashboard */}
-            <Pressable
+            <Pressable {...ownHover}
               onPress={() => {
                 setActiveTab('dashboard');
                 setIsMobileMenuOpen(false);
@@ -5775,7 +5762,7 @@ export default function InventoryScreen() {
             </Pressable>
 
             {/* Master Collapsible Group Header */}
-            <Pressable
+            <Pressable {...ownHover}
               onPress={() => setIsMasterExpanded(!isMasterExpanded)}
               style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
                 {
@@ -5840,7 +5827,7 @@ export default function InventoryScreen() {
                   const SubIcon = sub.icon;
                   const isActive = activeTab === sub.id;
                   return (
-                    <Pressable
+                    <Pressable {...ownHover}
                       key={sub.id}
                       onPress={() => {
                         setActiveTab(sub.id as TabName);
@@ -5903,7 +5890,7 @@ export default function InventoryScreen() {
               const IconComponent = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <Pressable
+                <Pressable {...ownHover}
                   key={item.id}
                   onPress={() => {
                     setActiveTab(item.id as TabName);
@@ -5951,7 +5938,7 @@ export default function InventoryScreen() {
             })}
           </ScrollView>
 
-          <Pressable
+          <Pressable {...ownHover}
             onPress={() => setSidebarPinned((v) => !v)}
             style={({ hovered }: { hovered?: boolean }) => ({
               padding: 12,

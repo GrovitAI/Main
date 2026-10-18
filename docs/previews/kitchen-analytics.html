@@ -1,0 +1,351 @@
+<div id="kitchen-analytics-preview">
+  <div class="viz-controls" aria-label="Preview size">
+    <button class="btn" type="button" data-preview-device="desktop" aria-pressed="true">Desktop</button>
+    <button class="btn" type="button" data-preview-device="phone" aria-pressed="false">Phone</button>
+    <span class="text-small text-muted">Illustrative data · design preview</span>
+  </div>
+  <div class="viz-carousel" aria-label="Kitchen analytics layouts">
+    <section data-variant="Monthly overview" aria-label="Monthly overview design">
+      <div class="ka-app" id="ka-overview" aria-label="Monthly overview kitchen app"></div>
+    </section>
+    <section data-variant="Report workspace" aria-label="Report workspace design" hidden>
+      <div class="ka-app" id="ka-workspace" aria-label="Report workspace kitchen app"></div>
+    </section>
+  </div>
+</div>
+<style>
+#kitchen-analytics-preview .ka-app{
+  --ka-blue:light-dark(#0066b2,#72bcf5);--ka-blue-fill:light-dark(#0066b2,#005ca1);--ka-on-blue:#ffffff;
+  --ka-canvas:light-dark(#e8f2fa,#101f2e);--ka-white:light-dark(#ffffff,#182b3b);
+  --ka-ink:light-dark(#0f2744,#e4eff8);--ka-muted:light-dark(#5b6b7c,#b2c3d1);
+  --ka-line:light-dark(#c5d9eb,#395267);--ka-soft:light-dark(#dbeafe,#26465f);
+  --ka-green:light-dark(#15803d,#80d7a0);--ka-red:light-dark(#b91c1c,#ffa3a3);
+  --ka-amber:light-dark(#b45309,#f4c780);--ka-warning:light-dark(#fef3c7,#433b27);
+  --ka-row-pad:12px;
+  color:var(--ka-ink);background:var(--ka-canvas);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:14px;line-height:1.45;container-type:inline-size;width:100%;min-width:0;border:1px solid var(--ka-line);
+  border-radius:14px;overflow:clip;min-height:770px;box-sizing:border-box;
+}
+#kitchen-analytics-preview .ka-app[data-phone="true"]{width:min(390px,100%);margin-inline:auto;}
+#kitchen-analytics-preview .ka-app *{box-sizing:border-box;}
+#kitchen-analytics-preview .ka-app [hidden]{display:none!important;}
+#kitchen-analytics-preview .ka-app h1,#kitchen-analytics-preview .ka-app h2,#kitchen-analytics-preview .ka-app h3,#kitchen-analytics-preview .ka-app p{margin:0;}
+#kitchen-analytics-preview .ka-app h1{font-size:24px;line-height:1.2;letter-spacing:-.025em;font-weight:800;}
+#kitchen-analytics-preview .ka-app h2{font-size:17px;font-weight:750;line-height:1.4;}
+#kitchen-analytics-preview .ka-app h3{font-size:15px;font-weight:700;}
+#kitchen-analytics-preview .ka-app button,#kitchen-analytics-preview .ka-app select,#kitchen-analytics-preview .ka-app input{font:inherit;color:inherit;}
+#kitchen-analytics-preview .ka-app button{min-height:44px;border:1px solid var(--ka-line);border-radius:10px;background:var(--ka-white);padding:9px 12px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:7px;max-width:100%;}
+#kitchen-analytics-preview .ka-app button:hover{background:var(--ka-soft);}
+#kitchen-analytics-preview .ka-app button:active{opacity:.7;}
+#kitchen-analytics-preview .ka-app button:disabled{opacity:.45;}
+#kitchen-analytics-preview .ka-app button:focus-visible,#kitchen-analytics-preview .ka-app select:focus-visible,#kitchen-analytics-preview .ka-app input:focus-visible{outline:2px solid var(--ka-blue);outline-offset:3px;}
+#kitchen-analytics-preview .ka-app ::selection{color:var(--ka-ink);background:var(--ka-soft);}
+#kitchen-analytics-preview .ka-app input{caret-color:var(--ka-blue);}
+#kitchen-analytics-preview .ka-app button.ka-primary{background:var(--ka-blue-fill);color:var(--ka-on-blue);border-color:var(--ka-blue-fill);}
+#kitchen-analytics-preview .ka-app button.ka-link{background:transparent;border-color:transparent;color:var(--ka-blue);padding-inline:0;justify-content:flex-start;}
+#kitchen-analytics-preview .ka-app button.ka-link:hover{background:var(--ka-soft);}
+#kitchen-analytics-preview .ka-app button.ka-selected{background:var(--ka-soft);color:var(--ka-blue);}
+#kitchen-analytics-preview .ka-app select,#kitchen-analytics-preview .ka-app input{min-height:44px;max-width:100%;width:100%;border:1px solid var(--ka-line);border-radius:10px;background:var(--ka-white);padding:9px 11px;}
+#kitchen-analytics-preview .ka-app .ka-panel select,#kitchen-analytics-preview .ka-app .ka-panel input,#kitchen-analytics-preview .ka-app .ka-detail select{background:var(--ka-canvas);border-color:transparent;}
+#kitchen-analytics-preview .ka-app label{display:grid;gap:5px;font-size:12px;font-weight:650;color:var(--ka-muted);min-width:0;}
+#kitchen-analytics-preview .ka-app label select,#kitchen-analytics-preview .ka-app label input{font-size:14px;font-weight:500;color:var(--ka-ink);}
+#kitchen-analytics-preview .ka-app .ka-num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+#kitchen-analytics-preview .ka-app .ka-muted{color:var(--ka-muted);font-size:12px;}
+#kitchen-analytics-preview .ka-app .ka-top{background:var(--ka-white);padding:13px 18px;border-bottom:1px solid var(--ka-line);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+#kitchen-analytics-preview .ka-app .ka-mark{width:30px;height:30px;border-radius:9px;background:var(--ka-blue-fill);color:var(--ka-on-blue);display:grid;place-items:center;font-weight:800;}
+#kitchen-analytics-preview .ka-app .ka-top-name{font-weight:750;}
+#kitchen-analytics-preview .ka-app .ka-env{font-size:12px;background:var(--ka-soft);padding:3px 8px;border-radius:99px;color:var(--ka-blue);font-weight:700;}
+#kitchen-analytics-preview .ka-app .ka-shell{display:grid;grid-template-columns:155px minmax(0,1fr);min-height:710px;}
+#kitchen-analytics-preview .ka-app .ka-rail{background:var(--ka-white);border-right:1px solid var(--ka-line);padding:15px 10px;display:flex;flex-direction:column;gap:5px;}
+#kitchen-analytics-preview .ka-app .ka-rail button,#kitchen-analytics-preview .ka-app .ka-nav-label{border:0;background:transparent;justify-content:flex-start;padding:10px;display:flex;align-items:center;gap:10px;color:var(--ka-muted);font-weight:600;font-size:13px;min-height:44px;}
+#kitchen-analytics-preview .ka-app .ka-rail button.ka-selected{background:var(--ka-soft);color:var(--ka-blue);}
+#kitchen-analytics-preview .ka-app .ka-rail-separator{height:1px;background:var(--ka-line);margin:12px 0 5px;}
+#kitchen-analytics-preview .ka-app .ka-main{padding:22px 24px 26px;min-width:0;}
+#kitchen-analytics-preview .ka-app .ka-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
+#kitchen-analytics-preview .ka-app .ka-heading p{margin-top:6px;color:var(--ka-muted);font-size:13px;}
+#kitchen-analytics-preview .ka-app .ka-heading .ka-tools{display:flex;gap:8px;align-items:end;flex-wrap:wrap;}
+#kitchen-analytics-preview .ka-app .ka-tools label{width:190px;}
+#kitchen-analytics-preview .ka-app .ka-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--ka-white);border:1px solid var(--ka-line);border-radius:12px;margin-bottom:22px;}
+#kitchen-analytics-preview .ka-app .ka-stat{padding:16px;border-right:1px solid var(--ka-line);}
+#kitchen-analytics-preview .ka-app .ka-stat:last-child{border-right:0;}
+#kitchen-analytics-preview .ka-app .ka-stat .ka-stat-label{font-size:12px;color:var(--ka-muted);font-weight:650;}
+#kitchen-analytics-preview .ka-app .ka-stat strong{font-size:20px;font-weight:800;display:block;margin:5px 0;color:var(--ka-ink);}
+#kitchen-analytics-preview .ka-app .ka-stat small{font-size:12px;color:var(--ka-muted);display:block;}
+#kitchen-analytics-preview .ka-app .ka-columns{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(0,1.35fr);gap:20px;align-items:start;}
+#kitchen-analytics-preview .ka-app .ka-panel{background:var(--ka-white);border:1px solid var(--ka-line);border-radius:12px;padding:16px;min-width:0;}
+#kitchen-analytics-preview .ka-app .ka-section-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+#kitchen-analytics-preview .ka-app .ka-section-head .ka-link{font-size:12px;min-height:44px;}
+#kitchen-analytics-preview .ka-app .ka-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:15px;}
+#kitchen-analytics-preview .ka-app .ka-bar-row{display:block;background:transparent;border:0;width:100%;padding:10px 0;border-radius:0;margin-bottom:2px;text-align:left;}
+#kitchen-analytics-preview .ka-app .ka-bar-head{display:flex;justify-content:space-between;gap:8px;width:100%;font-size:13px;font-weight:600;}
+#kitchen-analytics-preview .ka-app .ka-track{display:block;height:7px;width:100%;background:var(--ka-soft);border-radius:3px;margin-top:7px;overflow:hidden;}
+#kitchen-analytics-preview .ka-app .ka-bar{height:7px;background:var(--ka-blue-fill);border-radius:3px;transition:width 220ms cubic-bezier(.16,1,.3,1);}
+#kitchen-analytics-preview .ka-app .ka-bar-row[data-category="Uncategorized"] .ka-bar{background:var(--ka-amber);}
+#kitchen-analytics-preview .ka-app .ka-bar-info{display:flex;justify-content:space-between;margin-top:4px;font-size:12px;font-weight:500;color:var(--ka-muted);}
+#kitchen-analytics-preview .ka-app .ka-total{display:flex;justify-content:space-between;gap:12px;padding-top:14px;margin-top:10px;border-top:1px solid var(--ka-line);font-weight:750;}
+#kitchen-analytics-preview .ka-app table{width:100%;border-collapse:collapse;font-size:13px;}
+#kitchen-analytics-preview .ka-app th{text-align:left;font-size:12px;font-weight:650;color:var(--ka-muted);padding:10px 6px;border-bottom:1px solid var(--ka-line);}
+#kitchen-analytics-preview .ka-app td{padding:var(--ka-row-pad) 6px;border-bottom:1px solid var(--ka-line);vertical-align:middle;}
+#kitchen-analytics-preview .ka-app tr:last-child td{border-bottom:0;}
+#kitchen-analytics-preview .ka-app th.ka-right,#kitchen-analytics-preview .ka-app td.ka-right{text-align:right;}
+#kitchen-analytics-preview .ka-app .ka-row-title{font-weight:700;}
+#kitchen-analytics-preview .ka-app .ka-cell-caption{display:block;font-size:12px;color:var(--ka-muted);margin-top:2px;}
+#kitchen-analytics-preview .ka-app .ka-alert{background:var(--ka-warning);border-radius:9px;padding:11px 12px;margin-top:15px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+#kitchen-analytics-preview .ka-app .ka-alert p{font-size:12px;color:var(--ka-ink);}
+#kitchen-analytics-preview .ka-app .ka-alert button{background:transparent;border:0;color:var(--ka-blue);font-size:12px;padding:0;}
+#kitchen-analytics-preview .ka-app .ka-tabs{display:flex;gap:22px;border-bottom:1px solid var(--ka-line);margin:0 0 18px;}
+#kitchen-analytics-preview .ka-app .ka-tabs button{border:0;border-radius:0;background:transparent;padding:0 0 12px;color:var(--ka-muted);position:relative;}
+#kitchen-analytics-preview .ka-app .ka-tabs button[aria-pressed="true"]{color:var(--ka-blue);}
+#kitchen-analytics-preview .ka-app .ka-tabs button[aria-pressed="true"]:after{content:'';height:3px;background:var(--ka-blue-fill);position:absolute;bottom:0;left:0;right:0;border-radius:2px;}
+#kitchen-analytics-preview .ka-app .ka-work-summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:2px 0 18px;}
+#kitchen-analytics-preview .ka-app .ka-work-summary strong{font-size:28px;font-weight:800;letter-spacing:-.025em;}
+#kitchen-analytics-preview .ka-app .ka-detail{background:var(--ka-white);border:1px solid var(--ka-line);border-radius:12px;margin-top:18px;padding:16px;}
+#kitchen-analytics-preview .ka-app .ka-detail .ka-section-head{border-bottom:1px solid var(--ka-line);padding-bottom:10px;}
+#kitchen-analytics-preview .ka-app .ka-empty{padding:38px 18px;text-align:center;display:grid;justify-items:center;gap:10px;background:var(--ka-white);border:1px solid var(--ka-line);border-radius:12px;}
+#kitchen-analytics-preview .ka-app .ka-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+#kitchen-analytics-preview .ka-app .ka-form{display:grid;gap:16px;}
+#kitchen-analytics-preview .ka-app .ka-badge{background:var(--ka-soft);color:var(--ka-blue);border-radius:99px;font-size:12px;font-weight:650;display:inline-block;padding:4px 9px;}
+#kitchen-analytics-preview .ka-app .ka-small-note{font-size:12px;color:var(--ka-muted);margin:12px 0;}
+#kitchen-analytics-preview .ka-app .ka-mobile-back{display:none;}
+#kitchen-analytics-preview .ka-app .ka-mobile-nav{display:none;}
+#kitchen-analytics-preview .ka-app .ka-home-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0;}
+#kitchen-analytics-preview .ka-app .ka-home-actions div{padding:18px 12px;border:1px solid var(--ka-line);border-radius:12px;background:var(--ka-white);font-weight:700;}
+#kitchen-analytics-preview .ka-app .ka-shortcut{display:flex;justify-content:space-between;gap:16px;align-items:center;}
+#kitchen-analytics-preview .ka-app .ka-shortcut p{font-size:13px;color:var(--ka-muted);margin-top:5px;}
+#kitchen-analytics-preview .ka-app .ka-export{width:100%;resize:vertical;min-height:170px;background:var(--ka-canvas);color:var(--ka-ink);border:1px solid var(--ka-line);border-radius:8px;padding:12px;font:12px/1.6 ui-monospace,monospace;}
+#kitchen-analytics-preview .ka-app .ka-live{font-size:12px;color:var(--ka-green);margin-top:12px;}
+@container (max-width:760px){
+  #kitchen-analytics-preview .ka-app .ka-shell{grid-template-columns:125px minmax(0,1fr);}
+  #kitchen-analytics-preview .ka-app .ka-main{padding:20px 16px;}
+  #kitchen-analytics-preview .ka-app .ka-columns{grid-template-columns:1fr;}
+  #kitchen-analytics-preview .ka-app .ka-form-grid{grid-template-columns:1fr;}
+}
+@container (max-width:560px){
+  #kitchen-analytics-preview .ka-app .ka-shell{display:block;}
+  #kitchen-analytics-preview .ka-app .ka-rail{display:none;}
+  #kitchen-analytics-preview .ka-app .ka-top{padding:12px 16px;}
+  #kitchen-analytics-preview .ka-app .ka-main{padding:15px 16px 22px;}
+  #kitchen-analytics-preview .ka-app .ka-mobile-back{display:inline-flex;margin-bottom:10px;}
+  #kitchen-analytics-preview .ka-app h1{font-size:26px;}
+  #kitchen-analytics-preview .ka-app .ka-heading{gap:12px;margin-bottom:16px;}
+  #kitchen-analytics-preview .ka-app .ka-heading .ka-tools{width:100%;}
+  #kitchen-analytics-preview .ka-app .ka-heading .ka-tools label{flex:1;}
+  #kitchen-analytics-preview .ka-app .ka-stats{grid-template-columns:1fr 1fr;}
+  #kitchen-analytics-preview .ka-app .ka-stat{padding:13px;}
+  #kitchen-analytics-preview .ka-app .ka-stat:nth-child(2){border-right:0;}
+  #kitchen-analytics-preview .ka-app .ka-stat:last-child{grid-column:1/-1;border-top:1px solid var(--ka-line);}
+  #kitchen-analytics-preview .ka-app .ka-stat strong{font-size:22px;}
+  #kitchen-analytics-preview .ka-app .ka-stat:last-child strong{font-size:19px;}
+  #kitchen-analytics-preview .ka-app .ka-columns{gap:16px;}
+  #kitchen-analytics-preview .ka-app .ka-filters{grid-template-columns:1fr;}
+  #kitchen-analytics-preview .ka-app .ka-panel{padding:14px;}
+  #kitchen-analytics-preview .ka-app label select,#kitchen-analytics-preview .ka-app label input{font-size:16px;}
+  #kitchen-analytics-preview .ka-app table,#kitchen-analytics-preview .ka-app tbody{display:block;}
+  #kitchen-analytics-preview .ka-app thead{display:none;}
+  #kitchen-analytics-preview .ka-app tr{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;padding:12px 0;border-bottom:1px solid var(--ka-line);}
+  #kitchen-analytics-preview .ka-app tr:last-child{border-bottom:0;}
+  #kitchen-analytics-preview .ka-app td{border:0;padding:0;text-align:left!important;overflow-wrap:anywhere;}
+  #kitchen-analytics-preview .ka-app td:first-child{grid-column:1/-1;margin-bottom:4px;}
+  #kitchen-analytics-preview .ka-app td:not(:first-child):before{content:attr(data-label);display:block;font-size:12px;color:var(--ka-muted);margin-bottom:2px;}
+  #kitchen-analytics-preview .ka-app td:last-child{text-align:right!important;}
+  #kitchen-analytics-preview .ka-app .ka-mobile-nav{display:flex;justify-content:space-around;gap:4px;padding:12px 5px;border-top:1px solid var(--ka-line);background:var(--ka-white);}
+  #kitchen-analytics-preview .ka-app .ka-mobile-nav span{font-size:12px;font-weight:600;color:var(--ka-muted);display:grid;justify-items:center;gap:5px;}
+  #kitchen-analytics-preview .ka-app .ka-home-actions{grid-template-columns:1fr 1fr;}
+  #kitchen-analytics-preview .ka-app .ka-shortcut{align-items:start;}
+}
+@media(prefers-reduced-motion:reduce){#kitchen-analytics-preview .ka-app *{transition:none!important;}}
+</style>
+<script>
+(() => {
+  const root = document.getElementById('kitchen-analytics-preview');
+  const money = n => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n);
+  const icon = n => `<i data-lucide="${n}" aria-hidden="true"></i>`;
+  const categories = ['Dairy','Chocolate & dry goods','Packaging','Fresh produce','Spices','Uncategorized'];
+  const baseSales = [
+    {item:'Nutella sauce',branch:'Kolathur',qty:120,unit:'kg',amount:38400},
+    {item:'Nutella sauce',branch:'Velachery',qty:90,unit:'kg',amount:28800},
+    {item:'Chocolate sauce',branch:'Kolathur',qty:45,unit:'kg',amount:11700},
+    {item:'Chocolate sauce',branch:'Velachery',qty:70,unit:'kg',amount:18200},
+    {item:'Falooda base',branch:'Kolathur',qty:60,unit:'L',amount:6600},
+    {item:'Falooda base',branch:'Velachery',qty:80,unit:'L',amount:8800},
+    {item:'Brownie',branch:'Kolathur',qty:180,unit:'pcs',amount:9900},
+    {item:'Brownie',branch:'Velachery',qty:200,unit:'pcs',amount:11000}
+  ];
+  const baseBuys = [
+    {date:'2026-10-02',vendor:'Aavin dairy',category:'Dairy',amount:24300,paid:true},
+    {date:'2026-10-03',vendor:'Cocoa supplies',category:'Chocolate & dry goods',amount:28000,paid:false},
+    {date:'2026-10-04',vendor:'Eco packs',category:'Packaging',amount:10000,paid:true},
+    {date:'2026-10-05',vendor:'Fresh market',category:'Fresh produce',amount:6800,paid:true},
+    {date:'2026-10-06',vendor:'Kitchen supplies',category:'Spices',amount:4000,paid:true},
+    {date:'2026-10-07',vendor:'Local supplier',category:'Uncategorized',amount:2500,paid:false}
+  ];
+  const baseExpenses = [{source:'Other expense',date:'2026-10-04',vendor:'Cooking gas',category:'Gas',amount:4200},{source:'Other expense',date:'2026-10-07',vendor:'Branch delivery',category:'Transport',amount:2600}];
+  const baseCash = [
+    {date:'2026-10-03',party:'Kolathur',type:'Received',incoming:30000,outgoing:0},
+    {date:'2026-10-06',party:'Velachery',type:'Received',incoming:22600,outgoing:0},
+    {date:'2026-10-05',party:'Aavin dairy',type:'Vendor payment',incoming:0,outgoing:12000},
+    {date:'2026-10-07',party:'Cocoa supplies',type:'Vendor payment',incoming:0,outgoing:18000}
+  ];
+  const states = [];
+  const sum = (rows,key='amount') => rows.reduce((a,r)=>a+r[key],0);
+  const option = (value,label,selected) => `<option value="${value}"${value===selected?' selected':''}>${label}</option>`;
+  const escape = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const date = value => new Date(`${value}T12:00:00+05:30`).toLocaleDateString('en-IN',{day:'2-digit',month:'short',timeZone:'Asia/Kolkata'});
+  function rowsFor(s) {
+    const factor = s.month==='2026-09' ? .8 : 1;
+    const empty = s.month==='2026-11';
+    const transform = r => ({...r,amount:Math.round(r.amount*factor),date:s.month==='2026-09'?r.date?.replace('2026-10','2026-09'):r.date});
+    const sales = empty?[]:baseSales.map(r=>({...transform(r),qty:r.qty*factor}));
+    const buys = empty?[]:[...baseBuys,...(s.month==='2026-10'?s.newBuys:[])].map(transform);
+    const expenses = empty?[]:baseExpenses.map(transform);
+    const cash = empty?[]:baseCash.map(r=>({...r,date:s.month==='2026-09'?r.date.replace('2026-10','2026-09'):r.date,incoming:Math.round(r.incoming*factor),outgoing:Math.round(r.outgoing*factor)}));
+    cash.push(...buys.filter(r=>r.paid).map(r=>({date:r.date,party:r.vendor,type:'Buy · paid on entry',incoming:0,outgoing:r.amount})),...expenses.map(r=>({date:r.date,party:r.vendor,type:'Other expense',incoming:0,outgoing:r.amount})));
+    return {sales,buys,expenses,cash:cash.sort((a,b)=>a.date.localeCompare(b.date))};
+  }
+  function salesFiltered(s,rows){return rows.filter(r=>(s.branch==='All branches'||r.branch===s.branch)&&(s.item==='All items'||r.item===s.item));}
+  function salesTable(rows) {
+    return `<table aria-label="Item sales to branches"><thead><tr><th>Item / branch</th><th class="ka-right">Quantity</th><th class="ka-right">Sale value</th></tr></thead><tbody>${rows.map(r=>`<tr><td><span class="ka-row-title">${r.item}</span><span class="ka-cell-caption">${r.branch}</span></td><td class="ka-right ka-num" data-label="Quantity">${r.qty.toLocaleString('en-IN')} ${r.unit}</td><td class="ka-right ka-num" data-label="Sale value">${money(r.amount)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  function purchaseTable(rows) {
+    return `<table aria-label="Purchases"><thead><tr><th>Vendor / category</th><th>Date</th><th>At entry</th><th class="ka-right">Amount</th></tr></thead><tbody>${rows.map(r=>`<tr><td><span class="ka-row-title">${escape(r.vendor)}</span><span class="ka-cell-caption">${escape(r.category)} · ${r.source || 'Purchase'}</span></td><td data-label="Date">${date(r.date)}</td><td data-label="At entry">${r.paid?'Paid on entry':'Pay later'}</td><td class="ka-right ka-num" data-label="Amount">${money(r.amount)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  function empty(message) {return `<div class="ka-empty">${icon('calendar-days')}<h3>No entries for this selection</h3><p class="ka-muted">${message}</p><button data-action="reset" class="ka-primary cursor-interaction">Show October</button></div>`;}
+  function categoryBars(s,d) {
+    const rows = s.spend==='all'?[...d.buys,...d.expenses]:d.buys;
+    const names = [...new Set(rows.map(r=>r.category))];
+    const groups = names.map(name=>({name,rows:rows.filter(r=>r.category===name)})).map(g=>({...g,amount:sum(g.rows)})).sort((a,b)=>b.amount-a.amount);
+    const total=sum(rows);
+    return groups.map(g=>`<button type="button" class="ka-bar-row cursor-interaction" data-category="${escape(g.name)}" aria-label="View ${escape(g.name)} purchases ${money(g.amount)}"><span class="ka-bar-head"><span>${g.name}</span><span class="ka-num">${money(g.amount)}</span></span><span class="ka-track"><span class="ka-bar" style="display:block;width:${total?g.amount/total*100:0}%"></span></span><span class="ka-bar-info"><span>${g.rows.length} ${g.rows.length===1?'entry':'entries'}</span><span>${total?(g.amount/total*100).toFixed(1):0}%</span></span></button>`).join('');
+  }
+  function filters(s) {
+    return `<div class="ka-filters"><label>Destination branch<select data-filter="branch" aria-label="Destination branch">${['All branches','Kolathur','Velachery'].map(n=>option(n,n,s.branch)).join('')}</select></label><label>Item<select data-filter="item" aria-label="Item">${['All items',...new Set(baseSales.map(r=>r.item))].map(n=>option(n,n,s.item)).join('')}</select></label></div>`;
+  }
+  function purchaseFilters(s) {
+    return `<div class="ka-filters"><label>Category<select data-filter="category" aria-label="Purchase category filter">${['All categories',...categories,...(s.spend==='all'?['Gas','Transport']:[])].map(n=>option(n,n,s.category)).join('')}</select></label><label>View<select data-filter="spend" aria-label="Spending view">${option('purchases','Purchases only',s.spend)}${option('all','Purchases + other expenses',s.spend)}</select></label></div>`;
+  }
+  function header(s) {
+    return `<button class="ka-link ka-mobile-back cursor-interaction" data-action="home">${icon('arrow-left')} Central Kitchen</button><div class="ka-heading"><div><h1>${s.page==='vendors'?'Vendor categories':s.page==='home'?'Central Kitchen':'Analytics'}</h1><p>${s.page==='vendors'?'A default for new purchases. History keeps its category.':s.page==='home'?'The kitchen’s daily work':'Goods supplied, purchases and cash — month by month'}</p></div>${s.page==='analytics'?`<div class="ka-tools"><label>Month<select data-filter="month" aria-label="Month">${option('2026-10','Oct 2026 · to date',s.month)}${option('2026-09','September 2026',s.month)}${option('2026-11','November 2026',s.month)}</select></label><button type="button" data-action="export" class="cursor-interaction">${icon('download')} Export</button></div>`:`<button data-action="analytics" class="cursor-interaction">${icon('chart-no-axes-combined')} Analytics</button>`}</div>`;
+  }
+  function overview(s,d) {
+    const selected=salesFiltered(s,d.sales),spending=s.spend==='all'?[...d.buys,...d.expenses]:d.buys;
+    return `<div class="ka-stats"><div class="ka-stat"><div class="ka-stat-label">Sales to branches</div><strong class="ka-num">${money(sum(d.sales))}</strong><small>Value of goods sent · all branches</small></div><div class="ka-stat"><div class="ka-stat-label">Purchases</div><strong class="ka-num">${money(sum(d.buys))}</strong><small>Paid on entry + bought on credit</small></div><div class="ka-stat"><div class="ka-stat-label">Other expenses</div><strong class="ka-num">${money(sum(d.expenses))}</strong><small>Gas, transport and direct spending</small></div></div>${!d.buys.length?empty('Choose a month with recorded kitchen activity.'): `<div class="ka-columns"><section class="ka-panel"><div class="ka-section-head"><h2>Where we spent</h2><button class="ka-link cursor-interaction" data-action="vendors">${icon('tags')} Vendor setup</button></div><label class="ka-small-note">View<select data-filter="spend" aria-label="Spending view">${option('purchases','Purchases only',s.spend)}${option('all','Purchases + other expenses',s.spend)}</select></label>${categoryBars(s,d)}<div class="ka-total"><span>${s.spend==='all'?'All spending':'Total purchases'}</span><span class="ka-num">${money(sum(spending))}</span></div><div class="ka-alert"><p>${d.buys.filter(r=>r.category==='Uncategorized').length} purchase needs a category</p><button data-category="Uncategorized" class="cursor-interaction">Review</button></div></section><section class="ka-panel"><div class="ka-section-head"><h2>Item sales to branches</h2><span class="ka-muted">Goods sent</span></div>${filters(s)}${selected.length?salesTable(selected):empty('No goods sent for the selected branch and item.')}<div class="ka-total"><span>Selected sales</span><span class="ka-num">${money(sum(selected))}</span></div><p class="ka-small-note">Quantity keeps each item’s unit. Collections are in Cash.</p></section></div>`}`;
+  }
+  function workspace(s,d) {
+    const tab=s.report;
+    const tabs=`<div class="ka-tabs" aria-label="Kitchen reports">${[['sales','Sales to branches'],['purchases','Purchases'],['cash','Cash']].map(([value,label])=>`<button class="cursor-interaction" data-report="${value}" aria-pressed="${tab===value}">${label}</button>`).join('')}</div>`;
+    if(!d.buys.length) return tabs+empty('Choose a month with recorded kitchen activity.');
+    if(tab==='sales') {const selected=salesFiltered(s,d.sales);return `${tabs}<div class="ka-work-summary"><strong class="ka-num">${money(sum(selected))}</strong><span class="ka-muted">Goods sent to selected branches · ${selected.length} item/branch rows</span></div><section class="ka-panel">${filters(s)}${salesTable(selected)}<div class="ka-total"><span>Sales to branches</span><span class="ka-num">${money(sum(selected))}</span></div></section><p class="ka-small-note">Kitchen transfer prices. These are not customer POS sales or cash collections.</p>`;}
+    if(tab==='purchases') {
+      const source=s.spend==='all'?[...d.buys,...d.expenses.map(r=>({...r,paid:true}))]:d.buys;
+      const selected=source.filter(r=>s.category==='All categories'||r.category===s.category);
+      return `${tabs}<div class="ka-work-summary"><strong class="ka-num">${money(sum(selected))}</strong><span class="ka-muted">${s.spend==='all'?'Purchases and other expenses':'Purchase invoices'} · ${selected.length} entries</span></div><div class="ka-columns"><section class="ka-panel"><div class="ka-section-head"><h2>Category breakdown</h2><button class="ka-link cursor-interaction" data-action="vendors">Vendor setup</button></div>${categoryBars(s,d)}</section><section class="ka-panel">${purchaseFilters(s)}${selected.length?purchaseTable(selected):empty('No purchases match this category.')}<div class="ka-total"><span>Selected spending</span><span class="ka-num">${money(sum(selected))}</span></div></section></div><p class="ka-small-note">Pay later describes the original entry, not today’s unpaid balance. Payments are shown separately in Cash.</p>`;
+    }
+    return `${tabs}<div class="ka-stats"><div class="ka-stat"><div class="ka-stat-label">Cash received</div><strong class="ka-num" style="color:var(--ka-green)">${money(sum(d.cash,'incoming'))}</strong><small>Collections from branches</small></div><div class="ka-stat"><div class="ka-stat-label">Cash paid</div><strong class="ka-num" style="color:var(--ka-red)">${money(sum(d.cash,'outgoing'))}</strong><small>Paid buys, vendor payments + expenses</small></div><div class="ka-stat"><div class="ka-stat-label">Cash entries</div><strong class="ka-num">${d.cash.length}</strong><small>May settle earlier months’ goods</small></div></div><section class="ka-panel"><table aria-label="Cash entries"><thead><tr><th>Party / purpose</th><th>Date</th><th class="ka-right">Received</th><th class="ka-right">Paid</th></tr></thead><tbody>${d.cash.map(r=>`<tr><td><span class="ka-row-title">${r.party}</span><span class="ka-cell-caption">${r.type}</span></td><td data-label="Date">${date(r.date)}</td><td data-label="Received" class="ka-right ka-num">${r.incoming?money(r.incoming):'—'}</td><td data-label="Paid" class="ka-right ka-num">${r.outgoing?money(r.outgoing):'—'}</td></tr>`).join('')}</tbody></table></section>`;
+  }
+  function vendorFlow(s) {
+    return `<div class="ka-form-grid"><section class="ka-panel"><div class="ka-section-head"><h2>Edit vendor</h2><span class="ka-badge">Example</span></div><form class="ka-form" data-form="vendor"><label>Vendor name<input value="Aavin dairy" readonly aria-label="Vendor name"></label><label>Default purchase category<select name="vendorCategory" aria-label="Vendor default category">${categories.map(n=>option(n,n,s.vendorCategory)).join('')}</select></label><p class="ka-muted">Suggested automatically on new buys from this vendor. Changing it leaves older purchases unchanged.</p><button class="ka-primary cursor-interaction" type="button" data-action="save-vendor">Save vendor default</button></form></section><section class="ka-panel"><div class="ka-section-head"><h2>New purchase</h2><span class="ka-muted">8 Oct · Aavin dairy</span></div><form class="ka-form" data-form="buy"><label>Purchase category<select name="buyCategory" aria-label="Category for this purchase">${categories.map(n=>option(n,n,s.buyCategory)).join('')}</select></label><p class="ka-muted">Starts with the vendor default; choose a different category for this purchase.</p><label>Amount in rupees<input type="number" min="1" max="1000000" step="1" name="buyAmount" value="1200" aria-label="Example purchase amount" required></label><label>Payment<select name="payment" aria-label="Example purchase payment"><option value="paid">Paid on entry</option><option value="later">Pay later</option></select></label><button class="ka-primary cursor-interaction" type="button" data-action="add-buy">Add example purchase</button></form></section></div><div class="ka-live" role="status" aria-live="polite">${escape(s.notice)}</div><section class="ka-detail"><h2>History keeps its category</h2><p class="ka-small-note">This existing purchase stays Dairy even if the vendor default changes.</p>${purchaseTable([baseBuys[0]])}</section>`;
+  }
+  function home(s) {
+    return `<div class="ka-home-actions"><div>Sent to a branch</div><div>Received money</div><div>Bought from a vendor</div><div>Paid / spent</div></div><section class="ka-panel ka-shortcut"><div><h2>Kitchen analytics</h2><p>Monthly purchases and item sales to branches</p></div><button class="ka-primary cursor-interaction" data-action="analytics">Open ${icon('arrow-right')}</button></section><p class="ka-small-note">Proposed Home shortcut · existing five tabs stay in place</p>`;
+  }
+  function detail(s,d) {
+    if(!s.detail) return '';
+    const rows=[...d.buys,...(s.spend==='all'?d.expenses.map(r=>({...r,paid:true})):[])].filter(r=>r.category===s.detail);
+    return `<section class="ka-detail" aria-live="polite"><div class="ka-section-head"><div><h2>${escape(s.detail)}</h2><span class="ka-muted">${rows.length} ${rows.length===1?'entry':'entries'} · ${money(sum(rows))}</span></div><button data-action="close-detail" aria-label="Close category detail" class="cursor-interaction">${icon('x')} Close</button></div>${rows.length?purchaseTable(rows):'<p class="ka-small-note">No entries in this category for the selected month.</p>'}</section>`;
+  }
+  function csv(s,d) {
+    let header,rows;
+    const report=s.report;
+    if(report==='sales') {header=['Item','Destination branch','Quantity','Unit','Sale value INR'];rows=salesFiltered(s,d.sales).map(r=>[r.item,r.branch,r.qty,r.unit,r.amount]);}
+    else if(report==='purchases') {header=['Date','Party','Category','Source','At entry','Amount INR'];const source=s.spend==='all'?[...d.buys.map(r=>({...r,source:'Purchase'})),...d.expenses.map(r=>({...r,paid:true,source:'Other expense'}))]:d.buys.map(r=>({...r,source:'Purchase'}));rows=source.filter(r=>s.category==='All categories'||r.category===s.category).map(r=>[r.date,r.vendor,r.category,r.source,r.paid?'Paid on entry':'Pay later',r.amount]);}
+    else {header=['Date','Party','Type','Received INR','Paid INR'];rows=d.cash.map(r=>[r.date,r.party,r.type,r.incoming,r.outgoing]);}
+    const totals=report==='cash'?['Total','','',rows.reduce((a,r)=>a+r[3],0),rows.reduce((a,r)=>a+r[4],0)]:report==='sales'?['Total','','','',rows.reduce((a,r)=>a+r[4],0)]:['Total','','','','',rows.reduce((a,r)=>a+r[5],0)];
+    return [header,...rows,totals].map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  }
+  function exportPanel(s,d) {
+    if(!s.export||s.page!=='analytics')return '';
+    return `<section class="ka-detail"><div class="ka-section-head"><h2>Mock CSV</h2><button class="cursor-interaction" data-action="close-export">Close</button></div><label class="ka-small-note">Report<select data-filter="exportReport" aria-label="Export report">${option('sales','Item sales to branches',s.report)}${option('purchases','Purchases / spending',s.report)}${option('cash','Cash entries',s.report)}</select></label><textarea class="ka-export" readonly aria-label="Mock CSV export">${escape(csv(s,d))}</textarea><p class="ka-small-note">Illustrative rows only. The app export will download the selected report.</p></section>`;
+  }
+  function render(s) {
+    const d=rowsFor(s),app=s.element;
+    app.innerHTML=`<header class="ka-top"><div class="ka-mark">L</div><span class="ka-top-name">Le Laban · Central Kitchen</span><span class="ka-env">Staging concept</span></header><div class="ka-shell"><aside class="ka-rail" aria-label="Kitchen navigation"><button class="cursor-interaction ${s.page==='home'?'ka-selected':''}" data-action="home">${icon('house')} Home</button><div class="ka-nav-label">${icon('boxes')} Items</div><div class="ka-nav-label">${icon('store')} Branches</div><button class="cursor-interaction ${s.page==='vendors'?'ka-selected':''}" data-action="vendors">${icon('truck')} Vendors</button><div class="ka-nav-label">${icon('history')} History</div><div class="ka-rail-separator"></div><button class="cursor-interaction ${s.page==='analytics'?'ka-selected':''}" data-action="analytics">${icon('chart-no-axes-combined')} Analytics</button></aside><main class="ka-main">${header(s)}${s.page==='home'?home(s):s.page==='vendors'?vendorFlow(s):s.layout==='overview'?overview(s,d):workspace(s,d)}${s.page==='analytics'?detail(s,d):''}${exportPanel(s,d)}</main></div><div class="ka-mobile-nav" aria-label="Existing kitchen tabs"><span>${icon('house')}Home</span><span>${icon('boxes')}Items</span><span>${icon('store')}Branches</span><span>${icon('truck')}Vendors</span><span>${icon('history')}History</span></div>`;
+    if(globalThis.lucide) lucide.createIcons({attrs:{width:17,height:17}});
+  }
+  function save() {
+    if(window.openai?.setWidgetState) window.openai.setWidgetState({modelContent:{preview:'Kitchen analytics',device:deviceState.device,layouts:states.map(s=>({layout:s.layout,report:s.report,page:s.page,month:s.month,vendorDefault:s.vendorCategory,purchaseCategory:s.buyCategory}))},privateContent:{device:deviceState.device,views:states.map(({element,...s})=>s)}}).catch(()=>{});
+  }
+  const deviceState={device:'desktop'};
+  function applyDevice(){
+    states.forEach(s=>s.element.dataset.phone=String(deviceState.device==='phone'));
+    root.querySelectorAll('[data-preview-device]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.previewDevice===deviceState.device)));
+  }
+  ['overview','workspace'].forEach(layout=>{
+    const s={layout,element:document.getElementById(`ka-${layout}`),page:'analytics',month:'2026-10',branch:'All branches',item:'All items',category:'All categories',spend:'purchases',report:'sales',detail:null,export:false,vendorCategory:'Dairy',buyCategory:'Dairy',newBuys:[],notice:''};
+    states.push(s);render(s);
+    s.element.addEventListener('click',e=>{
+      const button=e.target.closest('button');if(!button)return;
+      if(!button.dataset.action&&!button.dataset.report&&!button.dataset.category)return;
+      if(button.dataset.action){
+        const a=button.dataset.action;
+        if(a==='save-vendor'){
+          const form=button.closest('form');
+          s.vendorCategory=form.querySelector('[name="vendorCategory"]').value;
+          s.buyCategory=s.vendorCategory;
+          s.notice='Example vendor default saved. Earlier purchases kept their categories.';
+        }
+        if(a==='add-buy'){
+          const form=button.closest('form'),input=form.querySelector('[name="buyAmount"]');
+          const amount=Number(input.value);
+          if(!input.reportValidity()||!Number.isFinite(amount)||amount<=0||amount>1000000)return;
+          s.buyCategory=form.querySelector('[name="buyCategory"]').value;
+          s.newBuys.push({date:'2026-10-08',vendor:'Aavin dairy',category:s.buyCategory,amount,paid:form.querySelector('[name="payment"]').value==='paid'});
+          s.notice=`Example purchase added: ${money(amount)} under ${s.buyCategory}. Open Analytics to see the updated October total.`;
+        }
+        if(['home','analytics','vendors'].includes(a)){s.page=a;s.detail=null;s.export=false;}
+        else if(a==='close-detail'){s.detail=null;if(s.layout==='overview')s.category='All categories';}
+        else if(a==='export')s.export=!s.export;
+        else if(a==='close-export')s.export=false;
+        else if(a==='reset'){s.month='2026-10';s.branch='All branches';s.item='All items';s.category='All categories';}
+      }
+      if(button.dataset.report){s.report=button.dataset.report;s.detail=null;s.export=false;}
+      if(button.dataset.category){s.detail=button.dataset.category;s.category=button.dataset.category;}
+      render(s);save();
+    });
+    s.element.addEventListener('change',e=>{
+      const key=e.target.dataset.filter;if(!key)return;
+      if(key==='exportReport'){s.report=e.target.value;render(s);save();return;}
+      s[key]=e.target.value;if(key==='spend')s.category='All categories';s.detail=null;s.export=false;render(s);save();
+    });
+    s.element.addEventListener('submit',e=>{
+      e.preventDefault();const form=e.target;
+      if(form.dataset.form==='vendor'){s.vendorCategory=form.elements.vendorCategory.value;s.buyCategory=s.vendorCategory;s.notice='Example vendor default saved. Earlier purchases kept their categories.';}
+      if(form.dataset.form==='buy'){
+        const amount=Number(form.elements.buyAmount.value);
+        if(!Number.isFinite(amount)||amount<=0||amount>1000000)return;
+        s.buyCategory=form.elements.buyCategory.value;
+        s.newBuys.push({date:'2026-10-08',vendor:'Aavin dairy',category:s.buyCategory,amount,paid:form.elements.payment.value==='paid'});
+        s.notice=`Example purchase added: ${money(amount)} under ${s.buyCategory}. Open Analytics to see the updated October total.`;
+      }
+      render(s);save();
+    });
+    if(globalThis.Tweak){
+      const density={compact:false};
+      const tweak=new Tweak({container:s.element,onChange:()=>s.element.style.setProperty('--ka-row-pad',density.compact?'8px':'12px')});
+      tweak.addToggle(density,'compact',{label:'Compact table rows'});
+    }
+  });
+  root.querySelectorAll('[data-preview-device]').forEach(b=>b.addEventListener('click',()=>{deviceState.device=b.dataset.previewDevice;applyDevice();save();}));
+  function restore(saved){
+    if(!saved?.privateContent)return;
+    const p=saved.privateContent;
+    if(['desktop','phone'].includes(p.device))deviceState.device=p.device;
+    if(Array.isArray(p.views)) p.views.forEach(v=>{
+      const s=states.find(row=>row.layout===v.layout);if(!s)return;
+      for(const key of ['page','month','branch','item','category','spend','report','vendorCategory','buyCategory'])if(typeof v[key]==='string')s[key]=v[key];
+      render(s);
+    });applyDevice();
+  }
+  restore(window.openai?.widgetState);applyDevice();
+  window.addEventListener('openai:set_globals',e=>restore(e.detail?.globals?.widgetState));
+})();
+</script>

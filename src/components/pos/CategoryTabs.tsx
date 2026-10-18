@@ -1,4 +1,5 @@
-import { FlatList, Image, Pressable, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, View } from 'react-native';
+import { Text } from '@/components/ui/Typography';
 import { CakeSlice, Coffee, CupSoda, GlassWater, LayoutGrid, CirclePlus, Sandwich, Sparkles, Layers, IceCream } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -98,8 +99,9 @@ export function CategoryTabs({
             return (
               <Pressable
                 accessibilityRole="button"
+                aria-selected={isActive}
                 onPress={() => onSelectCategory(item.id)}
-                className="mb-1.5"
+                className="mb-1.5 rounded-[20px]"
               >
                 {isActive ? (
                   // ACTIVE CATEGORY

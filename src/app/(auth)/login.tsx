@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Image, Pressable, Text, TextInput, View, ActivityIndicator } from 'react-native';
+import { Image, Pressable, View, ActivityIndicator } from 'react-native';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 

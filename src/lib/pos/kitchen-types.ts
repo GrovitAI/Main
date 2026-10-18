@@ -9,17 +9,22 @@ export type { ServiceResult };
 
 export type KitchenUnit = 'kg' | 'L' | 'pcs';
 export const KITCHEN_UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
+export type KitchenItemKind = 'raw_material' | 'finished_good';
 
 export type KitchenPartyKind = 'branch' | 'vendor';
 export type KitchenMode = 'cash' | 'upi' | 'bank';
-export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent' | 'made' | 'count';
+/** 'issued' (task 242): raw materials given to the kitchen from the store, which counts as used. */
+export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent' | 'made' | 'count' | 'issued';
 
 export type KitchenItem = {
   id: string;
+  item_kind: KitchenItemKind;
   name: string;
   unit: KitchenUnit;
   /** What a branch pays per unit; null for a raw material the kitchen only buys. */
   sell_price: number | null;
+  /** What one unit costs the kitchen to make (finished goods); null when not set. Used for profit. */
+  cost_price: number | null;
   stock: number;
   is_active: boolean;
   updated_at: string;
@@ -27,14 +32,19 @@ export type KitchenItem = {
 
 export type KitchenItemInput = {
   name: string;
+  /** Omitted on an edit: preserve the classification. */
+  item_kind?: KitchenItemKind;
   unit: KitchenUnit;
   sell_price: number | null;
+  /** Left out: unchanged. */
+  cost_price?: number | null;
   /** Only read when the item is created. */
   opening_stock?: number;
 };
 
 export type KitchenParty = {
   id: string;
+  purchase_category_id?: string | null;
   kind: KitchenPartyKind;
   name: string;
   phone: string | null;
@@ -45,6 +55,7 @@ export type KitchenParty = {
 
 export type KitchenPartyInput = {
   kind: KitchenPartyKind;
+  purchase_category_id?: string | null;
   name: string;
   phone?: string | null;
   /** Left out: unchanged. */
@@ -69,6 +80,8 @@ export type KitchenEntryLine = {
 
 export type KitchenEntry = {
   id: string;
+  purchase_category_id?: string | null;
+  purchase_category_name?: string | null;
   type: KitchenEntryType;
   entry_date: string;
   party_id: string | null;
@@ -82,8 +95,12 @@ export type KitchenEntry = {
   category: string | null;
   note: string | null;
   created_by: string;
+  /** The login that made it (set by the database since task 202; older entries have none). */
+  created_by_id?: string | null;
   created_at: string;
   voided_at: string | null;
+  /** Stored staff-name snapshot; older cached entries may not include it. */
+  voided_by?: string | null;
   void_reason: string | null;
   /** Set on a corrected entry: the one it took the place of, now voided "Edited". */
   replaces_id: string | null;
@@ -127,10 +144,11 @@ export type CoverInput = { entry_id: string; amount: number };
 
 export type PostEntryInput =
   | { type: 'sent'; party_id: string; entry_date?: string; lines: PostLineInput[]; note?: string | null }
-  | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null }
+  | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null; purchase_category_id?: string | null }
   | { type: 'received' | 'paid'; party_id: string; entry_date?: string; amount: number; mode: KitchenMode; note?: string | null; covers?: CoverInput[] }
   | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode; category: string; note?: string | null }
-  | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null };
+  | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null }
+  | { type: 'issued'; entry_date?: string; lines: { item_id: string; qty: number }[]; note?: string | null };
 
 export type KitchenEntryFilter = {
   /** Inclusive, 'YYYY-MM-DD'. */
