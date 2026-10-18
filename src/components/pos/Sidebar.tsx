@@ -8,6 +8,7 @@ import type {
   PressableStateCallbackType,
   StyleProp,
   TextStyle,
+  PointerEvent,
   ViewStyle,
 } from 'react-native';
 import {
@@ -193,13 +194,15 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
       : {}),
   };
 
+  // Pointer enter and leave on a plain View, not Pressable hover: a Pressable's hover is
+  // 'contained', so moving onto a category button (which has its own hover) ended the sidebar's
+  // hover and folded it shut mid-move. Touch is ignored, so a tap on a till does not flick it open.
+  const pointer = (open: boolean) => (e: PointerEvent): void => { if (e.nativeEvent.pointerType !== 'touch') setHovered(open); };
   return (
-    <Pressable {...hoverScope}
-      accessible={false}
-      focusable={false}
+    <View {...hoverScope}
       style={wrapperStyle}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
+      onPointerEnter={pointer(true)}
+      onPointerLeave={pointer(false)}
     >
       <Animated.View style={drawerStyle}>
         {/* Background gradient */}
@@ -365,6 +368,6 @@ export function Sidebar({ categories, selectedCategoryId, onSelectCategory }: Si
           )}
         </Pressable>
       </Animated.View>
-    </Pressable>
+    </View>
   );
 }
