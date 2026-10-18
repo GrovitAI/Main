@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Users,
   Plus,
-  Pencil,
+  ChevronRight,
   X,
   Check,
   Mail,
@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
+import { confirmAction, notify } from '@/lib/pos/dialogs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -201,29 +202,26 @@ export default function StaffScreen() {
     }
   };
 
+  // Task 263: confirmAction and notify work in a browser too; Alert.alert did nothing there.
   const handleDeactivate = (s: StaffMember) => {
-    Alert.alert(
-      'Deactivate Staff',
-      `Are you sure you want to deactivate "${s.name}"? They will not be able to log in.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Deactivate',
-          style: 'destructive',
-          onPress: async () => {
-            const { error: err } = await deactivateStaff(s.id);
-            if (err) Alert.alert('Error', err);
-            else void load();
-          },
-        },
-      ]
-    );
+    confirmAction('Deactivate this login?', `${s.name} will not be able to sign in. You can reactivate them later.`, 'Deactivate', () => {
+      void (async () => {
+        const { error: err } = await deactivateStaff(s.id);
+        if (err) { notify('Could not deactivate', err); return; }
+        closeForm();
+        void load();
+      })();
+    });
   };
 
-  const handleReactivate = async (s: StaffMember) => {
-    const { error: err } = await updateStaff(s.id, { status: 'active' });
-    if (err) Alert.alert('Error', err);
-    else void load();
+  const handleReactivate = (s: StaffMember) => {
+    confirmAction('Reactivate this login?', `${s.name} will be able to sign in again.`, 'Reactivate', () => {
+      void (async () => {
+        const { error: err } = await updateStaff(s.id, { status: 'active' });
+        if (err) notify('Could not reactivate', err);
+        else void load();
+      })();
+    });
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -419,6 +417,15 @@ export default function StaffScreen() {
               )}
             </View>
 
+            {editingId ? (() => {
+              const editing = staff.find((m) => m.id === editingId);
+              return editing && editing.status === 'active' ? (
+                <Pressable onPress={() => handleDeactivate(editing)} accessibilityRole="button" accessibilityLabel={`Deactivate ${editing.name}`} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
+                  <Text style={{ color: '#b91c1c', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }}>Deactivate this login</Text>
+                </Pressable>
+              ) : null;
+            })() : null}
+
             {/* Actions */}
             <View style={styles.formActions}>
               <Pressable style={styles.cancelBtn} onPress={closeForm} id="btn-cancel-staff">
@@ -457,7 +464,6 @@ export default function StaffScreen() {
                 member={s}
                 canManage={canManage}
                 onEdit={() => openEdit(s)}
-                onDeactivate={() => handleDeactivate(s)}
               />
             ))}
 
@@ -490,21 +496,23 @@ function StaffCard({
   member,
   canManage,
   onEdit,
-  onDeactivate,
   onReactivate,
   inactive,
 }: {
   member: StaffMember;
   canManage: boolean;
   onEdit: () => void;
-  onDeactivate?: () => void;
   onReactivate?: () => void;
   inactive?: boolean;
 }) {
   const roleColor = ROLE_COLORS[member.role] ?? '#64748b';
+  const onPress = !canManage ? undefined : inactive ? onReactivate : onEdit;
 
+  // Task 263: the whole card is the target (edit, or reactivate when inactive), as elsewhere in the app.
   return (
-    <View style={[styles.staffCard, inactive && styles.staffCardInactive]}>
+    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `${inactive ? 'Reactivate' : 'Edit'} ${member.name}` : member.name}
+      style={({ pressed }) => [styles.staffCard, inactive && styles.staffCardInactive, pressed && onPress ? { opacity: 0.7 } : null]}>
       <View style={[styles.staffAvatar, { backgroundColor: `${roleColor}18` }]}>
         <User size={18} color={roleColor} />
       </View>
@@ -525,49 +533,12 @@ function StaffCard({
         </View>
       </View>
 
-      {canManage && (
-        <View style={styles.staffActions}>
-          {!inactive && (
-            <Pressable
-              style={styles.iconBtn}
-              onPress={onEdit}
-              id={`btn-edit-staff-${member.id}`}
-              hitSlop={5}
-              accessibilityRole="button"
-              accessibilityLabel={`Edit ${member.name}`}
-            >
-              <Pencil size={14} color="#0066b2" />
-            </Pressable>
-          )}
-          {inactive
-            ? (
-              <Pressable
-                style={[styles.iconBtn, styles.activateBtn]}
-                onPress={onReactivate}
-                id={`btn-reactivate-${member.id}`}
-                hitSlop={5}
-                accessibilityRole="button"
-                accessibilityLabel={`Reactivate ${member.name}`}
-              >
-                <Check size={14} color="#16a34a" />
-              </Pressable>
-            )
-            : (
-              <Pressable
-                style={[styles.iconBtn, styles.deactivateBtn]}
-                onPress={onDeactivate}
-                id={`btn-deactivate-${member.id}`}
-                hitSlop={5}
-                accessibilityRole="button"
-                accessibilityLabel={`Deactivate ${member.name}`}
-              >
-                <X size={14} color="#ef4444" />
-              </Pressable>
-            )
-          }
-        </View>
-      )}
-    </View>
+      {canManage ? (
+        inactive
+          ? <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '700' }}>Reactivate</Text>
+          : <ChevronRight size={18} color="#94a3b8" />
+      ) : null}
+    </Pressable>
   );
 }
 
