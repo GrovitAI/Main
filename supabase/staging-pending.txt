@@ -9,15 +9,6 @@
 # Task 202 (kitchen permissions and day lock, three migrations) promoted on
 # 2026-10-12; production kitchen functions, policies, grants and triggers
 # were checked to match staging.
-# Tasks 206-209 (2026-10-14), staging only. Promote all four before the app
-# release that uses them: the app reads kitchen_items.cost_price_paise.
-20261014100000_kitchen_invoice_status_filter.sql
-20261014100100_kitchen_report_bank.sql
-20261014100200_kitchen_finished_goods_cost.sql
-20261014100300_kitchen_report_profit.sql
-# Task 224 (2026-10-16), staging only: several invoice statuses at once.
-20261016100000_kitchen_invoice_status_list.sql
-# Task 234 (2026-10-17), staging only: pin search_path on 19 older functions.
-20261017100000_pin_function_search_path.sql
-# Task 242 (2026-10-17), staging only: Give to kitchen ('issued' entries, entries.issue).
-20261017110000_kitchen_give_to_kitchen.sql
+# Tasks 206-209, 224, 234 and 242 (seven migrations, 20261014100000 through
+# 20261017110000) were promoted on 2026-10-18 in order; production kitchen
+# functions, grants and the 19 pinned functions were checked to match staging.

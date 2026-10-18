@@ -261,6 +261,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 241 (2026-10-17, staging source): A note is required on a Spent expense; Date in every When field opens a mini calendar.
 ✅ Task 242 (2026-10-17, staging only): Give to kitchen. Raw materials are bought into the store and given to the kitchen, which counts as used (entry type issued, permission entries.issue, migration 20261017110000_kitchen_give_to_kitchen.sql, applied and checked on staging). In the + sheet and on the raw materials page.
 ✅ Task 243 (2026-10-17, staging source): Placeholders are lighter until typed; quantity units are drawn smaller and grey (QtyFigure).
+✅ Task 244 (2026-10-18): Promotion. The seven staging-only migrations (20261014100000 through 20261017110000) were applied to production in order and checked to match staging; staging-pending.txt is empty. The branch was pushed to update PR #4; the app goes live when the owner merges it.
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)
 ⬜ Task 12: Responsive polish
