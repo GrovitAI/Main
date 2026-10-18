@@ -15,7 +15,7 @@ import {
 
 type Props = BottomTabBarProps & { role: UserRole; hidden: boolean };
 type ActivePillStyle = ViewStyle & {
-  clipPath: string;
+  willChange: string;
   transitionProperty: string;
   transitionDuration: string;
   transitionTimingFunction: string;
@@ -29,6 +29,8 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
   const [reducedMotion, setReducedMotion] = useState(() => typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [keyboardNavigation, setKeyboardNavigation] = useState(false);
   const [focusedTab, setFocusedTab] = useState<string | null>(null);
+  // A clicked tab moves the pill at once; the screen follows a frame later (see openTab).
+  const [pendingTab, setPendingTab] = useState<string | null>(null);
   const moreTrigger = useRef<View>(null);
   const menuRefs = useRef<Record<string, View | null>>({});
   const focusedIndex = useRef(0);
@@ -40,14 +42,19 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
   const dockWidth = Math.min(width - 32, tabs.length * 108 + 18 + (tabs.length - 1) * tabGap);
   const tabWidth = (dockWidth - 18 - (tabs.length - 1) * tabGap) / tabs.length;
   const selectedTab = getDesktopNavigationSelection(role, activeRoute);
-  const selectedIndex = Math.max(0, tabs.findIndex(tab => tab.name === selectedTab));
+  const pillTab = pendingTab ?? selectedTab;
+  const selectedIndex = Math.max(0, tabs.findIndex(tab => tab.name === pillTab));
   const pillLeft = selectedIndex * (tabWidth + tabGap);
-  const pillStyle: ActivePillStyle = {
-    clipPath: `inset(0px ${dockWidth - 18 - pillLeft - tabWidth}px 0px ${pillLeft}px round 12px)`,
-    transitionProperty: 'clip-path',
+  // The pill slides with a transform, which the browser animates off the main thread, so it keeps
+  // moving while a heavy screen mounts. Its label copy slides the other way by the same amount,
+  // so the white labels stay lined up with the tabs underneath.
+  const slide = (x: number): ActivePillStyle => ({
+    transform: [{ translateX: x }],
+    willChange: 'transform',
+    transitionProperty: 'transform',
     transitionDuration: reducedMotion || keyboardNavigation ? '0ms' : '180ms',
     transitionTimingFunction: 'cubic-bezier(0.77, 0, 0.175, 1)',
-  };
+  });
   const dockBottom = 24 + insets.bottom;
   const menuBottom = dockBottom + 64 + 12;
 
@@ -74,6 +81,7 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
 
   useEffect(() => {
     setMoreOpen(false);
+    setPendingTab(null);
   }, [activeRoute, width, height, hidden, role]);
 
   useEffect(() => {
@@ -106,7 +114,11 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
     const route = state.routes.find(entry => entry.name === tab.name);
     if (!route) return;
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (route.name !== activeRoute && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+    if (route.name === activeRoute || event.defaultPrevented) return;
+    // The pill starts its slide first; the screen change waits for that frame to be painted, so a
+    // heavy screen mounting never freezes the slide halfway.
+    setPendingTab(tab.name);
+    requestAnimationFrame(() => requestAnimationFrame(() => navigation.navigate(route.name, route.params)));
   }
 
   if (hidden) return null;
@@ -149,16 +161,17 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
           <View
             testID="desktop-active-pill" pointerEvents="none" aria-hidden
             accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-            className={`absolute inset-0 ${focusedTab === selectedTab ? 'bg-primary-deep' : 'bg-primary'}`}
-            style={pillStyle}
+            className={`absolute bottom-0 left-0 top-0 overflow-hidden rounded-xl ${keyboardNavigation && focusedTab === pillTab ? 'bg-primary-deep' : 'bg-primary'}`}
+            style={[{ width: tabWidth }, slide(pillLeft)]}
           >
+            <View className="absolute bottom-0 left-0 top-0" style={[{ width: dockWidth - 18 }, slide(-pillLeft)]}>
             <FlatList<TabConfig>
               horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false}
-              data={tabs} keyExtractor={tab => tab.name} extraData={[selectedTab, moreOpen, dockWidth]}
+              data={tabs} keyExtractor={tab => tab.name} extraData={[pillTab, moreOpen, dockWidth]}
               ItemSeparatorComponent={() => <View className="w-2" />}
               renderItem={({ item }) => {
                 const Icon = item.icon;
-                const emphasized = item.name === selectedTab || (item.name === 'more' && moreOpen);
+                const emphasized = item.name === pillTab || (item.name === 'more' && moreOpen);
                 return (
                   <View className="h-[44px] flex-row items-center justify-center gap-2 px-2" style={{ width: tabWidth }}>
                     <Icon size={18} color={colors.textOnPrimary} />
@@ -167,6 +180,7 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
                 );
               }}
             />
+            </View>
           </View>
         </View>
       </View>

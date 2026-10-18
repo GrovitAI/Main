@@ -36,14 +36,16 @@ async function mount(): Promise<void> {
   await act(async () => { tree = renderer.create(<DesktopDailyWorkBar {...props()} role="owner" hidden={false} />); });
 }
 
-function pill(): { style: { clipPath: string; transitionDuration: string }; 'aria-hidden': boolean; pointerEvents: string } {
+function pill(): { style: { left: number; transitionDuration: string }; 'aria-hidden': boolean; pointerEvents: string } {
   if (!tree) throw new Error('Navigation is not mounted');
   const node = tree.root.findAll(node => node.props.testID === 'desktop-active-pill')[0];
-  const style = node?.props.style;
-  if (!node || typeof style !== 'object' || style === null || !('clipPath' in style)
-    || !('transitionDuration' in style) || typeof style.clipPath !== 'string'
-    || typeof style.transitionDuration !== 'string') throw new Error('Active pill styles are missing');
-  return { style: { clipPath: style.clipPath, transitionDuration: style.transitionDuration },
+  // The pill's style is [size, slide]; the slide carries the transform and its transition.
+  const parts: unknown[] = Array.isArray(node?.props.style) ? node.props.style : [];
+  const slide = parts.find((part): part is { transform: { translateX: number }[]; transitionDuration: string } =>
+    typeof part === 'object' && part !== null && 'transform' in part && 'transitionDuration' in part);
+  const left = slide?.transform[0]?.translateX;
+  if (!node || !slide || typeof left !== 'number') throw new Error('Active pill styles are missing');
+  return { style: { left, transitionDuration: slide.transitionDuration },
     'aria-hidden': node.props['aria-hidden'] === true, pointerEvents: String(node.props.pointerEvents) };
 }
 
@@ -98,10 +100,10 @@ test('honors reduced motion on mount and when the system preference changes', as
 
 test('keyboard selection is instant and pointer use restores motion without duplicating controls', async () => {
   await mount();
-  const initialClip = pill().style.clipPath;
+  const initialLeft = pill().style.left;
   await input('keydown');
   await act(async () => { tree?.update(<DesktopDailyWorkBar {...props(1)} role="owner" hidden={false} />); });
-  expect(pill().style.clipPath).not.toBe(initialClip);
+  expect(pill().style.left).not.toBe(initialLeft);
   expect(pill().style.transitionDuration).toBe('0ms');
   expect(pill()['aria-hidden']).toBe(true);
   expect(pill().pointerEvents).toBe('none');
