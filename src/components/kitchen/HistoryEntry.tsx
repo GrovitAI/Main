@@ -27,7 +27,7 @@ export const HistoryEntry = memo(function HistoryEntry({ entry, itemsById, parti
   const tone = removed ? 'neutral' : isMoneyIn(entry) ? 'in' : isMoneyOut(entry) ? 'out' : 'neutral';
   return <Pressable testID="kitchen-history-entry" accessibilityRole="button"
     accessibilityLabel={`${title}, ${amount}, ${HISTORY_STATUS_LABELS[status]}. Transaction ${historyDateLabel(entry.entry_date)}. Entered by ${entry.created_by}, ${historyTimeLabel(entry.created_at)}${audit ? '. ' + audit : ''}`}
-    onPress={onPress} className={`min-h-12 gap-2 border-b border-border-soft bg-surface-elevated px-3 py-3 hover:bg-surface-tint active:bg-accent-soft focus:border-primary ${desktop ? 'flex-row gap-5' : ''}`}>
+    onPress={onPress} className={`min-h-12 gap-2 border-b border-border-soft bg-surface-elevated px-3 py-3 hover:bg-surface-tint active:bg-accent-soft focus-visible:border-primary ${desktop ? 'flex-row gap-5' : ''}`}>
     <View className={`min-w-0 flex-row items-start gap-3 ${desktop ? 'w-[58%]' : ''}`}>
       <View className="min-w-0 flex-1 gap-1">
         <Text className={'text-sm font-bold leading-5 ' + (removed ? 'text-text-secondary line-through' : 'text-text-primary')}>{title}</Text>

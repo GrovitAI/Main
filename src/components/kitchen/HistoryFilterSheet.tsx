@@ -24,7 +24,7 @@ export function HistoryFilterSheet({ visible, onClose, onReset, fields, dates, s
       <View testID="kitchen-history-filters" accessibilityViewIsModal className="max-h-[88%] w-full shrink gap-2 rounded-t-2xl bg-surface-elevated px-3 pt-2" style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
         <View className="flex-row items-center justify-between">
           <Text accessibilityRole="header" className="text-lg font-bold text-text-primary">Filters</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close history filters" onPress={onClose} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-accent-soft active:bg-accent-soft focus:border focus:border-primary">
+          <Pressable accessibilityRole="button" accessibilityLabel="Close history filters" onPress={onClose} className="h-12 w-12 items-center justify-center rounded-xl hover:bg-accent-soft active:bg-accent-soft focus-visible:border focus-visible:border-primary">
             <X size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
@@ -44,10 +44,10 @@ export function HistoryFilterSheet({ visible, onClose, onReset, fields, dates, s
           </View>
         </ScrollView>
         <View className="flex-row gap-2">
-          <Pressable accessibilityRole="button" accessibilityLabel="Reset history filters" onPress={onReset} className="min-h-12 flex-1 items-center justify-center rounded-xl border border-border bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus:border-primary">
+          <Pressable accessibilityRole="button" accessibilityLabel="Reset history filters" onPress={onReset} className="min-h-12 flex-1 items-center justify-center rounded-xl border border-border bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft focus-visible:border-primary">
             <Text className="text-sm font-bold text-primary">Reset</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Done filtering" onPress={onClose} className="min-h-12 flex-1 items-center justify-center rounded-xl border border-primary bg-primary px-3 py-2 hover:bg-primary-deep active:bg-primary-deep focus:border-primary-deep">
+          <Pressable accessibilityRole="button" accessibilityLabel="Done filtering" onPress={onClose} className="min-h-12 flex-1 items-center justify-center rounded-xl border border-primary bg-primary px-3 py-2 hover:bg-primary-deep active:bg-primary-deep focus-visible:border-primary-deep">
             <Text className="text-sm font-bold text-text-on-primary">Done</Text>
           </Pressable>
         </View>

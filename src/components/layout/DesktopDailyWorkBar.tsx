@@ -147,7 +147,7 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
                   onPress={() => openTab(item)}
                   onFocus={() => setFocusedTab(item.name)}
                   onBlur={() => setFocusedTab(null)}
-                  className={`h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-2 active:opacity-90 focus:bg-accent-soft ${selected ? '' : isMore && moreOpen ? 'bg-accent-soft' : 'hover:bg-surface-tint'}`}
+                  className={`h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-2 active:opacity-90 focus-visible:bg-accent-soft ${selected ? '' : isMore && moreOpen ? 'bg-accent-soft' : 'hover:bg-surface-tint'}`}
                   style={{ width: tabWidth }}
                 >
                   <Icon size={18} color={isMore && moreOpen ? colors.primaryDeep : colors.textSecondary} />
@@ -212,7 +212,7 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
                     accessibilityRole="menuitem" accessibilityLabel={item.tab.label}
                     onFocus={() => { focusedIndex.current = menuTabs.findIndex(tab => tab.name === item.tab.name); }}
                     onPress={() => openTab(item.tab)}
-                    className={`min-h-[44px] flex-row items-center gap-3 rounded-lg px-3 focus:bg-accent-soft ${selected ? 'bg-accent-soft' : 'hover:bg-surface-tint'}`}
+                    className={`min-h-[44px] flex-row items-center gap-3 rounded-lg px-3 focus-visible:bg-accent-soft ${selected ? 'bg-accent-soft' : 'hover:bg-surface-tint'}`}
                   >
                     <Icon size={18} color={selected ? colors.primaryDeep : colors.textSecondary} />
                     <Text className={`flex-1 text-sm ${selected ? 'font-semibold text-primary-deep' : 'text-text-primary'}`}>{item.tab.label}</Text>

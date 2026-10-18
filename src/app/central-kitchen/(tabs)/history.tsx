@@ -30,7 +30,7 @@ const DATE_BASES = [{ id: 'transaction', label: 'Transaction date' }, { id: 'rec
 /** A phone's quick type filter (task 233); the filter sheet still holds every filter. */
 const QUICK_KINDS = [{ value: 'all', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'bought', label: 'Bought' }, { value: 'received', label: 'Received' }, { value: 'spent', label: 'Spent' }, { value: 'stock', label: 'Stock' }] as const;
 const DEFAULTS: HistoryFilters = { kind: null, status: null, enteredBy: null, dateBasis: 'transaction', range: null, query: '', sort: 'transaction-newest' };
-const button = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary';
+const button = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus-visible:border focus-visible:border-primary';
 
 /** Audit history in the existing bounded store window; filtering never makes a request. */
 export default function HistoryScreen() {

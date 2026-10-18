@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
+import { OFFLINE_LOAD_TEXT, isOfflineError } from '@/lib/pos/kitchen-utils';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { kitchenReportRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenCategory, ServiceResult } from '@/lib/pos/kitchen-types';
@@ -69,7 +70,7 @@ export async function fetchKitchenReport(filter: KitchenReportFilter, signal?: A
     if (error) {
       return { data: null, error: error.message.includes('KITCHEN_EXPORT_TOO_LARGE')
         ? 'This export has over 10,000 rows. Narrow the filters and try again.'
-        : 'Unable to load the kitchen report. Please retry.' };
+        : isOfflineError(error.message) ? OFFLINE_LOAD_TEXT : 'Unable to load the kitchen report. Please retry.' };
     }
     return { data: parseKitchenReport(data), error: null };
   } catch {
