@@ -153,8 +153,7 @@ export function DatePickerModal({
     const hovered = hoverDay === day;
     const ink = isEdge ? colors.textOnPrimary : inBand ? colors.primaryDeep : colors.textPrimary;
     return (
-      <Pressable {...ownHover}
-        key={day}
+      <Pressable key={day} {...ownHover}
         accessibilityRole="button"
         accessibilityLabel={longDate(day)}
         accessibilityState={{ selected: isEdge || inBand }}

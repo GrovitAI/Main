@@ -260,8 +260,7 @@ export function SettlementModal({
               const isSelected = selectedMethod === option;
               const isFocused = focusIndex === idx && Platform.OS === 'web';
               return (
-                <Pressable {...ownHover}
-                  key={option}
+                <Pressable key={option} {...ownHover}
                   disabled={isProcessing}
                   onPress={() => {
                     setSelectedMethod(option);
