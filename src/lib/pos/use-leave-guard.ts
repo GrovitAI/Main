@@ -47,6 +47,12 @@ export function useLeaveGuard(dirty: boolean, what = 'What you typed here'): voi
       });
     });
   }, [navigation, message]);
+  // Task 252: iOS cannot hold a swipe back while it asks, so the page slid away but stayed put.
+  // With unsaved typing the swipe is off; the header's Back asks instead.
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    navigation.setOptions({ gestureEnabled: !dirty });
+  }, [navigation, dirty]);
   useEffect(() => {
     if (Platform.OS !== 'web' || !dirty || typeof window === 'undefined') return;
     const onUnload = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = ''; };

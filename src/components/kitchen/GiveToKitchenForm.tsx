@@ -10,7 +10,7 @@ import type { KitchenEntryType, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { DateField, LinesEditor, isValidDateKey, useDateGuard, type DraftLines } from '@/components/kitchen/forms';
+import { DateField, LinesEditor, isValidDateKey, typedLines, useDateGuard, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['issued'];
@@ -50,7 +50,7 @@ export function GiveToKitchenForm() {
   const dateOk = useDateGuard(date, lockReason);
   const canSave = !missing && chosen.length > 0 && isValidDateKey(date) && dateOk;
 
-  const typed = useTypedChanges(JSON.stringify({ lines, note }), prefilled);
+  const typed = useTypedChanges(JSON.stringify({ lines: typedLines(lines), note: note.trim() }), prefilled);
   useLeaveGuard(typed && !done.saved, 'The quantities you typed');
   const save = async (): Promise<void> => {
     if (!canSave) return;
