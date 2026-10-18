@@ -82,8 +82,10 @@ export async function fetchStaff(): Promise<{ data: StaffMember[]; error: string
         status,
         created_at,
         last_login_at,
-        branches ( name )
+        branches!staff_branch_id_fkey ( name )
       `)
+      // The branch link is named: kitchen_staff_access (task 202) also joins staff to branches,
+      // and an unnamed embed then fails as ambiguous, which left the Staff page unable to load.
       .eq('tenant_id', tenant_id)
       .is('deleted_at', null)
       .order('name');
