@@ -15,8 +15,8 @@ import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { HistoryFilterSheet } from '@/components/kitchen/HistoryFilterSheet';
 
 const KINDS = [
-  { id: 'sent', label: 'Sent' }, { id: 'received', label: 'Received' },
-  { id: 'bought', label: 'Bought' }, { id: 'spent', label: 'Spent / vendor payments' }, { id: 'stock', label: 'Stock' },
+  { id: 'sent', label: 'Sent' }, { id: 'bought', label: 'Bought' },
+  { id: 'received', label: 'Received' }, { id: 'spent', label: 'Spent / vendor payments' }, { id: 'stock', label: 'Stock' },
 ] as const;
 const STATUSES = [
   { id: 'current', label: 'Current · what counts now' }, { id: 'edited', label: 'Edited · with the earlier version' },
@@ -28,7 +28,7 @@ const SORTS: readonly { id: HistorySort; label: string }[] = [
 ];
 const DATE_BASES = [{ id: 'transaction', label: 'Transaction date' }, { id: 'recorded', label: 'Entry date (recorded)' }] as const;
 /** A phone's quick type filter (task 233); the filter sheet still holds every filter. */
-const QUICK_KINDS = [{ value: 'all', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'received', label: 'Received' }, { value: 'bought', label: 'Bought' }, { value: 'spent', label: 'Spent' }, { value: 'stock', label: 'Stock' }] as const;
+const QUICK_KINDS = [{ value: 'all', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'bought', label: 'Bought' }, { value: 'received', label: 'Received' }, { value: 'spent', label: 'Spent' }, { value: 'stock', label: 'Stock' }] as const;
 const DEFAULTS: HistoryFilters = { kind: null, status: null, enteredBy: null, dateBasis: 'transaction', range: null, query: '', sort: 'transaction-newest' };
 const button = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary';
 
