@@ -135,8 +135,8 @@ export default function HistoryScreen() {
         <Empty title={hasFilters ? 'Nothing matches' : data.error ? 'History unavailable' : 'Nothing recorded yet'} body={hasFilters ? 'Try another word, staff member, status or date range.' : data.error ? 'Use Refresh history to try again.' : 'Sends, payments, buys and counts will show here.'} action={hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-bold text-primary">Clear filters</Text></Pressable> : undefined} />}
       renderItem={({ item, index }) => item.kind === 'day'
         ? phone ? <PhoneDayHeading label={item.label} count={item.count} net={showAmounts ? item.net : 0} /> : <DayHeading label={item.label} count={item.count} />
-        : phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.entry.id)} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
-        : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.entry.id)} />} />
+        : phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
+        : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} />} />
     {pinnedDay && data.loaded ? <View pointerEvents="none" testID="kitchen-history-pinned-day" style={{ position: 'absolute', top: 0, left: 16, right: 16 }}>{phone ? <PhoneDayHeading label={pinnedDay.label} count={pinnedDay.count} net={showAmounts ? pinnedDay.net : 0} pinned /> : <DayHeading label={pinnedDay.label} count={pinnedDay.count} />}</View> : null}
     </View>
     {phone ? <HistoryFilterSheet visible={showFilters} onClose={() => setShowFilters(false)} onReset={reset}

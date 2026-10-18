@@ -1305,12 +1305,14 @@ export function SummaryBar({ caption, total, showTotal = true, children }: { cap
  * One-of-many pills in a row that scrolls sideways (task 233), all as wide as the widest, for
  * quick filters on a phone. Each pill is drawn 36 high inside a 44 high target.
  */
-export function ScrollPills<T extends string>({ options, value, onChange, label, inset = 0 }: {
+export function ScrollPills<T extends string>({ options, value: chosen, onChange: report, label, inset = 0 }: {
   options: readonly { value: T; label: string; /** A count after the name (task 262), such as orders in that status. */ count?: number }[];
   value: T; onChange: (next: T) => void; label: string;
   /** Side padding inside the scroll, so the row can run to the screen edges. */
   inset?: number;
 }) {
+  // Task 265: the tapped pill lights at once; the screen behind it (a long list) updates a frame later.
+  const [value, onChange] = useSnappyChoice(chosen, report);
   const sizes = useEqualChoices(options.length, { gap: 6, pad: 28 });
   const face = (o: { label: string; count?: number }, on: boolean) => (
     <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>
