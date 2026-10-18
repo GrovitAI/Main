@@ -496,6 +496,8 @@ export default function AppTabLayout() {
               ? <DailyWorkNavigation {...props} role={userRole} sidebar={dailyWorkSidebar} hidden={tabBarHidden} />
               : <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
             screenOptions={{
+              // Task 250: a tab out of view stops redrawing until it is shown again.
+              freezeOnBlur: true,
               headerShown: false,
               tabBarPosition: dailyWorkSidebar ? 'left' : 'bottom',
             }}

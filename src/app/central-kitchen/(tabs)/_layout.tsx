@@ -300,7 +300,8 @@ export default function KitchenTabsLayout() {
   return (
     <PhoneWebFrame active={!isTablet}>
       <Tabs
-        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.kitchenCanvas } }}
+        // Task 250: a tab out of view stops redrawing (store reloads no longer re-render hidden tabs).
+        screenOptions={{ headerShown: false, freezeOnBlur: true, sceneStyle: { backgroundColor: colors.kitchenCanvas } }}
         tabBar={(props) =>
           isTablet ? null : <BottomBar {...props} />
         }

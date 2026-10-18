@@ -17,6 +17,7 @@ import {
   oftenSent,
   slipText,
   statementRows,
+  keepIfSame,
   moneyChangeOn,
   oftenGiven,
   padDisplay,
@@ -372,5 +373,15 @@ describe('give to the kitchen (task 242)', () => {
     const b = entry({ type: 'issued', entry_date: '2026-10-12', created_at: '2026-10-12T05:00:00Z', lines: [{ id: '2', item_id: 'm', qty: 14, price: 0, line_total: 0 }, { id: '3', item_id: 's', qty: 2, price: 0, line_total: 0 }] });
     const voided = entry({ type: 'issued', voided_at: '2026-10-12T06:00:00Z', lines: [{ id: '4', item_id: 'x', qty: 1, price: 0, line_total: 0 }] });
     expect(oftenGiven([a, b, voided])).toEqual([{ itemId: 'm', times: 2, lastQty: 14 }, { itemId: 's', times: 1, lastQty: 2 }]);
+  });
+});
+
+describe('keepIfSame (task 250)', () => {
+  it('keeps the list already held when a reload finds nothing new', () => {
+    const held = [{ id: 'a', stock: 4 }];
+    expect(keepIfSame(held, [{ id: 'a', stock: 4 }])).toBe(held);
+    const changed = [{ id: 'a', stock: 5 }];
+    expect(keepIfSame(held, changed)).toBe(changed);
+    expect(keepIfSame(held, null)).toBe(held);
   });
 });
