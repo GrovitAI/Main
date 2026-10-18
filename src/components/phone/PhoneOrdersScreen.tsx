@@ -3,6 +3,7 @@ import { View, Pressable, FlatList, Modal, ScrollView, SafeAreaView } from 'reac
 import { Text, TextInput } from '@/components/ui/Typography';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { colors } from '@/lib/pos/brand';
+import { ScrollPills } from '@/components/kitchen/ui';
 import { 
   Search, 
   ChevronLeft, 
@@ -128,44 +129,18 @@ export const PhoneOrdersScreen: React.FC<PhoneOrdersScreenProps> = ({
     </View>
   );
 
+  // Task 262: one width for every status, so the highlight never changes size (same-size choices).
   const renderActiveFilterChips = () => (
-    <View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4 py-3 flex-row space-x-2">
-        {(['All', 'Unpaid', 'Draft', 'Held', 'Paid', 'Cancelled'] as OrderStatus[]).map((status) => {
-          const isActive = activeOrdersFilter === status;
-          return (
-            <Pressable
-              key={status}
-              onPress={() => onActiveOrdersFilterChange(status)}
-              className={`h-11 px-4 rounded-full justify-center items-center flex-row space-x-2 mr-2 ${isActive ? 'bg-[#0066b2]' : 'bg-[#e8f2fa]'}`}
-            >
-              <Text className={`font-semibold ${isActive ? 'text-white' : 'text-[#0f2744]'}`}>{status}</Text>
-              <View className={`rounded-full px-2 py-0.5 ${isActive ? 'bg-white/20' : 'bg-white'}`}>
-                <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-[#5b6b7c]'}`}>{activeOrdersCounts[status] || 0}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+    <View className="py-2">
+      <ScrollPills label="Order status" inset={16} value={activeOrdersFilter} onChange={onActiveOrdersFilterChange}
+        options={(['All', 'Unpaid', 'Draft', 'Held', 'Paid', 'Cancelled'] as OrderStatus[]).map((status) => ({ value: status, label: status, count: activeOrdersCounts[status] || 0 }))} />
     </View>
   );
 
   const renderHistoryFilterChips = () => (
-    <View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4 py-3 flex-row space-x-2">
-        {(['Today', 'Yesterday', '7 Days', '30 Days', 'Custom'] as DatePreset[]).map((preset) => {
-          const isActive = historyDatePreset === preset;
-          return (
-            <Pressable
-              key={preset}
-              onPress={() => onHistoryDatePresetChange(preset)}
-              className={`h-11 px-5 rounded-full justify-center items-center mr-2 ${isActive ? 'bg-[#0066b2]' : 'bg-[#e8f2fa]'}`}
-            >
-              <Text className={`font-semibold ${isActive ? 'text-white' : 'text-[#0f2744]'}`}>{preset}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+    <View className="py-2">
+      <ScrollPills label="Period" inset={16} value={historyDatePreset} onChange={onHistoryDatePresetChange}
+        options={(['Today', 'Yesterday', '7 Days', '30 Days', 'Custom'] as DatePreset[]).map((preset) => ({ value: preset, label: preset }))} />
     </View>
   );
 

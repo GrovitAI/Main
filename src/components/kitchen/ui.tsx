@@ -1305,19 +1305,29 @@ export function SummaryBar({ caption, total, showTotal = true, children }: { cap
  * One-of-many pills in a row that scrolls sideways (task 233), all as wide as the widest, for
  * quick filters on a phone. Each pill is drawn 36 high inside a 44 high target.
  */
-export function ScrollPills<T extends string>({ options, value, onChange, label }: { options: readonly { value: T; label: string }[]; value: T; onChange: (next: T) => void; label: string }) {
+export function ScrollPills<T extends string>({ options, value, onChange, label, inset = 0 }: {
+  options: readonly { value: T; label: string; /** A count after the name (task 262), such as orders in that status. */ count?: number }[];
+  value: T; onChange: (next: T) => void; label: string;
+  /** Side padding inside the scroll, so the row can run to the screen edges. */
+  inset?: number;
+}) {
   const sizes = useEqualChoices(options.length, { gap: 6, pad: 28 });
+  const face = (o: { label: string; count?: number }, on: boolean) => (
+    <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>
+      {o.label}{o.count !== undefined ? <Text style={{ fontWeight: '600', color: on ? colors.textOnPrimary : colors.textSecondary, ...tabular }}>{`  ${o.count}`}</Text> : null}
+    </Text>
+  );
   return (
     <View accessibilityLabel={label}>
-      <MeasureLabels>{options.map((o, i) => <Text key={o.value} onLayout={sizes.measure(i)} style={{ fontSize: 13, fontWeight: '700' }}>{o.label}</Text>)}</MeasureLabels>
-      <FlatList horizontal showsHorizontalScrollIndicator={false} data={options} keyExtractor={(o) => o.value} contentContainerStyle={{ gap: 6 }} extraData={`${value}-${sizes.widest}`}
+      <MeasureLabels>{options.map((o, i) => <View key={o.value} onLayout={sizes.measure(i)}>{face(o, false)}</View>)}</MeasureLabels>
+      <FlatList horizontal showsHorizontalScrollIndicator={false} data={options} keyExtractor={(o) => o.value} contentContainerStyle={{ gap: 6, paddingHorizontal: inset }} extraData={`${value}-${sizes.widest}`}
         renderItem={({ item: o }) => {
           const on = o.value === value;
           return (
-            <Pressable onPress={() => onChange(o.value)} accessibilityRole="button" aria-selected={on} accessibilityLabel={o.label} {...hoverFace}
+            <Pressable onPress={() => onChange(o.value)} accessibilityRole="button" aria-selected={on} accessibilityLabel={o.count !== undefined ? `${o.label}, ${o.count}` : o.label} {...hoverFace}
               style={{ minHeight: TARGET, justifyContent: 'center', ...(sizes.widest ? { width: sizes.widest + 28 } : {}) }}>
               <View {...hoverFaceMark} style={{ height: VISUAL, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: sizes.widest ? 0 : 14, borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: on ? colors.textOnPrimary : colors.textPrimary }} numberOfLines={1}>{o.label}</Text>
+                {face(o, on)}
               </View>
             </Pressable>
           );

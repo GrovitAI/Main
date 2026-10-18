@@ -131,8 +131,8 @@ export default function BoughtScreen() {
             {owe > 0 ? `We owe ${party.name} ${formatMoney(owe)}.` : `${party.name} is settled up.`}
           </Text>
         ) : null}
-        <Field label={phone ? 'What for' : 'Category'} hint={editing ? 'It keeps its saved name, even if the category was renamed.' : phone ? 'Starts with the vendor’s default.' : 'Starts with the vendor’s default; change it for this buy if needed.'}>
-          <PurchaseCategoryPicker categories={data.purchaseCategories} value={categoryId} onChange={setCategoryOverride} historicalName={keepsSavedCategory ? editing?.purchase_category_name : null} tiles={phone} entries={data.entries} />
+        <Field label="What for" hint={editing ? 'It keeps its saved name, even if the category was renamed.' : undefined}>
+          <PurchaseCategoryPicker categories={data.purchaseCategories} value={categoryId} onChange={setCategoryOverride} historicalName={keepsSavedCategory ? editing?.purchase_category_name : null} tiles entries={data.entries} />
           {archivedCategory ? <Notice text="The vendor's default category is archived. Choose an active category or Uncategorized for this purchase." /> : null}
         </Field>
         {phone ? itemsField : null}
