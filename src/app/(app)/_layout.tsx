@@ -166,6 +166,12 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
   const isTablet = width >= 768;
   const isCompactMobile = width < 600;
   const bottomInset = Platform.OS === 'web' ? 24 : Math.max(12, insets.bottom + 6);
+  // Task 264: on the till the bar sits over the menu, clear of the 390 px cart and the 52 px
+  // category rail, so it never covers Hold or Save. It used to be 840 wide nudged 105 px left,
+  // which still covered the cart's buttons on a 1280 px screen.
+  const onTill = Platform.OS === 'web' && activeTabName === 'index';
+  const tillArea = width - 52 - 12 - 12 - 390 - 12;
+  const barWidth = onTill ? Math.max(320, Math.min(840, tillArea - 16)) : Platform.OS === 'web' ? 840 : 720;
 
   return (
     <Animated.View
@@ -173,8 +179,8 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       style={isTablet ? {
         position: 'absolute',
         bottom: bottomInset,
-        alignSelf: 'center',
-        width: Platform.OS === 'web' ? 840 : 720,
+        ...(onTill ? { left: 52 + 12 + Math.max(0, (tillArea - barWidth) / 2) } : { alignSelf: 'center' as const }),
+        width: barWidth,
         maxWidth: '96%',
         zIndex: 100,
         transform: [{ translateY: tabBarTranslateY }],
@@ -207,7 +213,7 @@ function CustomTabBar({ state, descriptors, navigation, roleTabs, tabBarHidden }
       elevation: 10,
       transform: [
         {
-          translateX: (Platform.OS === 'web' && width >= 1200 && activeTabName === 'index') ? -105 : 0,
+          translateX: 0,
         },
       ],
     } : {
