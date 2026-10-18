@@ -1,6 +1,11 @@
 /**
  * Task 256: reads that never reached Supabase are tried again.
  *
+ * Task 266: supabase-js (postgrest-js 2.112) already retries table reads (GET and HEAD) on a network
+ * error, three times with 1, 2 and 4 s waits, but never a function call, which goes as POST. So
+ * this covers only the read-only functions; retrying GETs as well multiplied the tries, and an app
+ * opened without a connection waited about 14 s before it said so.
+ *
  * Production's API logs showed no failed kitchen or invoice request, yet the app now and then said
  * "Unable to load your kitchen permissions" or could not load invoices. Those requests died on the
  * device: a phone coming back from the background, or a laptop waking, sends before its network
@@ -39,13 +44,11 @@ function methodOf(input: Parameters<Fetch>[0], init?: RequestInit): string {
   return 'GET';
 }
 
-/** True for a request that may be sent again: a table read, or a call to a read-only function. */
+/** True for a call to a read-only function, which supabase-js itself never retries. */
 export function isRetryableRead(url: string, method: string): boolean {
   const path = url.split('?')[0] ?? '';
   const rest = path.indexOf('/rest/v1/');
-  if (rest < 0) return false;
-  if (method === 'GET' || method === 'HEAD') return true;
-  if (method !== 'POST') return false;
+  if (rest < 0 || method !== 'POST') return false;
   const rpc = path.slice(rest + '/rest/v1/'.length).match(/^rpc\/([A-Za-z0-9_]+)$/);
   return !!rpc && READ_ONLY_RPCS.has(rpc[1] ?? '');
 }

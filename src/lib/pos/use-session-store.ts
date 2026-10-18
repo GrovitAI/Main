@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { storage } from './storage';
 import { supabase } from './supabase';
 import { getPermissionsForRole, type PosSession, type UserRole, type Branch, type TerminalStatus } from './session-context';
+import { isOfflineError } from './kitchen-utils';
+
+/** Said on the loading screen when the app opens without reaching the server (task 266). */
+export const OFFLINE_START_TEXT = 'Can’t reach the server. Check the internet connection, then try again.';
 
 function generateUuid(): string {
   // Standard RFC4122 v4 UUID generator in pure JS
@@ -28,6 +32,8 @@ type SessionState = {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   restoreSession: () => Promise<boolean>;
+  /** Set when opening the app could not reach the server; the sign-in is kept (task 266). */
+  restoreError: string | null;
   updateActivity: () => void;
   clearError: () => void;
 };
@@ -48,6 +54,7 @@ export const useSessionStore = create<SessionState>((set) => {
     session: null,
     isLoading: false,
     error: null,
+    restoreError: null,
 
     clearError: () => set({ error: null }),
 
@@ -226,6 +233,13 @@ export const useSessionStore = create<SessionState>((set) => {
           .is('deleted_at', null)
           .maybeSingle();
 
+        // Task 266: no connection is not a sign-out. Before, a phone opened on a bad connection
+        // lost its sign-in here and had to type the password again; now the loading screen says
+        // so and offers to try again, and the sign-in stays.
+        if (staffError && isOfflineError(staffError.message)) {
+          set({ session: null, restoreError: OFFLINE_START_TEXT });
+          return false;
+        }
         if (staffError || !staff) {
           await supabase.auth.signOut({ scope: 'local' });
           set({ session: null });
@@ -322,11 +336,12 @@ export const useSessionStore = create<SessionState>((set) => {
           lastActivityAt: new Date().toISOString(),
         };
 
-        set({ session });
+        set({ session, restoreError: null });
         return true;
       } catch (err) {
         console.error('[useSessionStore] restoreSession failed:', err);
-        set({ session: null });
+        const message = err instanceof Error ? err.message : String(err);
+        set({ session: null, restoreError: isOfflineError(message) ? OFFLINE_START_TEXT : null });
         return false;
       }
     },
