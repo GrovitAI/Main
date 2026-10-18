@@ -328,8 +328,9 @@ export function typeLabel(type: KitchenEntryType): string {
 }
 
 export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
-  const party = names.party ?? 'someone';
-  const item = names.item ?? 'an item';
+  // Task 268: the lists hold active names only, so a removed branch, vendor or item says so.
+  const party = names.party ?? (e.type === 'sent' || e.type === 'received' ? 'a removed branch' : 'a removed vendor');
+  const item = names.item ?? 'a removed item';
   switch (e.type) {
     case 'sent': return `Sent to ${party}`;
     case 'received': return `Received from ${party}`;
@@ -346,7 +347,8 @@ export function linesSummary(e: Pick<KitchenEntry, 'lines'>, itemsById: Readonly
   return e.lines
     .map((l) => {
       const it = itemsById.get(l.item_id);
-      return it ? `${it.name} ${formatQty(l.qty, it.unit)}` : formatQty(l.qty, '');
+      // Task 268: the kitchen loads active items only, so a removed item is named as one rather than a bare number.
+      return it ? `${it.name} ${formatQty(l.qty, it.unit)}` : `Removed item ${formatQty(l.qty, '').trim()}`;
     })
     .join(', ');
 }
