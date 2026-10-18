@@ -48,6 +48,9 @@ async function getAccessToken(): Promise<string | null> {
  * Performs an authenticated JSON request to /api/<path>.
  * Never throws; network and HTTP failures come back as `error`.
  */
+/** Said when this device's sign-in has been ended (task 253). */
+export const SIGNED_OUT_MESSAGE = 'This device was signed out. Sign in again.';
+
 export async function apiFetch<T>(
   path: string,
   init: { method?: 'GET' | 'POST'; body?: unknown } = {}
@@ -56,7 +59,26 @@ export async function apiFetch<T>(
   if (!token) {
     return { data: null, error: 'Your session has expired. Please sign in again.', status: 401 };
   }
+  const first = await send<T>(path, init, token);
+  if (first.status !== 401) return first;
 
+  // Task 253: the server could not verify the sign-in. Renew it once and try again. When the
+  // session itself is gone (ended on Supabase, for example by a sign-out elsewhere), sign out on
+  // this device so the login screen shows, rather than a screen that keeps failing quietly.
+  const { data, error } = await supabase.auth.refreshSession();
+  const renewed = data.session?.access_token ?? null;
+  if (error || !renewed) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    return { data: null, error: SIGNED_OUT_MESSAGE, status: 401 };
+  }
+  return send<T>(path, init, renewed);
+}
+
+async function send<T>(
+  path: string,
+  init: { method?: 'GET' | 'POST'; body?: unknown },
+  token: string,
+): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/json',

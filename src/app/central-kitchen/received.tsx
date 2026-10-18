@@ -70,7 +70,7 @@ export default function ReceivedScreen() {
   };
 
   // Task 221: Back asks first once an amount or a note is typed; never after the save.
-  const typed = useTypedChanges(JSON.stringify({ amountText, note }), prefilled);
+  const typed = useTypedChanges(JSON.stringify({ amountText: amountText.trim(), note: note.trim() }), prefilled);
   useLeaveGuard(typed && !done.saved, 'The amount you typed');
   const save = async () => {
     if (!partyId || amount <= 0 || missing) return;

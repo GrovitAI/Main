@@ -528,3 +528,13 @@ export function stockLevels(entries: readonly KitchenEntry[], items: readonly { 
   }
   return out;
 }
+
+/**
+ * The fresh list, or the one already held when nothing in it changed (task 250), so screens that
+ * depend on it do not redraw or recompute after a reload that found nothing new.
+ */
+export function keepIfSame<T>(previous: T, next: T | null | undefined): T {
+  if (next === null || next === undefined) return previous;
+  return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;
+}
+

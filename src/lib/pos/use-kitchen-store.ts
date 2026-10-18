@@ -13,7 +13,7 @@ import {
   fetchKitchenItems,
   fetchKitchenParties,
 } from './kitchen-service';
-import { localDateKey } from './kitchen-utils';
+import { keepIfSame, localDateKey } from './kitchen-utils';
 import { fetchKitchenPurchaseCategories } from '@/lib/pos/kitchen-analytics-service';
 import { kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { fetchKitchenAccess } from '@/lib/pos/kitchen-access-service';
@@ -24,6 +24,9 @@ import type { KitchenCategory, KitchenEntry, KitchenItem, KitchenParty, KitchenP
 
 /** How far back the home and history look without asking for more. */
 const RECENT_DAYS = 92;
+/** A screen coming back into view reloads only when the data is older than this (task 250). */
+export const FOCUS_STALE_MS = 30_000;
+
 
 function daysAgoKey(days: number): string {
   const d = new Date();
@@ -77,13 +80,13 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
     ]);
     const error = items.error ?? parties.error ?? categories.error ?? balances.error ?? entries.error ?? purchaseCategories.error ?? access.error;
     set({
-      items: items.data ?? get().items,
-      parties: parties.data ?? get().parties,
-      categories: categories.data ?? get().categories,
-      purchaseCategories: purchaseCategories.data ?? get().purchaseCategories,
-      balances: balances.data ?? get().balances,
-      entries: entries.data ?? get().entries,
-      access: access.data ?? get().access,
+      items: keepIfSame(get().items, items.data),
+      parties: keepIfSame(get().parties, parties.data),
+      categories: keepIfSame(get().categories, categories.data),
+      purchaseCategories: keepIfSame(get().purchaseCategories, purchaseCategories.data),
+      balances: keepIfSame(get().balances, balances.data),
+      entries: keepIfSame(get().entries, entries.data),
+      access: keepIfSame(get().access, access.data),
       loaded: true,
       loading: false,
       error,
@@ -94,8 +97,9 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
 }));
 
 /**
- * The store, loaded on first use and refreshed each time a screen comes back
- * into view (after a form closes, after the app returns from the background).
+ * The store, loaded on first use and refreshed when a screen comes back into view with data older
+ * than FOCUS_STALE_MS. Saves reload it straight away, and pull to refresh always does; before
+ * task 250 every focus of every screen reloaded everything, which made phones lag.
  */
 export function useKitchenData() {
   const state = useKitchenStore();
@@ -105,7 +109,8 @@ export function useKitchenData() {
   }, [state.loaded, state.loading, load]);
   useFocusEffect(
     useCallback(() => {
-      if (useKitchenStore.getState().loaded) void load(true);
+      const { loaded, loadedAt } = useKitchenStore.getState();
+      if (loaded && Date.now() - loadedAt > FOCUS_STALE_MS) void load(true);
     }, [load]),
   );
   const itemsById = useMemo(() => new Map(state.items.map((i) => [i.id, i])), [state.items]);

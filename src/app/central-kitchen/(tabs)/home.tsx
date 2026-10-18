@@ -13,7 +13,7 @@ import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
 import { fetchKitchenMoney, type MoneySummary } from '@/lib/pos/kitchen-money-service';
 import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
-import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, RowInset, Section, Skeleton, StatTile, GhostButton, useDesktopDensity } from '@/components/kitchen/ui';
+import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Row, RowInset, Section, Skeleton, StatTile, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
 /**
@@ -214,10 +214,11 @@ export default function KitchenHome() {
           <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', lineHeight: 19, marginTop: 4 }}>
             Add the items the kitchen makes and buys, then the branches it sends to and the vendors it buys from. Each takes a name and nothing else.
           </Text>
-          <View className="flex-row flex-wrap" style={{ gap: 8, marginTop: 14 }}>
-            {access.can('setup.items') ? <GhostButton small icon={Plus} tone="primary" label="Add an item" onPress={() => router.push('/central-kitchen/item-form')} /> : null}
-            {access.can('setup.parties') ? <GhostButton small icon={Plus} tone="primary" label="Add a branch" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'branch' } })} /> : null}
-            {access.can('setup.parties') ? <GhostButton small icon={Plus} tone="primary" label="Add a vendor" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'vendor' } })} /> : null}
+          {/* Task 251: whole rows to tap, one per step, instead of three wrapping buttons. */}
+          <View style={{ marginTop: 8 }}>
+            {access.can('setup.items') ? <Row icon={Plus} iconTone="primary" title="Add an item" subtitle="What the kitchen makes or buys" onPress={() => router.push('/central-kitchen/item-form')} /> : null}
+            {access.can('setup.parties') ? <Row icon={Plus} iconTone="primary" title="Add a branch" subtitle="An outlet the kitchen sends to" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'branch' } })} /> : null}
+            {access.can('setup.parties') ? <Row icon={Plus} iconTone="primary" title="Add a vendor" subtitle="Someone the kitchen buys from" onPress={() => router.push({ pathname: '/central-kitchen/party-form', params: { kind: 'vendor' } })} /> : null}
           </View>
         </Card>
       ) : desktop ? (

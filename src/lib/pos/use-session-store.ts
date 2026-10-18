@@ -80,7 +80,7 @@ export const useSessionStore = create<SessionState>((set) => {
         }
 
         if (!staff) {
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
           throw new Error('Your account is inactive or suspended. Contact your manager.');
         }
 
@@ -194,7 +194,7 @@ export const useSessionStore = create<SessionState>((set) => {
     signOut: async () => {
       set({ isLoading: true, error: null });
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         set({ session: null, isLoading: false });
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.removeItem('grovit_active_order_id');
@@ -227,7 +227,7 @@ export const useSessionStore = create<SessionState>((set) => {
           .maybeSingle();
 
         if (staffError || !staff) {
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
           set({ session: null });
           return false;
         }

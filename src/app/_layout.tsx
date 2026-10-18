@@ -13,6 +13,10 @@ import { TestDatabaseBanner } from '@/components/ui/TestDatabaseBanner';
 import { AppFontProvider } from '@/components/ui/Typography';
 import { useAppFonts } from '@/lib/pos/use-app-fonts';
 import { useWebHover } from '@/lib/pos/web-hover';
+import { installNativePressableStyles } from '@/lib/pos/native-pressable-styles';
+
+// Before the first render: phones get Pressable function styles back (task 249).
+installNativePressableStyles();
 
 // A render error in an installed app would otherwise close it; this shows the message instead.
 export { ErrorBoundary } from 'expo-router';

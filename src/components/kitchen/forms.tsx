@@ -81,8 +81,15 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
     return (
       <View style={{ gap: 10 }}>
         {searching ? <SearchBox value={query} onChange={setQuery} placeholder={`Search ${noun === 'branch' ? 'branches' : 'vendors'}`} autoFocus /> : null}
+        {options.length === 0 ? (
+          // Task 251: nothing to pick yet; New leads and the hint sits beside it.
+          <View className="flex-row items-center" style={{ gap: 6 }}>
+            {mayAdd ? tool('new', 'New', <Plus size={20} color={colors.primary} />, () => setAdding((v) => !v), adding) : null}
+            <Text className="min-w-0 flex-1 text-[13px] font-semibold text-text-secondary">{`No ${noun === 'branch' ? 'branches' : 'vendors'} yet.${mayAdd ? ' Tap New to add the first one.' : ''}`}</Text>
+          </View>
+        ) : (
         <FlatList horizontal showsHorizontalScrollIndicator={false} data={shown} keyExtractor={(o) => o.value} contentContainerStyle={{ gap: 4 }}
-          ListEmptyComponent={<Text className="py-4 text-[13px] font-semibold text-text-secondary">{options.length === 0 ? `No ${noun === 'branch' ? 'branches' : 'vendors'} yet. Add the first one.` : 'No match'}</Text>}
+          ListEmptyComponent={<Text className="py-4 text-[13px] font-semibold text-text-secondary">No match</Text>}
           renderItem={({ item: o }) => (
             <Pressable onPress={() => onChange(o.value)} accessibilityRole="button" aria-selected={o.value === value} accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
               className="w-[70px] items-center gap-1 rounded-2xl py-1 active:opacity-70">
@@ -94,6 +101,7 @@ export function PartyPicker({ kind, parties, balances, value, onChange }: PartyP
             {options.length > 6 ? tool('search', 'Search', <Search size={20} color={colors.primary} />, () => { setSearching((v) => !v); setQuery(''); }, searching) : null}
             {mayAdd ? tool('new', 'New', <Plus size={20} color={colors.primary} />, () => setAdding((v) => !v), adding) : null}
           </View>} />
+        )}
         {adding ? (
           <View className="flex-row items-center" style={{ gap: 8 }}>
             <View className="flex-1">
@@ -367,6 +375,14 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
       ) : null}
     </View>
   );
+}
+
+/**
+ * What a form has that would be lost on leaving (task 252): only lines with a quantity. A line
+ * set back to 0 is the same as never added, so Back does not ask about it.
+ */
+export function typedLines(lines: DraftLines): DraftLines {
+  return Object.fromEntries(Object.entries(lines).filter(([, l]) => l.qty > 0).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 /** The lines worth saving: a quantity and a price on each. */

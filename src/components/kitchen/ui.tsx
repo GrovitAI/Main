@@ -124,14 +124,15 @@ export function KHeader({ title, subtitle, onBack, right, large = !onBack }: Hea
   const compact = useDesktopDensity();
   return (
     <View style={{ paddingTop: Math.max(insets.top, Platform.OS === 'web' ? 12 : 0) + (compact ? 0 : 8), paddingBottom: 8 }}>
-      <View className="flex-row items-center" style={{ minHeight: 44, gap: 8 }}>
+      {/* Task 251: with a subtitle, the controls line up with the title line (32 high, so -6 of a 44 target). */}
+      <View className={`flex-row ${subtitle && !compact ? 'items-start' : 'items-center'}`} style={{ minHeight: 44, gap: 8 }}>
         {onBack ? (
           <Pressable
             onPress={onBack}
             accessibilityRole="button"
             accessibilityLabel="Back"
             hitSlop={8}
-            style={pressed({ width: 44, height: 44, marginLeft: -8, borderRadius: 22, alignItems: 'center', justifyContent: 'center' })}
+            style={pressed({ width: 44, height: 44, marginLeft: -8, marginTop: subtitle && !compact ? -6 : 0, borderRadius: 22, alignItems: 'center', justifyContent: 'center' })}
           >
             <ChevronLeft size={26} color={colors.textPrimary} />
           </Pressable>
@@ -151,7 +152,7 @@ export function KHeader({ title, subtitle, onBack, right, large = !onBack }: Hea
             </Text>
           ) : null}
         </View>
-        {right}
+        {right ? <View style={subtitle && !compact ? { marginTop: -6 } : undefined}>{right}</View> : null}
       </View>
     </View>
   );

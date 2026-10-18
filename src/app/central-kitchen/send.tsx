@@ -13,7 +13,7 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, SummaryBar, TextField } from '@/components/kitchen/ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { DateField, useDateGuard, LinesEditor, PartyPicker, draftToLines, isValidDateKey, type DraftLines } from '@/components/kitchen/forms';
+import { DateField, useDateGuard, LinesEditor, PartyPicker, draftToLines, isValidDateKey, typedLines, type DraftLines } from '@/components/kitchen/forms';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['sent'];
@@ -57,7 +57,7 @@ export default function SendScreen() {
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
 
   // Task 221: Back asks first once items or a note are typed; never after the save.
-  const typed = useTypedChanges(JSON.stringify({ lines, note }), prefilled);
+  const typed = useTypedChanges(JSON.stringify({ lines: typedLines(lines), note: note.trim() }), prefilled);
   useLeaveGuard(typed && saved === null, 'The items you typed');
   const save = async () => {
     if (!partyId || !chosen || chosen.length === 0 || missing) return;
