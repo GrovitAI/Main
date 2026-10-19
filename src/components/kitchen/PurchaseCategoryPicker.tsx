@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { CircleSlash, LayoutGrid, type LucideIcon } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import type { KitchenCategory, KitchenEntry } from '@/lib/pos/kitchen-types';
-import { matchesSearch } from '@/lib/pos/kitchen-utils';
+import { matchesSearch, orderCategories } from '@/lib/pos/kitchen-utils';
 import { colors } from '@/lib/pos/brand';
 import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
@@ -39,14 +39,13 @@ function PurchaseCategorySelect({ categories, value, onChange, historicalName }:
   };
   return (
     <View className="gap-2">
-      <ReportSelect label="Purchase category" value={value} selectedLabel={historicalName ?? undefined}
+      <ReportSelect label="Category" value={value} selectedLabel={historicalName ?? undefined}
         options={categories.filter(category => category.is_active || category.id === value).map(category => ({ id: category.id, label: category.id === value && historicalName ? historicalName : category.name + (!category.is_active ? ' · Archived' : '') }))} onChange={onChange} emptyLabel="Uncategorized" />
       {mayAdd ? <View className="flex-row items-center gap-2">
-        <TextInput accessibilityLabel="New purchase category" placeholder="Add a category, e.g. Dairy" placeholderTextColor={colors.textSecondary}
+        <TextInput accessibilityLabel="New category" placeholder="Add a category, e.g. Dairy" placeholderTextColor={colors.textSecondary}
           value={name} onChangeText={setName} maxLength={80} className="min-h-12 min-w-0 flex-1 rounded-xl bg-surface-tint px-3 text-base text-text-primary" />
         <View className="w-20"><PrimaryButton label="Add" onPress={() => void add()} loading={saving} disabled={!name.trim()} /></View>
       </View> : null}
-      <Text className="text-xs leading-5 text-text-secondary">Purchase categories are separate from direct expense categories.</Text>
       {error ? <Notice text={error} /> : null}
     </View>
   );
@@ -66,10 +65,12 @@ function PurchaseCategoryTiles({ categories, value, onChange, historicalName, en
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const labelOf = (c: KitchenCategory): string => c.id === value && historicalName ? historicalName : c.name + (!c.is_active ? ' · Archived' : '');
+  // Task 255: uses on Spent count too, as the two share one list. An archived category the buy
+  // already has stays on offer.
   const ordered = useMemo(() => {
-    const uses = new Map<string, number>();
-    for (const e of entries) if (e.type === 'bought' && e.purchase_category_id) uses.set(e.purchase_category_id, (uses.get(e.purchase_category_id) ?? 0) + 1);
-    return categories.filter(c => c.is_active || c.id === value).sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.name.localeCompare(b.name));
+    const active = orderCategories(categories, entries);
+    const kept = categories.find(c => c.id === value && !c.is_active);
+    return kept ? [...active, kept] : active;
   }, [categories, entries, value]);
   // Five tiles and More; the chosen category always shows, even when it is not among the most used.
   const top = ordered.slice(0, 5);
@@ -107,7 +108,7 @@ function PurchaseCategoryTiles({ categories, value, onChange, historicalName, en
       {value === null ? <Text className="px-1 text-xs font-semibold text-text-secondary">Uncategorized. Choose a tile, or More for the full list.</Text> : null}
       <Sheet visible={open} onClose={() => setOpen(false)} dirty={name.trim().length > 0} title="What for">
         <View className="gap-3.5">
-          <SearchBox value={query} onChange={setQuery} placeholder="Search purchase categories" autoFocus />
+          <SearchBox value={query} onChange={setQuery} placeholder="Search categories" />
           <RowInset.Provider value={18}>
             <View>
               {!query.trim() ? <Row icon={CircleSlash} title="Uncategorized" selected={value === null} onPress={() => choose(null)} /> : null}
@@ -116,14 +117,13 @@ function PurchaseCategoryTiles({ categories, value, onChange, historicalName, en
             </View>
           </RowInset.Provider>
           {mayAdd ? <View>
-            <Label>New purchase category</Label>
+            <Label>New category</Label>
             <View className="flex-row items-center gap-2">
-              <View className="flex-1"><TextField value={name} onChange={setName} label="New purchase category name" placeholder={filtered.length === 0 && query.trim() ? query.trim() : 'e.g. Dairy'} /></View>
+              <View className="flex-1"><TextField value={name} onChange={setName} label="New category name" placeholder={filtered.length === 0 && query.trim() ? query.trim() : 'e.g. Dairy'} /></View>
               <View className="w-24"><PrimaryButton label="Add" onPress={() => void add()} disabled={!newName} loading={saving} /></View>
             </View>
             {error ? <Notice text={error} /> : null}
           </View> : null}
-          <Text className="text-xs leading-5 text-text-secondary">Purchase categories are separate from direct expense categories.</Text>
         </View>
       </Sheet>
     </View>

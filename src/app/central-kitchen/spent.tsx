@@ -126,7 +126,7 @@ export default function SpentScreen() {
           </Field>
         ) : (
           <Field label="What for">
-            <CategoryPicker categories={data.categories} entries={data.entries} value={category} onChange={setCategory} />
+            <CategoryPicker categories={data.purchaseCategories} entries={data.entries} value={category} onChange={setCategory} />
           </Field>
         )}
         {isVendor && partyId ? (

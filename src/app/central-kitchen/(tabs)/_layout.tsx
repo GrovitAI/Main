@@ -1,6 +1,7 @@
 import { hoverScope } from '@/lib/pos/web-hover';
 import { useEffect, useState } from 'react';
-import { Tabs, router } from 'expo-router';
+import { Tabs, router, useNavigation } from 'expo-router';
+import { markKitchenTabsShown } from '@/lib/pos/kitchen-nav';
 import { FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -86,21 +87,25 @@ function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: Kitc
   const rim = useRailRim();
   // On the rail the selection is a soft fill that fades in, with no edge; the
   // outline appears only for keyboard focus.
-  const railStyle: RailWebStyle | undefined = rail ? {
+  const railStyle: RailWebStyle = rail ? {
     backgroundColor: focused ? colors.kitchenSidebarSelected : rim.hovered ? colors.sidebarHover : 'transparent',
     borderColor: rim.outline ? colors.textOnPrimary : 'transparent',
     ...(Platform.OS === 'web' ? { transition: 'background-color 180ms cubic-bezier(0.2, 0, 0, 1), border-color 120ms ease-out' } : {}),
-  } : undefined;
+  } : {
+    // Task 267: the phone bar's outline is for keyboard focus only; a tap in a phone browser left a box around the tab.
+    borderWidth: 1,
+    borderColor: rim.outline ? colors.primary : 'transparent',
+  };
   return (
     <Pressable
       onPress={onPress}
-      {...(rail ? rim.handlers : {})}
+      {...rim.handlers}
       style={railStyle}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
       aria-selected={focused}
       accessibilityLabel={tab.label}
-      className={`items-center active:opacity-80 ${rail ? 'overflow-hidden rounded-[14px] border' : `rounded-xl focus:border focus:border-primary ${focused ? '' : 'hover:bg-surface-tint'}`} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
+      className={`items-center active:opacity-80 ${rail ? 'overflow-hidden rounded-[14px] border' : `rounded-xl ${focused ? '' : 'hover:bg-surface-tint'}`} ${compact ? `min-h-12 w-full flex-row py-1.5 ${expanded ? 'justify-start gap-2 px-2' : 'justify-center'}` : `${rail ? 'w-[72px]' : 'flex-1'} min-h-[52px] justify-center py-1.5`}`}
     >
       <View className={`items-center justify-center rounded-xl ${compact ? 'h-7 w-7' : `h-[30px] w-11 ${focused && !rail ? 'bg-accent-soft' : ''}`}`}>
         <Icon size={compact ? 18 : 21} color={color} />
@@ -161,7 +166,7 @@ function BottomBar({ state, navigation }: BarProps) {
         {phone.filter(t => t.name === 'items').map(tab)}
         {more.length > 0 || access.isOwner ? (
           <Pressable accessibilityRole="button" accessibilityLabel="More kitchen sections" accessibilityState={{ expanded: sheet === 'more' }} onPress={() => setSheet('more')}
-            className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus:border focus:border-primary">
+            className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus-visible:border focus-visible:border-primary">
             <View className={'h-[30px] w-11 items-center justify-center rounded-xl ' + (moreActive ? 'bg-accent-soft' : '')}><Ellipsis size={21} color={moreActive ? colors.primary : colors.textSecondary} /></View>
             <Text className={`mt-0.5 text-xs ${moreActive ? 'font-extrabold' : 'font-semibold'}`} style={{ color: moreActive ? colors.primary : colors.textSecondary }}>More</Text>
           </Pressable>
@@ -297,6 +302,12 @@ function Rail({ state, navigation }: BarProps) {
  */
 export default function KitchenTabsLayout() {
   const { isTablet } = useResponsive();
+  // Task 269: once the tabs have been on screen, leaving a form can step back to them.
+  const navigation = useNavigation();
+  useEffect(() => {
+    if (navigation.isFocused()) markKitchenTabsShown();
+    return navigation.addListener('focus', markKitchenTabsShown);
+  }, [navigation]);
   return (
     <PhoneWebFrame active={!isTablet}>
       <Tabs

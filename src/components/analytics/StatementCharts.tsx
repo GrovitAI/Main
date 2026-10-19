@@ -49,6 +49,7 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
   const max = niceMax(Math.max(0, ...points.map((p) => Math.max(p.value, p.previous ?? 0))));
   const peak = points.reduce((best, p, i) => (p.value > (points[best]?.value ?? -1) ? i : best), 0);
   const ticks = [max, max / 2, 0];
+  const narrow = plotWidth > 0 && plotWidth / Math.max(1, points.length) < 64;
   const px = (v: number): number => Math.max(v > 0 ? 3 : 0, Math.round((v / max) * height));
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={summary}>
@@ -63,13 +64,19 @@ export function ColumnChart({ points, height = 200, format, formatTick = format,
               const on = active === i;
               const delta = p.previous ? (p.value - p.previous) / p.previous : null;
               return (
-                <Pressable {...ownHover} key={p.label + i} className="h-full flex-1 items-center justify-end" accessibilityRole="button"
+                <Pressable {...ownHover} key={p.label + i} accessibilityRole="button"
                   accessibilityLabel={`${p.label}: ${format(p.value)}${hasPrevious && p.previous !== undefined ? `, ${p.previousLabel ?? previousName.toLowerCase()} ${format(p.previous)}` : ''}`}
                   onHoverIn={() => setActive(i)} onHoverOut={() => setActive((a) => (a === i ? null : a))} onFocus={() => setActive(i)} onBlur={() => setActive(null)}
                   onPress={() => setActive((a) => (a === i ? null : i))}
-                  style={{ backgroundColor: on ? chart.hoverWash : 'transparent', borderRadius: 8 }}>
+                  // Task 261: plain style, not className: on the web a Pressable given both drops the className, which squeezed the columns.
+                  style={{ height: '100%', flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'flex-end', backgroundColor: on ? chart.hoverWash : 'transparent', borderRadius: 8 }}>
                   {i === peak && p.value > 0 && !on ? (
-                    <Text className="mb-1 text-xs font-bold text-text-primary" style={tabular}>{format(p.value)}</Text>
+                    // Task 261: the label floats above its column, so a narrow column (a phone) keeps its
+                    // width, and narrow columns use the short figure (₹36.2k).
+                    <Text pointerEvents="none" className="text-xs font-bold text-text-primary"
+                      style={{ ...tabular, position: 'absolute', bottom: px(Math.max(p.value, p.previous ?? 0)) + 4, width: 96, left: '50%', marginLeft: -48, textAlign: 'center' }}>
+                      {narrow ? formatTick(p.value) : format(p.value)}
+                    </Text>
                   ) : null}
                   <View className="flex-row items-end" style={{ gap: 2, width: '100%', justifyContent: 'center' }}>
                     {hasPrevious ? <View style={{ width: '34%', maxWidth: 24, height: px(p.previous ?? 0), backgroundColor: chart.previous, borderTopLeftRadius: 4, borderTopRightRadius: 4 }} /> : null}

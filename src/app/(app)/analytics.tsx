@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { storage, STORAGE_KEYS } from '@/lib/pos/storage';
-import { PhoneAnalyticsScreen } from '@/components/phone/PhoneAnalyticsScreen';
+import { PhoneStatement } from '@/components/analytics/PhoneStatement';
 import { AnalyticsStatement } from '@/components/analytics/AnalyticsStatement';
 import Svg, {
   Path,
@@ -132,21 +132,6 @@ export default function AnalyticsScreen() {
   const increaseRoyaltyRate = () => updateRoyaltyRate(royaltyRate + 0.5);
 
   // Dynamic date preset calculations
-  /** Narrows a label coming from the phone screen to a known preset id. */
-  const toDatePreset = (value: string): typeof preset => {
-    const normalised = value.toLowerCase().replace(/\s+/g, '');
-    switch (normalised) {
-      case 'today':
-      case 'yesterday':
-      case '7days':
-      case '30days':
-      case 'month':
-      case 'custom':
-        return normalised;
-      default:
-        return 'today';
-    }
-  };
 
   const applyPreset = (presetType: typeof preset) => {
     setPreset(presetType);
@@ -1237,7 +1222,6 @@ export default function AnalyticsScreen() {
     );
   };
 
-  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   // Desktop web reads the analytics as a daily statement (task 197). Phone and
   // tablet keep their own layouts below; filters, loading and exports are shared.
@@ -1287,82 +1271,51 @@ export default function AnalyticsScreen() {
     );
   }
 
+  // Task 261 (owner's pick, layout A): a phone reads the same daily statement as the desktop,
+  // folded for one hand. Tablets keep the layout below.
   if (isPhone) {
-    const kpis = dashboardData?.kpis;
     return (
-      <PhoneAnalyticsScreen
-        kpiData={{
-          totalSales: kpis?.totalSales || 0,
-          totalOrders: kpis?.totalOrders || 0,
-          avgOrderValue: kpis?.avgOrderValue || 0,
-          itemsSold: kpis?.itemsSold || 0,
-          totalTax: kpis?.taxCollected || 0,
-          totalDiscounts: kpis?.totalDiscounts || 0,
-          collectedRevenue: kpis?.collectedRevenue || kpis?.totalSales || 0,
-          pendingCollections: kpis?.pendingCollections || 0,
-          cancelledOrders: kpis?.cancelledOrders || 0,
-          cancelledSales: kpis?.cancelledSales || 0,
-          salesTrend: 0,
-        }}
-        royaltyData={{
-          enabled: isFranchiseMode,
-          storeShare: 100 - royaltyRate,
-          royaltyShare: royaltyRate,
-        }}
-        chartsData={{
-          salesTrend: (dashboardData?.salesByDay || []).map((t) => ({
-            label: t.label,
-            value: t.sales || 0,
-            orders: t.orders || 0,
-          })),
-          rushHours: (dashboardData?.salesByHour || []).map((r) => ({
-            hour: r.hour,
-            sales: r.sales || 0,
-          })),
-          paymentSplits: (dashboardData?.paymentSplit || []).map((p) => ({
-            label: p.payment_type || 'Other',
-            value: p.total || 0,
-          })),
-        }}
-        topProducts={(dashboardData?.topSellingItems || []).map((item, idx) => ({
-          id: String(idx),
-          name: item.item_name,
-          sold: item.qty || 0,
-          revenue: item.revenue || 0,
-        }))}
-        itemSales={(dashboardData?.itemWiseReport || []).map((item, idx) => ({
-          id: String(idx),
-          name: item.item_name,
-          quantity: item.qty || 0,
-          revenue: item.revenue || 0,
-        }))}
-        filterState={{
-          datePreset: preset,
-          selectedBranchId: selectedBranchId || undefined,
-        }}
-        branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
-        canPickBranch={canPickBranch}
-        startDate={startDate}
-        endDate={endDate}
-        startTime={startTime}
-        endTime={endTime}
-        loading={loading}
-        errorMsg={errorMsg}
-        onRetry={loadDashboard}
-        isFilterSheetOpen={isFilterSheetOpen}
-        onOpenFilter={() => setIsFilterSheetOpen(true)}
-        onCloseFilter={() => setIsFilterSheetOpen(false)}
-        onSelectDatePreset={(p) => applyPreset(toDatePreset(p))}
-        onApplyCustomRange={(start, end, startT, endT) => {
-          setStartDate(start);
-          setEndDate(end);
-          if (startT) setStartTime(startT);
-          if (endT) setEndTime(endT);
-          setPreset('custom');
-        }}
-        onSelectBranch={(bId) => setSelectedBranchId(bId)}
-        onExportCSV={handleExportCSV}
-      />
+      <View className="flex-1">
+        <PhoneStatement
+          data={dashboardData}
+          loading={loading}
+          errorMsg={errorMsg}
+          onRetry={() => void loadDashboard()}
+          loadedFilters={loadedFilters}
+          preset={preset}
+          onPreset={applyPreset}
+          onOpenDates={() => setIsDatePickerOpen(true)}
+          startDate={startDate}
+          endDate={endDate}
+          branches={accessibleBranches.map((b) => ({ id: b.id, name: b.name }))}
+          canPickBranch={canPickBranch}
+          selectedBranchId={selectedBranchId}
+          onSelectBranch={setSelectedBranchId}
+          canExport={canExportCsv}
+          exporting={exporting}
+          exportNotice={exportNotice}
+          onExportTransactions={() => void handleExportCSV()}
+          onExportItems={handleExportItemWiseCSV}
+          hours={{ enabled: advancedTime, start: startTime, end: endTime, onToggle: () => setAdvancedTime((v) => !v), onStart: setStartTime, onEnd: setEndTime }}
+          franchise={{ enabled: isFranchiseMode, rate: royaltyRate, onToggle: toggleFranchiseMode, onDecrease: decreaseRoyaltyRate, onIncrease: increaseRoyaltyRate }}
+        />
+        <DatePickerModal
+          visible={isDatePickerOpen}
+          onClose={() => setIsDatePickerOpen(false)}
+          startDate={startDate}
+          endDate={endDate}
+          startTime={startTime}
+          endTime={endTime}
+          showTimePicker={advancedTime}
+          onApply={(start, end, startT, endT) => {
+            setStartDate(start);
+            setEndDate(end);
+            if (startT) setStartTime(startT);
+            if (endT) setEndTime(endT);
+            setPreset('custom');
+          }}
+        />
+      </View>
     );
   }
 

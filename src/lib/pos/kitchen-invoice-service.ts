@@ -2,7 +2,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
-import { describeAccessError } from '@/lib/pos/kitchen-utils';
+import { OFFLINE_LOAD_TEXT, describeAccessError, isOfflineError } from '@/lib/pos/kitchen-utils';
 import type { ServiceResult, KitchenMode } from '@/lib/pos/kitchen-types';
 import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceWorkspace, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 
@@ -49,6 +49,7 @@ function safeError(error: unknown, write = false): string {
   if (access) return access;
   if (message.includes('KITCHEN_INVOICE_CHANGED') || code === '23505') return 'The deliveries or payments changed. Refresh before trying again.';
   if (message.includes('KITCHEN_INVOICE_INVALID')) return 'Check the branch, dates and finished-goods deliveries.';
+  if (!write && isOfflineError(message)) return OFFLINE_LOAD_TEXT;
   return write ? 'Unable to confirm the save. Refresh invoices before trying again.' : 'Unable to load invoices. Please retry.';
 }
 export async function fetchKitchenInvoices(filter: InvoiceFilter, signal?: AbortSignal): Promise<ServiceResult<InvoiceWorkspace>> {

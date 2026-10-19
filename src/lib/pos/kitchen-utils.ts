@@ -29,12 +29,15 @@ export const SHOWN_CATEGORIES = 5;
  */
 export function orderCategories<T extends { name: string; sort_order: number; is_active: boolean }>(
   categories: readonly T[],
-  entries: readonly Pick<KitchenEntry, 'type' | 'category' | 'voided_at'>[],
+  entries: readonly (Pick<KitchenEntry, 'type' | 'category' | 'voided_at'> & { purchase_category_name?: string | null })[],
 ): T[] {
+  // Task 255: Spent and Bought share one list, so a category counts its uses on both.
   const uses = new Map<string, number>();
   for (const e of entries) {
-    if (e.type !== 'spent' || e.voided_at !== null || !e.category) continue;
-    const key = e.category.trim().toLowerCase();
+    if (e.voided_at !== null) continue;
+    const name = e.type === 'spent' ? e.category : e.type === 'bought' ? e.purchase_category_name ?? null : null;
+    if (!name) continue;
+    const key = name.trim().toLowerCase();
     uses.set(key, (uses.get(key) ?? 0) + 1);
   }
   return categories
@@ -325,8 +328,9 @@ export function typeLabel(type: KitchenEntryType): string {
 }
 
 export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
-  const party = names.party ?? 'someone';
-  const item = names.item ?? 'an item';
+  // Task 268: the lists hold active names only, so a removed branch, vendor or item says so.
+  const party = names.party ?? (e.type === 'sent' || e.type === 'received' ? 'a removed branch' : 'a removed vendor');
+  const item = names.item ?? 'a removed item';
   switch (e.type) {
     case 'sent': return `Sent to ${party}`;
     case 'received': return `Received from ${party}`;
@@ -343,7 +347,8 @@ export function linesSummary(e: Pick<KitchenEntry, 'lines'>, itemsById: Readonly
   return e.lines
     .map((l) => {
       const it = itemsById.get(l.item_id);
-      return it ? `${it.name} ${formatQty(l.qty, it.unit)}` : formatQty(l.qty, '');
+      // Task 268: the kitchen loads active items only, so a removed item is named as one rather than a bare number.
+      return it ? `${it.name} ${formatQty(l.qty, it.unit)}` : `Removed item ${formatQty(l.qty, '').trim()}`;
     })
     .join(', ');
 }
@@ -428,10 +433,20 @@ export function describeAccessError(message: string | null | undefined): string 
   return null;
 }
 
+/** Said when a load never reached the server, even after it was tried again (task 256). */
+export const OFFLINE_LOAD_TEXT = 'Can’t reach the server right now. Check the internet connection and try again.';
+
+/** True for a request that died on the device (no connection, or the app was waking up). */
+export function isOfflineError(message: string | null | undefined): boolean {
+  return /failed to fetch|network request failed|networkerror|load failed|network connection was lost/i.test(message ?? '');
+}
+
 export function describeKitchenError(message: string | null | undefined, fallback: string): string {
   const m = message ?? '';
   const access = describeAccessError(m);
   if (access) return access;
+  // Only a load says "no connection"; a save that lost its answer may still have been made.
+  if (isOfflineError(m) && fallback.startsWith('Unable to load')) return OFFLINE_LOAD_TEXT;
   if (m.includes('KITCHEN_FORBIDDEN') || m.includes('42501')) return 'This login cannot write the kitchen’s books.';
   if (m.includes('KITCHEN_PARTY_NOT_FOUND')) return 'That branch or vendor is no longer in the list.';
   if (m.includes('KITCHEN_ITEM_NOT_FOUND')) return 'That item is no longer in the list.';
@@ -533,6 +548,17 @@ export function stockLevels(entries: readonly KitchenEntry[], items: readonly { 
  * The fresh list, or the one already held when nothing in it changed (task 250), so screens that
  * depend on it do not redraw or recompute after a reload that found nothing new.
  */
+/**
+ * A big figure's font size from its length (task 260): full size while it fits `fits` characters,
+ * then smaller in step with its length, never below `min`. iOS's own shrink-to-fit
+ * (adjustsFontSizeToFit) drew some amounts clipped or blank on phones, so the app sizes them itself.
+ */
+export function figureSize(text: string, size: number, fits: number, min = Math.round(size * 0.6)): number {
+  const length = Array.from(text).length;
+  if (length <= fits) return size;
+  return Math.max(min, Math.floor((size * fits) / length));
+}
+
 export function keepIfSame<T>(previous: T, next: T | null | undefined): T {
   if (next === null || next === undefined) return previous;
   return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;

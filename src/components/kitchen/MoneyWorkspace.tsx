@@ -7,7 +7,7 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { formatMoney, localDateKey, moneyChangeOn, parseAmount } from '@/lib/pos/kitchen-utils';
+import { figureSize, formatMoney, localDateKey, moneyChangeOn, parseAmount } from '@/lib/pos/kitchen-utils';
 import { historyDateLabel } from '@/lib/pos/kitchen-history-utils';
 import { fetchKitchenMoney, moveKitchenMoney, setKitchenMoneyOpening, voidKitchenMoneyMove, MONEY_LIMIT_PAISE, type MoneyAccount, type MoneyMove, type MoneySummary } from '@/lib/pos/kitchen-money-service';
 import { Card, Divider, Field, GhostButton, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Reveal, Row, Segmented, StatTile, TextField } from '@/components/kitchen/ui';
@@ -275,7 +275,7 @@ export function MoneyWorkspace() {
 function BalanceCard({ icon: Icon, color, label, paise, change }: { icon: LucideIcon; color: string; label: string; paise: number; change: number }) {
   return <View className="min-w-0 flex-1 rounded-[18px] border border-border-soft bg-surface-elevated p-3.5">
     <View className="flex-row items-center gap-1.5"><Icon size={17} color={color} /><Text className="text-[13px] font-bold" style={{ color }}>{label}</Text></View>
-    <Text className="mt-1 text-[26px] font-bold" style={{ color: paise < 0 ? semantic.danger : colors.textPrimary, letterSpacing: -0.5, ...tabular }} numberOfLines={1} adjustsFontSizeToFit>{rupees(paise)}</Text>
+    <Text className="mt-1 font-bold" style={{ fontSize: figureSize(rupees(paise), 26, 9), lineHeight: 32, color: paise < 0 ? semantic.danger : colors.textPrimary, letterSpacing: -0.5, ...tabular }} numberOfLines={1}>{rupees(paise)}</Text>
     <Text className="text-xs font-semibold text-text-secondary" style={tabular}>{change === 0 ? 'No change today' : `${change > 0 ? '+' : '−'}${formatMoney(Math.abs(change))} today`}</Text>
   </View>;
 }

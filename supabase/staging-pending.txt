@@ -12,3 +12,4 @@
 # Tasks 206-209, 224, 234 and 242 (seven migrations, 20261014100000 through
 # 20261017110000) were promoted on 2026-10-18 in order; production kitchen
 # functions, grants and the 19 pinned functions were checked to match staging.
+20261018100000_kitchen_shared_categories.sql

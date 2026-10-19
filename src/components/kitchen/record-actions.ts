@@ -7,14 +7,15 @@ export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent' | 'gi
 /**
  * The four things the kitchen records, each offered only to logins allowed to
  * record it. Home and the phone's + menu both list them from here (task 228).
+ * Goods first, then money: Received and Spent sit side by side (task 254).
  */
 export function recordActions(can: (permission: KitchenPermission) => boolean): RecordAction[] {
   const mayPay = can('entries.pay');
   const maySpend = can('entries.spend');
   return [
     ...(can('entries.send') ? [{ key: 'send' as const, icon: ArrowUpRight, label: 'Send', caption: 'Items to a branch', tone: 'primary' as const, href: '/central-kitchen/send' }] : []),
-    ...(can('entries.receive') ? [{ key: 'received' as const, icon: ArrowDownLeft, label: 'Received', caption: 'Money from a branch', tone: 'in' as const, href: '/central-kitchen/received' }] : []),
     ...(can('entries.buy') ? [{ key: 'bought' as const, icon: ShoppingBag, label: 'Bought', caption: 'From a vendor', tone: 'buy' as const, href: '/central-kitchen/bought' }] : []),
+    ...(can('entries.receive') ? [{ key: 'received' as const, icon: ArrowDownLeft, label: 'Received', caption: 'Money from a branch', tone: 'in' as const, href: '/central-kitchen/received' }] : []),
     ...(mayPay || maySpend ? [{ key: 'spent' as const, icon: ArrowUp, label: 'Spent', caption: mayPay && maySpend ? 'Pay a vendor or a bill' : mayPay ? 'Pay a vendor' : 'Pay a bill', tone: 'out' as const, href: '/central-kitchen/spent' }] : []),
   ];
 }

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POS analytics on a phone</title>
+<link rel="stylesheet" href="../task-228/phones.css">
+<style>
+:root { --pending: #d97706; --pendingSoft: #fef3c7; --heat0: #eef5fc; }
+.sheet { grid-template-columns: repeat(3, 390px); }
+.group { grid-column: 1 / -1; margin: 10px 0 -24px 6px; max-width: 1250px; }
+.group h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--navy); letter-spacing: -0.3px; }
+.group p { margin: 6px 0 0; font-size: 15px; font-weight: 600; color: var(--text2); line-height: 1.45; max-width: 980px; }
+.hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ttl { font-size: 27px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; }
+.scope { font-size: 14px; font-weight: 600; color: var(--text2); margin-top: 3px; }
+.pills { display: flex; gap: 6px; margin: 14px -18px 0; padding: 0 18px; overflow: hidden; }
+.pill { flex: none; width: 82px; height: 36px; border-radius: 999px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--text); background: var(--card); }
+.pill.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.2px; }
+.muted { color: var(--text2); }
+.f12 { font-size: 12px; font-weight: 600; }
+.f13 { font-size: 13px; font-weight: 600; }
+.f14 { font-size: 14px; font-weight: 600; }
+.big { font-size: 44px; font-weight: 700; letter-spacing: -1.4px; line-height: 1; font-variant-numeric: tabular-nums; }
+.up { color: var(--ok); background: var(--okSoft); }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 16px; }
+.trio > div + div { border-left: 1px solid var(--soft); padding-left: 12px; }
+.trio .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow { display: flex; gap: 2px; height: 10px; margin-top: 16px; }
+.flow i { display: block; border-radius: 5px; }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sec { margin-top: 22px; }
+.cardp { padding: 16px; }
+.bars { display: flex; align-items: flex-end; gap: 10px; height: 128px; margin-top: 14px; padding-bottom: 2px; border-bottom: 1px solid var(--grid); }
+.bars .g { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 100%; }
+.bars .g i { display: block; width: 12px; border-radius: 4px 4px 0 0; }
+.axis { display: flex; gap: 10px; margin-top: 6px; }
+.axis span { flex: 1; text-align: center; font-size: 12px; font-weight: 600; color: var(--text2); }
+.axis span.on { color: var(--text); font-weight: 700; }
+.mix { display: flex; gap: 2px; height: 14px; margin-top: 14px; }
+.mix i { display: block; border-radius: 4px; }
+.mrow { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--soft); }
+.mrow:first-of-type { border-top: 0; }
+.mrow .n { flex: 1; font-size: 15px; font-weight: 700; }
+.mrow .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mrow .p { width: 42px; text-align: right; font-size: 13px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.hours { display: flex; align-items: flex-end; gap: 4px; height: 96px; margin-top: 14px; border-bottom: 1px solid var(--grid); }
+.hours i { flex: 1; display: block; border-radius: 4px 4px 0 0; }
+.haxis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--text2); }
+.item { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--soft); }
+.item:first-child { border-top: 0; }
+.item .rk { width: 22px; font-size: 13px; font-weight: 700; color: var(--text2); font-variant-numeric: tabular-nums; }
+.item .nm { font-size: 15px; font-weight: 700; }
+.item .meter { height: 6px; border-radius: 3px; background: var(--grid); margin-top: 6px; overflow: hidden; }
+.item .meter i { display: block; height: 100%; border-radius: 3px; background: var(--primary); }
+.item .rv { text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.item .rv small { display: block; font-size: 12px; font-weight: 600; color: var(--text2); }
+.link { color: var(--primary); font-weight: 700; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+.qrow { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--soft); font-size: 15px; font-weight: 600; }
+.qrow:first-child { border-top: 0; }
+.qrow b { font-variant-numeric: tabular-nums; }
+.tabbar4 { position: absolute; left: 16px; right: 16px; bottom: 26px; height: 66px; border-radius: 33px; background: rgba(255,255,255,0.94); border: 1px solid var(--soft); display: flex; align-items: center; justify-content: space-around; }
+.fadeb { position: absolute; left: 0; right: 0; bottom: 0; height: 130px; background: linear-gradient(to bottom, rgba(245,248,252,0), var(--canvas) 55%); pointer-events: none; }
+.scrolltag { position: absolute; top: 58px; right: 18px; font-size: 12px; font-weight: 700; color: var(--text2); background: var(--card); border: 1px solid var(--soft); border-radius: 999px; padding: 3px 10px; }
+/* Day strip (B) */
+.strip { display: flex; gap: 4px; margin: 14px -18px 0; padding: 0 18px; }
+.strip .d { flex: 1; text-align: center; border-radius: 14px; padding: 6px 0 6px; }
+.strip .d .col { height: 64px; display: flex; align-items: flex-end; justify-content: center; }
+.strip .d .col i { display: block; width: 12px; border-radius: 4px 4px 0 0; background: var(--accent); }
+.strip .d .w { font-size: 11px; font-weight: 700; color: var(--text2); margin-top: 5px; }
+.strip .d .n { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.strip .d.in { background: var(--tint); }
+.strip .d.in .col i { background: var(--primary); }
+.strip .d.sel { background: var(--primary); }
+.strip .d.sel .col i { background: #fff; }
+.strip .d.sel .w { color: #cfe6ff; }
+.strip .d.sel .n { color: #fff; }
+.heat { display: grid; grid-template-columns: 26px repeat(12, 1fr); gap: 3px; margin-top: 12px; }
+.heat span { font-size: 11px; font-weight: 700; color: var(--text2); display: flex; align-items: center; }
+.heat i { display: block; height: 22px; border-radius: 5px; }
+.hlab { display: grid; grid-template-columns: 26px repeat(12, 1fr); gap: 3px; margin-top: 5px; font-size: 11px; font-weight: 600; color: var(--text2); }
+.hlab span { text-align: center; }
+.ramp { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--text2); }
+.ramp i { width: 18px; height: 10px; border-radius: 3px; display: inline-block; }
+.vs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.br { padding: 14px; }
+.br .v { font-size: 24px; font-weight: 700; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.split2 { display: flex; height: 12px; gap: 2px; margin-top: 14px; }
+.split2 i { display: block; border-radius: 4px; }
+/* Tabs (C) */
+.seg3 { display: flex; background: var(--tint); border: 1px solid var(--border); border-radius: 14px; padding: 3px; margin-top: 14px; }
+.seg3 div { flex: 1; text-align: center; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 11px; font-size: 14px; font-weight: 700; color: var(--text2); }
+.seg3 div.on { background: var(--card); color: var(--primary); border: 1px solid var(--border); }
+.period { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); margin-top: 10px; font-size: 14px; font-weight: 700; }
+.period .lucide { width: 18px; height: 18px; color: var(--primary); }
+.sortseg { display: flex; background: var(--tint); border: 1px solid var(--border); border-radius: 12px; padding: 3px; width: 190px; }
+.sortseg div { flex: 1; text-align: center; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--text2); }
+.sortseg div.on { background: var(--card); color: var(--primary); border: 1px solid var(--border); }
+/* Filter sheet (D) */
+.srow { display: flex; align-items: center; gap: 12px; min-height: 50px; border-top: 1px solid var(--soft); }
+.srow:first-child { border-top: 0; }
+.srow .t { flex: 1; font-size: 16px; font-weight: 600; }
+.srow .t small { display: block; font-size: 12px; font-weight: 600; color: var(--text2); }
+.radio { width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--border); flex: none; }
+.radio.on { border: 7px solid var(--primary); }
+.toggle { width: 46px; height: 28px; border-radius: 14px; background: var(--primary); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: #fff; }
+.toggle.off { background: var(--border); }
+.toggle.off::after { right: auto; left: 3px; }
+.notes { max-width: 1250px; grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px 40px; margin-top: -18px; }
+.notes div { font-size: 14px; font-weight: 600; color: var(--text2); line-height: 1.5; }
+.notes b { color: var(--navy); }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+const rs = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const ic = (n, st = '') => `<i data-lucide="${n}"${st ? ` style="${st}"` : ''}></i>`;
+// One week for both branches, 12-18 Oct 2026 against 5-11 Oct (every figure adds up).
+const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DATES = [12, 13, 14, 15, 16, 17, 18];
+const now = [21400, 19850, 23100, 24600, 29800, 36200, 29400];
+const prev = [19900, 18200, 20500, 22800, 26100, 32400, 24800];
+const HOURS = ['11', '12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+const hourSales = [4200, 9800, 14600, 12100, 9900, 11800, 15400, 21800, 28400, 26900, 18600, 10850];
+const ITEMS = [['Nutella waffle', 142, 31240], ['Belgian brownie sundae', 121, 30250], ['Chocolate mousse', 186, 27900], ['Mango delight', 98, 17640], ['Tres leches', 84, 16800], ['Red velvet jar', 77, 13860]];
+const TOTAL = 184350;
+const MIX = [['UPI', 114300, 'var(--primary)'], ['Cash', 51620, 'var(--teal)'], ['Card', 18430, 'var(--violet)']];
+
+const status = '<div class="island"></div><div class="status"><span>9:41</span><span class="r"><i data-lucide="signal" class="s16"></i><i data-lucide="wifi" class="s16"></i><i data-lucide="battery-full" class="s16"></i></span></div>';
+const TABS = [['chart-column', 'Analytics'], ['chef-hat', 'Kitchen'], ['package', 'Inventory'], ['ellipsis', 'More']];
+const bar = () => `<div class="tabbar4">${TABS.map(([i, l], k) => `<div class="tab${k === 0 ? ' on' : ''}">${ic(i)}${l}</div>`).join('')}</div>`;
+
+const header = (right = ic('sliders-horizontal')) => `<div class="hdr"><div><div class="ttl">Analytics</div><div class="scope">All branches · 12–18 Oct</div></div><div class="iconbtn">${right}</div></div>`;
+const pills = () => `<div class="pills">${['Today', 'Yesterday', '7 days', '30 days', 'Month', 'Dates'].map(p => `<div class="pill${p === '7 days' ? ' on' : ''}">${p}</div>`).join('')}</div>`;
+
+const moneyCard = () => `<div class="card cardp" style="margin-top:14px">
+  <div class="row between"><div class="f14 muted">Sales</div><span class="chip up">${ic('trending-up', 'width:15px;height:15px')}12% vs 5–11 Oct</span></div>
+  <div class="big" style="margin-top:6px">${rs(TOTAL)}</div>
+  <div class="trio"><div><div class="f12 muted">Orders</div><div class="v">412</div></div><div><div class="f12 muted">Average bill</div><div class="v">₹447</div></div><div><div class="f12 muted">Items sold</div><div class="v">968</div></div></div>
+  <div class="flow"><i style="flex:178150;background:var(--primary)"></i><i style="flex:6200;background:var(--pending)"></i></div>
+  <div class="row between f13" style="margin-top:8px"><span class="key"><i style="background:var(--primary)"></i>Collected ${rs(178150)}</span><span class="key"><i style="background:var(--pending)"></i>Pending ${rs(6200)}</span></div>
+</div>`;
+
+const dayChart = (title = 'Sales by day') => {
+  const max = Math.max(...now, ...prev);
+  return `<div class="card cardp sec"><div class="row between"><div class="h2">${title}</div><div class="f12 muted">Best: Sat ${rs(36200)}</div></div>
+  <div class="bars">${now.map((v, i) => `<div class="g"><i style="height:${prev[i] / max * 100}%;background:var(--prev)"></i><i style="height:${v / max * 100}%;background:var(--primary)"></i></div>`).join('')}</div>
+  <div class="axis">${DAYS.map((d, i) => `<span${i === 5 ? ' class="on"' : ''}>${d}</span>`).join('')}</div>
+  <div class="row f13" style="gap:16px;margin-top:10px"><span class="key"><i style="background:var(--primary)"></i>12–18 Oct</span><span class="key"><i style="background:var(--prev)"></i>5–11 Oct</span></div></div>`;
+};
+const mixCard = () => `<div class="card cardp sec"><div class="h2">How customers paid</div>
+  <div class="mix">${MIX.map(([, v, c]) => `<i style="flex:${v};background:${c}"></i>`).join('')}</div>
+  <div style="margin-top:6px">${MIX.map(([n, v, c]) => `<div class="mrow"><span class="dot" style="background:${c}"></span><span class="n">${n}</span><span class="v">${rs(v)}</span><span class="p">${Math.round(v / TOTAL * 100)}%</span></div>`).join('')}</div></div>`;
+const rushCard = () => {
+  const max = Math.max(...hourSales);
+  return `<div class="card cardp sec"><div class="row between"><div class="h2">When customers come</div></div>
+  <div class="f13 muted" style="margin-top:3px">Busiest 7–8 pm, ${rs(28400)} over the week</div>
+  <div class="hours">${hourSales.map(v => `<i style="height:${v / max * 100}%;background:${v === max ? 'var(--primary)' : 'var(--accent)'}"></i>`).join('')}</div>
+  <div class="haxis"><span>11 am</span><span>2 pm</span><span>5 pm</span><span>8 pm</span><span>10 pm</span></div></div>`;
+};
+const itemsCard = (n = 6, title = 'What sold') => `<div class="card cardp sec"><div class="row between"><div class="h2">${title}</div><div class="f12 muted">By sales</div></div>
+  <div style="margin-top:6px">${ITEMS.slice(0, n).map(([nm, q, v], i) => `<div class="item"><span class="rk">${i + 1}</span><div style="flex:1;min-width:0"><div class="nm">${nm}</div><div class="meter"><i style="width:${v / ITEMS[0][2] * 100}%"></i></div></div><div class="rv">${rs(v)}<small>${q} sold</small></div></div>`).join('')}</div></div>`;
+
+// B: the day strip
+const strip = (sel) => {
+  const max = Math.max(...now);
+  return `<div class="strip">${now.map((v, i) => `<div class="d ${sel === null ? 'in' : i === sel ? 'sel' : ''}"><div class="col"><i style="height:${v / max * 100}%"></i></div><div class="w">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}</div><div class="n">${DATES[i]}</div></div>`).join('')}</div>`;
+};
+const heat = () => {
+  const share = hourSales.map(v => v / TOTAL);
+  const cells = now.map(d => share.map(s => d * s));
+  const max = Math.max(...cells.flat());
+  const shade = v => { const t = v / max; return t > 0.8 ? 'var(--deep)' : t > 0.6 ? 'var(--primary)' : t > 0.4 ? 'var(--light)' : t > 0.22 ? 'var(--accent)' : 'var(--accentSoft)'; };
+  return `<div class="heat">${cells.map((row, i) => `<span>${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}</span>${row.map(v => `<i style="background:${shade(v)}"></i>`).join('')}`).join('')}</div>
+  <div class="hlab"><span></span>${HOURS.map((h, i) => `<span>${i % 3 === 0 ? h : ''}</span>`).join('')}</div>
+  <div class="ramp">Quiet ${['var(--accentSoft)', 'var(--accent)', 'var(--light)', 'var(--primary)', 'var(--deep)'].map(c => `<i style="background:${c}"></i>`).join('')} Busy</div>`;
+};
+
+const pages = [
+  { g: ['A · Pocket statement', 'The desktop daily statement the owner already chose, folded for one hand. Money first as one figure with its change and what is still pending, then the evidence in the same order as on the laptop. One long scroll; the period sits in a row of equal pills, branch and hours in the filter sheet.'] },
+  { n: 1, l: 'First view', h: header() + pills() + moneyCard() + dayChart(), foot: '<div class="fadeb"></div>' },
+  { n: 2, l: 'Scrolled: payments and hours', h: `<div style="margin-top:-8px"></div>` + mixCard() + rushCard() + `<div class="card cardp sec"><div class="h2">Also this week</div><div style="margin-top:4px"><div class="qrow"><span>Discounts given</span><b>${rs(4120)}</b></div><div class="qrow"><span>GST collected</span><b>${rs(8780)}</b></div><div class="qrow"><span>Cancelled</span><b>5 orders · ${rs(2350)}</b></div></div></div>`, foot: '<div class="scrolltag">scrolled</div><div class="fadeb"></div>' },
+  { n: 3, l: 'Scrolled: the menu and exports', h: `<div style="margin-top:-8px"></div>` + itemsCard(6) + `<div class="card cardp sec"><div class="h2">Selling slowly</div><div style="margin-top:4px"><div class="qrow"><span>Lemon tart</span><b class="muted">6 sold</b></div><div class="qrow"><span>Kunafa cup</span><b class="muted">9 sold</b></div></div></div><div class="row" style="gap:22px;justify-content:center;margin-top:22px"><span class="link">Export transactions</span><span class="link">Export item sales</span></div>`, foot: '<div class="scrolltag">scrolled</div><div class="fadeb"></div>' },
+
+  { g: ['B · Day strip', 'The week is the control. A strip of days, each a small bar of its takings, sits under the header: the period is lit, and tapping one day narrows everything below to it, compared with the same weekday a week earlier. The busy-hours grid answers when to staff, and the two branches sit side by side.'] },
+  { n: 4, l: 'The week', h: header(ic('calendar-days')) + strip(null) + `<div style="margin-top:16px"><div class="row between"><div class="f14 muted">Sales · 12–18 Oct</div><span class="chip up">${ic('trending-up', 'width:15px;height:15px')}12%</span></div><div class="big" style="margin-top:6px">${rs(TOTAL)}</div><div class="f14 muted" style="margin-top:6px">412 orders · ₹447 a bill · ${rs(6200)} pending</div></div><div class="card cardp sec"><div class="h2">Busy hours</div><div class="f13 muted" style="margin-top:3px">Saturday 7–8 pm is the peak of the week</div>${heat()}</div>`, foot: '<div class="fadeb"></div>' },
+  { n: 5, l: 'Tapped Sunday', h: header(ic('calendar-days')) + strip(6) + `<div style="margin-top:16px"><div class="row between"><div class="f14 muted">Sales · Sun 18 Oct</div><span class="chip up">${ic('trending-up', 'width:15px;height:15px')}19% vs last Sun</span></div><div class="big" style="margin-top:6px">${rs(29400)}</div><div class="f14 muted" style="margin-top:6px">64 orders · ₹459 a bill · all collected</div></div>` + (() => { const day = hourSales.map(v => v * 29400 / TOTAL); const max = Math.max(...day); return `<div class="card cardp sec"><div class="h2">Hour by hour</div><div class="hours">${day.map(v => `<i style="height:${v / max * 100}%;background:${v === max ? 'var(--primary)' : 'var(--accent)'}"></i>`).join('')}</div><div class="haxis"><span>11 am</span><span>2 pm</span><span>5 pm</span><span>8 pm</span><span>10 pm</span></div></div>`; })() + `<div class="card cardp sec"><div class="h2">How customers paid</div><div class="mix"><i style="flex:62;background:var(--primary)"></i><i style="flex:29;background:var(--teal)"></i><i style="flex:9;background:var(--violet)"></i></div><div class="row f13" style="gap:14px;margin-top:10px"><span class="key"><i style="background:var(--primary)"></i>UPI ${rs(18230)}</span><span class="key"><i style="background:var(--teal)"></i>Cash ${rs(8530)}</span><span class="key"><i style="background:var(--violet)"></i>Card ${rs(2640)}</span></div></div>`, foot: '<div class="fadeb"></div>' },
+  { n: 6, l: 'Scrolled: branches and the menu', h: `<div style="margin-top:-8px"></div><div class="sec"><div class="h2">Branches</div><div class="vs" style="margin-top:10px"><div class="card br"><div class="f13 muted">Kolathur</div><div class="v">${rs(106900)}</div><div class="f12 muted" style="margin-top:2px">238 orders · <span style="color:var(--ok)">+15%</span></div></div><div class="card br"><div class="f13 muted">Velachery</div><div class="v">${rs(77450)}</div><div class="f12 muted" style="margin-top:2px">174 orders · <span style="color:var(--ok)">+8%</span></div></div></div><div class="split2"><i style="flex:106900;background:var(--primary)"></i><i style="flex:77450;background:var(--prev)"></i></div><div class="row between f12 muted" style="margin-top:6px"><span>58%</span><span>42%</span></div></div>` + itemsCard(5), foot: '<div class="scrolltag">scrolled</div><div class="fadeb"></div>' },
+
+  { g: ['C · Three questions', 'Money, Customers and Menu as three short pages under one switch, each answering one question in about a screen. Less scrolling, and the menu page earns room for every item, a sort by sales or by quantity, and a search.'] },
+  { n: 7, l: 'Money', h: header() + `<div class="seg3"><div class="on">Money</div><div>Customers</div><div>Menu</div></div><div class="period"><span>7 days · 12–18 Oct</span>${ic('chevron-down')}</div>` + moneyCard() + mixCard(), foot: '<div class="fadeb"></div>' },
+  { n: 8, l: 'Customers', h: header() + `<div class="seg3"><div>Money</div><div class="on">Customers</div><div>Menu</div></div><div class="period"><span>7 days · 12–18 Oct</span>${ic('chevron-down')}</div><div class="card cardp" style="margin-top:14px"><div class="trio" style="margin-top:0"><div><div class="f12 muted">Orders</div><div class="v">412</div><div class="f12" style="color:var(--ok)">+9%</div></div><div><div class="f12 muted">Average bill</div><div class="v">₹447</div><div class="f12" style="color:var(--ok)">+3%</div></div><div><div class="f12 muted">Busiest day</div><div class="v">Sat</div><div class="f12 muted">81 orders</div></div></div></div>` + rushCard() + dayChart('Sales by day'), foot: '<div class="fadeb"></div>' },
+  { n: 9, l: 'Menu', h: header() + `<div class="seg3"><div>Money</div><div>Customers</div><div class="on">Menu</div></div><div class="row between" style="margin-top:12px"><div class="search" style="flex:1;margin-right:10px;height:44px">${ic('search', 'width:18px;height:18px')}Search items</div><div class="sortseg"><div class="on">Sales</div><div>Quantity</div></div></div>` + itemsCard(6, '48 items sold') + `<div class="card cardp sec"><div class="h2">Selling slowly</div><div style="margin-top:4px"><div class="qrow"><span>Lemon tart</span><b class="muted">6 sold</b></div><div class="qrow"><span>Kunafa cup</span><b class="muted">9 sold</b></div></div></div>`, foot: '<div class="fadeb"></div>' },
+
+  { g: ['Shared by all three · the filter sheet', 'Period, branch and shop hours in one sheet from the header button. Each choice applies as it is tapped, with no Apply button; the branch rows show what each made, so the sheet answers a question too.'] },
+  { n: 10, l: 'Filters', nobar: true, h: header() + pills() + moneyCard(), foot: `<div class="scrim"></div><div class="sheetup"><div class="grab"></div><div class="row between"><div class="h2" style="font-size:20px">Filters</div><div class="iconbtn" style="width:40px;height:40px">${ic('x')}</div></div>
+    <div class="f13 muted" style="margin:14px 0 2px">Branch</div>
+    <div class="srow"><span class="radio on"></span><span class="t">All branches</span><b class="num">${rs(TOTAL)}</b></div>
+    <div class="srow"><span class="radio"></span><span class="t">Kolathur</span><b class="num">${rs(106900)}</b></div>
+    <div class="srow"><span class="radio"></span><span class="t">Velachery</span><b class="num">${rs(77450)}</b></div>
+    <div class="f13 muted" style="margin:16px 0 2px">Hours</div>
+    <div class="srow"><span class="t">Shop hours only<small>11 am to 11 pm; leaves out late corrections</small></span><span class="toggle off"></span></div>
+    <div class="srow"><span class="t">Dates<small>12–18 Oct · tap to pick on the calendar</small></span>${ic('chevron-right', 'color:var(--text2)')}</div>
+  </div>` },
+];
+const sheet = document.getElementById('sheet');
+for (const p of pages) {
+  if (p.g) { sheet.insertAdjacentHTML('beforeend', `<div class="group"><h2>${p.g[0]}</h2><p>${p.g[1]}</p></div>`); continue; }
+  sheet.insertAdjacentHTML('beforeend', `<div><div class="label"><b>${p.n}</b>${p.l}</div><div class="phone">${status}<div class="body">${p.h}</div>${p.foot || ''}${p.nobar ? '' : bar()}<div class="home-ind"></div></div></div>`);
+}
+</script>
+<script src="https://unpkg.com/lucide@0.452.0/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

@@ -3,6 +3,9 @@ import {
   amountReadBack,
   balanceFromEntries,
   describeKitchenError,
+  figureSize,
+  isOfflineError,
+  OFFLINE_LOAD_TEXT,
   entryAmountText,
   entryHeadline,
   entrySubline,
@@ -242,6 +245,30 @@ describe('expense categories', () => {
     expect(shownCategories(ordered, 'C').map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'E']);
     expect(shownCategories(ordered, 'G').map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'G']);
     expect(shownCategories(ordered, 'Missing').map((c) => c.name)).toEqual(['A', 'B', 'C', 'D', 'E']);
+  });
+
+  it('counts uses on Bought too, as Spent and Bought share one list (task 255)', () => {
+    const list = [cat('Rent', 0), cat('Dairy', 0), cat('Gas', 0)];
+    const bought = (name: string | null) => ({ type: 'bought' as const, category: null, purchase_category_name: name, voided_at: null });
+    expect(orderCategories(list, [bought('Dairy'), bought('dairy'), spent('Gas'), bought(null)]).map((c) => c.name)).toEqual(['Dairy', 'Gas', 'Rent']);
+  });
+});
+
+describe('figureSize (task 260)', () => {
+  it('keeps the full size while the figure fits, then shrinks with its length down to a floor', () => {
+    expect(figureSize('₹12,345', 22, 10)).toBe(22);
+    expect(figureSize('₹12,34,567.50', 22, 10)).toBe(16);
+    expect(figureSize('₹1,23,45,67,890.00', 46, 11, 28)).toBe(28);
+  });
+});
+
+describe('offline loads (task 256)', () => {
+  it('says the server could not be reached for a load, but not for a save', () => {
+    expect(isOfflineError('TypeError: Failed to fetch')).toBe(true);
+    expect(isOfflineError('TypeError: Network request failed')).toBe(true);
+    expect(isOfflineError('KITCHEN_INVALID')).toBe(false);
+    expect(describeKitchenError(' TypeError: Failed to fetch', 'Unable to load your kitchen permissions.')).toBe(OFFLINE_LOAD_TEXT);
+    expect(describeKitchenError(' TypeError: Failed to fetch', 'Unable to save the entry.')).toBe('Unable to save the entry.');
   });
 });
 

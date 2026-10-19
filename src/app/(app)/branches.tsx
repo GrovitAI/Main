@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet, Modal } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, StyleSheet, Modal } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import {
   Building2,
   Plus,
-  Pencil,
+  ChevronRight,
   X,
   Check,
-  ToggleLeft,
-  ToggleRight,
   MapPin,
   Phone,
   Tag,
@@ -29,6 +27,7 @@ import { useResponsive } from '@/lib/pos/useResponsive';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import { getErrorMessage } from '../../lib/pos/error-utils';
+import { confirmAction, notify } from '@/lib/pos/dialogs';
 
 // ─── Form State ──────────────────────────────────────────────────────────────
 
@@ -228,24 +227,16 @@ export default function BranchesScreen() {
     }
   };
 
-  const handleToggleActive = async (b: Branch) => {
-    const label = b.is_active ? 'deactivate' : 'activate';
-    Alert.alert(
-      `${b.is_active ? 'Deactivate' : 'Activate'} Branch`,
-      `Are you sure you want to ${label} "${b.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: b.is_active ? 'Deactivate' : 'Activate',
-          style: b.is_active ? 'destructive' : 'default',
-          onPress: async () => {
-            const { error: err } = await updateBranch(b.id, { is_active: !b.is_active });
-            if (err) Alert.alert('Error', err);
-            else void load();
-          },
-        },
-      ]
-    );
+  // Task 270: asked from the branch's form, through confirmAction, which also works in browsers.
+  const handleToggleActive = (b: Branch) => {
+    confirmAction(`${b.is_active ? 'Deactivate' : 'Activate'} this branch?`, b.is_active ? `${b.name} stops taking orders until it is activated again.` : `${b.name} can take orders again.`, b.is_active ? 'Deactivate' : 'Activate', () => {
+      void (async () => {
+        const { error: err } = await updateBranch(b.id, { is_active: !b.is_active });
+        if (err) { notify('Could not change the branch', err); return; }
+        closeForm();
+        void load();
+      })();
+    });
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -399,6 +390,15 @@ export default function BranchesScreen() {
               </View>
             ) : null}
 
+            {editingId && editingId !== 'new' ? (() => {
+              const editing = branches.find((x) => x.id === editingId);
+              return editing ? (
+                <Pressable onPress={() => handleToggleActive(editing)} accessibilityRole="button" accessibilityLabel={`${editing.is_active ? 'Deactivate' : 'Activate'} ${editing.name}`} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
+                  <Text style={{ color: editing.is_active ? '#b91c1c' : '#15803d', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }}>{editing.is_active ? 'Deactivate this branch' : 'Activate this branch'}</Text>
+                </Pressable>
+              ) : null;
+            })() : null}
+
             <View style={styles.formActions}>
               <Pressable style={styles.cancelBtn} onPress={closeForm} id="btn-cancel-branch">
                 <X size={16} color="#64748b" />
@@ -430,7 +430,8 @@ export default function BranchesScreen() {
           </View>
         ) : (
           branches.map((b) => (
-            <View key={b.id} style={[styles.branchCard, !b.is_active && styles.branchCardInactive]}>
+            <Pressable key={b.id} onPress={canManage ? () => openEdit(b) : undefined} disabled={!canManage} accessibilityRole={canManage ? 'button' : undefined} accessibilityLabel={canManage ? `Edit ${b.name}` : b.name}
+              style={({ pressed }) => [styles.branchCard, !b.is_active && styles.branchCardInactive, pressed && canManage ? { opacity: 0.7 } : null]}>
               <View style={styles.branchCardTop}>
                 <View style={styles.branchInfo}>
                   <View style={styles.branchNameRow}>
@@ -462,42 +463,16 @@ export default function BranchesScreen() {
                       </Text>
                       <View style={{ backgroundColor: b.approval_email_verified ? '#DCFCE7' : '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexShrink: 0 }}>
                         <Text style={{ fontSize: 10, fontWeight: '700', color: b.approval_email_verified ? '#166534' : '#92400E' }}>
-                          {b.approval_email_verified ? 'Verified ✓' : 'Unverified ⚠️'}
+                          {b.approval_email_verified ? 'Verified' : 'Not verified'}
                         </Text>
                       </View>
                     </View>
                   ) : null}
                 </View>
 
-                {canManage && (
-                  <View style={styles.branchActions}>
-                    <Pressable
-                      style={styles.iconBtn}
-                      onPress={() => openEdit(b)}
-                      id={`btn-edit-branch-${b.id}`}
-                      hitSlop={4}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Edit ${b.name}`}
-                    >
-                      <Pencil size={15} color="#0066b2" />
-                    </Pressable>
-                    <Pressable
-                      style={styles.iconBtn}
-                      onPress={() => handleToggleActive(b)}
-                      id={`btn-toggle-branch-${b.id}`}
-                      hitSlop={4}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${b.is_active ? 'Deactivate' : 'Activate'} ${b.name}`}
-                    >
-                      {b.is_active
-                        ? <ToggleRight size={18} color="#22c55e" />
-                        : <ToggleLeft size={18} color="#94a3b8" />
-                      }
-                    </Pressable>
-                  </View>
-                )}
+                {canManage ? <ChevronRight size={18} color="#94a3b8" /> : null}
               </View>
-            </View>
+            </Pressable>
           ))
         )}
       </ScrollView>

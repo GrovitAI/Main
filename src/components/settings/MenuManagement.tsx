@@ -17,6 +17,7 @@ import {
   type ValidatedProductRow,
   type ProductValidationSummary
 } from '@/lib/pos/menu-import-service';
+import { ScrollPills } from '@/components/kitchen/ui';
 
 type ProductFormInput = {
   id?: string;
@@ -1061,44 +1062,10 @@ export function MenuManagement({ onBack }: MenuManagementProps) {
           </View>
         </View>
 
-        {/* 🏷️ Dynamic Category Tab Pills with Gray Pill Count Indicators (Directly from reference design!) */}
+        {/* Category pills, all one width (task 262: same-size choices). */}
         <View className="mb-3 border-b border-slate-100 pb-2.5">
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={[{ id: 'all', name: 'All Items' }, ...categories]}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ gap: 6 }}
-            renderItem={({ item }) => {
-              const isSelected = selectedCategoryId === item.id;
-              
-              // Calculate dynamic counts per category pill
-              const count = item.id === 'all'
-                ? products.length
-                : products.filter(p => p.category_id === item.id).length;
-
-              return (
-                <Pressable
-                  onPress={() => setSelectedCategoryId(item.id)}
-                  className={`px-3.5 py-1.5 rounded-full border flex-row items-center gap-1.5 transition-all ${
-                    isSelected ? 'bg-primary border-primary shadow-xs' : 'bg-slate-50 border-slate-200 active:bg-slate-100'
-                  }`}
-                  style={{ minHeight: 30 }}
-                >
-                  <Text className={`font-bold text-[11px] ${isSelected ? 'text-white' : 'text-text-secondary'}`}>
-                    {item.name}
-                  </Text>
-                  
-                  {/* Dynamic counts indicator pill */}
-                  <View className={`px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-200/60'}`}>
-                    <Text className={`text-[9px] font-black font-mono ${isSelected ? 'text-primary' : 'text-text-secondary'}`}>
-                      {count}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            }}
-          />
+          <ScrollPills label="Category" value={selectedCategoryId} onChange={setSelectedCategoryId}
+            options={[{ value: 'all', label: 'All items', count: products.length }, ...categories.map((c) => ({ value: c.id, label: c.name, count: products.filter((p) => p.category_id === c.id).length }))]} />
         </View>
 
         {success && (

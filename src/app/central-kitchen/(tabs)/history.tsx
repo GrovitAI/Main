@@ -15,8 +15,8 @@ import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { HistoryFilterSheet } from '@/components/kitchen/HistoryFilterSheet';
 
 const KINDS = [
-  { id: 'sent', label: 'Sent' }, { id: 'received', label: 'Received' },
-  { id: 'bought', label: 'Bought' }, { id: 'spent', label: 'Spent / vendor payments' }, { id: 'stock', label: 'Stock' },
+  { id: 'sent', label: 'Sent' }, { id: 'bought', label: 'Bought' },
+  { id: 'received', label: 'Received' }, { id: 'spent', label: 'Spent / vendor payments' }, { id: 'stock', label: 'Stock' },
 ] as const;
 const STATUSES = [
   { id: 'current', label: 'Current · what counts now' }, { id: 'edited', label: 'Edited · with the earlier version' },
@@ -28,9 +28,9 @@ const SORTS: readonly { id: HistorySort; label: string }[] = [
 ];
 const DATE_BASES = [{ id: 'transaction', label: 'Transaction date' }, { id: 'recorded', label: 'Entry date (recorded)' }] as const;
 /** A phone's quick type filter (task 233); the filter sheet still holds every filter. */
-const QUICK_KINDS = [{ value: 'all', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'received', label: 'Received' }, { value: 'bought', label: 'Bought' }, { value: 'spent', label: 'Spent' }, { value: 'stock', label: 'Stock' }] as const;
+const QUICK_KINDS = [{ value: 'all', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'bought', label: 'Bought' }, { value: 'received', label: 'Received' }, { value: 'spent', label: 'Spent' }, { value: 'stock', label: 'Stock' }] as const;
 const DEFAULTS: HistoryFilters = { kind: null, status: null, enteredBy: null, dateBasis: 'transaction', range: null, query: '', sort: 'transaction-newest' };
-const button = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus:border focus:border-primary';
+const button = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 hover:bg-accent-soft active:opacity-70 focus-visible:border focus-visible:border-primary';
 
 /** Audit history in the existing bounded store window; filtering never makes a request. */
 export default function HistoryScreen() {
@@ -135,8 +135,8 @@ export default function HistoryScreen() {
         <Empty title={hasFilters ? 'Nothing matches' : data.error ? 'History unavailable' : 'Nothing recorded yet'} body={hasFilters ? 'Try another word, staff member, status or date range.' : data.error ? 'Use Refresh history to try again.' : 'Sends, payments, buys and counts will show here.'} action={hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-bold text-primary">Clear filters</Text></Pressable> : undefined} />}
       renderItem={({ item, index }) => item.kind === 'day'
         ? phone ? <PhoneDayHeading label={item.label} count={item.count} net={showAmounts ? item.net : 0} /> : <DayHeading label={item.label} count={item.count} />
-        : phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.entry.id)} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
-        : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => setOpenId(item.entry.id)} />} />
+        : phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
+        : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} />} />
     {pinnedDay && data.loaded ? <View pointerEvents="none" testID="kitchen-history-pinned-day" style={{ position: 'absolute', top: 0, left: 16, right: 16 }}>{phone ? <PhoneDayHeading label={pinnedDay.label} count={pinnedDay.count} net={showAmounts ? pinnedDay.net : 0} pinned /> : <DayHeading label={pinnedDay.label} count={pinnedDay.count} />}</View> : null}
     </View>
     {phone ? <HistoryFilterSheet visible={showFilters} onClose={() => setShowFilters(false)} onReset={reset}

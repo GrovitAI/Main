@@ -249,7 +249,8 @@ type LinesEditorProps = {
   picksTitle?: string;
 };
 
-export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, picksTitle }: LinesEditorProps) {
+// Task 258: the rest of the form (payment mode, date, note) changes without redrawing the lines.
+export const LinesEditor = React.memo(function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, picksTitle }: LinesEditorProps) {
   const [query, setQuery] = useState('');
   const [pinned, setPinned] = useState<readonly string[]>([]);
   const lastQty = useMemo(() => new Map((picks ?? []).map((p) => [p.itemId, p.lastQty])), [picks]);
@@ -375,7 +376,7 @@ export function LinesEditor({ items, lines, onChange, mode, defaultCost, picks, 
       ) : null}
     </View>
   );
-}
+});
 
 /**
  * What a form has that would be lost on leaving (task 252): only lines with a quantity. A line

@@ -20,6 +20,7 @@ import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import type { MenuProduct } from '@/lib/pos/menu-service';
 import type { Category } from '@/lib/pos/products-service';
 import type { InventoryRecipe } from '@/lib/pos/inventory-service';
+import { ScrollPills } from '@/components/kitchen/ui';
 
 export type PhoneMenuScreenProps = {
   products: MenuProduct[];
@@ -288,47 +289,9 @@ export function PhoneMenuScreen({
           ) : null}
         </View>
 
-        {/* Category Pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-          <Pressable
-            onPress={() => setSelectedCategory('all')}
-            className={`px-3.5 py-1.5 rounded-full mr-2 min-h-[34px] items-center justify-center ${
-              selectedCategory === 'all'
-                ? 'bg-[#002D5A] shadow-sm'
-                : 'bg-[#F1F5F9] border border-[#E2E8F0]'
-            }`}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                selectedCategory === 'all' ? 'text-white' : 'text-[#475569]'
-              }`}
-            >
-              All ({categoryCounts['all'] || 0})
-            </Text>
-          </Pressable>
-
-          {categories.map((cat) => {
-            const isSel = selectedCategory === cat.id;
-            const count = categoryCounts[cat.id] || 0;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => setSelectedCategory(cat.id)}
-                className={`px-3.5 py-1.5 rounded-full mr-2 min-h-[34px] items-center justify-center ${
-                  isSel ? 'bg-[#002D5A] shadow-sm' : 'bg-[#F1F5F9] border border-[#E2E8F0]'
-                }`}
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    isSel ? 'text-white' : 'text-[#475569]'
-                  }`}
-                >
-                  {cat.name} ({count})
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* Category pills, all one width (task 262: same-size choices). */}
+        <ScrollPills label="Category" value={selectedCategory} onChange={setSelectedCategory}
+          options={[{ value: 'all', label: 'All', count: categoryCounts['all'] || 0 }, ...categories.map((cat) => ({ value: cat.id, label: cat.name, count: categoryCounts[cat.id] || 0 }))]} />
       </View>
 
       {/* Product List */}

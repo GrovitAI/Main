@@ -73,7 +73,7 @@ function ItemSales({ rows, totalPaise, partial }: { rows: readonly KitchenReport
   );
 }
 const tabular = { fontVariant: ['tabular-nums' as const] };
-const controls = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 hover:bg-accent-soft active:opacity-60 focus:border focus:border-primary';
+const controls = 'min-h-12 min-w-12 flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 hover:bg-accent-soft active:opacity-60 focus-visible:border focus-visible:border-primary';
 const ALL_TABS: readonly { id: KitchenReportKind; label: string }[] = [{ id: 'sales', label: 'Sales' }, { id: 'purchases', label: 'Purchases' }, { id: 'cash', label: 'Cash' }, { id: 'bank', label: 'Bank' }, { id: 'profit', label: 'Profit' }];
 /** Cash and Bank are both money-movement registers: no drill-down, no filters, received/paid columns. */
 const isMoney = (kind: KitchenReportKind): boolean => kind === 'cash' || kind === 'bank';
@@ -285,7 +285,7 @@ export function AnalyticsWorkspace() {
       <Pressable key={tab.id} accessibilityRole="tab" aria-selected={kind === tab.id} accessibilityState={{ selected: kind === tab.id }} onPress={() => chooseReport(tab.id)}
         onLayout={event => { tabLeft.current[i] = event.nativeEvent.layout.x; tabSlide.measure(i)(event); }}
         style={tabWidth ? { width: tabWidth } : undefined}
-        className={'min-h-12 items-center justify-center rounded-xl border border-transparent px-3 active:opacity-70 focus:border-primary ' + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
+        className={'min-h-12 items-center justify-center rounded-xl border border-transparent px-3 active:opacity-70 focus-visible:border-primary ' + (kind === tab.id ? '' : 'hover:bg-accent-soft')}>
         <Text className={'text-sm font-bold ' + (kind === tab.id ? 'text-text-on-primary' : 'text-text-secondary')} numberOfLines={1}>{tab.label}</Text>
       </Pressable>
     ))}
@@ -410,7 +410,7 @@ export function AnalyticsWorkspace() {
             </View>
             <FlatList data={reportActions} keyExtractor={item => item.id} className="shrink" keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ disabled: item.disabled }} disabled={item.disabled}
-                onPress={() => { setActionsOpen(false); item.action(); }} className={'min-h-12 flex-row items-center gap-3 rounded-xl px-3 py-3 hover:bg-accent-soft active:bg-accent-soft focus:border focus:border-primary ' + (item.disabled ? 'opacity-40' : '')}>
+                onPress={() => { setActionsOpen(false); item.action(); }} className={'min-h-12 flex-row items-center gap-3 rounded-xl px-3 py-3 hover:bg-accent-soft active:bg-accent-soft focus-visible:border focus-visible:border-primary ' + (item.disabled ? 'opacity-40' : '')}>
                 <item.Icon size={18} color={colors.primary} /><Text className="min-w-0 flex-1 text-sm font-semibold text-primary">{item.label}</Text>
               </Pressable>} />
           </View>
@@ -466,7 +466,7 @@ function ReportRow({ row, desktop, availableWidth, detail, reportKind, total, on
   </>;
   const body = desktop ? desktopBody : mobileBody;
   const classes = 'border-b border-border-soft bg-surface-elevated py-2 ' + (desktop ? 'min-h-[52px] flex-row items-center gap-4 px-4' : 'min-h-[62px] px-3 ' + (stackedRow ? 'gap-2' : 'flex-row items-center gap-3'));
-  return interactive ? <Pressable testID="kitchen-report-row" onPress={onPress} accessibilityRole="button" accessibilityLabel={'View entries for ' + title} className={classes + ' hover:bg-accent-soft active:bg-accent-soft focus:border focus:border-primary'}>{body}</Pressable> : <View testID="kitchen-report-row" className={classes}>{body}</View>;
+  return interactive ? <Pressable testID="kitchen-report-row" onPress={onPress} accessibilityRole="button" accessibilityLabel={'View entries for ' + title} className={classes + ' hover:bg-accent-soft active:bg-accent-soft focus-visible:border focus-visible:border-primary'}>{body}</Pressable> : <View testID="kitchen-report-row" className={classes}>{body}</View>;
 }
 
 /** The period's profit as a short statement: what came in, what it cost, what is left. */

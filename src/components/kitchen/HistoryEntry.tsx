@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
@@ -8,10 +9,12 @@ import { ENTRY_ICONS, entryIconTone } from '@/components/kitchen/EntryList';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
 /** History keeps audit information visible without adding it to everyday Home rows. */
-export function HistoryEntry({ entry, itemsById, partiesById, onPress }: {
+// Task 265: memoised, and opened by id, so changing a filter redraws only the rows that changed.
+export const HistoryEntry = memo(function HistoryEntry({ entry, itemsById, partiesById, onPress: press, onOpen }: {
   entry: KitchenEntry; itemsById: ReadonlyMap<string, KitchenItem>;
-  partiesById: ReadonlyMap<string, KitchenParty>; onPress: () => void;
+  partiesById: ReadonlyMap<string, KitchenParty>; onPress?: () => void; onOpen?: (id: string) => void;
 }) {
+  const onPress = press ?? (() => onOpen?.(entry.id));
   const desktop = useDesktopDensity();
   const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
   const title = entryHeadline(entry, names);
@@ -24,7 +27,7 @@ export function HistoryEntry({ entry, itemsById, partiesById, onPress }: {
   const tone = removed ? 'neutral' : isMoneyIn(entry) ? 'in' : isMoneyOut(entry) ? 'out' : 'neutral';
   return <Pressable testID="kitchen-history-entry" accessibilityRole="button"
     accessibilityLabel={`${title}, ${amount}, ${HISTORY_STATUS_LABELS[status]}. Transaction ${historyDateLabel(entry.entry_date)}. Entered by ${entry.created_by}, ${historyTimeLabel(entry.created_at)}${audit ? '. ' + audit : ''}`}
-    onPress={onPress} className={`min-h-12 gap-2 border-b border-border-soft bg-surface-elevated px-3 py-3 hover:bg-surface-tint active:bg-accent-soft focus:border-primary ${desktop ? 'flex-row gap-5' : ''}`}>
+    onPress={onPress} className={`min-h-12 gap-2 border-b border-border-soft bg-surface-elevated px-3 py-3 hover:bg-surface-tint active:bg-accent-soft focus-visible:border-primary ${desktop ? 'flex-row gap-5' : ''}`}>
     <View className={`min-w-0 flex-row items-start gap-3 ${desktop ? 'w-[58%]' : ''}`}>
       <View className="min-w-0 flex-1 gap-1">
         <Text className={'text-sm font-bold leading-5 ' + (removed ? 'text-text-secondary line-through' : 'text-text-primary')}>{title}</Text>
@@ -45,7 +48,7 @@ export function HistoryEntry({ entry, itemsById, partiesById, onPress }: {
     {audit && status !== 'edited' ? <Text className="text-xs leading-4 text-text-secondary">{audit}</Text> : null}
     </View>
   </Pressable>;
-}
+});
 
 /** When an entry was keyed in, India time: the time alone on its own day, with the date otherwise. */
 function recordedAt(entry: KitchenEntry): string {
@@ -60,10 +63,11 @@ function recordedAt(entry: KitchenEntry): string {
  * was keyed in, in a card that runs through the day. Corrections and voids say so on the second
  * line; the full audit trail opens with the row.
  */
-export function HistoryCardRow({ entry, itemsById, partiesById, onPress, first, last }: {
+export const HistoryCardRow = memo(function HistoryCardRow({ entry, itemsById, partiesById, onPress: press, onOpen, first, last }: {
   entry: KitchenEntry; itemsById: ReadonlyMap<string, KitchenItem>;
-  partiesById: ReadonlyMap<string, KitchenParty>; onPress: () => void; first: boolean; last: boolean;
+  partiesById: ReadonlyMap<string, KitchenParty>; onPress?: () => void; onOpen?: (id: string) => void; first: boolean; last: boolean;
 }) {
+  const onPress = press ?? (() => onOpen?.(entry.id));
   const { showAmounts } = useKitchenAccess();
   const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
   const title = entryHeadline(entry, names);
@@ -83,4 +87,4 @@ export function HistoryCardRow({ entry, itemsById, partiesById, onPress, first, 
       </View>
     </View>
   );
-}
+});

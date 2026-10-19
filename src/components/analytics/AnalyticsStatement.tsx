@@ -8,27 +8,27 @@ import { fetchAnalyticsDashboard, type AnalyticsDashboard, type AnalyticsFilters
 import { ColumnChart, FlowBar, LegendKey, MeterRow, Ring, type ColumnPoint, type RingSegment } from '@/components/analytics/StatementCharts';
 
 export type AnalyticsPreset = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
-const PRESETS: readonly { id: AnalyticsPreset; label: string }[] = [
+export const PRESETS: readonly { id: AnalyticsPreset; label: string }[] = [
   { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: '7days', label: '7 days' },
   { id: '30days', label: '30 days' }, { id: 'month', label: 'This month' }, { id: 'custom', label: 'Custom' },
 ];
-const tabular = { fontVariant: ['tabular-nums' as const] };
+export const tabular = { fontVariant: ['tabular-nums' as const] };
 /** Whole rupees: a dashboard reads totals, not paise. */
-const money = (n: number): string => formatINR(Math.round(n));
+export const money = (n: number): string => formatINR(Math.round(n));
 const trim = (v: number): string => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace(/\.0$/, ''));
-const moneyTick = (n: number): string => n >= 1_00_00_000 ? `₹${trim(n / 1_00_00_000)}Cr` : n >= 1_00_000 ? `₹${trim(n / 1_00_000)}L` : n >= 1_000 ? `₹${trim(n / 1_000)}k` : `₹${Math.round(n)}`;
+export const moneyTick = (n: number): string => n >= 1_00_00_000 ? `₹${trim(n / 1_00_00_000)}Cr` : n >= 1_00_000 ? `₹${trim(n / 1_00_000)}L` : n >= 1_000 ? `₹${trim(n / 1_000)}k` : `₹${Math.round(n)}`;
 /** Under 0.05% reads as no change, in neutral ink rather than a green "up". */
 const changeTone = (change: number): { color: string; Icon: LucideIcon; flat: boolean } => Math.abs(change) < 0.0005 ? { color: colors.textSecondary, Icon: ArrowRight, flat: true } : change > 0 ? { color: semantic.success, Icon: ArrowUpRight, flat: false } : { color: semantic.danger, Icon: ArrowDownRight, flat: false };
-type CompareState = 'idle' | 'loading' | 'ready' | 'failed';
+export type CompareState = 'idle' | 'loading' | 'ready' | 'failed';
 
 /** A change as icon plus percentage, in the direction's colour. */
-function Change({ change, bold = false }: { change: number; bold?: boolean }) {
+export function Change({ change, bold = false }: { change: number; bold?: boolean }) {
   const tone = changeTone(change);
   return <View className="flex-row items-center gap-0.5"><tone.Icon size={12} color={tone.color} /><Text className={`text-xs ${bold ? 'font-bold' : ''}`} style={{ color: tone.color, ...tabular }}>{Math.abs(change * 100).toFixed(1)}%</Text></View>;
 }
-const count = (n: number): string => Math.round(n).toLocaleString('en-IN');
+export const count = (n: number): string => Math.round(n).toLocaleString('en-IN');
 
-type Props = {
+export type AnalyticsStatementProps = {
   data: AnalyticsDashboard | null;
   loading: boolean;
   errorMsg: string | null;
@@ -54,13 +54,13 @@ type Props = {
 };
 
 /** Readable date such as "5 Oct 2026", from a YYYY-MM-DD key. */
-function dayLabel(key: string, withYear = true): string {
+export function dayLabel(key: string, withYear = true): string {
   const d = new Date(key + 'T12:00:00');
   // Fixed three-letter months: browsers print "Sept", which reads oddly next to "Sep" chart labels.
   return Number.isNaN(d.getTime()) ? key : `${d.getDate()} ${TREND_MONTHS[d.getMonth()]}${withYear ? ` ${d.getFullYear()}` : ''}`;
 }
 /** Short range such as "19–30 Sep", "28 Aug – 3 Sep" or "1 Oct". */
-function shortRange(start: string, end: string): string {
+export function shortRange(start: string, end: string): string {
   if (start === end) return dayLabel(start, false);
   const s = new Date(start + 'T12:00:00'); const e = new Date(end + 'T12:00:00');
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return `${start} – ${end}`;
@@ -85,7 +85,7 @@ function sameDayLastMonth(d: Date): Date | null {
 }
 
 /** The period every "vs" figure compares with: same dates last month for a month-to-date range, else the equal-length period just before. */
-function previousFilters(f: AnalyticsFilters): AnalyticsFilters | null {
+export function previousFilters(f: AnalyticsFilters): AnalyticsFilters | null {
   const start = new Date(f.startDate + 'T00:00:00'); const end = new Date(f.endDate + 'T00:00:00');
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   if (!Number.isFinite(days) || days < 1 || days > 366) return null;
@@ -111,7 +111,7 @@ type AlignedDay = { label: string; sales: number; orders: number; previousSales:
  * month-to-date range, else the day exactly one period earlier. Falls back to the
  * service's own points when its labels are not daily (for example, months).
  */
-function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboard | null, filters: AnalyticsFilters | null): AlignedDay[] {
+export function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboard | null, filters: AnalyticsFilters | null): AlignedDay[] {
   const raw = data?.salesByDay ?? [];
   const fallback = raw.map((p) => ({ label: p.label, sales: p.sales, orders: p.orders, previousSales: 0 }));
   if (!filters) return fallback;
@@ -133,6 +133,62 @@ function alignedDays(data: AnalyticsDashboard | null, previous: AnalyticsDashboa
   return raw.length > 0 && !raw.some((p) => out.some((d) => d.label === p.label)) ? fallback : out;
 }
 
+/**
+ * The previous equal period for every "vs" figure, loaded beside the shown one (task 261: shared
+ * by the desktop and phone statements). A failed read only hides the comparisons.
+ */
+export function usePreviousPeriod(loadedFilters: AnalyticsFilters | null): { previous: AnalyticsDashboard | null; compare: CompareState } {
+  const [previous, setPrevious] = useState<AnalyticsDashboard | null>(null);
+  const [compare, setCompare] = useState<CompareState>('idle');
+  const prevRequest = useRef(0);
+  useEffect(() => {
+    const prev = loadedFilters ? previousFilters(loadedFilters) : null;
+    const id = ++prevRequest.current;
+    setPrevious(null);
+    if (!prev) { setCompare(loadedFilters ? 'failed' : 'idle'); return; }
+    setCompare('loading');
+    void fetchAnalyticsDashboard(prev).then((r) => {
+      if (id !== prevRequest.current) return;
+      if (r.data) { setPrevious(r.data); setCompare('ready'); } else setCompare('failed');
+    });
+  }, [loadedFilters]);
+  return { previous, compare };
+}
+
+/** Sales by hour, trimmed to the trading hours with at least eight columns. */
+export function hourPointsOf(data: AnalyticsDashboard | null): ColumnPoint[] {
+  const hours = data?.salesByHour ?? [];
+  const busy = hours.map((h, i) => (h.sales > 0 ? i : -1)).filter((i) => i >= 0);
+  if (!busy.length) return hours.slice(9, 24).map((h) => ({ label: shortHour(h.hour), value: h.sales }));
+  let from = Math.max(0, busy[0] - 1); let to = Math.min(hours.length - 1, busy[busy.length - 1] + 1);
+  while (to - from < 7) { if (from > 0) from--; if (to - from < 7 && to < hours.length - 1) to++; if (from === 0 && to === hours.length - 1) break; }
+  return hours.slice(from, to + 1).map((h) => ({ label: shortHour(h.hour), value: h.sales }));
+}
+
+/** The busiest three-hour window and its share of the period's sales, in words. */
+export function rushLineOf(data: AnalyticsDashboard | null): string | null {
+  const hours = data?.salesByHour ?? [];
+  const total = hours.reduce((sum, h) => sum + h.sales, 0);
+  if (total <= 0 || hours.length < 3) return null;
+  let best = 0; let bestSum = -1;
+  for (let i = 0; i + 3 <= hours.length; i++) { const sum = hours[i].sales + hours[i + 1].sales + hours[i + 2].sales; if (sum > bestSum) { bestSum = sum; best = i; } }
+  const word = (h: number): string => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
+  const startHour = Number(hours[best].hour.slice(0, 2));
+  if (!Number.isFinite(startHour)) return null;
+  return `Busiest from ${word(startHour)} to ${word(startHour + 3)}, with ${Math.round((bestSum / total) * 100)}% of sales.`;
+}
+
+/** UPI, cash and card in that order and colour; anything else folds into Other. */
+export function paymentSegments(data: AnalyticsDashboard | null): RingSegment[] {
+  const palette = [chart.series1, chart.series2, chart.series3];
+  const order = ['upi', 'cash', 'card'];
+  const rows = [...(data?.paymentSplit ?? [])].filter((p) => p.total > 0)
+    .sort((a, b) => (order.indexOf(a.payment_type.toLowerCase()) + 99) % 99 - (order.indexOf(b.payment_type.toLowerCase()) + 99) % 99 || b.total - a.total);
+  const named = rows.slice(0, 3).map((p, i) => ({ label: p.payment_type.toUpperCase() === 'UPI' ? 'UPI' : p.payment_type.charAt(0).toUpperCase() + p.payment_type.slice(1).toLowerCase(), value: p.total, color: palette[i] }));
+  const rest = rows.slice(3).reduce((sum, p) => sum + p.total, 0);
+  return rest > 0 ? [...named, { label: 'Other', value: rest, color: colors.textSecondary }] : named;
+}
+
 /** "12a" … "11p" for an "HH:00" hour. */
 function shortHour(hour: string): string {
   const h = Number(hour.slice(0, 2));
@@ -140,7 +196,7 @@ function shortHour(hour: string): string {
   return `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'a' : 'p'}`;
 }
 
-function Delta({ current, previous, state, against }: { current: number; previous: number | null | undefined; state: CompareState; against: string }) {
+export function Delta({ current, previous, state, against }: { current: number; previous: number | null | undefined; state: CompareState; against: string }) {
   if (state === 'idle' || state === 'loading') return <View style={{ height: 20 }} />;
   if (state === 'failed') return <Text className="text-xs text-text-secondary">Comparison unavailable</Text>;
   if (previous === null || previous === undefined || previous <= 0) return <Text className="text-xs text-text-secondary">No sales {against} to compare with</Text>;
@@ -217,24 +273,10 @@ function MenuButton({ label, icon, active = false, accessibilityLabel, options, 
  * against the previous equal period, payment mix, rush hours, orders, the menu
  * and every item's revenue. Phone and tablet keep their own screens.
  */
-export function AnalyticsStatement(props: Props) {
+export function AnalyticsStatement(props: AnalyticsStatementProps) {
   const { data, loading, errorMsg, loadedFilters } = props;
-  const [previous, setPrevious] = useState<AnalyticsDashboard | null>(null);
-  const [compare, setCompare] = useState<CompareState>('idle');
-  const prevRequest = useRef(0);
-
   // The previous equal period gives every "vs" figure. A failed read only hides the comparisons.
-  useEffect(() => {
-    const prev = loadedFilters ? previousFilters(loadedFilters) : null;
-    const id = ++prevRequest.current;
-    setPrevious(null);
-    if (!prev) { setCompare(loadedFilters ? 'failed' : 'idle'); return; }
-    setCompare('loading');
-    void fetchAnalyticsDashboard(prev).then((r) => {
-      if (id !== prevRequest.current) return;
-      if (r.data) { setPrevious(r.data); setCompare('ready'); } else setCompare('failed');
-    });
-  }, [loadedFilters]);
+  const { previous, compare } = usePreviousPeriod(loadedFilters);
 
   const k = data?.kpis;
   const pk = previous?.kpis;
@@ -262,38 +304,13 @@ export function AnalyticsStatement(props: Props) {
   const days = useMemo(() => alignedDays(data, previous, loadedFilters), [data, previous, loadedFilters]);
   const dayPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.sales, ...(previous ? { previous: d.previousSales, ...(d.previousLabel ? { previousLabel: d.previousLabel } : {}) } : {}) })), [days, previous]);
   const orderPoints = useMemo<ColumnPoint[]>(() => days.map((d) => ({ label: d.label, value: d.orders })), [days]);
-  const hourPoints = useMemo<ColumnPoint[]>(() => {
-    const hours = data?.salesByHour ?? [];
-    const busy = hours.map((h, i) => (h.sales > 0 ? i : -1)).filter((i) => i >= 0);
-    if (!busy.length) return hours.slice(9, 24).map((h) => ({ label: shortHour(h.hour), value: h.sales }));
-    let from = Math.max(0, busy[0] - 1); let to = Math.min(hours.length - 1, busy[busy.length - 1] + 1);
-    while (to - from < 7) { if (from > 0) from--; if (to - from < 7 && to < hours.length - 1) to++; if (from === 0 && to === hours.length - 1) break; }
-    return hours.slice(from, to + 1).map((h) => ({ label: shortHour(h.hour), value: h.sales }));
-  }, [data]);
+  const hourPoints = useMemo<ColumnPoint[]>(() => hourPointsOf(data), [data]);
   const busiestHour = hourPoints.reduce<ColumnPoint | null>((best, p) => (!best || p.value > best.value ? p : best), null);
   // The busiest three-hour window and its share of the day's sales, in words.
-  const rushLine = useMemo(() => {
-    const hours = data?.salesByHour ?? [];
-    const total = hours.reduce((sum, h) => sum + h.sales, 0);
-    if (total <= 0 || hours.length < 3) return null;
-    let best = 0; let bestSum = -1;
-    for (let i = 0; i + 3 <= hours.length; i++) { const sum = hours[i].sales + hours[i + 1].sales + hours[i + 2].sales; if (sum > bestSum) { bestSum = sum; best = i; } }
-    const word = (h: number): string => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
-    const startHour = Number(hours[best].hour.slice(0, 2));
-    if (!Number.isFinite(startHour)) return null;
-    return `Busiest from ${word(startHour)} to ${word(startHour + 3)}, with ${Math.round((bestSum / total) * 100)}% of sales.`;
-  }, [data]);
+  const rushLine = useMemo(() => rushLineOf(data), [data]);
   const busiestDay = dayPoints.reduce<ColumnPoint | null>((best, p) => (!best || p.value > best.value ? p : best), null);
 
-  const payments = useMemo<RingSegment[]>(() => {
-    const palette = [chart.series1, chart.series2, chart.series3];
-    const order = ['upi', 'cash', 'card'];
-    const rows = [...(data?.paymentSplit ?? [])].filter((p) => p.total > 0)
-      .sort((a, b) => (order.indexOf(a.payment_type.toLowerCase()) + 99) % 99 - (order.indexOf(b.payment_type.toLowerCase()) + 99) % 99 || b.total - a.total);
-    const named = rows.slice(0, 3).map((p, i) => ({ label: p.payment_type.toUpperCase() === 'UPI' ? 'UPI' : p.payment_type.charAt(0).toUpperCase() + p.payment_type.slice(1).toLowerCase(), value: p.total, color: palette[i] }));
-    const rest = rows.slice(3).reduce((sum, p) => sum + p.total, 0);
-    return rest > 0 ? [...named, { label: 'Other', value: rest, color: colors.textSecondary }] : named;
-  }, [data]);
+  const payments = useMemo<RingSegment[]>(() => paymentSegments(data), [data]);
   const paymentTotal = payments.reduce((sum, p) => sum + p.value, 0);
   const lead = payments[0];
 

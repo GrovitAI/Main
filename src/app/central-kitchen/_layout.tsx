@@ -7,12 +7,19 @@ import { colors } from '@/lib/pos/brand';
 import { useKitchenTitle, useKitchenWebPolish } from '@/lib/pos/kitchen-web';
 import { OfflineBar, ScreenEnter, Toast } from '@/components/kitchen/ui';
 
+/**
+ * Task 269: a form opened by a link or a reload has the kitchen's tabs beneath it, so Back and the
+ * return after a save land on kitchen Home. Without this the root's (auth) group sat beneath and a
+ * phone owner was sent to the main app's Analytics.
+ */
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 /** Each kitchen screen's name for the browser tab (task 221). */
 const SCREEN_NAMES: Record<string, string> = {
   home: 'Kitchen', analytics: 'Analytics', items: 'Raw materials', 'finished-goods': 'Finished goods',
   attendance: 'Attendance', branches: 'Branches', invoices: 'Invoices', vendors: 'Vendors', history: 'History',
   send: 'Send', received: 'Received', bought: 'Bought', spent: 'Spent', money: 'Cash and bank',
-  team: 'Team and day lock', 'purchase-categories': 'Purchase categories',
+  team: 'Team and day lock', 'purchase-categories': 'Categories',
 };
 
 function useScreenName(): string {
