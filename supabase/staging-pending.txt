@@ -12,4 +12,5 @@
 # Tasks 206-209, 224, 234 and 242 (seven migrations, 20261014100000 through
 # 20261017110000) were promoted on 2026-10-18 in order; production kitchen
 # functions, grants and the 19 pinned functions were checked to match staging.
-20261018100000_kitchen_shared_categories.sql
+# Task 255 (20261018100000_kitchen_shared_categories.sql) was applied to production
+# by the owner on 2026-10-19; each kitchen scope then held its 9-10 shared categories.
