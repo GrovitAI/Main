@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, Pressable, View, ActivityIndicator, ScrollView, type TextInput as RNTextInput } from 'react-native';
+import { Image, Pressable, View, ActivityIndicator, ScrollView, useWindowDimensions, type TextInput as RNTextInput } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +15,11 @@ import { useResponsive } from '@/lib/pos/useResponsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const logoSource = require('../../../assets/images/le-leban-logo.png');
+
+/** Where the white badge sits inside the square logo image, as shares of its side (measured). */
+const BADGE_ABOVE = 0.334;
+const BADGE_BELOW = 0.271;
+const BADGE_SHARE = 1 - BADGE_ABOVE - BADGE_BELOW;
 
 /** Shown when the build was made without usable server settings; signing in cannot work. */
 const NOT_CONFIGURED_MESSAGE = 'This version of the app was built without its server settings. Please install the latest version.';
@@ -49,7 +54,14 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   // The phone's blue area: the badge is sized to fit it (task 274).
   const [topHeight, setTopHeight] = useState(0);
-  const badgeSize = Math.min(280, Math.max(0, (topHeight - insets.top - 30) / 0.45));
+  const { width: screenWidth } = useWindowDimensions();
+  // Task 275: in the logo image the badge runs from 33.4% to 72.9% of its height (measured), so
+  // only that part takes room. The badge then fills what the blue area leaves after the line under
+  // it, a gap that grows with it, and some breathing room; never wider than the screen allows.
+  const roomForLine = topHeight - insets.top > 170;
+  const lineSpace = roomForLine ? 20 + 16 : 0;
+  const badgeSize = Math.min(screenWidth * 0.95, 420, Math.max(0, (topHeight - insets.top - 44 - lineSpace) / BADGE_SHARE));
+  const lineGap = Math.round(Math.min(18, Math.max(12, badgeSize * 0.06)));
   const segments = useSegments();
 
   // Clear errors when user types
@@ -182,9 +194,9 @@ export default function LoginScreen() {
               <Swooshes />
               {badgeSize >= 120 ? (
                 // The logo square has blue above and below the badge; trim it so only the badge takes room.
-                <View style={{ marginVertical: -badgeSize * 0.3 }}>{logo(badgeSize)}</View>
+                <View style={{ marginTop: -badgeSize * BADGE_ABOVE, marginBottom: -badgeSize * BADGE_BELOW }}>{logo(badgeSize)}</View>
               ) : null}
-              {topHeight - insets.top > 150 ? <Text className="mt-1 text-[15px] font-semibold" style={{ color: colors.accent }}>Billing · Kitchen · Accounts</Text> : null}
+              {roomForLine ? <Text className="text-[15px] font-semibold" style={{ color: colors.accent, marginTop: badgeSize >= 120 ? lineGap : 0 }}>Billing · Kitchen · Accounts</Text> : null}
             </View>
             <View className="items-center bg-surface-elevated px-6 pt-7" style={{ borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingBottom: Math.max(insets.bottom, 12) + 12 }}>
               {form}
