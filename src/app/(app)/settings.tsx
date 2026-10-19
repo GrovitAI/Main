@@ -1,664 +1,307 @@
-import React, { useState, useEffect } from 'react';
-import { View, Pressable, ActivityIndicator, Platform, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import { Text, TextInput } from '@/components/ui/Typography';
-import { Printer as PrinterIcon, AlertCircle, Settings, Wifi, BookOpen, RefreshCw, Cpu, CheckCircle2, Play, Heart, LogOut, ShieldCheck , Trash2, Landmark, ChefHat } from 'lucide-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { colors, brand } from '@/lib/pos/brand';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChefHat, Info, Landmark, Printer as PrinterIcon, ReceiptText, ShieldCheck, type LucideIcon } from 'lucide-react-native';
+import { Text } from '@/components/ui/Typography';
+import { brand, colors, semantic } from '@/lib/pos/brand';
 import { FINANCE_MODULE_ENABLED, KITCHEN_HOME } from '@/lib/pos/tab-config';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
 import { FinanceAccountsCard } from '@/components/finance/FinanceAccountsCard';
 import { FinanceRulesCard } from '@/components/finance/FinanceRulesCard';
-import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
-import { LinearGradient } from 'expo-linear-gradient';
-
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { storage, STORAGE_KEYS, DEFAULT_RECEIPT_FOOTER } from '@/lib/pos/storage';
-import { getErrorMessage } from '../../lib/pos/error-utils';
+import { getErrorMessage } from '@/lib/pos/error-utils';
+import { confirmAction } from '@/lib/pos/dialogs';
+import { Avatar, Card, Empty, KHeader, LinkButton, Notice, Row, RowInset, Section, Segmented, TextField, Toggle } from '@/components/kitchen/ui';
 
-/** The tabs the settings screen can show. */
-type SettingsTab = 'system' | 'printers' | 'approvals' | 'finance';
+/** The parts of Settings; each opens as its own page (task 271, owner's pick: Settings A). */
+type Pane = 'home' | 'printers' | 'receipt' | 'approvals' | 'finance' | 'about';
+/** From this width the list stays on the left and the chosen page opens beside it. */
+const SPLIT_FROM = 900;
 
+/** The app's version from its config, the same on phones and the web (Expo leaves it out of a web build). */
+const APP_VERSION = (require('../../../app.json') as { expo?: { version?: string } }).expo?.version ?? '';
+
+const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', manager: 'Manager', cashier: 'Cashier', kitchen: 'Kitchen', accountant: 'Accountant' };
+
+/**
+ * Settings, grouped list (task 271): the account at the top, then Printing, Till and More, each
+ * row opening its own page. A phone shows one page at a time with Back; a laptop keeps the list
+ * on the left and the page beside it. Currency, print protocol and the print bridge address moved
+ * to About this device.
+ */
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isPhone = width < 768;
+  const split = width >= SPLIT_FROM;
   const { session, signOut } = useSessionStore();
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
   // Finance rules apply to the whole business, so only the owner sets them.
   const isOwner = session?.role === 'owner';
-  const [activeTab, setActiveTab] = useState<SettingsTab>('system');
-  useEffect(() => {
-    if (!FINANCE_MODULE_ENABLED && activeTab === 'finance') setActiveTab('system');
-  }, [activeTab]);
+  const [pane, setPane] = useState<Pane>(split ? 'printers' : 'home');
+  useEffect(() => { if (split && pane === 'home') setPane('printers'); }, [split, pane]);
+
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [testing, setTesting] = useState(false);
-  
   const [formError, setFormError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
   const [receiptFooter, setReceiptFooter] = useState('');
-
   const [printNodePrinters, setPrintNodePrinters] = useState<PrintNodePrinter[]>([]);
-  const [loadingPrintNode, setLoadingPrintNode] = useState(false);
-  const [testingPrinterId, setTestingPrinterId] = useState<string | number | null>(null);
+  const [testingPrinterId, setTestingPrinterId] = useState<string | null>(null);
 
   const loadPrinters = async (shouldSync = false) => {
     setLoading(true);
-    setLoadingPrintNode(true);
     setFormError(null);
-
-    let pnPrinters: PrintNodePrinter[] = [];
     try {
-      // 1. Fetch live PrintNode printers
-      pnPrinters = await fetchPrintNodePrinters();
+      // 1. Live printers from PrintNode, 2. synchronised into the database when asked.
+      const pnPrinters = await fetchPrintNodePrinters();
       setPrintNodePrinters(pnPrinters);
-
-      // 2. Synchronize with database
       if (shouldSync && pnPrinters.length > 0) {
-        try {
-          const result = await syncPrintNodePrinters(pnPrinters);
-          if (result.error) {
-            console.error(result.error);
-            Alert.alert(
-              "Printer Sync Failed",
-              result.error ?? "Unknown database error"
-            );
-          }
-        } catch (err) {
-          console.error(err);
-          Alert.alert(
-            "Printer Sync Failed",
-            err instanceof Error ? err.message : "Unknown error"
-          );
-        }
+        const result = await syncPrintNodePrinters(pnPrinters);
+        if (result.error) setFormError(`Printers could not be synchronised: ${result.error}`);
       }
     } catch (err) {
-      setFormError(getErrorMessage(err) || 'Failed to fetch PrintNode printers.');
+      setFormError(getErrorMessage(err) || 'Could not reach PrintNode. Check the counter PC, then refresh.');
     }
-
-    // 3. Load configurations from database
+    // 3. The saved printer settings.
     const res = await fetchPrinters();
-    if (res.data) {
-      setPrinters(res.data);
-    }
-
+    if (res.data) setPrinters(res.data);
     setLoading(false);
-    setLoadingPrintNode(false);
   };
 
   useEffect(() => {
     // AsyncStorage rather than localStorage: the latter does not exist on
     // iOS or Android, so the footer silently reset on every device launch.
-    void storage
-      .get<string>(STORAGE_KEYS.receiptFooter)
-      .then((stored) => setReceiptFooter(stored || DEFAULT_RECEIPT_FOOTER));
-    loadPrinters(true);
+    void storage.get<string>(STORAGE_KEYS.receiptFooter).then((stored) => setReceiptFooter(stored || DEFAULT_RECEIPT_FOOTER));
+    void loadPrinters(true);
   }, []);
 
-  const handleToggleActive = async (printer: Printer) => {
+  /** Saves one change to a printer and reloads the list, with a line saying what happened. */
+  const updatePrinter = async (printer: Printer, changes: Partial<Printer>, done: string) => {
     setSubmitting(true);
     setSuccessMsg(null);
     setFormError(null);
     try {
-      const res = await savePrinter({
-        ...printer,
-        is_active: !printer.is_active,
-      });
-      if (res.error) {
-        setFormError(res.error);
-      } else {
-        setSuccessMsg(`Printer "${printer.name}" ${!printer.is_active ? 'enabled' : 'disabled'} successfully!`);
-        await loadPrinters(false);
-      }
+      const res = await savePrinter({ ...printer, ...changes });
+      if (res.error) setFormError(res.error);
+      else { setSuccessMsg(done); await loadPrinters(false); }
     } catch (err) {
-      setFormError(getErrorMessage(err) || 'Failed to save printer.');
+      setFormError(getErrorMessage(err) || 'Could not save the printer.');
     } finally {
       setSubmitting(false);
     }
   };
-
-  const handleToggleDefault = async (printer: Printer) => {
-    setSubmitting(true);
-    setSuccessMsg(null);
-    setFormError(null);
-    try {
-      const res = await savePrinter({
-        ...printer,
-        is_default: !printer.is_default,
-      });
-      if (res.error) {
-        setFormError(res.error);
-      } else {
-        setSuccessMsg(`Printer "${printer.name}" default status updated.`);
-        await loadPrinters(false);
-      }
-    } catch (err) {
-      setFormError(getErrorMessage(err) || 'Failed to save printer.');
-    } finally {
-      setSubmitting(false);
-    }
+  const removePrinter = (printer: Printer) => {
+    confirmAction('Remove this printer?', `${printer.name} leaves the list. Refresh brings it back from PrintNode.`, 'Remove', () => {
+      void (async () => {
+        setSubmitting(true); setSuccessMsg(null); setFormError(null);
+        try {
+          const res = await deletePrinter(printer.id);
+          if (res.error) setFormError(res.error);
+          else { setSuccessMsg(`${printer.name} removed.`); await loadPrinters(false); }
+        } catch (err) {
+          setFormError(getErrorMessage(err) || 'Could not remove the printer.');
+        } finally {
+          setSubmitting(false);
+        }
+      })();
+    });
   };
-
-  const handleChangeRole = async (printer: Printer, newRole: 'bill' | 'kitchen') => {
-    setSubmitting(true);
-    setSuccessMsg(null);
-    setFormError(null);
-    try {
-      const res = await savePrinter({
-        ...printer,
-        printer_role: newRole,
-        is_default: newRole === 'bill' ? printer.is_default : false,
-      });
-      if (res.error) {
-        setFormError(res.error);
-      } else {
-        setSuccessMsg(`Printer "${printer.name}" role set to ${newRole === 'bill' ? 'Billing' : 'Kitchen'}.`);
-        await loadPrinters(false);
-      }
-    } catch (err) {
-      setFormError(getErrorMessage(err) || 'Failed to save printer.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeletePrinter = async (id: string) => {
-    setSubmitting(true);
-    setSuccessMsg(null);
-    setFormError(null);
-    try {
-      const res = await deletePrinter(id);
-      if (res.error) {
-        setFormError(res.error);
-      } else {
-        setSuccessMsg('Printer configuration removed.');
-        await loadPrinters(false);
-      }
-    } catch (err) {
-      setFormError(getErrorMessage(err) || 'Failed to delete printer.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleTestPrint = async (printer: Printer) => {
-    setTestingPrinterId(printer.ip_address);
+  const testPrint = async (printer: Printer) => {
+    setTestingPrinterId(printer.id);
     setSuccessMsg(null);
     setFormError(null);
     try {
       await printerService.testPrinter(printer);
-      setSuccessMsg(`Test print sent to "${printer.name}" successfully!`);
+      setSuccessMsg(`Test print sent to ${printer.name}.`);
     } catch (err) {
-      setFormError(getErrorMessage(err) || 'Failed to send test print.');
+      setFormError(getErrorMessage(err) || 'Could not send the test print.');
     } finally {
       setTestingPrinterId(null);
     }
   };
 
-  return (
-    <View style={{
-      flex: 1,
-      backgroundColor: '#F8FAFC',
-    }}>
-      {isPhone ? (
-        <PhoneScreenHeader
-          title="Settings"
-          subtitle="System & Security Preferences"
-        />
-      ) : (
-        /* Modern Premium Desktop Page Header */
-        <View style={{
-          paddingHorizontal: 28,
-          paddingTop: insets.top,
-          paddingBottom: 20,
-          backgroundColor: '#F8FAFC',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottomWidth: 1,
-          borderBottomColor: '#F1F5F9',
-          marginBottom: 24,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}>
-          <View>
-            <Text className="text-2xl font-bold text-slate-900 tracking-tight">Settings</Text>
-            <Text className="text-sm font-medium text-slate-500 mt-1">Manage operational and system preferences</Text>
-          </View>
+  const liveOf = (printer: Printer): PrintNodePrinter | undefined => printNodePrinters.find((p) => String(p.id) === printer.ip_address);
+  const online = printers.filter((p) => liveOf(p)?.state === 'online').length;
+  const billPrinter = printers.find((p) => p.is_active && p.printer_role === 'bill' && p.is_default) ?? printers.find((p) => p.is_active && p.printer_role === 'bill');
+  const kitchenPrinter = printers.find((p) => p.is_active && p.printer_role === 'kitchen');
+  const printingLine = loading && printers.length === 0 ? 'Checking printers…'
+    : printers.length === 0 ? 'No printers yet'
+    : [billPrinter ? `Bills on ${billPrinter.name}` : 'No bill printer', kitchenPrinter ? `kitchen on ${kitchenPrinter.name}` : null].filter(Boolean).join(' · ');
+  const version = APP_VERSION;
 
-          <View className="flex-row items-center gap-3">
-            <View className="bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl shadow-xs flex-row items-center gap-2">
-              <View className="w-2 h-2 rounded-full bg-emerald-500" />
-              <Text className="text-xs font-bold text-slate-700">Le Laban POS Main</Text>
+  type Item = { key: Pane; icon: LucideIcon; title: string; subtitle?: string; right?: string; show: boolean };
+  const groups: { title: string; items: Item[] }[] = useMemo(() => [
+    { title: 'Printing', items: [
+      { key: 'printers' as const, icon: PrinterIcon, title: 'Printers', subtitle: printingLine, right: printers.length ? `${online} online` : undefined, show: true },
+      { key: 'receipt' as const, icon: ReceiptText, title: 'Receipt footer', subtitle: `“${receiptFooter || DEFAULT_RECEIPT_FOOTER}”`, show: true },
+    ] },
+    { title: 'Till', items: [
+      { key: 'approvals' as const, icon: ShieldCheck, title: 'Approvals', subtitle: 'Till actions that need the owner’s code', show: isOwnerOrAdmin },
+      { key: 'finance' as const, icon: Landmark, title: 'Finance', subtitle: 'Accounts and rules', show: isOwner && FINANCE_MODULE_ENABLED },
+    ] },
+    { title: 'More', items: [
+      { key: 'about' as const, icon: Info, title: 'About this device', subtitle: [version && `Version ${version}`, 'INR', 'ESC/POS'].filter(Boolean).join(' · '), show: true },
+    ] },
+  ].map((g) => ({ ...g, items: g.items.filter((i) => i.show) })).filter((g) => g.items.length > 0), [printingLine, printers.length, online, receiptFooter, isOwnerOrAdmin, isOwner, version]);
+
+  const account = (
+    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <Avatar name={session?.displayName || 'You'} size={44} />
+      <View className="min-w-0 flex-1">
+        <Text className="text-[17px] font-bold text-text-primary" numberOfLines={1}>{session?.displayName || 'Signed in'}</Text>
+        <Text className="text-[13px] font-semibold text-text-secondary" numberOfLines={1}>{[ROLE_LABELS[session?.role ?? ''] ?? session?.role, session?.branchName].filter(Boolean).join(' · ')}</Text>
+      </View>
+      <LinkButton label="Sign out" onPress={() => confirmAction('Sign out?', 'This device signs out. Others stay signed in.', 'Sign out', () => void signOut())} />
+    </Card>
+  );
+
+  const list = (
+    <View>
+      {account}
+      {groups.map((g) => (
+        <Section key={g.title} title={g.title}>
+          <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
+            <RowInset.Provider value={14}>
+              {g.items.map((i) => (
+                <Row key={i.key} icon={i.icon} iconTone="primary" title={i.title} subtitle={i.subtitle} right={i.right} selected={split && pane === i.key}
+                  onPress={() => { setSuccessMsg(null); setFormError(null); setPane(i.key); }} />
+              ))}
+              {g.title === 'More' && isOwnerOrAdmin ? (
+                <Row icon={ChefHat} iconTone="primary" title="Central Kitchen" subtitle="Books, stock and what each branch owes" onPress={() => router.push(KITCHEN_HOME as never)} />
+              ) : null}
+            </RowInset.Provider>
+          </Card>
+        </Section>
+      ))}
+    </View>
+  );
+
+  const feedback = (
+    <>
+      {formError ? <Notice text={formError} /> : null}
+      {successMsg ? <Notice tone="in" text={successMsg} /> : null}
+    </>
+  );
+
+  const printersPage = (
+    <View>
+      <View className="flex-row items-center justify-between gap-3">
+        <Text className="min-w-0 flex-1 text-[13px] font-semibold text-text-secondary">From PrintNode on the counter PC. {printers.length ? `${online} of ${printers.length} online.` : ''}</Text>
+        {loading ? <ActivityIndicator size="small" color={colors.primary} /> : <LinkButton label="Refresh" onPress={() => void loadPrinters(true)} />}
+      </View>
+      {feedback}
+      {printers.length === 0 && !loading ? (
+        <Card style={{ marginTop: 12 }}><Empty title="No printers yet" body="Install PrintNode on the counter PC and connect the printers, then refresh here." action={<LinkButton label="Refresh" onPress={() => void loadPrinters(true)} />} /></Card>
+      ) : null}
+      {printers.map((printer) => {
+        const live = liveOf(printer);
+        const isOnline = live?.state === 'online';
+        return (
+          <Card key={printer.id} padded={false} style={{ marginTop: 12, overflow: 'hidden' }}>
+            <View className="flex-row items-center gap-3 px-3.5 pt-3.5">
+              <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-tint"><PrinterIcon size={20} color={colors.primary} /></View>
+              <View className="min-w-0 flex-1">
+                <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{printer.name}</Text>
+                <View className="flex-row items-center gap-1.5">
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOnline ? semantic.success : colors.border }} />
+                  <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{isOnline ? 'Online' : 'Offline'}{live?.computer?.name ? ` · ${live.computer.name}` : ''}</Text>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
-      )}
-
-      {/* Main Container */}
-      <View className={`flex-1 px-4 ${isPhone ? 'pt-3' : 'md:px-8'}`}>
-        
-        {/* Navigation Tab Bar */}
-        {isPhone ? (
-          <View className="flex-row bg-slate-100/90 p-1 rounded-2xl mb-4 border border-slate-200/60">
-            {[
-              { key: 'system' as SettingsTab, label: 'System', icon: Settings },
-              { key: 'printers' as SettingsTab, label: 'Printers', icon: PrinterIcon },
-              ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approvals', icon: ShieldCheck }] : []),
-              ...(isOwner && FINANCE_MODULE_ENABLED ? [{ key: 'finance' as SettingsTab, label: 'Finance', icon: Landmark }] : []),
-            ].map((tab) => {
-              const isSel = activeTab === tab.key;
-              const Icon = tab.icon;
-              return (
-                <Pressable
-                  key={tab.key}
-                  testID={`settings-tab-${tab.key}`}
-                  onPress={() => setActiveTab(tab.key)}
-                  className={`flex-1 py-2 rounded-xl items-center justify-center min-h-[44px] flex-row gap-1.5 ${
-                    isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent'
-                  }`}
-                  style={isSel ? { elevation: 1 } : {}}
-                >
-                  <Icon size={13} color={isSel ? '#0F172A' : '#64748B'} />
-                  <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : (
-          <View className="mb-8">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row bg-slate-100/90 p-1 rounded-2xl shadow-xs border border-slate-200/60 self-start">
-                {[
-                  { key: 'system' as SettingsTab, label: 'System Settings', icon: Settings },
-                  { key: 'printers' as SettingsTab, label: 'Printer Configuration', icon: PrinterIcon },
-                  ...(isOwnerOrAdmin ? [{ key: 'approvals' as SettingsTab, label: 'Approval Policies', icon: ShieldCheck }] : []),
-                  ...(isOwner && FINANCE_MODULE_ENABLED ? [{ key: 'finance' as SettingsTab, label: 'Finance Rules', icon: Landmark }] : []),
-                ].map((tab) => {
-                  const isSel = activeTab === tab.key;
-                  const Icon = tab.icon;
-                  return (
-                    <Pressable
-                      key={tab.key}
-                      onPress={() => setActiveTab(tab.key)}
-                      className={`flex-row items-center gap-2 px-5 py-2.5 rounded-xl transition-all cursor-pointer ${
-                        isSel ? 'bg-white shadow-xs border border-slate-200/60' : 'bg-transparent active:bg-slate-200/30'
-                      }`}
-                      style={isSel ? { elevation: 1 } : {}}
-                    >
-                      <Icon size={14} color={isSel ? '#0F172A' : '#64748B'} />
-                      <Text className={`text-xs font-bold ${isSel ? 'text-[#0F172A]' : 'text-[#64748B]'}`}>
-                        {tab.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-          </View>
-        )}
-
-        {activeTab === 'printers' ? (
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-            
-            {/* Receipt Footer Message Card */}
-            <View className="bg-white border border-slate-200/80 p-5 rounded-2xl mb-6 shadow-xs gap-3">
-              <View className="flex-row items-center gap-3">
-                <View className="p-2 bg-slate-50 border border-slate-100 rounded-lg w-9 h-9 items-center justify-center">
-                  <Heart size={16} color="#0F172A" />
-                </View>
-                <View>
-                  <Text className="text-sm font-bold text-[#0F172A]">Receipt Footer Message</Text>
-                  <Text className="text-[10px] text-slate-500 mt-0.5">Customize the thank you note displayed at the bottom of customer bills.</Text>
-                </View>
-              </View>
-              <TextInput
-                value={receiptFooter}
-                onChangeText={(text) => {
-                  setReceiptFooter(text);
-                  void storage.set(STORAGE_KEYS.receiptFooter, text);
-                }}
-                placeholder="e.g., * Thank you for your visit! *"
-                className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-semibold"
-                style={{ minHeight: 40 }}
-              />
-            </View>
-
-            {/* PrintNode Cloud Printers Header Card */}
-            <View className="flex-row items-center justify-between mb-4 flex-wrap gap-2.5">
-              <View>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A' }}>
-                  PrintNode Cloud Printers
-                </Text>
-                <Text className="text-xs text-slate-500 mt-0.5">Select and test printers synchronized via PrintNode client.</Text>
-              </View>
-              <Pressable
-                disabled={loading || loadingPrintNode}
-                onPress={() => loadPrinters(true)}
-                className="flex-row items-center gap-1.5 bg-slate-150 border border-slate-200 px-3.5 py-2 rounded-xl active:bg-slate-200"
-              >
-                <RefreshCw size={12} color="#0f172a" className={loadingPrintNode ? 'animate-spin' : ''} />
-                <Text className="text-[#0F172A] text-xs font-bold">Refresh List</Text>
-              </Pressable>
-            </View>
-
-            {/* Error notifications */}
-            {formError && (
-              <View className="flex-row items-center gap-2 bg-rose-50 p-4 border border-rose-200 rounded-2xl mb-5">
-                <AlertCircle size={16} color="#dc2626" />
-                <Text className="text-rose-700 font-bold flex-1 text-xs">{formError}</Text>
-              </View>
-            )}
-
-            {/* Success notifications */}
-            {successMsg && (
-              <View className="flex-row items-center gap-2 bg-emerald-50 p-4 border border-emerald-200 rounded-2xl mb-5">
-                <CheckCircle2 size={16} color="#15803d" />
-                <Text className="text-emerald-700 font-bold flex-1 text-xs">{successMsg}</Text>
-              </View>
-            )}
-
-            {/* DB Configured Printers list */}
-            {loading ? (
-              <View className="items-center justify-center py-20 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                <ActivityIndicator size="large" color="#0F172A" />
-                <Text className="text-slate-500 font-bold mt-3.5 text-xs">Retrieving configured printers...</Text>
-              </View>
-            ) : printers.length === 0 ? (
-              <View className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex-row items-center gap-3.5 shadow-xs">
-                <AlertCircle size={20} color="#d97706" />
-                <View className="flex-1">
-                  <Text className="text-xs font-bold text-amber-800">No Configured Printers</Text>
-                  <Text className="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                    No printers have been synchronized yet. Please click the &quot;Refresh List&quot; button to fetch available printers from your PrintNode account.
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View className="w-full gap-4">
-                {printers.map((printer) => {
-                  const liveMatch = printNodePrinters.find(p => String(p.id) === printer.ip_address);
-                  const isOnline = liveMatch ? liveMatch.state === 'online' : false;
-                  const computerName = liveMatch?.computer?.name ?? 'Unknown';
-
-                  return (
-                    <View 
-                      key={printer.id} 
-                      className={`bg-white rounded-2xl border p-5 mb-1.5 gap-4.5 transition-all ${
-                        printer.is_active ? 'border-slate-800 shadow-sm' : 'border-slate-200/80 shadow-xs'
-                      }`}
-                    >
-                      <View className="flex-row justify-between items-start flex-wrap gap-2.5">
-                        <View className="flex-row items-center gap-3.5 flex-1 min-w-[200px] flex-wrap">
-                          <View className={`p-2.5 rounded-xl items-center justify-center border ${
-                            isOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'
-                          }`}>
-                            <PrinterIcon size={18} color={isOnline ? '#10b981' : '#64748b'} />
-                          </View>
-                          <View className="flex-1">
-                            <View className="flex-row items-center gap-2 flex-wrap">
-                              <Text className="font-bold text-[#0F172A] text-sm">{printer.name}</Text>
-                              
-                              <View className={`px-2 py-0.5 rounded-full flex-row items-center gap-1 ${
-                                isOnline ? 'bg-emerald-50 border-emerald-200/40' : 'bg-rose-50 border-rose-200/40'
-                              }`}>
-                                <View className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                <Text className={`text-[9px] font-black uppercase ${isOnline ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                  {isOnline ? 'Online' : 'Offline'}
-                                </Text>
-                              </View>
-
-                              <View className={`px-2 py-0.5 rounded-full border ${
-                                printer.is_active ? 'bg-slate-100 border-slate-350' : 'bg-slate-50 border-slate-200'
-                              }`}>
-                                <Text className={`text-[9px] font-black uppercase ${printer.is_active ? 'text-slate-700' : 'text-slate-400'}`}>
-                                  {printer.is_active ? 'Enabled' : 'Disabled'}
-                                </Text>
-                              </View>
-                            </View>
-                            <Text className="text-xs text-slate-500 mt-1 font-semibold">
-                              ID: {printer.ip_address} • Computer: {computerName}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Active Badges */}
-                        <View className="flex-row gap-1.5 flex-wrap">
-                          {printer.is_active && printer.printer_role === 'bill' && (
-                            <View className="bg-slate-900 border border-slate-900 px-3 py-1.5 rounded-xl flex-row items-center gap-1">
-                              <CheckCircle2 size={11} color="#ffffff" />
-                              <Text className="text-white text-[9px] font-black uppercase">Active Bill</Text>
-                            </View>
-                          )}
-                          {printer.is_active && printer.printer_role === 'kitchen' && (
-                            <View className="bg-slate-800 border border-slate-800 px-3 py-1.5 rounded-xl flex-row items-center gap-1">
-                              <CheckCircle2 size={11} color="#ffffff" />
-                              <Text className="text-white text-[9px] font-black uppercase">Active Kitchen</Text>
-                            </View>
-                          )}
-                          {printer.is_active && printer.is_default && printer.printer_role === 'bill' && (
-                            <View className="bg-sky-500 border border-sky-500 px-3 py-1.5 rounded-xl flex-row items-center gap-1">
-                              <CheckCircle2 size={11} color="#ffffff" />
-                              <Text className="text-white text-[9px] font-black uppercase">Default</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-
-                      {/* Actions row */}
-                      <View className="flex-row justify-between border-t border-slate-100 pt-4 flex-wrap gap-3.5 items-center">
-                        <View className="flex-row gap-3 flex-wrap flex-1 min-w-[280px] items-center">
-                          {/* Active toggle */}
-                          <Pressable
-                            disabled={submitting}
-                            onPress={() => handleToggleActive(printer)}
-                            className={`px-4 h-9 rounded-xl items-center justify-center flex-row border ${
-                              printer.is_active 
-                                ? 'bg-rose-50 border-rose-200 text-rose-700 active:bg-rose-100' 
-                                : 'bg-emerald-50 border-emerald-200 text-emerald-700 active:bg-emerald-100'
-                            }`}
-                          >
-                            <Text className={`font-extrabold text-[11px] ${printer.is_active ? 'text-rose-700' : 'text-emerald-700'}`}>
-                              {printer.is_active ? 'Disable' : 'Enable'}
-                            </Text>
-                          </Pressable>
-
-                          {/* Role segment selector */}
-                          <View className="flex-row bg-slate-100 p-0.5 rounded-xl border border-slate-200/50">
-                            <Pressable
-                              disabled={submitting}
-                              onPress={() => handleChangeRole(printer, 'bill')}
-                              className={`px-3 py-1.5 rounded-lg ${
-                                printer.printer_role === 'bill' ? 'bg-white shadow-xs' : 'bg-transparent'
-                              }`}
-                            >
-                              <Text className={`text-[10px] font-extrabold ${printer.printer_role === 'bill' ? 'text-slate-800' : 'text-slate-500'}`}>
-                                Billing Receipt
-                              </Text>
-                            </Pressable>
-                            <Pressable
-                              disabled={submitting}
-                              onPress={() => handleChangeRole(printer, 'kitchen')}
-                              className={`px-3 py-1.5 rounded-lg ${
-                                printer.printer_role === 'kitchen' ? 'bg-white shadow-xs' : 'bg-transparent'
-                              }`}
-                            >
-                              <Text className={`text-[10px] font-extrabold ${printer.printer_role === 'kitchen' ? 'text-slate-800' : 'text-slate-500'}`}>
-                                Kitchen KOT
-                              </Text>
-                            </Pressable>
-                          </View>
-
-                          {/* Default check (Only relevant for Billing role and when active) */}
-                          {printer.printer_role === 'bill' && printer.is_active && (
-                            <Pressable
-                              disabled={submitting}
-                              onPress={() => handleToggleDefault(printer)}
-                              className="flex-row items-center gap-2 px-2 py-1 active:opacity-75"
-                            >
-                              <View className={`w-4 h-4 rounded-md border items-center justify-center ${
-                                printer.is_default ? 'bg-slate-900 border-slate-900' : 'bg-white border-slate-350'
-                              }`}>
-                                {printer.is_default && <CheckCircle2 size={10} color="#ffffff" />}
-                              </View>
-                              <Text className="text-[11px] font-extrabold text-slate-700">Set as Default Billing</Text>
-                            </Pressable>
-                          )}
-                        </View>
-
-                        {/* Test print & Delete */}
-                        <View className="flex-row gap-2 items-center flex-wrap">
-                          <Pressable
-                            disabled={testingPrinterId !== null || !isOnline}
-                            onPress={() => handleTestPrint(printer)}
-                            className={`px-4 h-9 rounded-xl border border-slate-200 bg-white active:bg-slate-50 items-center justify-center flex-row gap-1.5 ${!isOnline ? 'opacity-40' : ''}`}
-                          >
-                            {testingPrinterId === printer.ip_address ? (
-                              <ActivityIndicator size="small" color="#0F172A" style={{ transform: [{ scale: 0.7 }] }} />
-                            ) : (
-                              <>
-                                <Play size={10} color="#64748b" fill="#64748b" />
-                                <Text className="font-extrabold text-slate-700 text-[11px]">Test Print</Text>
-                              </>
-                            )}
-                          </Pressable>
-
-                          <Pressable
-                            disabled={submitting}
-                            onPress={() => handleDeletePrinter(printer.id)}
-                            className="p-2 h-9 w-9 rounded-xl border border-rose-200 bg-rose-50 active:bg-rose-100 items-center justify-center"
-                          >
-                            <Trash2 size={12} color="#e11d48" />
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </ScrollView>
-        ) : activeTab === 'system' ? (
-          <ScrollView className="flex-1 animate-fade-in" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-            <View className="mb-6">
-              <Text style={{ fontSize: 20, fontWeight: '600', color: '#0F172A' }}>
-                System Profile
-              </Text>
-              <Text className="text-sm text-slate-500 mt-1">General configurations and core POS metadata</Text>
-            </View>
-
-            <View className="flex-row flex-wrap -mx-3 gap-y-6">
-              {/* Active Account / Profile Card */}
-              <View className="w-full md:w-1/2 px-3">
-                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
-                  <View>
-                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Active Account</Text>
-                    <Text className="text-[22px] font-semibold text-slate-800">{session?.displayName || 'Active Staff'}</Text>
-                    <View className="mt-2.5 gap-1">
-                      <Text className="text-xs text-slate-500 capitalize">
-                        Role: <Text className="font-semibold text-slate-700">{session?.role || 'user'}</Text>
-                      </Text>
-                      <Text className="text-xs text-slate-500">
-                        Home Branch: <Text className="font-semibold text-slate-700">{session?.branchName || 'Main'}</Text>
-                      </Text>
-                    </View>
-                  </View>
-                  <Pressable
-                    onPress={() => signOut()}
-                    className="mt-5 self-start flex-row items-center gap-2 px-4 py-2 border border-red-200 bg-red-50 hover:bg-red-100/80 active:bg-red-100 rounded-xl transition-all cursor-pointer"
-                  >
-                    <LogOut size={12} color="#dc2626" />
-                    <Text className="text-xs font-bold text-red-600">Sign Out</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* POS Brand Card */}
-              <View className="w-full md:w-1/2 px-3">
-                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
-                  <View>
-                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">POS Brand</Text>
-                    <Text className="text-[22px] font-semibold text-slate-800">{brand.name}</Text>
-                  </View>
-                  <Text className="text-xs text-slate-500 mt-3">{brand.tagline}</Text>
-                </View>
-              </View>
-
-              {/* Central Kitchen: the owner and admins may open the kitchen's books */}
-              {session?.role === 'owner' || session?.role === 'admin' ? (
-                <View className="w-full md:w-1/2 px-3">
-                  <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
-                    <View>
-                      <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Central Kitchen</Text>
-                      <Text className="text-[22px] font-semibold text-slate-800">The kitchen&apos;s books</Text>
-                      <Text className="text-xs text-slate-500 mt-2.5">What it sent, bought and paid, and what each branch still owes it.</Text>
-                    </View>
-                    <Pressable
-                      onPress={() => router.push(KITCHEN_HOME as never)}
-                      className="mt-5 self-start flex-row items-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-100 rounded-xl"
-                      style={{ minHeight: 44 }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Open the Central Kitchen"
-                    >
-                      <ChefHat size={14} color={colors.primary} />
-                      <Text className="text-xs font-bold text-primary">Open Central Kitchen</Text>
-                    </Pressable>
-                  </View>
+            <View className="mt-2 border-t border-border-soft">
+              <Toggle label="In use" hint={printer.is_active ? 'The till sends to this printer' : 'The till leaves this printer alone'} on={printer.is_active} disabled={submitting}
+                onChange={(on) => void updatePrinter(printer, { is_active: on }, `${printer.name} ${on ? 'is in use' : 'is no longer used'}.`)} />
+              {printer.is_active ? (
+                <View className="border-t border-border-soft px-3.5 py-3">
+                  <Text className="mb-2 text-[13px] font-bold text-text-secondary">Prints</Text>
+                  <Segmented options={[{ value: 'bill', label: 'Bills' }, { value: 'kitchen', label: 'Kitchen orders' }]} value={printer.printer_role === 'kitchen' ? 'kitchen' : 'bill'}
+                    onChange={(role) => void updatePrinter(printer, { printer_role: role, is_default: role === 'bill' ? printer.is_default : false }, `${printer.name} now prints ${role === 'bill' ? 'bills' : 'kitchen orders'}.`)} />
                 </View>
               ) : null}
-
-              {/* Active Currency Card */}
-              <View className="w-full md:w-1/2 px-3">
-                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
-                  <View>
-                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Active Currency</Text>
-                    <Text className="text-[22px] font-semibold text-slate-800">INR (₹)</Text>
-                  </View>
-                  <Text className="text-xs text-slate-500 mt-3">Primary transaction and billing currency.</Text>
-                </View>
-              </View>
-
-              {/* Print Protocol Card */}
-              <View className="w-full md:w-1/2 px-3">
-                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
-                  <View>
-                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Print Protocol</Text>
-                    <Text className="text-[22px] font-semibold text-slate-800">ESC/POS (Network IP)</Text>
-                  </View>
-                  <Text className="text-xs text-slate-500 mt-3">Thermal printer stream and spool formatting protocol.</Text>
-                </View>
-              </View>
-
-              {/* Local Print Bridge Card */}
-              <View className="w-full md:w-1/2 px-3">
-                <View className="bg-white border border-slate-200/80 p-6 rounded-[18px] shadow-xs flex-col justify-between" style={{ minHeight: 140 }}>
-                  <View>
-                    <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Local Print Bridge</Text>
-                    <Pressable className="self-start active:opacity-80">
-                      <Text className="text-[22px] font-semibold text-sky-600 underline">localhost:4545</Text>
-                    </Pressable>
-                  </View>
-                  <Text className="text-xs text-slate-500 mt-3">Operational production endpoint of the local print agent.</Text>
-                </View>
+              {printer.is_active && printer.printer_role === 'bill' ? (
+                <Toggle label="Main bill printer" hint="Bills go here when more than one printer prints bills" on={printer.is_default} disabled={submitting}
+                  onChange={(on) => void updatePrinter(printer, { is_default: on }, on ? `${printer.name} is the main bill printer.` : `${printer.name} is no longer the main bill printer.`)} />
+              ) : null}
+              <View className="flex-row items-center justify-between border-t border-border-soft px-3.5">
+                {testingPrinterId === printer.id ? <View className="min-h-[44px] justify-center"><ActivityIndicator size="small" color={colors.primary} /></View>
+                  : <LinkButton label="Print a test page" onPress={() => void testPrint(printer)} />}
+                <LinkButton label="Remove" onPress={() => removePrinter(printer)} />
               </View>
             </View>
-          </ScrollView>
-        ) : activeTab === 'finance' && FINANCE_MODULE_ENABLED ? (
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
-            <FinanceAccountsCard />
-            <FinanceRulesCard />
+          </Card>
+        );
+      })}
+    </View>
+  );
+
+  const receiptPage = (
+    <View>
+      <TextField value={receiptFooter} onChange={(text) => { setReceiptFooter(text); void storage.set(STORAGE_KEYS.receiptFooter, text); }} label="Receipt footer" placeholder={DEFAULT_RECEIPT_FOOTER} multiline />
+      <Text className="mt-1.5 text-xs font-semibold text-text-secondary">Saved as you type, on this device. Each till keeps its own.</Text>
+      {/* What the bottom of a bill will look like. */}
+      <View className="mt-5 self-center rounded-sm border border-border-soft bg-surface-elevated px-6 py-5" style={{ width: 260 }}>
+        <View className="flex-row justify-between"><Text className="text-[13px] font-bold text-text-primary">Total</Text><Text className="text-[13px] font-bold text-text-primary">₹698.00</Text></View>
+        <View className="my-3 border-t border-dashed border-border" />
+        <Text className="text-center text-[13px] font-semibold text-text-primary">{receiptFooter || DEFAULT_RECEIPT_FOOTER}</Text>
+      </View>
+    </View>
+  );
+
+  const aboutPage = (
+    <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
+      <RowInset.Provider value={14}>
+        <Row title="App" subtitle={brand.name} right={version ? `Version ${version}` : undefined} />
+        <Row title="Currency" subtitle="Bills and reports" right="INR (₹)" />
+        <Row title="Print protocol" subtitle="Thermal printers" right="ESC/POS" />
+        <Row title="Local print bridge" subtitle="The print agent on the counter PC" right="localhost:4545" />
+      </RowInset.Provider>
+    </Card>
+  );
+
+  const titles: Record<Pane, string> = { home: 'Settings', printers: 'Printers', receipt: 'Receipt footer', approvals: 'Approvals', finance: 'Finance', about: 'About this device' };
+  const pageBody = pane === 'printers' ? printersPage : pane === 'receipt' ? receiptPage : pane === 'about' ? aboutPage
+    : pane === 'finance' && FINANCE_MODULE_ENABLED ? <View><FinanceAccountsCard /><FinanceRulesCard /></View> : null;
+  // The approvals page scrolls by itself.
+  const page = pane === 'approvals' && isOwnerOrAdmin
+    ? <View className="flex-1"><ApprovalPoliciesScreen /></View>
+    : <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled">{pageBody}</ScrollView>;
+
+  if (!split) {
+    return (
+      <View className="flex-1 bg-kitchen-canvas" style={{ paddingTop: insets.top }}>
+        {pane === 'home' ? (
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}>
+            <KHeader title="Settings" large />
+            {list}
           </ScrollView>
         ) : (
-          <ApprovalPoliciesScreen />
+          <View className="flex-1 px-4">
+            <KHeader title={titles[pane]} onBack={() => { setSuccessMsg(null); setFormError(null); setPane('home'); }} />
+            {page}
+          </View>
         )}
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-kitchen-canvas" style={{ paddingTop: insets.top }}>
+      <View className="w-full flex-1 flex-row self-center px-6 pt-6" style={{ maxWidth: 1120, gap: 24 }}>
+        <ScrollView style={{ width: 340, flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 120 }}>
+          <Text accessibilityRole="header" className="mb-4 text-[28px] font-bold text-text-primary" style={{ letterSpacing: -0.5 }}>Settings</Text>
+          {list}
+        </ScrollView>
+        <View className="min-w-0 flex-1">
+          <Text accessibilityRole="header" className="mb-3 mt-2 text-xl font-bold text-text-primary">{titles[pane]}</Text>
+          {page}
+        </View>
       </View>
     </View>
   );
 }
+

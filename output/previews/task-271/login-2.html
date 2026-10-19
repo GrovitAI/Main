@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login, round 2</title>
+<link rel="stylesheet" href="../task-228/phones.css">
+<style>
+:root { --logo: #0250a5; --logoDeep: #013a7a; }
+.sheet { grid-template-columns: 390px 820px; gap: 56px 40px; }
+.group { grid-column: 1 / -1; margin: 10px 0 -30px 6px; max-width: 1250px; }
+.group h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--navy); letter-spacing: -0.3px; }
+.group p { margin: 6px 0 0; font-size: 15px; font-weight: 600; color: var(--text2); line-height: 1.45; max-width: 1100px; }
+.desk { width: 820px; height: 512px; border-radius: 14px; overflow: hidden; outline: 8px solid #0f1b2a; position: relative; background: var(--canvas); }
+.desk .inner { width: 1280px; height: 800px; transform: scale(0.640625); transform-origin: 0 0; position: relative; overflow: hidden; }
+.muted { color: var(--text2); }
+.lbl { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+.input { height: 52px; border-radius: 14px; border: 1px solid var(--border); background: #fff; display: flex; align-items: center; padding: 0 14px; gap: 10px; font-size: 16px; color: var(--text); }
+.input.focus { border: 2px solid var(--primary); box-shadow: 0 0 0 4px rgba(0,102,178,0.12); }
+.input .lucide { width: 18px; height: 18px; color: #8a9bb0; }
+.btn { height: 54px; border-radius: 14px; background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 6px 16px rgba(0,74,141,0.25); }
+.btn .lucide { width: 18px; height: 18px; }
+.link { color: var(--primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.logo { display: block; }
+.f13 { font-size: 13px; font-weight: 600; } .f14 { font-size: 14px; font-weight: 600; } .f15 { font-size: 15px; font-weight: 600; }
+.foot { font-size: 12px; font-weight: 600; color: var(--text2); text-align: center; }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+const LOGO = '../../../assets/images/le-leban-logo.png';
+const ic = (n, st = '') => `<i data-lucide="${n}"${st ? ` style="${st}"` : ''}></i>`;
+const status = (light) => `<div class="island"></div><div class="status"${light ? ' style="color:#fff"' : ''}><span>9:41</span><span class="r"><i data-lucide="signal" class="s16"></i><i data-lucide="wifi" class="s16"></i><i data-lucide="battery-full" class="s16"></i></span></div>`;
+// The logo is a white badge on a #0250a5 square; it is only ever placed on that exact blue.
+const logo = (size, extra = '') => `<img class="logo" src="${LOGO}" alt="Le Laban" style="width:${size}px;height:${size}px;${extra}">`;
+const fields = ({ email = 'owner@lelaban.in', focus = true, error = false } = {}) => `
+  <div><div class="lbl">Email</div><div class="input${focus ? ' focus' : ''}">${ic('mail')}${email}</div></div>
+  <div style="margin-top:14px"><div class="lbl">Password</div><div class="input" style="justify-content:space-between"><span style="display:flex;align-items:center;gap:10px">${ic('lock-keyhole')}<span style="letter-spacing:3px">•••••••••</span></span><span style="display:flex">${ic('eye', 'width:20px;height:20px;color:#5b6b7c')}</span></div></div>
+  ${error ? `<div class="f13" style="margin-top:12px;color:var(--bad);background:var(--badSoft);padding:10px 12px;border-radius:12px;display:flex;gap:8px;align-items:flex-start">${ic('circle-alert', 'width:16px;height:16px;flex:none;margin-top:1px')}That email and password don't match. Check them and try again.</div>` : ''}
+  <div class="btn" style="margin-top:20px">Sign in ${ic('arrow-right')}</div>
+  <div class="foot" style="margin-top:14px">Forgot your password? The owner can reset it in Settings › Staff.</div>`;
+
+// Arcs that echo the light-blue swooshes inside the logo.
+const swooshes = (w, h, op = 0.18) => `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="position:absolute;inset:0" fill="none">
+  <path d="M ${-w*0.1} ${h*0.78} C ${w*0.25} ${h*0.98}, ${w*0.7} ${h*0.95}, ${w*1.1} ${h*0.62}" stroke="#7cc0ff" stroke-opacity="${op}" stroke-width="2.5"/>
+  <path d="M ${-w*0.1} ${h*0.86} C ${w*0.3} ${h*1.05}, ${w*0.75} ${h*1.0}, ${w*1.1} ${h*0.72}" stroke="#ffffff" stroke-opacity="${op*0.7}" stroke-width="1.5"/>
+  <path d="M ${w*0.55} ${-h*0.05} C ${w*0.8} ${h*0.1}, ${w*1.0} ${h*0.25}, ${w*1.1} ${h*0.4}" stroke="#7cc0ff" stroke-opacity="${op}" stroke-width="2.5"/></svg>`;
+
+// ── D · The logo's own blue ─────────────────────────────────────────────
+const D_phone = `<div style="position:absolute;inset:0;background:var(--logo)"></div>${swooshes(390, 520)}${status(true)}
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;margin-top:-6px">${logo(300)}<div class="f15" style="color:#cfe3ff;margin-top:-62px">Billing · Kitchen · Accounts</div></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;height:470px;background:#fff;border-radius:50% 50% 0 0 / 34px 34px 0 0;padding:34px 24px 0">
+    <div style="font-size:24px;font-weight:700;letter-spacing:-0.4px;margin-bottom:18px">Sign in</div>${fields()}</div>`;
+const D_desk = `<div class="inner" style="display:flex">
+  <div style="position:relative;width:680px;background:var(--logo);overflow:hidden">${swooshes(680, 800, 0.22)}
+    <div style="position:absolute;left:50%;top:44%;transform:translate(-50%,-50%)">${logo(560)}</div>
+    <div style="position:absolute;left:0;right:0;bottom:56px;text-align:center;color:#cfe3ff;font-size:16px;font-weight:600">Kolathur · Velachery · Central Kitchen</div></div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#fff"><div style="width:400px">
+    <div style="font-size:32px;font-weight:700;letter-spacing:-0.6px">Sign in</div><div class="f15 muted" style="margin:6px 0 26px">Welcome back to Le Laban.</div>${fields()}</div></div></div>`;
+
+// ── E · The tub: the badge's shape becomes the frame ────────────────────
+const tubPath = (w, h) => `M ${w*0.06} ${h*0.08} C ${w*0.3} ${-h*0.02}, ${w*0.7} ${-h*0.02}, ${w*0.94} ${h*0.08} C ${w*1.02} ${h*0.12}, ${w*1.0} ${h*0.5}, ${w*0.9} ${h*0.78} C ${w*0.8} ${h*1.02}, ${w*0.2} ${h*1.02}, ${w*0.1} ${h*0.78} C ${w*0.0} ${h*0.5}, ${-w*0.02} ${h*0.12}, ${w*0.06} ${h*0.08} Z`;
+const tub = (w, h) => `<svg width="${w}" height="${h}" viewBox="-8 -8 ${w + 16} ${h + 16}" style="position:absolute;left:-8px;top:-8px;overflow:visible"><path d="${tubPath(w, h)}" fill="#fff"/><path d="${tubPath(w, h)}" fill="none" stroke="#fff" stroke-width="3" transform="translate(${w/2} ${h/2}) scale(1.035) translate(${-w/2} ${-h/2})" stroke-opacity="0.9"/></svg>`;
+const E_phone = `<div style="position:absolute;inset:0;background:radial-gradient(80% 45% at 50% 78%, #0a64c4 0%, var(--logo) 70%)"></div>${status(true)}
+  <div style="position:relative;display:flex;justify-content:center;margin-top:8px">${logo(150, 'margin:-30px 0 -34px')}</div>
+  <div style="position:relative;margin:4px 20px 0;height:560px">${tub(350, 560)}
+    <div style="position:relative;padding:58px 34px 0"><div style="text-align:center;font-size:24px;font-weight:700">Sign in</div><div class="f14 muted" style="text-align:center;margin:2px 0 22px">Welcome back</div>${fields()}</div></div>`;
+const E_desk = `<div class="inner" style="background:radial-gradient(45% 55% at 50% 60%, #0a64c4 0%, var(--logo) 75%);display:flex;align-items:center;justify-content:center">
+  <div style="position:absolute;left:60px;top:40px">${logo(150, 'margin:-38px')}</div>
+  <div style="position:relative;width:560px;height:600px">${tub(560, 600)}
+    <div style="position:relative;padding:72px 90px 0"><div style="text-align:center;font-size:30px;font-weight:700;letter-spacing:-0.5px">Sign in</div><div class="f15 muted" style="text-align:center;margin:4px 0 26px">Welcome back to Le Laban</div>${fields()}</div></div></div>`;
+
+// ── F · Menu board: the desserts set the mood ───────────────────────────
+const MENU = ['Salankatia', 'Koshari', 'Qashtuta', 'Mango Salankatia', 'Nutella Koshari', 'Lotus Qashtuta', 'Creme De La Creme', 'Classic Cheese Bomb', 'De Paris'];
+const F_board = (w, size) => `<div style="position:absolute;inset:0;padding:${size * 2.2}px ${size * 1.6}px;display:flex;flex-direction:column;justify-content:center;gap:${size * 0.35}px">${MENU.map((m, i) => `<div style="font-size:${size}px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;color:${i % 3 === 1 ? '#ffffff' : 'rgba(255,255,255,0.22)'};white-space:nowrap">${m}</div>`).join('')}</div>`;
+const F_phone = `<div style="position:absolute;inset:0;background:var(--logo);overflow:hidden">${F_board(390, 34)}</div>${status(true)}
+  <div style="position:absolute;left:16px;right:16px;bottom:30px;background:#fff;border-radius:26px;padding:24px 20px;box-shadow:0 18px 40px rgba(0,30,70,0.35)">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px"><div style="width:52px;height:52px;border-radius:14px;overflow:hidden;background:var(--logo);flex:none">${logo(52, 'transform:scale(1.9)')}</div><div><div style="font-size:20px;font-weight:700">Sign in</div><div class="f13 muted">Le Laban</div></div></div>${fields({ error: true })}</div>`;
+const F_desk = `<div class="inner" style="display:flex">
+  <div style="position:relative;width:700px;background:var(--logo);overflow:hidden">${F_board(700, 56)}<div style="position:absolute;left:90px;bottom:40px;color:#cfe3ff;font-size:16px;font-weight:600">On the counter today</div></div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#fff"><div style="width:400px">
+    <div style="width:84px;height:84px;border-radius:22px;overflow:hidden;background:var(--logo)">${logo(84, 'transform:scale(1.9)')}</div>
+    <div style="font-size:32px;font-weight:700;letter-spacing:-0.6px;margin-top:22px">Sign in</div><div class="f15 muted" style="margin:6px 0 26px">Billing, the kitchen and the day's figures.</div>${fields({ error: true })}</div></div></div>`;
+
+// ── G · Bilingual: the logo's Arabic name as a quiet watermark ──────────
+const G_phone = `${status()}<div style="position:absolute;inset:0;background:linear-gradient(180deg,#f5f8fc 0%,#e8f2fa 100%)"></div>
+  <div style="position:absolute;right:-40px;top:60px;font-size:150px;font-weight:700;color:rgba(2,80,165,0.06);font-family:'Noto Naskh Arabic','Segoe UI',Tahoma,sans-serif;line-height:1">ليلابان</div>
+  <div style="position:relative;padding:70px 24px 0">
+    <div style="width:96px;height:96px;border-radius:26px;overflow:hidden;background:var(--logo);box-shadow:0 12px 28px rgba(2,80,165,0.28)">${logo(96, 'transform:scale(1.9)')}</div>
+    <div style="font-size:34px;font-weight:700;letter-spacing:-0.8px;margin-top:26px;line-height:1.1">Good evening</div>
+    <div class="f15 muted" style="margin:6px 0 28px">Sunday, 18 October · sign in to begin</div>${fields()}</div>`;
+const G_desk = `<div class="inner" style="background:linear-gradient(180deg,#f5f8fc 0%,#e8f2fa 100%)">
+  <div style="position:absolute;left:-30px;bottom:-60px;font-size:330px;font-weight:700;color:rgba(2,80,165,0.06);font-family:'Noto Naskh Arabic','Segoe UI',Tahoma,sans-serif;line-height:1">ليلابان</div>
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div style="width:880px;display:flex;gap:80px;align-items:center">
+    <div style="flex:1"><div style="width:120px;height:120px;border-radius:32px;overflow:hidden;background:var(--logo);box-shadow:0 16px 36px rgba(2,80,165,0.28)">${logo(120, 'transform:scale(1.9)')}</div>
+      <div style="font-size:64px;font-weight:700;letter-spacing:-1.8px;margin-top:30px;line-height:1.02">Good evening</div><div style="font-size:18px;font-weight:600;color:var(--text2);margin-top:12px">Sunday, 18 October</div></div>
+    <div style="width:420px;background:#fff;border:1px solid var(--soft);border-radius:24px;padding:30px;box-shadow:0 20px 50px rgba(0,45,90,0.08)"><div style="font-size:22px;font-weight:700;margin-bottom:20px">Sign in</div>${fields()}</div></div></div></div>`;
+
+// ── H · Dessert pattern ─────────────────────────────────────────────────
+const ICONS = ['cake-slice', 'ice-cream-cone', 'cookie', 'croissant', 'cup-soda', 'dessert', 'cake', 'candy', 'coffee', 'cherry'];
+const pattern = (cols, rows, gap, size, op) => `<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat(${cols},${gap}px);grid-auto-rows:${gap}px;justify-content:center;align-content:center;color:rgba(255,255,255,${op})">${Array.from({ length: cols * rows }, (_, i) => `<div style="display:flex;align-items:center;justify-content:center;transform:rotate(${(i * 37) % 30 - 15}deg) translateY(${(i % cols) % 2 ? gap / 2 : 0}px)">${ic(ICONS[(i * 7) % ICONS.length], `width:${size}px;height:${size}px;stroke-width:1.6`)}</div>`).join('')}</div>`;
+const H_phone = `<div style="position:absolute;inset:0;background:var(--logo);overflow:hidden">${pattern(6, 12, 70, 30, 0.13)}</div>${status(true)}
+  <div style="position:relative;display:flex;justify-content:center;margin-top:0">${logo(250, 'margin:-24px 0 -40px')}</div>
+  <div style="position:absolute;left:16px;right:16px;bottom:30px;background:#fff;border-radius:28px;padding:26px 20px;box-shadow:0 18px 40px rgba(0,30,70,0.35)"><div style="font-size:22px;font-weight:700;margin-bottom:18px">Sign in</div>${fields()}</div>`;
+const H_desk = `<div class="inner" style="background:var(--logo);overflow:hidden">${pattern(18, 11, 80, 34, 0.12)}
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div style="width:460px;background:#fff;border-radius:30px;padding:10px 36px 34px;box-shadow:0 30px 70px rgba(0,25,60,0.4);text-align:left">
+    <div style="display:flex;justify-content:center;background:var(--logo);margin:0 -36px;border-radius:24px 24px 0 0;margin-top:-10px;height:150px;overflow:hidden;align-items:center">${logo(260)}</div>
+    <div style="font-size:26px;font-weight:700;margin:24px 0 18px">Sign in</div>${fields()}</div></div></div>`;
+
+const pages = [
+  { g: ['D · The logo\'s own blue', 'The badge sits on its exact blue, so it reads as the brand rather than a square picture. The light-blue swooshes from inside the logo become thin arcs across the blue; the form is on a white sheet whose top curves like the badge\'s rim.'] },
+  { n: 1, l: 'Phone', p: D_phone }, { n: 2, l: 'Desktop', d: D_desk },
+  { g: ['E · The tub', 'The badge\'s tub shape, with its double white rim, becomes the frame the form sits in, on a deep blue glow. The most playful of the five; it only works because the shape is Le Laban\'s own.'] },
+  { n: 3, l: 'Phone', p: E_phone }, { n: 4, l: 'Desktop', d: E_desk },
+  { g: ['F · Menu board', 'The desserts set the mood: menu names in large type, a few in white and the rest faint, like a board behind the counter. The form is a clean white card; shown with the wrong-password message.'] },
+  { n: 5, l: 'Phone, wrong password', p: F_phone }, { n: 6, l: 'Desktop, wrong password', d: F_desk },
+  { g: ['G · Bilingual and calm', 'The pale app canvas, the logo as an app-icon tile, a greeting with the day, and the logo\'s Arabic name as a large quiet watermark. The lightest and closest to the rest of the app.'] },
+  { n: 7, l: 'Phone', p: G_phone }, { n: 8, l: 'Desktop', d: G_desk },
+  { g: ['H · Dessert pattern', 'The logo\'s blue filled with a soft, scattered pattern of dessert line icons, the badge at the top and the form on a white card; on a laptop the card carries its own band of logo blue.'] },
+  { n: 9, l: 'Phone', p: H_phone }, { n: 10, l: 'Desktop', d: H_desk },
+];
+const sheet = document.getElementById('sheet');
+for (const pg of pages) {
+  if (pg.g) { sheet.insertAdjacentHTML('beforeend', `<div class="group"><h2>${pg.g[0]}</h2><p>${pg.g[1]}</p></div>`); continue; }
+  const frame = pg.p ? `<div class="phone">${pg.p}<div class="home-ind"></div></div>` : `<div class="desk">${pg.d}</div>`;
+  sheet.insertAdjacentHTML('beforeend', `<div><div class="label"><b>${pg.n}</b>${pg.l}</div>${frame}</div>`);
+}
+</script>
+<script src="https://unpkg.com/lucide@0.452.0/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
