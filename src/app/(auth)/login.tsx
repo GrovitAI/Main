@@ -191,7 +191,6 @@ export default function LoginScreen() {
         <View className="items-center justify-center overflow-hidden" style={{ flex: 1.1, backgroundColor: colors.logoBlue }}>
           <Swooshes opacity={0.22} />
           {logo(460)}
-          <Text className="absolute bottom-12 text-[15px] font-semibold" style={{ color: colors.accent }}>Billing at the counter, the central kitchen’s books and the day’s figures</Text>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }} keyboardShouldPersistTaps="handled">
           {form}
