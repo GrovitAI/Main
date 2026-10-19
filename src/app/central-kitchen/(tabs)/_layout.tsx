@@ -1,6 +1,7 @@
 import { hoverScope } from '@/lib/pos/web-hover';
 import { useEffect, useState } from 'react';
-import { Tabs, router } from 'expo-router';
+import { Tabs, router, useNavigation } from 'expo-router';
+import { markKitchenTabsShown } from '@/lib/pos/kitchen-nav';
 import { FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -301,6 +302,12 @@ function Rail({ state, navigation }: BarProps) {
  */
 export default function KitchenTabsLayout() {
   const { isTablet } = useResponsive();
+  // Task 269: once the tabs have been on screen, leaving a form can step back to them.
+  const navigation = useNavigation();
+  useEffect(() => {
+    if (navigation.isFocused()) markKitchenTabsShown();
+    return navigation.addListener('focus', markKitchenTabsShown);
+  }, [navigation]);
   return (
     <PhoneWebFrame active={!isTablet}>
       <Tabs

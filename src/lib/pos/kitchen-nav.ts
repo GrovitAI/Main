@@ -12,8 +12,16 @@ export function setLeaveCheck(check: () => LeaveQuestion | null): () => void {
   return () => { if (leaveCheck === check) leaveCheck = null; };
 }
 
+/**
+ * Task 269: whether the kitchen's tabs have been on screen. A page opened by a link or a reload has
+ * the tabs beneath it only as a placeholder that opens on its first tab (Analytics), so stepping
+ * back from it went there; until the tabs have been seen, leaving goes to Home instead.
+ */
+let kitchenTabsShown = false;
+export function markKitchenTabsShown(): void { kitchenTabsShown = true; }
+
 function leave(): void {
-  if (router.canGoBack()) router.back();
+  if (kitchenTabsShown && router.canGoBack()) router.back();
   else router.replace(KITCHEN_HOME as never);
 }
 
