@@ -4,13 +4,15 @@ Approved by the user on 9 October 2026: keep testing within the monthly allowanc
 
 ## Current cycle and planning targets
 
-Last confirmed dashboard reading: 9 October 2026, cycle 21 September–21 October. All projects: ingestion 0.597/1 GB, log queries 37.831/100 GB. Production/staging ingestion: 0.442/0.155 GB. See LOG_USAGE_REVIEW_2026-10-09.md for evidence.
+Last confirmed dashboard reading: **19 October 2026**, cycle **21 September–21 October**. All projects: ingestion **0.818/1 GB (82%)**, log queries **47.232/100 GB (47%)**. Production/staging ingestion: **0.572/0.246 GB**; log queries **18.672/28.560 GB**. See LOG_USAGE_REVIEW_2026-10-19.md for the remaining-cycle plan; the 9 October record remains historical evidence.
 
-- Aim to finish below **0.8 GB ingestion** and **80 GB log queries**, preserving a 20% buffer. These are internal warning targets, not Supabase's quota or an automatic hard cap.
-- Approximately **403 MB ingestion** remains to the actual allowance. Over twelve calendar days that is about 33 MB/day; the 0.8 GB target leaves about 203 MB, or 17 MB/day across production and staging combined.
+- For each fresh cycle, aim to finish below **0.8 GB ingestion** and **80 GB log queries**, preserving a 20% buffer. These are internal warning targets, not Supabase's quota or an automatic hard cap; the current cycle has already passed the ingestion warning target.
+- Approximately **182 MB ingestion** and **52.768 GB log queries** remain to the displayed allowances, with roughly two calendar days until 21 October. The 0.8 GB ingestion warning target has already been crossed: discretionary iteration now uses local/mocked data; essential correctness/security checks remain available. Aim for no more than about **25 MB/day combined ingestion growth** until reset as a planning target, not an enforced cap. This would finish near 0.87 GB over two days if the rate holds. The previous 33 MB/day headroom figure is obsolete.
 - Keep discretionary staging testing to a planning target of **5 MB/day ingestion growth**. This is part of the organization total, not an extra allowance or a measured cost per test. Platform idle logs also contribute. A meter increase cannot be attributed entirely to testing without further evidence.
 - When either organization meter reaches 80%, or the recent ingestion rate projects over quota, use local/sample iteration for discretionary work and reduce live checks to essential changed flows. Report the risk; diagnose the actual source before changing runtime behavior.
 - At each new cycle, record the new allowance, dates and baseline, then recalculate remaining daily headroom. Do not carry this cycle's daily numbers forward as fixed limits.
+
+The 19 October dashboard and current official docs still mark log ingestion billing and log-query enforcement as upcoming, after a grace period through the start of 2027. Log Query is log data scanned by debugging tools, not ordinary database queries or sales analytics. Existing monthly usage cannot be reduced retroactively by closing servers. Local staging app/API and project preview were stopped at the user's request on 19 October; hosted Supabase services and production can still generate logs. No runtime or logging settings were changed for this plan.
 
 Production traffic is outside a test budget, and the dashboard may lag by an hour. This workflow reduces testing's contribution; it cannot guarantee total organization usage stays under quota.
 
