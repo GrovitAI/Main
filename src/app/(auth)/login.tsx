@@ -12,6 +12,7 @@ import { isSupabaseConfigured } from '@/lib/pos/supabase';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { getDefaultHrefForSession } from '@/lib/pos/tab-config';
 import { useResponsive } from '@/lib/pos/useResponsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const logoSource = require('../../../assets/images/le-leban-logo.png');
 
@@ -45,6 +46,10 @@ export default function LoginScreen() {
 
   const { signIn, session, error: authError, isLoading, clearError } = useSessionStore();
   const { isPhone } = useResponsive();
+  const insets = useSafeAreaInsets();
+  // The phone's blue area: the badge is sized to fit it (task 274).
+  const [topHeight, setTopHeight] = useState(0);
+  const badgeSize = Math.min(280, Math.max(0, (topHeight - insets.top - 30) / 0.45));
   const segments = useSegments();
 
   // Clear errors when user types
@@ -169,16 +174,22 @@ export default function LoginScreen() {
       <>
         <StatusBar style="light" />
         <KeyboardAvoider style={{ backgroundColor: colors.logoBlue }}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
-            <View className="items-center" style={{ minHeight: 330, justifyContent: 'center', paddingTop: 40 }}>
+          {/* Task 274: one screen, no scrolling. The blue takes what the form leaves and the badge
+              sizes itself to it; when the keyboard opens the blue shrinks rather than the page scrolling. */}
+          <View className="flex-1">
+            <View className="min-h-0 flex-1 items-center justify-center overflow-hidden" style={{ paddingTop: insets.top }}
+              onLayout={(e) => setTopHeight(e.nativeEvent.layout.height)}>
               <Swooshes />
-              <View style={{ marginTop: -30, marginBottom: -70 }}>{logo(280)}</View>
-              <Text className="text-[15px] font-semibold" style={{ color: colors.accent }}>Billing · Kitchen · Accounts</Text>
+              {badgeSize >= 120 ? (
+                // The logo square has blue above and below the badge; trim it so only the badge takes room.
+                <View style={{ marginVertical: -badgeSize * 0.3 }}>{logo(badgeSize)}</View>
+              ) : null}
+              {topHeight - insets.top > 150 ? <Text className="mt-1 text-[15px] font-semibold" style={{ color: colors.accent }}>Billing · Kitchen · Accounts</Text> : null}
             </View>
-            <View className="flex-1 items-center bg-surface-elevated px-6 pb-10 pt-8" style={{ borderTopLeftRadius: 34, borderTopRightRadius: 34 }}>
+            <View className="items-center bg-surface-elevated px-6 pt-7" style={{ borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingBottom: Math.max(insets.bottom, 12) + 12 }}>
               {form}
             </View>
-          </ScrollView>
+          </View>
         </KeyboardAvoider>
       </>
     );
