@@ -119,23 +119,31 @@ export async function addProduct(
  */
 export async function updateProduct(
   productId: string,
-  input: Pick<MenuProduct, 'name' | 'price' | 'category_id' | 'is_available' | 'inventory_tracking_enabled' | 'recipe_id'>
+  input: Pick<MenuProduct, 'name' | 'price' | 'category_id' | 'is_available' | 'inventory_tracking_enabled' | 'recipe_id'>,
+  /** The item's name before this change. A save that keeps the name skips the duplicate check, so
+   *  an item that already shares its name with another (older menus have a few) can still change
+   *  its price (task 276). */
+  options: { previousName?: string } = {}
 ): Promise<ServiceResult<MenuProduct>> {
   try {
     const { tenant_id, branch_id } = getTenantContext();
 
-    const { data: existing } = await supabase
-      .from('products')
-      .select('id')
-      .eq('tenant_id', tenant_id)
-      .eq('branch_id', branch_id)
-      .eq('is_active', true)
-      .neq('id', productId)
-      .ilike('name', input.name.trim())
-      .maybeSingle();
+    const sameName = options.previousName !== undefined
+      && options.previousName.trim().toLowerCase() === input.name.trim().toLowerCase();
+    if (!sameName) {
+      const { data: existing } = await supabase
+        .from('products')
+        .select('id')
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id)
+        .eq('is_active', true)
+        .neq('id', productId)
+        .ilike('name', input.name.trim())
+        .limit(1);
 
-    if (existing) {
-      return { data: null, error: 'A product with this name already exists.' };
+      if (existing && existing.length > 0) {
+        return { data: null, error: 'A product with this name already exists.' };
+      }
     }
 
     const payload = {
