@@ -15,6 +15,7 @@ import { useAppFonts } from '@/lib/pos/use-app-fonts';
 import { useWebHover } from '@/lib/pos/web-hover';
 import { installNativePressableStyles } from '@/lib/pos/native-pressable-styles';
 import { installWebAlert } from '@/lib/pos/dialogs';
+import { DialogHost } from '@/components/ui/DialogHost';
 
 // Before the first render: phones get Pressable function styles back (task 249).
 installNativePressableStyles();
@@ -103,6 +104,8 @@ export default function RootLayout() {
             )}
             {/* Only on the staging copy of the database; a small tag drawn over the screens. */}
             <TestDatabaseBanner />
+            {/* Task 281: confirmations and messages on the web, drawn by the app itself. */}
+            <DialogHost />
             {(isRestoring || restoreError) && (
               <View
                 style={{

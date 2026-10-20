@@ -207,8 +207,9 @@ export function LinePad({ it, line, field, onField, onChange, onDone, showAmount
           {showAmounts ? <Text className="text-[28px] font-extrabold text-text-primary" style={{ letterSpacing: -0.6, ...tabular }}>{total === null ? '—' : formatMoney(total)}</Text> : null}
         </View>
         <View className="mb-2 flex-row" style={{ gap: 6 }}>
-          {box('qty', 'Qty', qtyText ? `${qtyText} ${it.unit}` : '')}
+          {/* The same order as the line: rate on the left, quantity on the right (owner's ask). */}
           {showAmounts ? box('rate', 'Rate', rateText ? `₹${rateText}` : '') : null}
+          {box('qty', 'Qty', qtyText ? `${qtyText} ${it.unit}` : '')}
         </View>
       </View>
     )}>
