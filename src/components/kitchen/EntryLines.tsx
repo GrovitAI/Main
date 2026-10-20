@@ -228,13 +228,12 @@ export function useDraftLines() {
     /** Replaces everything, as when an edit starts from the saved entry. */
     reset: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); setActive(null); },
     change: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); if (active && !(active.itemId in next)) setActive(null); },
-    /** Adds an item with no quantity yet at its starting rate and opens the pad on its quantity. */
+    /** Adds an item with no quantity yet at its starting rate; the pad opens only on a tap (task 284). */
     add: (it: KitchenItem, rate: number | null) => {
       if (!(it.id in lines)) {
         setLines({ ...lines, [it.id]: { qty: 0, price: rate } });
         setOrder([...order, it.id]);
       }
-      setActive({ itemId: it.id, field: 'qty' });
     },
     update: (itemId: string, line: DraftLine) => setLines((all) => ({ ...all, [itemId]: line })),
   };

@@ -13,7 +13,8 @@ import { fetchDrawings, recordDrawing, voidDrawing, type DrawingKind, type Drawi
 import { fetchKitchenMoney, type MoneyAccount } from '@/lib/pos/kitchen-money-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { Avatar, Card, Chips, Empty, Field, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, SettingsGroup, Sheet, SkeletonRows, TextField, ValueRow } from '@/components/kitchen/ui';
+import { AmountPanel, Avatar, Card, Chips, Empty, Field, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, SettingsGroup, Sheet, SkeletonRows, TextField, ValueRow } from '@/components/kitchen/ui';
+import { AmountRow } from '@/components/kitchen/EntryRows';
 import { DateField, isValidDateKey } from '@/components/kitchen/forms';
 
 const SHARE_COLORS = [chart.series3, chart.series2, colors.primary, semantic.warning] as const;
@@ -216,6 +217,9 @@ function DrawingSheet({ sheet, owners, cash, categories, onClose, onSaved }: {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Task 284: on a phone the amount is a row and the app's number pad comes up when it is tapped.
+  const [padOpen, setPadOpen] = useState(false);
+  const phone = !useResponsive().isTablet;
   const key = useRef(newKey());
   if (!sheet) return null;
   const owner = owners.find((o) => o.id === ownerId) ?? null;
@@ -235,6 +239,7 @@ function DrawingSheet({ sheet, owners, cash, categories, onClose, onSaved }: {
     onSaved(sheet.kind === 'spend' ? `${category.trim()} · ${rupees(amount)}` : sheet.kind === 'in' ? `${rupees(amount)} into ${owner.name}’s drawings` : `${rupees(amount)} put back`);
   };
   const catOptions = categoryOptions(categories, category);
+  const hint = sheet.kind === 'in' && cash ? `${rupees(available)} ${account === 'cash' ? 'in cash' : 'in the bank'}` : undefined;
   return (
     <Sheet visible onClose={onClose} title={title} dirty={amountText.trim().length > 0}>
       {sheet.ownerId && owner ? (
@@ -261,13 +266,26 @@ function DrawingSheet({ sheet, owners, cash, categories, onClose, onSaved }: {
           <Segmented options={[{ value: 'cash', label: 'Cash' }, { value: 'bank', label: 'Bank' }]} value={account} onChange={setAccount} />
         </Field>
       )}
-      <Field label="Amount" hint={sheet.kind === 'in' && cash ? `${rupees(available)} ${account === 'cash' ? 'in cash' : 'in the bank'}` : undefined}>
-        <TextField label="Amount" value={amountText} onChange={setAmountText} prefix="₹" keyboardType="decimal-pad" big />
-      </Field>
+      {phone ? (
+        <View className="mt-3">
+          <SettingsGroup><AmountRow amount={amount / 100} open={padOpen} onPress={() => setPadOpen(true)} /></SettingsGroup>
+          {hint ? <Text className="mt-1.5 text-xs font-semibold text-text-secondary">{hint}</Text> : null}
+        </View>
+      ) : (
+        <Field label="Amount" hint={hint}>
+          <TextField label="Amount" value={amountText} onChange={setAmountText} prefix="₹" keyboardType="decimal-pad" big />
+        </Field>
+      )}
       <DateField value={date} onChange={setDate} guard={false} />
       <Field label="Note" optional><TextField label="Note (optional)" value={note} onChange={setNote} /></Field>
       {error ? <Notice text={error} /> : null}
-      <View className="mt-4"><PrimaryButton label={amount > 0 ? `Save · ${rupees(amount)}` : 'Save'} onPress={() => void save()} loading={saving} disabled={!!reason} reason={reason} /></View>
+      <View className="mt-4">
+        {phone && padOpen ? (
+          <AmountPanel value={amountText} onChange={setAmountText}><PrimaryButton label="Done" onPress={() => setPadOpen(false)} /></AmountPanel>
+        ) : (
+          <PrimaryButton label={amount > 0 ? `Save · ${rupees(amount)}` : 'Save'} onPress={() => void save()} loading={saving} disabled={!!reason} reason={reason} />
+        )}
+      </View>
     </Sheet>
   );
 }
