@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Animated, FlatList, Pressable, RefreshControl, ScrollView, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, X } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
@@ -10,13 +10,13 @@ import { addProduct, archiveProduct, fetchActiveProducts, toggleProductAvailabil
 import { addCategory, getCategories, type Category } from '@/lib/pos/products-service';
 import { fetchRecipes, type InventoryRecipe } from '@/lib/pos/inventory-service';
 import { ALL_CATEGORIES, countByCategory, filterMenu, menuPrice } from '@/lib/pos/menu-utils';
-import { Card, Empty, KHeader, LinkButton, Notice, PrimaryButton, ScrollPills, SearchBox, Sheet, Skeleton, Toast } from '@/components/kitchen/ui';
+import { Card, Empty, KHeader, LinkButton, Notice, PrimaryButton, ScrollPills, SearchBox, Sheet, Skeleton, Toast, usePresence } from '@/components/kitchen/ui';
 import { CARD_HEIGHT, MenuCard } from './MenuCard';
 import { MenuItemEditor, MenuQuickBody, NewCategory, type MenuItemInput } from './MenuEditor';
 import { CAN_IMPORT, MenuImportSheet } from './MenuImportSheet';
 
-/** From this width the editor opens beside the grid; narrower screens use a sheet. */
-const PANEL_FROM = 1180;
+/** From this width the editor slides in over the right of the page; narrower screens use a sheet. */
+const PANEL_FROM = 900;
 const PANEL_WIDTH = 340;
 const GAP = 12;
 /** A card is never narrower than this on a laptop, so names keep two short lines. */
@@ -242,6 +242,23 @@ export function MenuBoard() {
     />
   );
   const editorTitle = editingProduct?.name ?? 'New item';
+  // While the drawer slides out it keeps showing the item it closed on.
+  const drawer = usePresence(panel && editing !== null, 220);
+  const lastDrawerBody = useRef<React.ReactNode>(null);
+  if (editing) {
+    lastDrawerBody.current = (
+      <>
+        <View className="mb-1 flex-row items-center gap-2">
+          <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-bold text-text-primary" numberOfLines={2}>{editorTitle}</Text>
+          <Pressable onPress={closeEditor} accessibilityRole="button" accessibilityLabel="Close" className="h-10 w-10 items-center justify-center rounded-xl hover:bg-surface-tint active:bg-surface-tint">
+            <X size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        {editor}
+      </>
+    );
+  }
+  const drawerBody = lastDrawerBody.current;
   // Phones and narrow laptops edit in a sheet; a sheet guards its own unsaved changes.
   const editorSheet = !panel ? (
     <Sheet visible={editing !== null} onClose={() => { setEditorDirty(false); setEditing(null); }} title={editorTitle} dirty={editorDirty}>{editor}</Sheet>
@@ -330,18 +347,16 @@ export function MenuBoard() {
           {gridWidth > 0 ? grid : null}
         </View>
 
-        {panel && editing ? (
-          <ScrollView style={{ width: PANEL_WIDTH, flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-            <Card style={{ padding: 18 }}>
-              <View className="mb-1 flex-row items-center gap-2">
-                <Text accessibilityRole="header" className="min-w-0 flex-1 text-xl font-bold text-text-primary" numberOfLines={2}>{editorTitle}</Text>
-                <Pressable onPress={closeEditor} accessibilityRole="button" accessibilityLabel="Close" className="h-10 w-10 items-center justify-center rounded-xl hover:bg-surface-tint active:bg-surface-tint">
-                  <X size={20} color={colors.textSecondary} />
-                </Pressable>
-              </View>
-              {editor}
-            </Card>
-          </ScrollView>
+        {/* Task 277: the editor slides in over the right of the page rather than taking a column, so the
+            grid keeps its columns and nothing re-flows when an item opens or closes. */}
+        {panel && drawer.mounted ? (
+          <Animated.View style={{ position: 'absolute', top: 82, right: 24, bottom: 96, width: PANEL_WIDTH, opacity: drawer.progress,
+            transform: [{ translateX: drawer.progress.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }) }],
+            shadowColor: colors.primaryNavy, shadowOpacity: 0.16, shadowRadius: 28, shadowOffset: { width: 0, height: 12 }, elevation: 8 }}>
+            <View className="flex-1 overflow-hidden rounded-[18px] border border-border-soft bg-surface-elevated">
+              <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">{drawerBody}</ScrollView>
+            </View>
+          </Animated.View>
         ) : null}
       </View>
       {sheets}
