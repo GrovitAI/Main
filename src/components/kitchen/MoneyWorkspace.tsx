@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { ArrowRightLeft, Landmark, Wallet, type LucideIcon } from 'lucide-react-native';
+import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { ArrowRightLeft, ChevronRight, Landmark, PiggyBank, Wallet, type LucideIcon } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { chart, colors, semantic } from '@/lib/pos/brand';
@@ -158,6 +158,7 @@ export function MoneyWorkspace() {
       <BalanceCard icon={Wallet} color={chart.series2} label="Cash in hand" paise={s.cash_paise} change={change.cash} />
       <BalanceCard icon={Landmark} color={colors.primary} label="Bank · UPI" paise={s.bank_paise} change={change.bank} />
     </View>
+    <DrawingsTile paise={s.drawings_paise} />
     {!s.has_opening ? <Text className="mt-2 px-1 text-xs leading-5 text-text-secondary">Opening balances are not set, so these count every money entry from zero.</Text> : null}
     {mayOpening && !busy && !editor ? <View className="mt-1 flex-row"><LinkButton label={s.has_opening ? 'Change opening balances' : 'Set opening balances'} onPress={openOpening} /></View> : null}
     {message ? <Text accessibilityRole="alert" className="mt-1 px-1 text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
@@ -222,6 +223,7 @@ export function MoneyWorkspace() {
           <View className="min-w-0 flex-1 flex-row items-start gap-2 pl-3"><Landmark size={18} color={colors.textSecondary} /><StatTile label="Bank · UPI" value={summary.bank_paise / 100} tone={summary.bank_paise < 0 ? 'out' : 'neutral'} /></View>
         </View>
       </Card>
+      <DrawingsTile paise={summary.drawings_paise} />
       <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: 8 }}>
         <Text className="shrink text-xs leading-5 text-text-secondary">
           {summary.has_opening && summary.as_of
@@ -272,6 +274,20 @@ export function MoneyWorkspace() {
 }
 
 /** A phone's balance card (task 237): the account's icon and name in its colour, the balance, and today's change. */
+/** Task 282: the owners' drawings, for owners only; it opens the Drawings page. */
+function DrawingsTile({ paise }: { paise: number | null }) {
+  if (paise === null) return null;
+  return (
+    <Pressable onPress={() => router.push('/central-kitchen/drawings' as never)} accessibilityRole="button" accessibilityLabel={`Drawings, ${rupees(paise)}`}
+      className="mt-2.5 flex-row items-center gap-3 rounded-[18px] border border-border-soft bg-surface-elevated px-3.5 py-3 hover:bg-surface-tint active:bg-surface-tint">
+      <PiggyBank size={18} color={chart.series3} />
+      <Text className="min-w-0 flex-1 text-[15px] font-bold text-text-primary">Drawings</Text>
+      <Text className="text-[17px] font-bold text-text-primary" style={tabular}>{rupees(paise)}</Text>
+      <ChevronRight size={18} color={colors.textSecondary} />
+    </Pressable>
+  );
+}
+
 function BalanceCard({ icon: Icon, color, label, paise, change }: { icon: LucideIcon; color: string; label: string; paise: number; change: number }) {
   return <View className="min-w-0 flex-1 rounded-[18px] border border-border-soft bg-surface-elevated p-3.5">
     <View className="flex-row items-center gap-1.5"><Icon size={17} color={color} /><Text className="text-[13px] font-bold" style={{ color }}>{label}</Text></View>

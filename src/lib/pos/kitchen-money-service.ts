@@ -15,6 +15,8 @@ export type MoneySummary = {
   has_opening: boolean; as_of: string | null; opening_cash_paise: number; opening_bank_paise: number; opening_updated_by: string | null;
   cash_in_paise: number; cash_out_paise: number; bank_in_paise: number; bank_out_paise: number;
   moved_to_bank_paise: number; moved_to_cash_paise: number; cash_paise: number; bank_paise: number; moves: MoneyMove[];
+  /** Task 282: what is in the owners' drawings in all; null for anyone but an owner (or before the update). */
+  drawings_paise: number | null;
 };
 
 /** ₹100 crore cap per figure, matching the database checks (10^11 paise). */
@@ -40,7 +42,8 @@ export function parseMoneySummary(v: unknown): MoneySummary {
   return { has_opening: has, as_of: has ? date(r.as_of) : null, opening_cash_paise: paise(r.opening_cash_paise), opening_bank_paise: paise(r.opening_bank_paise),
     opening_updated_by: nullableText(r.opening_updated_by), cash_in_paise: paise(r.cash_in_paise), cash_out_paise: paise(r.cash_out_paise),
     bank_in_paise: paise(r.bank_in_paise), bank_out_paise: paise(r.bank_out_paise), moved_to_bank_paise: paise(r.moved_to_bank_paise),
-    moved_to_cash_paise: paise(r.moved_to_cash_paise), cash_paise: paise(r.cash_paise), bank_paise: paise(r.bank_paise), moves };
+    moved_to_cash_paise: paise(r.moved_to_cash_paise), cash_paise: paise(r.cash_paise), bank_paise: paise(r.bank_paise), moves,
+    drawings_paise: r.drawings_paise === null || r.drawings_paise === undefined ? null : paise(r.drawings_paise) };
 }
 function scope(): { p_tenant_id: string; p_branch_id: string } {
   return { p_tenant_id: getTenantContext().tenant_id, p_branch_id: kitchenBranch().id };

@@ -17,3 +17,5 @@
 # Task 279 (20261020100000_kitchen_spent_particulars.sql) was applied to production by the
 # owner on 2026-10-20 and checked: the seven entry columns, kitchen_particulars with RLS, its
 # three policies and grants, and Transport/Salary advance asking in all three kitchen scopes.
+# Task 282 (2026-10-20): staging only until promoted.
+20261020110000_kitchen_drawings.sql
