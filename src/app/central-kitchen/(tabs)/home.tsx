@@ -113,15 +113,20 @@ export default function KitchenHome() {
   const phone = !isTablet;
   const roundActions = tiles.length === 0 ? null : (
     <View className="flex-row" style={{ marginTop: 4 }}>
+      {/* Task 278: all four look the same; solid blue means selected elsewhere, so Send is no longer filled. */}
       {tiles.map((t) => {
-        const lead = t.key === 'send';
         return (
           <Pressable key={t.key} onPress={() => router.push(t.href as never)} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.caption}`} {...hoverFace}
-            className="flex-1 items-center gap-1.5 py-1 active:opacity-70">
-            <View {...hoverFaceMark} className={`h-14 w-14 items-center justify-center rounded-full border ${lead ? 'border-primary bg-primary' : 'border-border bg-surface-elevated'}`}>
-              <t.icon size={22} color={lead ? colors.textOnPrimary : colors.primary} />
-            </View>
-            <Text className="text-[13px] font-bold text-text-primary">{t.label}</Text>
+            className="flex-1 items-center gap-1.5 py-1">
+            {({ pressed }) => (
+              <>
+                {/* A light fill while pressed; a pointer gets the shared hover tint (hoverFace). */}
+                <View {...hoverFaceMark} className="h-14 w-14 items-center justify-center rounded-full border border-border" style={{ backgroundColor: pressed ? colors.surfaceTint : colors.surfaceElevated }}>
+                  <t.icon size={22} color={colors.primary} />
+                </View>
+                <Text className="text-[13px] font-bold text-text-primary">{t.label}</Text>
+              </>
+            )}
           </Pressable>
         );
       })}
