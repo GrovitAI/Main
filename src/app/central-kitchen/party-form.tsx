@@ -76,7 +76,7 @@ export default function PartyFormScreen() {
         </Field>
         {!isBranch ? (
           <Field label="Default purchase category" hint="Fills in on new buys; past buys keep theirs.">
-            <PurchaseCategoryPicker categories={data.purchaseCategories} value={categoryId} onChange={setCategoryId} />
+            <PurchaseCategoryPicker categories={data.purchaseCategories.filter((c) => !c.asks || c.id === categoryId)} value={categoryId} onChange={setCategoryId} />
           </Field>
         ) : null}
         <Field

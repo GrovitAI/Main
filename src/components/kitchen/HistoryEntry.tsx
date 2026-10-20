@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
-import { entryAmountText, entryHeadline, entrySubline, isMoneyIn, isMoneyOut } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entryNames, entrySubline, isMoneyIn, isMoneyOut } from '@/lib/pos/kitchen-utils';
 import { historyAuditText, historyDateLabel, historyRecordedDay, historyStatus, historyTimeLabel, HISTORY_STATUS_LABELS } from '@/lib/pos/kitchen-history-utils';
 import { Row, toneColor, useDesktopDensity } from '@/components/kitchen/ui';
 import { ENTRY_ICONS, entryIconTone } from '@/components/kitchen/EntryList';
@@ -16,7 +16,7 @@ export const HistoryEntry = memo(function HistoryEntry({ entry, itemsById, parti
 }) {
   const onPress = press ?? (() => onOpen?.(entry.id));
   const desktop = useDesktopDensity();
-  const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
+  const names = entryNames(entry, partiesById, itemsById);
   const title = entryHeadline(entry, names);
   const subtitle = entrySubline(entry, itemsById);
   const status = historyStatus(entry);
@@ -69,7 +69,7 @@ export const HistoryCardRow = memo(function HistoryCardRow({ entry, itemsById, p
 }) {
   const onPress = press ?? (() => onOpen?.(entry.id));
   const { showAmounts } = useKitchenAccess();
-  const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
+  const names = entryNames(entry, partiesById, itemsById);
   const title = entryHeadline(entry, names);
   const status = historyStatus(entry);
   const removed = entry.voided_at !== null;

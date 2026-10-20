@@ -312,7 +312,16 @@ export function allocateAcross(docs: readonly KitchenOpenDocument[], amount: num
 
 // ─── Labels ──────────────────────────────────────────────────────────────────
 
-export type KitchenNames = { party?: string | null; item?: string | null };
+export type KitchenNames = { party?: string | null; item?: string | null; /** Task 279: the branch on a Transport expense's route. */ route?: string | null };
+
+/** The names an entry's lines show: its branch or vendor, its item, and a Transport expense's route branch. */
+export function entryNames(e: KitchenEntry, partiesById: ReadonlyMap<string, { name: string }>, itemsById: ReadonlyMap<string, { name: string }>): KitchenNames {
+  return {
+    party: e.party_id ? partiesById.get(e.party_id)?.name ?? null : null,
+    item: e.item_id ? itemsById.get(e.item_id)?.name ?? null : null,
+    route: e.route_party_id ? partiesById.get(e.route_party_id)?.name ?? 'a removed branch' : null,
+  };
+}
 
 export function typeLabel(type: KitchenEntryType): string {
   switch (type) {
@@ -336,7 +345,10 @@ export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
     case 'received': return `Received from ${party}`;
     case 'bought': return `Bought from ${party}`;
     case 'paid': return `Paid ${party}`;
-    case 'spent': return e.category ?? 'Spent';
+    // Task 279: an expense by particular reads as the particular, with the route for Transport.
+    case 'spent': return e.particular_id && e.note
+      ? (e.route_dir && names.route ? `${e.note} · ${e.route_dir === 'from' ? 'From' : 'To'} ${names.route}` : e.note)
+      : e.category ?? 'Spent';
     case 'made': return `Made ${item}`;
     case 'count': return `Counted ${item}`;
     case 'issued': return 'Given to the kitchen';
@@ -357,6 +369,10 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
   const parts: string[] = [];
   if (e.type === 'sent' || e.type === 'bought' || e.type === 'issued') parts.push(linesSummary(e, itemsById));
   if (e.type === 'bought') parts.push(e.paid ? `paid${e.mode ? ` · ${modeLabel(e.mode)}` : ''}` : 'pay later');
+  if (e.type === 'spent' && e.particular_id) {
+    parts.push(e.subcategory ? `${e.category ?? ''} › ${e.subcategory}` : e.category ?? '');
+    if (e.qty !== null && e.qty_unit) parts.push(formatQty(e.qty, e.qty_unit));
+  }
   if (e.type === 'received' || e.type === 'paid' || e.type === 'spent') parts.push(modeLabel(e.mode));
   if (e.type === 'made' || e.type === 'count') {
     const it = e.item_id ? itemsById.get(e.item_id) : undefined;
@@ -364,7 +380,8 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
     if (e.type === 'made' && e.qty !== null) parts.push(`+${formatQty(e.qty, unit)}`);
     if (e.type === 'count' && e.qty !== null) parts.push(`${e.from_qty !== null ? `was ${formatQty(e.from_qty, unit)}, ` : ''}now ${formatQty(e.qty, unit)}`);
   }
-  if (e.note) parts.push(e.note);
+  // The particular is the headline already, so it is not repeated as a note.
+  if (e.note && !(e.type === 'spent' && e.particular_id)) parts.push(e.note);
   if (e.voided_at) parts.push('voided');
   return parts.filter((p) => p.length > 0).join(' · ');
 }
@@ -454,6 +471,10 @@ export function describeKitchenError(message: string | null | undefined, fallbac
   if (m.includes('KITCHEN_DELIVERY_INVOICED')) return 'Cancel the invoice before editing or deleting this delivery.';
   if (m.includes('KITCHEN_INVALID_LINE')) return 'Every line needs a quantity and a price.';
   if (m.includes('KITCHEN_INVALID_MATCH')) return 'The matched amounts are more than what is open, or more than the money paid.';
+  if (m.includes('KITCHEN_ROUTE_REQUIRED')) return 'Choose the route: from or to which branch.';
+  if (m.includes('KITCHEN_PERSON_REQUIRED')) return 'Choose who took the advance.';
+  if (m.includes('KITCHEN_PARTICULAR_NOT_FOUND')) return 'That particular is no longer in the list.';
+  if (m.includes('KITCHEN_CATEGORY_NOT_FOUND')) return 'That category is no longer in the list.';
   if (m.includes('KITCHEN_INVALID')) return 'Check the amount, the mode and who it is for.';
   if (m.includes('kitchen_items_name_key')) return 'An item with that name already exists.';
   if (m.includes('kitchen_parties_name_key')) return 'That name is already in the list.';

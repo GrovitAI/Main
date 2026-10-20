@@ -52,6 +52,8 @@ export default function BoughtScreen() {
   const party = partyId ? data.partiesById.get(partyId) ?? null : null;
   const categoryId = categoryOverride === undefined ? party?.purchase_category_id ?? null : categoryOverride;
   const keepsSavedCategory = !!editing && categoryId === (editing.purchase_category_id ?? null);
+  // Task 279: Transport and Salary advance are for Spent only.
+  const buyCategories = useMemo(() => data.purchaseCategories.filter((c) => !c.asks || c.id === categoryId), [data.purchaseCategories, categoryId]);
   const archivedCategory = !!categoryId && !keepsSavedCategory && data.purchaseCategories.some(category => category.id === categoryId && !category.is_active);
   const defaultCost = useMemo(() => lastCostByItem(data.entries), [data.entries]);
   const chosen = useMemo(() => draftToLines(lines), [lines]);
@@ -132,7 +134,7 @@ export default function BoughtScreen() {
           </Text>
         ) : null}
         <Field label="What for" hint={editing ? 'It keeps its saved name, even if the category was renamed.' : undefined}>
-          <PurchaseCategoryPicker categories={data.purchaseCategories} value={categoryId} onChange={setCategoryOverride} historicalName={keepsSavedCategory ? editing?.purchase_category_name : null} tiles entries={data.entries} />
+          <PurchaseCategoryPicker categories={buyCategories} value={categoryId} onChange={setCategoryOverride} historicalName={keepsSavedCategory ? editing?.purchase_category_name : null} tiles entries={data.entries} />
           {archivedCategory ? <Notice text="The vendor's default category is archived. Choose an active category or Uncategorized for this purchase." /> : null}
         </Field>
         {phone ? itemsField : null}

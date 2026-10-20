@@ -78,33 +78,43 @@ export async function fetchKitchenReport(filter: KitchenReportFilter, signal?: A
   }
 }
 
+const PURCHASE_CATEGORY_COLUMNS = 'id,name,is_active,parent_id,asks';
+function purchaseCategory(row: Record<string, unknown>): KitchenCategory {
+  return {
+    id: String(row.id), name: String(row.name), is_active: row.is_active === true, sort_order: 0,
+    parent_id: typeof row.parent_id === 'string' ? row.parent_id : null,
+    asks: row.asks === 'route' || row.asks === 'person' ? row.asks : null,
+  };
+}
+
 export async function fetchKitchenPurchaseCategories(includeInactive = false): Promise<ServiceResult<KitchenCategory[]>> {
   try {
     const { tenant_id } = getTenantContext();
     const branch_id = kitchenBranch().id;
-    let query = supabase.from('kitchen_purchase_categories').select('id,name,is_active').eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name');
+    let query = supabase.from('kitchen_purchase_categories').select(PURCHASE_CATEGORY_COLUMNS).eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name');
     if (!includeInactive) query = query.eq('is_active', true);
     const { data, error } = await query;
     if (error) return { data: null, error: 'Unable to load purchase categories. Please retry.' };
-    return { data: (data ?? []).filter(record).map(row => ({ id: String(row.id), name: String(row.name), is_active: row.is_active === true, sort_order: 0 })), error: null };
+    return { data: (data ?? []).filter(record).map(purchaseCategory), error: null };
   } catch {
     return { data: null, error: 'Unable to load purchase categories. Please retry.' };
   }
 }
 
-export async function saveKitchenPurchaseCategory(name: string, id?: string, isActive = true): Promise<ServiceResult<KitchenCategory>> {
+/** `parentId` (task 279): the category it sits in, or null for a top-level one; left out, unchanged. */
+export async function saveKitchenPurchaseCategory(name: string, id?: string, isActive = true, parentId?: string | null): Promise<ServiceResult<KitchenCategory>> {
   try {
     const clean = name.trim();
     if (!clean || clean.length > 80) return { data: null, error: 'Use a category name between 1 and 80 characters.' };
     const { tenant_id } = getTenantContext();
     const branch_id = kitchenBranch().id;
-    const fields = { name: clean, is_active: isActive };
+    const fields = { name: clean, is_active: isActive, ...(parentId !== undefined ? { parent_id: parentId } : {}) };
     const query = id
       ? supabase.from('kitchen_purchase_categories').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
       : supabase.from('kitchen_purchase_categories').insert({ ...fields, tenant_id, branch_id });
-    const { data, error } = await query.select('id,name,is_active').single();
+    const { data, error } = await query.select(PURCHASE_CATEGORY_COLUMNS).single();
     if (error || !record(data)) return { data: null, error: error?.code === '23505' ? 'That category already exists.' : 'Unable to save the category. Please retry.' };
-    return { data: { id: String(data.id), name: String(data.name), is_active: data.is_active === true, sort_order: 0 }, error: null };
+    return { data: purchaseCategory(data), error: null };
   } catch {
     return { data: null, error: 'Unable to save the category. Please retry.' };
   }

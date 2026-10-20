@@ -68,7 +68,24 @@ export type KitchenCategory = {
   name: string;
   sort_order: number;
   is_active: boolean;
+  /** Task 279: set on a sub-category, the category it sits in (one level only). */
+  parent_id?: string | null;
+  /** Task 279: what an entry under it must name: the route (Transport) or the person (Salary advance). */
+  asks?: KitchenCategoryAsks | null;
 };
+
+export type KitchenCategoryAsks = 'route' | 'person';
+
+/** Task 279: what a Spent entry was for (Milk), kept with its category so it brings it next time. */
+export type KitchenParticular = {
+  id: string;
+  name: string;
+  /** The category or sub-category it is filed under. */
+  category_id: string;
+  is_active: boolean;
+};
+
+export type KitchenRouteDir = 'from' | 'to';
 
 export type KitchenEntryLine = {
   id: string;
@@ -104,6 +121,14 @@ export type KitchenEntry = {
   void_reason: string | null;
   /** Set on a corrected entry: the one it took the place of, now voided "Edited". */
   replaces_id: string | null;
+  /** Task 279, Spent: the particular, the category or sub-category picked, its sub-category's name, the quantity's unit, the route and the person. */
+  particular_id?: string | null;
+  category_id?: string | null;
+  subcategory?: string | null;
+  qty_unit?: KitchenUnit | null;
+  route_party_id?: string | null;
+  route_dir?: KitchenRouteDir | null;
+  roster_id?: string | null;
   lines: KitchenEntryLine[];
 };
 
@@ -146,9 +171,24 @@ export type PostEntryInput =
   | { type: 'sent'; party_id: string; entry_date?: string; lines: PostLineInput[]; note?: string | null }
   | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null; purchase_category_id?: string | null }
   | { type: 'received' | 'paid'; party_id: string; entry_date?: string; amount: number; mode: KitchenMode; note?: string | null; covers?: CoverInput[] }
-  | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode; category: string; note?: string | null }
+  | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode; category: string; note?: string | null; spend?: SpendDetails }
   | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null }
   | { type: 'issued'; entry_date?: string; lines: { item_id: string; qty: number }[]; note?: string | null };
+
+/**
+ * Task 279: a Spent entry by particular. The database files it under the category (and keeps a new
+ * particular for next time); the route or person is required where the category asks for it.
+ */
+export type SpendDetails = {
+  particular_id: string | null;
+  particular_name: string;
+  category_id: string;
+  qty: number | null;
+  qty_unit: KitchenUnit | null;
+  route_party_id: string | null;
+  route_dir: KitchenRouteDir | null;
+  roster_id: string | null;
+};
 
 export type KitchenEntryFilter = {
   /** Inclusive, 'YYYY-MM-DD'. */

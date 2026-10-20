@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, PackageOpen, type LucideIcon } from 'lucide-react-native';
 import type { KitchenEntry, KitchenEntryType, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
-import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entryNames, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
 import { Row, type Tone } from './ui';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
@@ -55,7 +55,7 @@ export function EntryList({ entries, itemsById, partiesById, grouped = true, onP
   return (
     <View>
       {ordered.map((e) => {
-        const names = { party: e.party_id ? partiesById.get(e.party_id)?.name : null, item: e.item_id ? itemsById.get(e.item_id)?.name : null };
+        const names = entryNames(e, partiesById, itemsById);
         const heading = grouped && e.entry_date !== lastDay ? e.entry_date : null;
         lastDay = e.entry_date;
         return (
