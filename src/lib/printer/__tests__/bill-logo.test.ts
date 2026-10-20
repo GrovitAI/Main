@@ -28,3 +28,21 @@ test('a bill carries the logo as an ESC/POS raster picture, byte for byte', asyn
   expect(bytes.includes(Buffer.from([0x1c, 0x70, 0x01, 0x00]))).toBe(false);
   expect(bytes.includes(Buffer.from('Mousse café', 'utf8'))).toBe(true);
 });
+
+// Task 288: the optional customer prints under the bill details, and nothing when left out.
+test('a bill prints the customer name and number only when given', async () => {
+  const bill = async (customer?: { name: string | null; phone: string | null }): Promise<string> => {
+    (apiFetch as jest.Mock).mockClear();
+    await printerService.printBill('T2', 'KLT-0002', [{ product_name: 'Laban', qty: 1, price: 90 }], 90, false, null, undefined, 0, null, 0, customer);
+    const call = (apiFetch as jest.Mock).mock.calls.find(([path]) => path === '/api/printjobs');
+    return Buffer.from(call?.[1].body.base64Content as string, 'base64').toString('latin1');
+  };
+  const withCustomer = await bill({ name: 'Ravi Kumar', phone: '9876543210' });
+  expect(withCustomer).toContain('Customer: Ravi Kumar\n');
+  expect(withCustomer).toContain('Phone: 9876543210\n');
+  const nameOnly = await bill({ name: 'Ravi', phone: null });
+  expect(nameOnly).toContain('Customer: Ravi\n');
+  expect(nameOnly).not.toContain('Phone:');
+  const none = await bill();
+  expect(none).not.toContain('Customer:');
+});

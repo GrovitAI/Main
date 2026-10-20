@@ -19,3 +19,5 @@
 # three policies and grants, and Transport/Salary advance asking in all three kitchen scopes.
 # Task 282 (2026-10-20): staging only until promoted.
 20261020110000_kitchen_drawings.sql
+# Task 288 (2026-10-20): optional customer name and phone on POS orders; staging only until promoted.
+20261020120000_open_order_customer.sql

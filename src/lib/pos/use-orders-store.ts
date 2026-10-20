@@ -20,6 +20,7 @@ import {
   settleOrderById,
   updateOpenOrderStatus,
   updateOrderDiscount,
+  updateOrderCustomer,
   type OpenOrderSummary,
 } from './open-orders-service';
 import {
@@ -66,6 +67,8 @@ type OrdersState = {
   discountPercent: number;
   discountAmount: number;
   setDiscount: (type: 'percent' | 'fixed' | null, value: number) => Promise<void>;
+  /** Task 288: the active order's optional customer; resolves to an error message or null. */
+  setCustomer: (name: string | null, phone: string | null) => Promise<string | null>;
   loadOrders: () => Promise<void>;
   loadSummaries: (silent?: boolean) => Promise<void>;
   setProductCatalog: (products: Product[]) => void;
@@ -209,6 +212,18 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   discountAmount: 0,
 
   clearError: () => set({ error: null }),
+
+  setCustomer: async (name, phone) => {
+    const { activeOrderId } = get();
+    if (!activeOrderId) return 'Add an item first.';
+    const result = await updateOrderCustomer(activeOrderId, { name, phone });
+    if (result.error) return result.error;
+    // Shown only once the database has it.
+    set((state) => ({
+      orders: state.orders.map((o) => (o.id === activeOrderId ? { ...o, customer_name: name, customer_phone: phone } : o)),
+    }));
+    return null;
+  },
 
   setDiscount: async (type, value) => {
     const { activeOrderId, activeOrderItems } = get();
@@ -1374,7 +1389,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         snapshot.kotsByOrderId[activeOrderId] ?? [],
         discountAmount,
         discountType,
-        discountValue
+        discountValue,
+        { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null }
       );
 
       set((state) => {
@@ -1545,7 +1561,8 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       nextKots,  // includes the KOTs
       discountAmount,
       discountType,
-      discountValue
+      discountValue,
+      { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null }
     );
 
     // Optimistically transition cart items to kot_sent: true

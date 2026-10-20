@@ -25,6 +25,9 @@ export type ReceiptBranchInfo = {
   address?: string | null;
 };
 
+/** Task 288: the optional customer printed under the bill details. */
+export type BillCustomer = { name: string | null; phone: string | null };
+
 export type PrintableBillItem = {
   product_name?: string | null;
   item_name?: string | null;
@@ -292,7 +295,8 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
 function buildBillInfo(
   orderName: string,
   invoiceNumber: string | null | undefined,
-  width = 42
+  width = 42,
+  customer?: BillCustomer
 ): string[] {
   const formattedDate = new Date().toLocaleDateString('en-GB', {
     day: '2-digit', month: '2-digit', year: '2-digit',
@@ -319,6 +323,9 @@ function buildBillInfo(
     'Cashier: Biller' + '\n',
     `Bill No: ${billNo}` + '\n',
     `Token No: ${tokenDisplay}` + '\n',
+    // Task 288: the customer, only when one was entered.
+    ...(customer?.name ? wrapText(`Customer: ${customer.name}`, width).map((line) => line + '\n') : []),
+    ...(customer?.phone ? [`Phone: ${customer.phone}` + '\n'] : []),
     separator(width) + '\n',
   ];
 }
@@ -659,7 +666,8 @@ export const printerService = {
     kots?: { kot_number: number; created_at: string }[],
     discountAmount = 0,
     discountType: 'percent' | 'fixed' | null = null,
-    discountValue = 0
+    discountValue = 0,
+    customer?: BillCustomer
   ): Promise<void> => {
     try {
       // Printers, receipt header and GST rate are independent; read them together.
@@ -704,7 +712,7 @@ export const printerService = {
 
 
       // 3. Bill Information
-      const billInfoLines = buildBillInfo(orderName, invoiceNumber, width);
+      const billInfoLines = buildBillInfo(orderName, invoiceNumber, width, customer);
 
       // 3b. KOT reference line — e.g. "KOT: 1, 2, 3"
       const kotSectionLines: string[] = [];

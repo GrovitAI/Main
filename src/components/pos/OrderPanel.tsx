@@ -19,6 +19,7 @@ import {
 } from '@/lib/pos/order-utils';
 import { formatCurrency } from '@/lib/pos/settlement-utils';
 import { webTextStyle } from '@/lib/pos/web-style';
+import { CustomerRow } from '@/components/pos/CustomerRow';
 
 type OrderPanelProps = {
   order: OpenOrder | null;
@@ -574,6 +575,7 @@ export function OrderPanel({
 
       {/* Totals + CTAs */}
       <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EEF2F7' }}>
+        {hasItems ? <View style={{ marginBottom: 10 }}><CustomerRow canEdit={canEdit} /></View> : null}
         {canEdit && (
           <View style={{ marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEF2F7' }}>
             {!showDiscountInputs ? (

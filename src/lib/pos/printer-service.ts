@@ -1,4 +1,4 @@
-import { printerService as newPrinterService } from '../printer/printer-service';
+import { printerService as newPrinterService, type BillCustomer } from '../printer/printer-service';
 import type { PosOrderItem, KotTicket } from './order-types';
 
 /**
@@ -37,7 +37,8 @@ export const printerService = {
     kots?: Pick<KotTicket, 'kot_number' | 'created_at'>[],
     discountAmount = 0,
     discountType: 'percent' | 'fixed' | null = null,
-    discountValue = 0
+    discountValue = 0,
+    customer?: BillCustomer
   ) => {
     // The store may replace these arrays after the call returns; print what was sent.
     const itemSnapshot = items.map(item => ({ ...item }));
@@ -52,7 +53,8 @@ export const printerService = {
       kotSnapshot,
       discountAmount,
       discountType,
-      discountValue
+      discountValue,
+      customer ? { ...customer } : undefined
     ));
   }
 };
