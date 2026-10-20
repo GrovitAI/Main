@@ -9,11 +9,11 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { AmountPanel, Field, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, useSavedThen } from '@/components/kitchen/ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
-import { AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
+import { AmountPad, AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['received'];
@@ -117,7 +117,7 @@ export default function ReceivedScreen() {
     <>
       <SettingsGroup>
         <WhoRow name={party.name} sub={balanceNow > 0 ? `Owes ${formatMoney(balanceNow)}` : balanceNow < 0 ? `${formatMoney(-balanceNow)} in credit` : 'Settled up'} onChange={editing ? undefined : () => { setPartyId(null); setTicked(new Set()); }} />
-        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen(true)} /> : null}
+        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen((o) => !o)} /> : null}
         <SelectRow label="Paid in" value={mode} options={PAID_IN} onChange={setMode} />
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
@@ -135,7 +135,7 @@ export default function ReceivedScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={phone && padOpen && !!party ? <AmountPanel value={amountText} onChange={onAmount}><PrimaryButton label="Done" onPress={() => setPadOpen(false)} /></AmountPanel> : saveButton}>
+      <KScreen footer={phone && padOpen && !!party ? <AmountPad value={amountText} onChange={onAmount} onDone={() => setPadOpen(false)} save={canSave ? saveButton : undefined} /> : saveButton}>
         <KHeader title={editing ? 'Edit receipt' : 'Received'} onBack={() => backToKitchen()} />
         {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a receipt." /> : null}
         {phone ? rows : (

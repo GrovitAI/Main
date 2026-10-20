@@ -14,14 +14,14 @@ import { placeOf, sameParticular } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenCategory, KitchenEntryType, KitchenMode, KitchenOpenDocument, KitchenRouteDir, KitchenUnit, PostEntryInput } from '@/lib/pos/kitchen-types';
 import type { KitchenStaffMember } from '@/lib/pos/kitchen-attendance-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { AmountPanel, Avatar, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { Avatar, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { colors } from '@/lib/pos/brand';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { CategorySheet, ParticularSearch, QtySheet, RouteSheet, toneOfParticular, type PickedParticular } from '@/components/kitchen/SpendFields';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
-import { AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
+import { AmountPad, AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 
 type Kind = 'vendor' | 'expense';
 type Picker = 'category' | 'route' | 'who' | 'qty' | null;
@@ -207,7 +207,7 @@ export default function SpentScreen() {
       <ValueRow label={picked.name} sub={place ? place.label : 'New · choose its category'} value="Change" onPress={changeParticular}
         lead={<Avatar name={picked.name} toneIndex={toneOfParticular(data.purchaseCategories, categoryId)} size={36} ring={false} />} />
       {!picked.id ? <ValueRow label="Category" value={place?.label} required onPress={() => setPicker('category')} /> : null}
-      {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen(true)} /> : null}
+      {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen((o) => !o)} /> : null}
       {asks === 'route' ? <ValueRow label="Route" value={routeBranch && routeDir ? `${routeDir === 'from' ? 'From' : 'To'} ${routeBranch.name}` : null} required onPress={() => setPicker('route')} /> : null}
       {asks === 'person' ? <ValueRow label="Who" value={person?.name} required onPress={() => setPicker('who')} /> : null}
       <ValueRow label="Qty" value={qty !== null && unit ? formatQty(qty, unit) : null} placeholder="Add" action="plus" onPress={() => setPicker('qty')} />
@@ -263,7 +263,7 @@ export default function SpentScreen() {
     <>
       <SettingsGroup>
         <WhoRow name={party.name} sub={owe > 0 ? `We owe ${formatMoney(owe)}` : owe < 0 ? `${formatMoney(-owe)} paid ahead` : 'Settled up'} onChange={editing ? undefined : () => { setPartyId(null); setTicked(new Set()); }} />
-        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen(true)} /> : null}
+        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen((o) => !o)} /> : null}
         <SelectRow label="Paid from" value={mode} options={PAID_BY} onChange={setMode} />
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
@@ -279,7 +279,8 @@ export default function SpentScreen() {
     </Field>
   );
 
-  const footer = phone && padOpen && (isVendor ? !!party : !!picked) ? <AmountPanel value={amountText} onChange={onAmount}><PrimaryButton label="Done" onPress={() => setPadOpen(false)} /></AmountPanel> : saveButton;
+  // Task 285: once nothing else is missing, the pad's button saves straight away.
+  const footer = phone && padOpen && (isVendor ? !!party : !!picked) ? <AmountPad value={amountText} onChange={onAmount} onDone={() => setPadOpen(false)} save={canSave ? saveButton : undefined} /> : saveButton;
 
   return (
     <KeyboardAvoider>

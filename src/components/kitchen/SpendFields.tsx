@@ -211,3 +211,48 @@ export function QtySheet({ visible, onClose, qty, unit, onDone }: {
     </Sheet>
   );
 }
+
+/**
+ * Task 285: a plain name picked like a particular (an owner's spending reason): the ones used most
+ * as round circles, a search that narrows them, and a typed new name added as new.
+ */
+export function NameSearch({ names, query, onQuery, onPick, placeholder }: {
+  names: readonly string[]; query: string; onQuery: (q: string) => void; onPick: (name: string) => void; placeholder: string;
+}) {
+  const typed = query.trim();
+  const low = typed.toLocaleLowerCase();
+  const matches = typed ? names.filter((n) => n.toLocaleLowerCase().includes(low)).slice(0, 8) : [];
+  const exact = matches.some((n) => n.trim().toLocaleLowerCase() === low);
+  return (
+    <View>
+      <SearchBox value={query} onChange={onQuery} placeholder={placeholder} />
+      {typed ? (
+        <View className="mt-2.5 overflow-hidden rounded-[18px] border border-border-soft bg-surface-elevated">
+          {matches.map((n, i) => (
+            <Pressable key={n} onPress={() => onPick(n)} accessibilityRole="button" accessibilityLabel={n}
+              className={`min-h-[56px] flex-row items-center gap-3 px-3.5 py-2 hover:bg-surface-tint active:bg-surface-tint ${i > 0 ? 'border-t border-border-soft' : ''}`}>
+              <Avatar name={n} toneKey={n} size={36} ring={false} />
+              <Text className="min-w-0 flex-1 text-[15px] font-bold text-text-primary" numberOfLines={1}>{n}</Text>
+            </Pressable>
+          ))}
+          {exact ? null : (
+            <Pressable onPress={() => onPick(typed)} accessibilityRole="button" accessibilityLabel={`Add ${typed} as new`}
+              className={`min-h-[52px] flex-row items-center gap-3 px-3.5 py-2 hover:bg-surface-tint active:bg-surface-tint ${matches.length ? 'border-t border-border-soft' : ''}`}>
+              <View className="h-9 w-9 items-center justify-center rounded-full border border-dashed border-border"><Plus size={16} color={colors.primary} /></View>
+              <Text className="min-w-0 flex-1 text-[15px] font-bold text-primary" numberOfLines={1}>Add “{typed}” as new</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : names.length ? (
+        <FlatList horizontal showsHorizontalScrollIndicator={false} data={names.slice(0, 12)} keyExtractor={(n) => n} style={{ marginTop: 12, marginHorizontal: -16 }}
+          contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }} keyboardShouldPersistTaps="handled"
+          renderItem={({ item: n }) => (
+            <Pressable onPress={() => onPick(n)} accessibilityRole="button" accessibilityLabel={n} {...hoverFace} style={{ width: 66, alignItems: 'center', gap: 6, paddingVertical: 2 }}>
+              <View {...hoverFaceMark} style={{ borderRadius: 30 }}><Avatar name={n} toneKey={n} size={52} ring={false} /></View>
+              <Text className="text-center text-xs font-bold leading-[15px] text-text-primary" numberOfLines={2}>{n}</Text>
+            </Pressable>
+          )} />
+      ) : null}
+    </View>
+  );
+}

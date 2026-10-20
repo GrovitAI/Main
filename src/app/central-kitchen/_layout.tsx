@@ -19,7 +19,7 @@ const SCREEN_NAMES: Record<string, string> = {
   home: 'Kitchen', analytics: 'Analytics', items: 'Raw materials', 'finished-goods': 'Finished goods',
   attendance: 'Attendance', branches: 'Branches', invoices: 'Invoices', vendors: 'Vendors', history: 'History',
   send: 'Send', received: 'Received', bought: 'Bought', spent: 'Spent', money: 'Cash and bank',
-  team: 'Team and day lock', 'purchase-categories': 'Categories', drawings: 'Drawings',
+  team: 'Team and day lock', 'purchase-categories': 'Categories', drawings: 'Drawings', 'drawing-entry': 'Drawings',
 };
 
 function useScreenName(): string {

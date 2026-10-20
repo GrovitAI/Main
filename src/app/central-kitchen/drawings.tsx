@@ -1,27 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronRight, Minus } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
+import { formatMoney } from '@/lib/pos/kitchen-utils';
 import { historyDateLabel } from '@/lib/pos/kitchen-history-utils';
 import { kitchenMonthLabel, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
-import { fetchDrawings, recordDrawing, voidDrawing, type DrawingKind, type DrawingOwner, type DrawingRow, type DrawingsSummary } from '@/lib/pos/kitchen-drawings-service';
-import { fetchKitchenMoney, type MoneyAccount } from '@/lib/pos/kitchen-money-service';
+import { fetchDrawings, voidDrawing, type DrawingKind, type DrawingRow, type DrawingsSummary } from '@/lib/pos/kitchen-drawings-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { AmountPanel, Avatar, Card, Chips, Empty, Field, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, SettingsGroup, Sheet, SkeletonRows, TextField, ValueRow } from '@/components/kitchen/ui';
-import { AmountRow } from '@/components/kitchen/EntryRows';
-import { DateField, isValidDateKey } from '@/components/kitchen/forms';
+import { Avatar, Card, Empty, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, SettingsGroup, SkeletonRows, ValueRow } from '@/components/kitchen/ui';
 
 const SHARE_COLORS = [chart.series3, chart.series2, colors.primary, semantic.warning] as const;
 const rupees = (paise: number) => formatMoney(paise / 100);
 const tabular = { fontVariant: ['tabular-nums' as const] };
-const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-type SheetKind = { kind: DrawingKind; ownerId: string | null } | null;
+const openEntry = (kind: DrawingKind, owner: string | null) => router.push({ pathname: '/central-kitchen/drawing-entry', params: owner ? { kind, owner } : { kind } } as never);
 
 /**
  * The owners' drawings (task 282, owner's design, round 2): what is in drawings in all and each
@@ -35,20 +31,17 @@ export default function DrawingsScreen() {
   const phone = !isTablet;
   const [month, setMonth] = useState(kitchenToday().slice(0, 7));
   const [data, setData] = useState<DrawingsSummary | null>(null);
-  const [cash, setCash] = useState<{ cash: number; bank: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [tab, setTab] = useState<'spend' | 'in'>('spend');
-  const [sheet, setSheet] = useState<SheetKind>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [d, m] = await Promise.all([fetchDrawings(month), fetchKitchenMoney()]);
+    const d = await fetchDrawings(month);
     setLoading(false);
     setError(d.error);
     if (d.data) setData(d.data);
-    if (m.data) setCash({ cash: m.data.cash_paise, bank: m.data.bank_paise });
   }, [month]);
   // Loads when the month changes; coming back to the page refreshes, but only after the first load.
   const shownOnce = useRef(false);
@@ -103,7 +96,7 @@ export default function DrawingsScreen() {
         ))}
       </SettingsGroup>
       {owners.length === 0 && !loading ? <Card><Empty title="No owners on the team" /></Card> : null}
-      <View className="items-start"><LinkButton label="Add money from Cash or Bank" onPress={() => setSheet({ kind: 'in', ownerId: null })} /></View>
+      <View className="items-start"><LinkButton label="Add money from Cash or Bank" onPress={() => openEntry('in', null)} /></View>
     </View>
   );
 
@@ -131,8 +124,8 @@ export default function DrawingsScreen() {
         <View className="mt-3"><SettingsGroup>{rows.map((r) => <DrawingRowView key={r.id} row={r} onVoid={() => confirmVoid(r)} />)}</SettingsGroup></View>
       )}
       <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: 14 }}>
-        <LinkButton label="Add money" onPress={() => setSheet({ kind: 'in', ownerId: owner.id })} />
-        {owner.left_paise > 0 ? <LinkButton label="Put back" onPress={() => setSheet({ kind: 'back', ownerId: owner.id })} /> : null}
+        <LinkButton label="Add money" onPress={() => openEntry('in', owner.id)} />
+        {owner.left_paise > 0 ? <LinkButton label="Put back" onPress={() => openEntry('back', owner.id)} /> : null}
       </View>
     </View>
   ) : null;
@@ -148,13 +141,9 @@ export default function DrawingsScreen() {
   }
 
   const spendButton = owner && owner.left_paise > 0
-    ? <PrimaryButton label="Spend" icon={Minus} onPress={() => setSheet({ kind: 'spend', ownerId: owner.id })} />
+    ? <PrimaryButton label="Spend" icon={Minus} onPress={() => openEntry('spend', owner.id)} />
     : undefined;
 
-  const sheets = (
-    <DrawingSheet key={sheet ? `${sheet.kind}-${sheet.ownerId ?? 'any'}` : 'closed'} sheet={sheet} owners={owners} cash={cash} categories={data?.categories ?? []}
-      onClose={() => setSheet(null)} onSaved={(text) => { setSheet(null); useKitchenStore.getState().setNotice(text); void load(); }} />
-  );
 
   if (phone) {
     return (
@@ -164,8 +153,7 @@ export default function DrawingsScreen() {
           {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load()} />} /> : null}
           {loading && !data ? <SkeletonRows count={3} label="Loading drawings" /> : owner ? ownerPage : overview}
         </KScreen>
-        {sheets}
-      </KeyboardAvoider>
+              </KeyboardAvoider>
     );
   }
   return (
@@ -190,8 +178,7 @@ export default function DrawingsScreen() {
           </View>
         )}
       </KScreen>
-      {sheets}
-    </KeyboardAvoider>
+          </KeyboardAvoider>
   );
 }
 
@@ -202,98 +189,4 @@ function DrawingRowView({ row, onVoid }: { row: DrawingRow; onVoid: () => void }
   return (
     <ValueRow label={title} sub={sub} value={`${out ? '−' : ''}${rupees(row.amount_paise)}`} action="none" onPress={onVoid} />
   );
-}
-
-/** One sheet for money in, a spending and a move back; what it asks depends on which. */
-function DrawingSheet({ sheet, owners, cash, categories, onClose, onSaved }: {
-  sheet: SheetKind; owners: readonly DrawingOwner[]; cash: { cash: number; bank: number } | null; categories: readonly string[];
-  onClose: () => void; onSaved: (notice: string) => void;
-}) {
-  const [ownerId, setOwnerId] = useState<string | null>(sheet?.ownerId ?? null);
-  const [account, setAccount] = useState<MoneyAccount>('cash');
-  const [category, setCategory] = useState<string>('');
-  const [amountText, setAmountText] = useState('');
-  const [date, setDate] = useState(localDateKey());
-  const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Task 284: on a phone the amount is a row and the app's number pad comes up when it is tapped.
-  const [padOpen, setPadOpen] = useState(false);
-  const phone = !useResponsive().isTablet;
-  const key = useRef(newKey());
-  if (!sheet) return null;
-  const owner = owners.find((o) => o.id === ownerId) ?? null;
-  const amount = Math.round(parseAmount(amountText) * 100);
-  const available = sheet.kind === 'in' ? (cash ? cash[account] : 0) : owner?.left_paise ?? 0;
-  const over = amount > available;
-  const title = sheet.kind === 'spend' ? 'Spend' : sheet.kind === 'in' ? 'Add money' : 'Put back';
-  const reason = !owner ? 'Choose the owner' : sheet.kind === 'spend' && !category.trim() ? 'Choose what for' : amount <= 0 ? 'Enter the amount'
-    : over ? (sheet.kind === 'in' ? `More than ${account === 'cash' ? 'cash in hand' : 'in the bank'}` : 'More than is left') : !isValidDateKey(date) ? 'Check the date' : undefined;
-  const save = async () => {
-    if (reason || !owner) return;
-    setSaving(true);
-    setError(null);
-    const res = await recordDrawing({ owner_id: owner.id, kind: sheet.kind, amount_paise: amount, draw_date: date, account, category, note, request_key: key.current });
-    setSaving(false);
-    if (res.error) { setError(res.error); return; }
-    onSaved(sheet.kind === 'spend' ? `${category.trim()} · ${rupees(amount)}` : sheet.kind === 'in' ? `${rupees(amount)} into ${owner.name}’s drawings` : `${rupees(amount)} put back`);
-  };
-  const catOptions = categoryOptions(categories, category);
-  const hint = sheet.kind === 'in' && cash ? `${rupees(available)} ${account === 'cash' ? 'in cash' : 'in the bank'}` : undefined;
-  return (
-    <Sheet visible onClose={onClose} title={title} dirty={amountText.trim().length > 0}>
-      {sheet.ownerId && owner ? (
-        <Text className="mb-1 text-[13px] font-semibold text-text-secondary">{sheet.kind === 'in' ? `Into ${owner.name}’s drawings` : `${owner.name} · ${rupees(owner.left_paise)} left`}</Text>
-      ) : (
-        <Field label="For">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
-            {owners.map((o) => (
-              <Pressable key={o.id} onPress={() => setOwnerId(o.id)} accessibilityRole="button" aria-selected={o.id === ownerId} accessibilityLabel={o.name} className="w-[70px] items-center gap-1 py-1">
-                <Avatar name={o.name} size={46} selected={o.id === ownerId} />
-                <Text className={`text-xs ${o.id === ownerId ? 'font-extrabold text-primary' : 'font-semibold text-text-secondary'}`} numberOfLines={1}>{o.name}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </Field>
-      )}
-      {sheet.kind === 'spend' ? (
-        <Field label="What for">
-          <Chips options={catOptions} value={category || null} onChange={(c) => setCategory(c)} />
-          <View className="mt-2"><TextField label="What for" value={category} onChange={setCategory} placeholder="Fuel, personal, food…" /></View>
-        </Field>
-      ) : (
-        <Field label={sheet.kind === 'in' ? 'From' : 'To'}>
-          <Segmented options={[{ value: 'cash', label: 'Cash' }, { value: 'bank', label: 'Bank' }]} value={account} onChange={setAccount} />
-        </Field>
-      )}
-      {phone ? (
-        <View className="mt-3">
-          <SettingsGroup><AmountRow amount={amount / 100} open={padOpen} onPress={() => setPadOpen(true)} /></SettingsGroup>
-          {hint ? <Text className="mt-1.5 text-xs font-semibold text-text-secondary">{hint}</Text> : null}
-        </View>
-      ) : (
-        <Field label="Amount" hint={hint}>
-          <TextField label="Amount" value={amountText} onChange={setAmountText} prefix="₹" keyboardType="decimal-pad" big />
-        </Field>
-      )}
-      <DateField value={date} onChange={setDate} guard={false} />
-      <Field label="Note" optional><TextField label="Note (optional)" value={note} onChange={setNote} /></Field>
-      {error ? <Notice text={error} /> : null}
-      <View className="mt-4">
-        {phone && padOpen ? (
-          <AmountPanel value={amountText} onChange={setAmountText}><PrimaryButton label="Done" onPress={() => setPadOpen(false)} /></AmountPanel>
-        ) : (
-          <PrimaryButton label={amount > 0 ? `Save · ${rupees(amount)}` : 'Save'} onPress={() => void save()} loading={saving} disabled={!!reason} reason={reason} />
-        )}
-      </View>
-    </Sheet>
-  );
-}
-
-/** The categories used before, as equal chips; a typed new one joins them. */
-function categoryOptions(categories: readonly string[], typed: string): { value: string; label: string }[] {
-  const list = [...categories];
-  const t = typed.trim();
-  if (t && !list.some((c) => c.toLocaleLowerCase() === t.toLocaleLowerCase())) list.unshift(t);
-  return list.slice(0, 12).map((c) => ({ value: c, label: c }));
 }

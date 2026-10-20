@@ -8,7 +8,7 @@ import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { formatDayLabel, formatMoney, localDateKey } from '@/lib/pos/kitchen-utils';
 import { colors, semantic } from '@/lib/pos/brand';
-import { Avatar, LinkButton, PrimaryButton, Sheet, TextField, ValueRow } from './ui';
+import { AmountPanel, Avatar, LinkButton, PrimaryButton, Sheet, TextField, ValueRow } from './ui';
 import { DateField, isValidDateKey, useDateGuard } from './forms';
 
 /** The branch or vendor once chosen: its circle, name and balance, with Change to pick again. */
@@ -20,14 +20,14 @@ export function WhoRow({ name, sub, onChange }: { name: string; sub?: string; on
 }
 
 /** When it happened: Today, Yesterday or a day on the calendar, in a sheet. */
-export function WhenRow({ date, onChange, lockReason, onLockReason }: { date: string; onChange: (d: string) => void; lockReason: string; onLockReason: (r: string) => void }) {
+export function WhenRow({ date, onChange, lockReason, onLockReason, guard = true }: { date: string; onChange: (d: string) => void; lockReason: string; onLockReason: (r: string) => void; guard?: boolean }) {
   const [open, setOpen] = useState(false);
-  const ok = useDateGuard(date, lockReason);
+  const ok = useDateGuard(date, lockReason, guard);
   return (
     <>
       <ValueRow label="When" value={date === localDateKey() ? 'Today' : formatDayLabel(date)} onPress={() => setOpen(true)} />
       <Sheet visible={open} onClose={() => setOpen(false)} title="When">
-        <DateField value={date} onChange={onChange} lockReason={lockReason} onLockReason={onLockReason} />
+        <DateField value={date} onChange={onChange} lockReason={lockReason} onLockReason={onLockReason} guard={guard} />
         <View className="mt-4"><PrimaryButton label="Done" onPress={() => setOpen(false)} disabled={!isValidDateKey(date) || !ok} reason="Check the date" /></View>
       </Sheet>
     </>
@@ -76,5 +76,17 @@ export function AmountRow({ amount, open, onPress, label = 'Amount' }: { amount:
       </Text>
       <Text className="text-[22px] font-extrabold" style={{ color: amount > 0 ? colors.textPrimary : colors.border, letterSpacing: -0.4, fontVariant: ['tabular-nums'] }}>{formatMoney(amount)}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * Task 285: the phone's number pad under an amount row. Once everything else is filled in its
+ * button saves straight away; until then it is Done, which puts the pad away.
+ */
+export function AmountPad({ value, onChange, onDone, save }: { value: string; onChange: (next: string) => void; onDone: () => void; save?: React.ReactNode }) {
+  return (
+    <AmountPanel value={value} onChange={onChange}>
+      {save ?? <PrimaryButton label="Done" onPress={onDone} />}
+    </AmountPanel>
   );
 }
