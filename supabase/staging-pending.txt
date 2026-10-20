@@ -14,5 +14,6 @@
 # functions, grants and the 19 pinned functions were checked to match staging.
 # Task 255 (20261018100000_kitchen_shared_categories.sql) was applied to production
 # by the owner on 2026-10-19; each kitchen scope then held its 9-10 shared categories.
-# Task 279 (2026-10-20): staging only until promoted.
-20261020100000_kitchen_spent_particulars.sql
+# Task 279 (20261020100000_kitchen_spent_particulars.sql) was applied to production by the
+# owner on 2026-10-20 and checked: the seven entry columns, kitchen_particulars with RLS, its
+# three policies and grants, and Transport/Salary advance asking in all three kitchen scopes.
