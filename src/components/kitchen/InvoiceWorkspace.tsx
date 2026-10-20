@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
-import { ActivityIndicator, FlatList, Platform, Pressable, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Platform, Pressable, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -25,6 +25,8 @@ const PAID_IN: readonly { value: KitchenMode; label: string }[] = [
   { value: 'upi', label: 'UPI' },
   { value: 'bank', label: 'Bank' },
 ];
+// Task 287: the badge the printed invoice carries, shown on the preview too.
+const badge: ImageSourcePropType = require('@/../assets/images/le-laban-badge.png');
 type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; value: InvoiceDelivery } | { kind: 'line' | 'docline'; value: InvoiceLine; date: string };
 type Preview = { invoice: KitchenInvoice; checkedAt: Date };
 type RouteParams = { start?: string; end?: string; party?: string };
@@ -179,7 +181,10 @@ export function InvoiceWorkspace() {
       <Text className="min-w-0 flex-1 text-xs leading-5 text-text-secondary">{Platform.OS === 'web' ? 'Choose Save as PDF in the print dialog to keep a file.' : 'Share the PDF to WhatsApp, email or a printer.'}</Text></View>
     <View className={paper + ' mt-1 rounded-t-lg border-t pt-6'}>
       <View className={'gap-4 border-b-2 border-primary pb-4 ' + (desktop ? 'flex-row justify-between' : '')}>
-        <View className="min-w-0 flex-1"><Text className="text-lg font-bold leading-6 text-text-primary">{preview.invoice.kitchen_name}</Text><Text className="text-sm leading-5 text-text-secondary">Branch supply invoice</Text></View>
+        <View className="min-w-0 flex-1 flex-row items-center gap-3.5">
+          <Image source={badge} accessibilityLabel="Le Laban" style={{ width: desktop ? 112 : 88, height: (desktop ? 112 : 88) * 0.625 }} resizeMode="contain" />
+          <View className="min-w-0 flex-1"><Text className="text-lg font-bold leading-6 text-text-primary">{preview.invoice.kitchen_name}</Text><Text className="text-sm leading-5 text-text-secondary">Branch supply invoice</Text></View>
+        </View>
         <View className={desktop ? 'items-end' : ''}><Text className="text-2xl font-extrabold leading-8 text-text-primary">{invoiceNumber(preview.invoice.invoice_no)}</Text><Status invoice={preview.invoice} /><Text className="text-xs leading-5 text-text-secondary">Issued {invoiceIssuedDate(preview.invoice.created_at)}</Text></View>
       </View>
       <View className="gap-1 py-4"><Text className="text-sm font-bold leading-5 text-text-primary">Bill to {preview.invoice.party_name}</Text>

@@ -6,6 +6,7 @@ import { roundUpToWholeRupee } from '../pos/order-utils';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 import { supabase } from '../pos/supabase';
 import { apiFetch } from '../pos/api-client';
+import { BILL_LOGO } from './bill-logo';
 
 export type PrintNodePrinter = {
   id: number;
@@ -80,6 +81,26 @@ export function encodeBase64(str: string): string {
 
 export function utf8ToBinaryString(str: string): string {
   return unescape(encodeURIComponent(str));
+}
+
+/**
+ * Task 287: stands in for the logo picture among a bill's lines. The picture is raw bytes, so it
+ * is put in only after the text is turned into the printer's bytes.
+ */
+const LOGO_MARK = '\uE000';
+let logoBytes: string | null = null;
+/** The badge as an ESC/POS raster picture (GS v 0), as a binary string. */
+function logoRaster(): string {
+  if (logoBytes === null) {
+    const bytesPerRow = BILL_LOGO.widthDots / 8;
+    const header = String.fromCharCode(0x1d, 0x76, 0x30, 0x00, bytesPerRow & 0xff, bytesPerRow >> 8, BILL_LOGO.heightDots & 0xff, BILL_LOGO.heightDots >> 8);
+    logoBytes = header + atob(BILL_LOGO.base64);
+  }
+  return logoBytes;
+}
+/** A job's text as the printer's bytes, with the logo picture where the mark is. */
+function toPrinterBytes(escPos: string): string {
+  return utf8ToBinaryString(escPos).split(utf8ToBinaryString(LOGO_MARK)).join(logoRaster());
 }
 
 /**
@@ -235,8 +256,8 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   const boldOn  = '\x1B\x45\x01';
   const boldOff = '\x1B\x45\x00';
   
-  // Standard ESC/POS command to print the NV graphics logo #1 pre-flashed in the printer memory.
-  const printNvLogo = '\x1Cp\x01\x00'; 
+  // Task 287: the badge goes with every bill. It used to ask for a logo pre-loaded into the
+  // printer's own memory, which prints nothing on a printer that has none.
 
   // Legal trading name, printed above the brand as on the stamped receipts.
   const tradingName = 'NS TRADERS';
@@ -250,7 +271,7 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
 
   const lines: string[] = [
     '\x1Ba\x01',   // center alignment
-    printNvLogo + '\n', // prints the engrained logo
+    LOGO_MARK + '\n',
     boldOn + tradingName + boldOff + '\n',
     boldOn + title + boldOff + '\n',
     '\n',
@@ -372,7 +393,7 @@ async function printViaPrintNode(printer: Omit<Printer, 'id' | 'tenant_id' | 'br
       '\x1Bi\x01', // ESC/POS Paper Cut
     ].join('');
 
-    const base64Content = encodeBase64(utf8ToBinaryString(escPosString));
+    const base64Content = encodeBase64(toPrinterBytes(escPosString));
 
     console.log('[Printer] Sending cloud print job via PrintNode to printer:', printerId);
     const response = await apiFetch<{ success: boolean }>('/api/printjobs', {
@@ -416,7 +437,7 @@ async function printRawToPrinter(printer: Printer, lines: string[], alertOnFailu
       ip,
       port,
       type: 'raw',
-      content: escPosString
+      content: escPosString.split(LOGO_MARK).join(logoRaster())
     });
     console.log('[Printer] Print success');
     return true;

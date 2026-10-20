@@ -6,10 +6,10 @@ import type { ServiceResult } from '@/lib/pos/kitchen-types';
 /**
  * Web prints from a hidden frame inside the page, so no pop-up window is opened
  * and pop-up blockers never interfere. Call it straight from the tap: the
- * invoice is already loaded (the preview fetched fresh status), so nothing is
- * awaited before print().
+ * invoice is already loaded (the preview fetched fresh status). The logo is
+ * inline; print() waits only for it to decode, so it is never missing.
  */
-function printInPage(html: string): ServiceResult<boolean> {
+async function printInPage(html: string): Promise<ServiceResult<boolean>> {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
   frame.tabIndex = -1;
@@ -22,6 +22,7 @@ function printInPage(html: string): ServiceResult<boolean> {
   const remove = (): void => { if (!removed) { removed = true; frame.remove(); } };
   view.addEventListener('afterprint', () => setTimeout(remove, 500), { once: true });
   setTimeout(remove, 60000);
+  await Promise.all(Array.from(view.document.images).map((img) => img.decode().catch(() => undefined)));
   view.focus(); view.print();
   return { data: true, error: null };
 }
