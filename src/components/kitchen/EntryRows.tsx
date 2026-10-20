@@ -20,13 +20,13 @@ export function WhoRow({ name, sub, onChange }: { name: string; sub?: string; on
 }
 
 /** When it happened: Today, Yesterday or a day on the calendar, in a sheet. */
-export function WhenRow({ date, onChange, lockReason, onLockReason, guard = true }: { date: string; onChange: (d: string) => void; lockReason: string; onLockReason: (r: string) => void; guard?: boolean }) {
+export function WhenRow({ date, onChange, lockReason, onLockReason, guard = true, label = 'When' }: { date: string; onChange: (d: string) => void; lockReason: string; onLockReason: (r: string) => void; guard?: boolean; label?: string }) {
   const [open, setOpen] = useState(false);
   const ok = useDateGuard(date, lockReason, guard);
   return (
     <>
-      <ValueRow label="When" value={date === localDateKey() ? 'Today' : formatDayLabel(date)} onPress={() => setOpen(true)} />
-      <Sheet visible={open} onClose={() => setOpen(false)} title="When">
+      <ValueRow label={label} value={date === localDateKey() ? 'Today' : formatDayLabel(date)} onPress={() => setOpen(true)} />
+      <Sheet visible={open} onClose={() => setOpen(false)} title={label}>
         <DateField value={date} onChange={onChange} lockReason={lockReason} onLockReason={onLockReason} guard={guard} />
         <View className="mt-4"><PrimaryButton label="Done" onPress={() => setOpen(false)} disabled={!isValidDateKey(date) || !ok} reason="Check the date" /></View>
       </Sheet>
@@ -67,14 +67,15 @@ export function TotalBar({ caption, total, showTotal, children }: { caption: str
  * Task 283 (owner's ask): the amount as a row, like the others. A tap opens the number pad at the
  * bottom of a phone; until then the other rows are easy to reach.
  */
-export function AmountRow({ amount, open, onPress, label = 'Amount' }: { amount: number; open: boolean; onPress: () => void; label?: string }) {
+export function AmountRow({ amount, open, onPress, label = 'Amount', entered }: { amount: number; open: boolean; onPress: () => void; label?: string; /** A typed zero counts (an opening balance). */ entered?: boolean }) {
+  const has = entered ?? amount > 0;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${amount > 0 ? formatMoney(amount) : 'not entered'}`} accessibilityState={{ expanded: open }}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${has ? formatMoney(amount) : 'not entered'}`} accessibilityState={{ expanded: open }}
       className={`min-h-[60px] flex-row items-center gap-3 border-t border-border-soft px-3.5 py-2.5 ${open ? 'bg-surface-tint' : 'hover:bg-surface-tint active:bg-surface-tint'}`}>
       <Text className="min-w-0 flex-1 text-[15px] font-bold text-text-primary">
-        {label}{amount > 0 ? null : <Text style={{ color: semantic.danger }}> *</Text>}
+        {label}{has ? null : <Text style={{ color: semantic.danger }}> *</Text>}
       </Text>
-      <Text className="text-[22px] font-extrabold" style={{ color: amount > 0 ? colors.textPrimary : colors.border, letterSpacing: -0.4, fontVariant: ['tabular-nums'] }}>{formatMoney(amount)}</Text>
+      <Text className="text-[22px] font-extrabold" style={{ color: has ? colors.textPrimary : colors.border, letterSpacing: -0.4, fontVariant: ['tabular-nums'] }}>{formatMoney(amount)}</Text>
     </Pressable>
   );
 }
@@ -83,9 +84,9 @@ export function AmountRow({ amount, open, onPress, label = 'Amount' }: { amount:
  * Task 285: the phone's number pad under an amount row. Once everything else is filled in its
  * button saves straight away; until then it is Done, which puts the pad away.
  */
-export function AmountPad({ value, onChange, onDone, save }: { value: string; onChange: (next: string) => void; onDone: () => void; save?: React.ReactNode }) {
+export function AmountPad({ value, onChange, onDone, save, label }: { value: string; onChange: (next: string) => void; onDone: () => void; save?: React.ReactNode; label?: string }) {
   return (
-    <AmountPanel value={value} onChange={onChange}>
+    <AmountPanel value={value} onChange={onChange} label={label}>
       {save ?? <PrimaryButton label="Done" onPress={onDone} />}
     </AmountPanel>
   );

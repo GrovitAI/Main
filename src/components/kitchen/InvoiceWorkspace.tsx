@@ -14,11 +14,17 @@ import { historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceStatus, type InvoiceWorkspace as WorkspaceData, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
-import { Avatar, KHeader, KScreen, Notice, TextField, Tick } from '@/components/kitchen/ui';
+import { Avatar, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, Tick } from '@/components/kitchen/ui';
+import { AmountPad, AmountRow, WhenRow } from '@/components/kitchen/EntryRows';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { ReportMultiSelect, ReportSelect } from '@/components/kitchen/ReportSelect';
-import { DateField, useDateGuard, ModePicker } from '@/components/kitchen/forms';
+import { useDateGuard } from '@/components/kitchen/forms';
 
+const PAID_IN: readonly { value: KitchenMode; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'bank', label: 'Bank' },
+];
 type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; value: InvoiceDelivery } | { kind: 'line' | 'docline'; value: InvoiceLine; date: string };
 type Preview = { invoice: KitchenInvoice; checkedAt: Date };
 type RouteParams = { start?: string; end?: string; party?: string };
@@ -62,6 +68,8 @@ export function InvoiceWorkspace() {
   const access = useKitchenAccess(); const [lockReason, setLockReason] = useState('');
   const paymentDateOk = useDateGuard(paymentDate, lockReason);
   const paymentKey = useRef(''); const paymentPaise = Math.round(parseAmount(amount) * 100);
+  // Task 286: a payment in the Received layout; on a phone the pad comes up when the amount row is tapped.
+  const [padOpen, setPadOpen] = useState(false);
   // Invoices is a tab, so it stays mounted: a later Analytics link replaces the branch and dates.
   const appliedParams = useRef([params.start, params.end, params.party].join('|'));
   useEffect(() => {
@@ -145,16 +153,27 @@ export function InvoiceWorkspace() {
     <Text className="text-base font-bold text-text-primary">{editor === 'receive' ? 'Record received payment' : 'Cancel this invoice'}</Text>
     {error ? <Notice text={error} /> : null}
     {editor === 'receive' ? <>
-      <View className={desktop ? 'max-w-[420px]' : ''}><TextField label="Invoice payment amount" value={amount} onChange={setAmount} prefix="₹" keyboardType="decimal-pad" placeholder="Amount received" /></View>
-      <Text className="text-xs leading-5" style={{ color: paymentPaise > invoice.open_paise ? semantic.warning : colors.textSecondary }}>{paymentPaise > invoice.open_paise ? 'More than the ' + invoiceMoney(invoice.open_paise) + ' still open on this invoice. Record any extra on the Received screen.' : invoiceMoney(invoice.open_paise) + ' is still open on this invoice.'}</Text>
-      <ModePicker value={mode} onChange={setMode} /><DateField value={paymentDate} onChange={setPaymentDate} lockReason={lockReason} onLockReason={setLockReason} />
-      <Text className="text-xs leading-5 text-text-secondary">Record money already received. This payment is matched only to this invoice’s deliveries.</Text>
+      <View className={desktop ? 'max-w-[420px] gap-3' : 'gap-1.5'}>
+        <SettingsGroup>
+          {desktop ? null : <AmountRow label="Amount received" amount={paymentPaise / 100} open={padOpen} onPress={() => setPadOpen(o => !o)} />}
+          <SelectRow label="Paid in" value={mode} options={PAID_IN} onChange={setMode} />
+          <WhenRow date={paymentDate} onChange={setPaymentDate} lockReason={lockReason} onLockReason={setLockReason} />
+        </SettingsGroup>
+        {desktop ? <TextField label="Amount received" value={amount} onChange={setAmount} prefix="₹" keyboardType="decimal-pad" placeholder="0" big /> : null}
+        <Text className="text-xs font-semibold leading-5" style={{ color: paymentPaise > invoice.open_paise ? semantic.warning : colors.textSecondary }}>{paymentPaise > invoice.open_paise ? 'More than the ' + invoiceMoney(invoice.open_paise) + ' open. Record any extra on Received.' : invoiceMoney(invoice.open_paise) + ' open on this invoice'}</Text>
+      </View>
     </> : <><Text className="text-sm leading-5 text-text-secondary">This keeps the invoice as cancelled and releases its deliveries for correction or a new invoice. Sales, stock and payments stay recorded.</Text>
       <TextField label="Invoice cancellation reason" value={reason} onChange={setReason} placeholder="Reason for cancelling" /></>}
-    <View className="flex-row flex-wrap gap-2"><Action label={busy ? 'Saving…' : editor === 'receive' ? 'Confirm received payment' : 'Confirm cancellation'} primary onPress={() => void saveAction()}
-      disabled={busy || (editor === 'cancel' ? !reason.trim() || reason.trim().length > 200 : paymentPaise <= 0 || paymentPaise > invoice.open_paise || !validKitchenDate(paymentDate) || paymentDate > today || !paymentDateOk)} />
+    <View className="flex-row flex-wrap gap-2">{editor === 'receive' && !desktop ? null : <Action label={busy ? 'Saving…' : editor === 'receive' ? 'Save payment' : 'Confirm cancellation'} primary onPress={() => void saveAction()}
+      disabled={busy || (editor === 'cancel' ? !reason.trim() || reason.trim().length > 200 : paymentPaise <= 0 || paymentPaise > invoice.open_paise || !validKitchenDate(paymentDate) || paymentDate > today || !paymentDateOk)} />}
       <Action label="Close" onPress={() => setEditor(null)} disabled={busy} /></View>
   </View> : null;
+  const paymentWhy = !invoice || editor !== 'receive' ? undefined : paymentPaise <= 0 ? 'Enter the amount' : paymentPaise > invoice.open_paise ? 'More than is open'
+    : !validKitchenDate(paymentDate) || paymentDate > today || !paymentDateOk ? 'Check the date' : undefined;
+  const paymentSave = <PrimaryButton label={paymentPaise > 0 ? 'Save · ' + invoiceMoney(paymentPaise) : 'Save'} onPress={() => void saveAction()} disabled={busy || !!paymentWhy} loading={busy} reason={paymentWhy} />;
+  const paymentFooter = invoice && editor === 'receive' && !desktop
+    ? padOpen ? <AmountPad label="Amount received" value={amount} onChange={setAmount} onDone={() => setPadOpen(false)} save={paymentWhy ? undefined : paymentSave} /> : paymentSave
+    : undefined;
   const docHeader = preview ? <>
     <View className="flex-row flex-wrap items-center gap-2"><Action label={busy ? 'Preparing…' : Platform.OS === 'web' ? 'Print / Save PDF' : 'Share PDF'} primary disabled={busy} onPress={() => void print()} />
       <Text className="min-w-0 flex-1 text-xs leading-5 text-text-secondary">{Platform.OS === 'web' ? 'Choose Save as PDF in the print dialog to keep a file.' : 'Share the PDF to WhatsApp, email or a printer.'}</Text></View>
@@ -206,7 +225,7 @@ export function InvoiceWorkspace() {
         {[['Total', invoice.total_paise], ['Matched payments', invoice.covered_paise], ['To pay', invoice.open_paise]].map(([label, value]) => <View key={String(label)} className="min-w-[80px] flex-1"><Text className="text-xs leading-4 text-text-secondary">{label}</Text><Text className="text-lg font-bold leading-6 text-text-primary" style={tabular}>{invoiceMoney(Number(value))}</Text></View>)}
       </View>
       <View className="flex-row flex-wrap gap-2"><Action label="Preview invoice" disabled={busy} onPress={() => void openPreview()} />
-        {invoice.status === 'to_be_paid' && access.can('invoices.receive') ? <Action label="Record payment" primary disabled={busy || !!editor} onPress={() => { paymentKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); setAmount(String(invoice.open_paise / 100)); setPaymentDate(today); setEditor('receive'); }} /> : null}
+        {invoice.status === 'to_be_paid' && access.can('invoices.receive') ? <Action label="Record payment" primary disabled={busy || !!editor} onPress={() => { paymentKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); setAmount(''); setPadOpen(false); setPaymentDate(today); setEditor('receive'); }} /> : null}
         {invoice.status !== 'cancelled' && access.can('invoices.cancel') ? <Action label="Cancel invoice" disabled={busy || !!editor} onPress={() => { setReason(''); setEditor('cancel'); }} /> : null}
       </View>
       {invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-secondary">Cancelled: {invoice.cancel_reason}</Text> : null}
@@ -219,7 +238,7 @@ export function InvoiceWorkspace() {
     {loading ? <ActivityIndicator accessibilityLabel="Loading invoices" color={colors.primary} /> : null}
     {docHeader}
   </View>;
-  return <KeyboardAvoider><KScreen scroll={false} footer={filter.candidates && !detailId ? <View className="flex-row flex-wrap items-center justify-between gap-2"><View><Text className="text-xs text-text-secondary">{selected.size} deliveries selected</Text><Text className="text-lg font-bold text-text-primary" style={tabular}>{invoiceMoney(total)}</Text></View><Action label={busy ? 'Creating…' : 'Create invoice'} primary disabled={loading || busy || !selected.size} onPress={() => void create()} /></View> : undefined}>
+  return <KeyboardAvoider><KScreen scroll={false} footer={paymentFooter ?? (filter.candidates && !detailId ? <View className="flex-row flex-wrap items-center justify-between gap-2"><View><Text className="text-xs text-text-secondary">{selected.size} deliveries selected</Text><Text className="text-lg font-bold text-text-primary" style={tabular}>{invoiceMoney(total)}</Text></View><Action label={busy ? 'Creating…' : 'Create invoice'} primary disabled={loading || busy || !selected.size} onPress={() => void create()} /></View> : undefined)}>
     <View className="mx-auto w-full max-w-[1120px] flex-1 px-4">
       <FlatList<Row> data={loading || (error && !preview) ? [] : rows} keyExtractor={r => r.kind + r.value.id} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 24 }} refreshing={false} onRefresh={preview ? undefined : reload}

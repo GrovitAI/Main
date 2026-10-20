@@ -11,7 +11,7 @@ import { formatMoney, formatQty, stockLevels } from '@/lib/pos/kitchen-utils';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, QtyFigure, Section, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
+import { AmountPanel, Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, QtyFigure, Section, Sheet, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
 import { EntryActions } from './EntryActions';
 
@@ -127,7 +127,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
   const field = panel ? <TextField value={qty} onChange={value => { setQty(value); setError(null); }} label={panel === 'made' ? 'Quantity made' : 'Counted quantity'} placeholder={panel === 'made' ? `Quantity made (${item.unit})` : `Count on the shelf (${item.unit})`} keyboardType="decimal-pad" autoFocus /> : null;
   const submit = <PrimaryButton label={panel === 'made' ? 'Add' : 'Set'} onPress={() => void submitPanel()} loading={busy} />;
   // In the narrow column the field and its button stack; elsewhere they share a line.
-  const form = panel ? (
+  const form = panel && !phone ? (
     <View>
       {panel === 'made' ? <Text className="mt-3 text-sm text-text-secondary">Record quantity produced. Raw material stock stays unchanged.</Text> : null}
       {split ? (
@@ -193,11 +193,23 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
               <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>{actions}</View>
             </View>
             {form}
-            {error ? <Notice text={error} /> : null}
+            {error && !phone ? <Notice text={error} /> : null}
           </Card>
           {history}
         </>
       )}
+      {/* Task 286: a phone takes the quantity on the app's number pad, as every amount does. */}
+      <Sheet visible={phone && !!panel} onClose={() => { setPanel(null); setError(null); }} title={panel === 'made' ? 'Create batch' : 'Count stock'} dirty={qty.trim().length > 0}>
+        <AmountPanel value={qty} onChange={value => { setQty(value); setError(null); }} top={(
+          <View className="flex-row items-center justify-between px-1 pb-2" accessibilityLiveRegion="polite">
+            <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{panel === 'made' ? 'Made' : 'On the shelf'}</Text>
+            <Text style={{ fontSize: 34, fontWeight: '800', letterSpacing: -0.8, color: qty.trim() ? colors.textPrimary : colors.border, fontVariant: ['tabular-nums'] }}>{qty.trim() || '0'} {item.unit}</Text>
+          </View>
+        )}>
+          {error ? <Notice text={error} /> : null}
+          <PrimaryButton label={qty.trim() ? `${panel === 'made' ? 'Add' : 'Set'} ${qty.trim()} ${item.unit}` : panel === 'made' ? 'Add' : 'Set'} onPress={() => void submitPanel()} loading={busy} disabled={!qty.trim()} reason={panel === 'made' ? 'Enter how much was made' : 'Enter the count'} />
+        </AmountPanel>
+      </Sheet>
       <EntryActions entry={open} onClose={() => { setOpen(null); void loadMoves(); }} itemsById={data.itemsById} partiesById={data.partiesById} />
     </View>
   );
