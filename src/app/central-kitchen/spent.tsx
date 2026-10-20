@@ -21,7 +21,7 @@ import { buzz } from '@/lib/pos/kitchen-haptics';
 import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { CategorySheet, ParticularSearch, QtySheet, RouteSheet, toneOfParticular, type PickedParticular } from '@/components/kitchen/SpendFields';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
-import { NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
+import { AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 
 type Kind = 'vendor' | 'expense';
 type Picker = 'category' | 'route' | 'who' | 'qty' | null;
@@ -63,6 +63,8 @@ export default function SpentScreen() {
   const [rosterId, setRosterId] = useState<string | null>(null);
   const [roster, setRoster] = useState<KitchenStaffMember[] | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
+  // Task 283: the number pad comes up only when the amount row is tapped.
+  const [padOpen, setPadOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const done = useSavedThen();
   // Task 229: a phone takes the amount on a number pad; a tablet or desktop types it.
@@ -205,6 +207,7 @@ export default function SpentScreen() {
       <ValueRow label={picked.name} sub={place ? place.label : 'New · choose its category'} value="Change" onPress={changeParticular}
         lead={<Avatar name={picked.name} toneIndex={toneOfParticular(data.purchaseCategories, categoryId)} size={36} ring={false} />} />
       {!picked.id ? <ValueRow label="Category" value={place?.label} required onPress={() => setPicker('category')} /> : null}
+      {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen(true)} /> : null}
       {asks === 'route' ? <ValueRow label="Route" value={routeBranch && routeDir ? `${routeDir === 'from' ? 'From' : 'To'} ${routeBranch.name}` : null} required onPress={() => setPicker('route')} /> : null}
       {asks === 'person' ? <ValueRow label="Who" value={person?.name} required onPress={() => setPicker('who')} /> : null}
       <ValueRow label="Qty" value={qty !== null && unit ? formatQty(qty, unit) : null} placeholder="Add" action="plus" onPress={() => setPicker('qty')} />
@@ -260,6 +263,7 @@ export default function SpentScreen() {
     <>
       <SettingsGroup>
         <WhoRow name={party.name} sub={owe > 0 ? `We owe ${formatMoney(owe)}` : owe < 0 ? `${formatMoney(-owe)} paid ahead` : 'Settled up'} onChange={editing ? undefined : () => { setPartyId(null); setTicked(new Set()); }} />
+        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen(true)} /> : null}
         <SelectRow label="Paid from" value={mode} options={PAID_BY} onChange={setMode} />
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
@@ -275,7 +279,7 @@ export default function SpentScreen() {
     </Field>
   );
 
-  const footer = phone && (isVendor ? !!party : !!picked) ? <AmountPanel value={amountText} onChange={onAmount}>{saveButton}</AmountPanel> : saveButton;
+  const footer = phone && padOpen && (isVendor ? !!party : !!picked) ? <AmountPanel value={amountText} onChange={onAmount}><PrimaryButton label="Done" onPress={() => setPadOpen(false)} /></AmountPanel> : saveButton;
 
   return (
     <KeyboardAvoider>

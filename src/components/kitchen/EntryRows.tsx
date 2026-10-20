@@ -4,9 +4,10 @@
  * opens its own small sheet.
  */
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
-import { formatDayLabel, localDateKey } from '@/lib/pos/kitchen-utils';
+import { formatDayLabel, formatMoney, localDateKey } from '@/lib/pos/kitchen-utils';
+import { colors, semantic } from '@/lib/pos/brand';
 import { Avatar, LinkButton, PrimaryButton, Sheet, TextField, ValueRow } from './ui';
 import { DateField, isValidDateKey, useDateGuard } from './forms';
 
@@ -59,5 +60,21 @@ export function TotalBar({ caption, total, showTotal, children }: { caption: str
       </View>
       <View style={{ flex: 1.3 }}>{children}</View>
     </View>
+  );
+}
+
+/**
+ * Task 283 (owner's ask): the amount as a row, like the others. A tap opens the number pad at the
+ * bottom of a phone; until then the other rows are easy to reach.
+ */
+export function AmountRow({ amount, open, onPress, label = 'Amount' }: { amount: number; open: boolean; onPress: () => void; label?: string }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${amount > 0 ? formatMoney(amount) : 'not entered'}`} accessibilityState={{ expanded: open }}
+      className={`min-h-[60px] flex-row items-center gap-3 border-t border-border-soft px-3.5 py-2.5 ${open ? 'bg-surface-tint' : 'hover:bg-surface-tint active:bg-surface-tint'}`}>
+      <Text className="min-w-0 flex-1 text-[15px] font-bold text-text-primary">
+        {label}{amount > 0 ? null : <Text style={{ color: semantic.danger }}> *</Text>}
+      </Text>
+      <Text className="text-[22px] font-extrabold" style={{ color: amount > 0 ? colors.textPrimary : colors.border, letterSpacing: -0.4, fontVariant: ['tabular-nums'] }}>{formatMoney(amount)}</Text>
+    </Pressable>
   );
 }

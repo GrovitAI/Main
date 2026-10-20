@@ -13,7 +13,7 @@ import { AmountPanel, Field, KHeader, KScreen, Notice, PrimaryButton, SelectRow,
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
-import { NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
+import { AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['received'];
@@ -42,6 +42,8 @@ export default function ReceivedScreen() {
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  // Task 283: the number pad comes up only when the amount row is tapped.
+  const [padOpen, setPadOpen] = useState(false);
   const done = useSavedThen();
   const phone = !useResponsive().isTablet;
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +117,7 @@ export default function ReceivedScreen() {
     <>
       <SettingsGroup>
         <WhoRow name={party.name} sub={balanceNow > 0 ? `Owes ${formatMoney(balanceNow)}` : balanceNow < 0 ? `${formatMoney(-balanceNow)} in credit` : 'Settled up'} onChange={editing ? undefined : () => { setPartyId(null); setTicked(new Set()); }} />
+        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen(true)} /> : null}
         <SelectRow label="Paid in" value={mode} options={PAID_IN} onChange={setMode} />
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
@@ -132,7 +135,7 @@ export default function ReceivedScreen() {
 
   return (
     <KeyboardAvoider>
-      <KScreen footer={phone && party ? <AmountPanel value={amountText} onChange={onAmount}>{saveButton}</AmountPanel> : saveButton}>
+      <KScreen footer={phone && padOpen && !!party ? <AmountPanel value={amountText} onChange={onAmount}><PrimaryButton label="Done" onPress={() => setPadOpen(false)} /></AmountPanel> : saveButton}>
         <KHeader title={editing ? 'Edit receipt' : 'Received'} onBack={() => backToKitchen()} />
         {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a receipt." /> : null}
         {phone ? rows : (
