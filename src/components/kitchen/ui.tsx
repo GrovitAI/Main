@@ -1338,7 +1338,12 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
  * Task 279: a phone form's amount, pinned at the bottom within thumb reach: the amount large on the
  * right, a flat number pad, and the save action under it. Nothing is filled in for the person.
  */
-export function AmountPanel({ value, onChange, label = 'Amount', children }: { value: string; onChange: (next: string) => void; label?: string; children: React.ReactNode }) {
+export function AmountPanel({ value, onChange, label = 'Amount', top, children }: {
+  value: string; onChange: (next: string) => void; label?: string;
+  /** Task 280: what sits above the keys instead of the label and amount (a line's qty and rate). */
+  top?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   const shown = padDisplay(value);
   const press = (key: PadKey): void => {
     buzz('select');
@@ -1347,10 +1352,12 @@ export function AmountPanel({ value, onChange, label = 'Amount', children }: { v
   };
   return (
     <View>
-      <View className="flex-row items-center justify-between px-1 pb-2" accessibilityLiveRegion="polite" accessibilityLabel={`${label} ${shown}`}>
-        <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
-        <Text style={{ fontSize: figureSize(shown, 34, 10, 24), fontWeight: '800', letterSpacing: -0.8, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1}>{shown}</Text>
-      </View>
+      {top ?? (
+        <View className="flex-row items-center justify-between px-1 pb-2" accessibilityLiveRegion="polite" accessibilityLabel={`${label} ${shown}`}>
+          <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
+          <Text style={{ fontSize: figureSize(shown, 34, 10, 24), fontWeight: '800', letterSpacing: -0.8, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1}>{shown}</Text>
+        </View>
+      )}
       <View style={{ gap: 6 }}>
         {[0, 1, 2, 3].map((row) => (
           <View key={row} className="flex-row" style={{ gap: 6 }}>

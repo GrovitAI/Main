@@ -9,21 +9,22 @@ import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
 import { fetchKitchenRoster } from '@/lib/pos/kitchen-attendance-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { allocateAcross, balanceFromEntries, formatDayLabel, formatMoney, formatQty, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
+import { allocateAcross, balanceFromEntries, formatMoney, formatQty, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import { placeOf, sameParticular } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenCategory, KitchenEntryType, KitchenMode, KitchenOpenDocument, KitchenRouteDir, KitchenUnit, PostEntryInput } from '@/lib/pos/kitchen-types';
 import type { KitchenStaffMember } from '@/lib/pos/kitchen-attendance-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { AmountPad, AmountPanel, Avatar, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { AmountPanel, Avatar, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { colors, semantic } from '@/lib/pos/brand';
+import { colors } from '@/lib/pos/brand';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
+import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
 import { CategorySheet, ParticularSearch, QtySheet, RouteSheet, toneOfParticular, type PickedParticular } from '@/components/kitchen/SpendFields';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
+import { NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 
 type Kind = 'vendor' | 'expense';
-type Picker = 'category' | 'route' | 'who' | 'qty' | 'when' | null;
+type Picker = 'category' | 'route' | 'who' | 'qty' | null;
 const EDITABLE: readonly KitchenEntryType[] = ['paid', 'spent'];
 const PAID_BY: readonly { value: KitchenMode; label: string }[] = [
   { value: 'cash', label: 'Kitchen · Cash' },
@@ -197,7 +198,6 @@ export default function SpentScreen() {
   const saveLabel = editing ? 'Save changes' : amount > 0 ? `Save · ${formatMoney(amount)}` : 'Save';
   const saveButton = <PrimaryButton label={saveLabel} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={reason} />;
   const onAmount = (t: string) => { setAmountText(t); setAmountTyped(t.trim().length > 0); };
-  const dayLabel = date === localDateKey() ? 'Today' : formatDayLabel(date);
 
   // ── Expense ────────────────────────────────────────────────────────────────
   const rows = picked ? (
@@ -209,7 +209,7 @@ export default function SpentScreen() {
       {asks === 'person' ? <ValueRow label="Who" value={person?.name} required onPress={() => setPicker('who')} /> : null}
       <ValueRow label="Qty" value={qty !== null && unit ? formatQty(qty, unit) : null} placeholder="Add" action="plus" onPress={() => setPicker('qty')} />
       <SelectRow label="Paid by" value={mode} options={PAID_BY} onChange={setMode} />
-      <ValueRow label="When" value={dayLabel} onPress={() => setPicker('when')} />
+      <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
     </SettingsGroup>
   ) : (
     <Field label="Particular">
@@ -247,42 +247,35 @@ export default function SpentScreen() {
         </View>
         {roster !== null && roster.length === 0 ? <Notice text="Add the staff under Attendance first." /> : null}
       </Sheet>
-      <Sheet visible={picker === 'when'} onClose={() => setPicker(null)} title="When">
-        <DateField value={date} onChange={(d) => setDate(d)} lockReason={lockReason} onLockReason={setLockReason} />
-        <View className="mt-4"><PrimaryButton label="Done" onPress={() => setPicker(null)} disabled={!isValidDateKey(date) || !dateOk} reason="Check the date" /></View>
-      </Sheet>
     </>
   );
 
   // ── Vendor (as before) ─────────────────────────────────────────────────────
-  const vendor = (
+  // ── Pay a vendor (task 280): the vendor as round circles, then rows, the amount at the bottom. ──
+  const afterPay = owe - amount;
+  const afterLine = party && amount > 0 && !editing ? (
+    <Text className="mt-1.5 text-xs font-semibold text-text-secondary">{afterPay < 0 ? `${formatMoney(-afterPay)} paid ahead after this` : afterPay === 0 ? 'Settled up after this' : `We still owe ${formatMoney(afterPay)} after this`}</Text>
+  ) : null;
+  const vendor = party ? (
     <>
-      <Field label="Vendor">
-        <PartyPicker kind="vendor" parties={data.parties} balances={data.balances} value={partyId} onChange={(id) => { setPartyId(id); setTicked(new Set()); }} />
+      <SettingsGroup>
+        <WhoRow name={party.name} sub={owe > 0 ? `We owe ${formatMoney(owe)}` : owe < 0 ? `${formatMoney(-owe)} paid ahead` : 'Settled up'} onChange={editing ? undefined : () => { setPartyId(null); setTicked(new Set()); }} />
+        <SelectRow label="Paid from" value={mode} options={PAID_BY} onChange={setMode} />
+        <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
+        <NoteRow value={note} onChange={setNote} />
+      </SettingsGroup>
+      {phone ? afterLine : null}
+      <Field label="Against which buys" optional>
+        <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
       </Field>
-      {partyId ? (
-        <Field label="Against which buys" optional hint="Tick the buys this pays for and the amount fills in.">
-          <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
-        </Field>
-      ) : null}
-      {phone ? (
-        <View style={{ marginTop: 14, gap: 4 }}>
-          {party ? <View className="items-center"><View className="rounded-full px-3 py-1" style={{ backgroundColor: semantic.dangerSoft }}><Text style={{ color: semantic.danger, fontSize: 13, fontWeight: '700' }}>We owe {party.name} {formatMoney(owe)}{amount > 0 && !editing ? ` · then ${owe - amount < 0 ? `${formatMoney(amount - owe)} overpaid` : formatMoney(owe - amount)}` : ''}</Text></View></View> : null}
-          <AmountPad value={amountText} onChange={onAmount} />
-        </View>
-      ) : (
-        <Field label="Amount">
-          <TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big />
-          {party ? <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>We owe {party.name} {formatMoney(owe)}{amount > 0 && !editing ? ` → after this ${formatMoney(owe - amount)}` : ''}</Text> : null}
-        </Field>
-      )}
-      <Field label="Mode"><ModePicker value={mode} onChange={setMode} /></Field>
-      <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
-      <Field label="Note" optional><TextField value={note} onChange={setNote} label="Note (optional)" /></Field>
     </>
+  ) : (
+    <Field label="Vendor">
+      <PartyPicker kind="vendor" parties={data.parties} balances={data.balances} value={partyId} onChange={(id) => { setPartyId(id); setTicked(new Set()); }} />
+    </Field>
   );
 
-  const footer = !isVendor && phone && picked ? <AmountPanel value={amountText} onChange={onAmount}>{saveButton}</AmountPanel> : saveButton;
+  const footer = phone && (isVendor ? !!party : !!picked) ? <AmountPanel value={amountText} onChange={onAmount}>{saveButton}</AmountPanel> : saveButton;
 
   return (
     <KeyboardAvoider>
@@ -294,11 +287,14 @@ export default function SpentScreen() {
             <Segmented options={[{ value: 'expense', label: 'Expense' }, { value: 'vendor', label: 'Pay a vendor' }]} value={kind} onChange={setKind} />
           </View>
         )}
-        {isVendor ? vendor : phone ? rows : (
+        {phone ? (isVendor ? vendor : rows) : (
           <View className="flex-row" style={{ gap: 20 }}>
-            <View className="min-w-0 flex-1">{rows}</View>
+            <View className="min-w-0 flex-1">{isVendor ? vendor : rows}</View>
             <View className="min-w-0 flex-1">
-              <Field label="Amount"><TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big /></Field>
+              <Field label="Amount">
+                <TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big />
+                {isVendor ? afterLine : null}
+              </Field>
             </View>
           </View>
         )}

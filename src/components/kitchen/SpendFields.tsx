@@ -93,12 +93,15 @@ export function ParticularSearch({ particulars, categories, entries, query, onQu
  * Where a new particular is filed: a category, then (if it has them) one of its sub-categories or
  * just the category. Owners with the set-up permission can add either from here.
  */
-export function CategorySheet({ visible, onClose, categories, value, onPick, onAdd, title = 'Category' }: {
+export function CategorySheet({ visible, onClose, categories, value, onPick, onAdd, title = 'Category', onNone, noneLabel = 'Uncategorized' }: {
   visible: boolean; onClose: () => void; categories: readonly KitchenCategory[]; value: string | null;
   onPick: (categoryId: string) => void;
   /** Present when this login may add categories; resolves to the new one or an error. */
   onAdd?: (name: string, parentId: string | null) => Promise<KitchenCategory | string>;
   title?: string;
+  /** Task 280 (Bought): a first choice for no category at all. */
+  onNone?: () => void;
+  noneLabel?: string;
 }) {
   const tree = useMemo(() => categoryTree(categories), [categories]);
   const [openTop, setOpenTop] = useState<string | null>(null);
@@ -135,7 +138,16 @@ export function CategorySheet({ visible, onClose, categories, value, onPick, onA
         <View style={{ marginTop: -1 }}>
           {branch
             ? [row(branch.top, false, () => pick(branch.top.id), `Just ${branch.top.name}`), ...branch.subs.map((s) => row(s, false, () => pick(s.id)))]
-            : tree.map(({ top, subs }) => row(top, subs.length > 0, () => (subs.length ? setOpenTop(top.id) : pick(top.id))))}
+            : [
+              ...(onNone ? [(
+                <Pressable key="none" onPress={() => { setOpenTop(null); onNone(); }} accessibilityRole="button" aria-selected={value === null} accessibilityState={{ selected: value === null }} accessibilityLabel={noneLabel}
+                  className={`min-h-[52px] flex-row items-center gap-3 border-t border-border-soft px-3.5 py-2 ${value === null ? 'bg-surface-tint' : 'hover:bg-surface-tint active:bg-surface-tint'}`}>
+                  <Text className={`min-w-0 flex-1 text-[15px] ${value === null ? 'font-bold text-primary' : 'font-semibold text-text-primary'}`}>{noneLabel}</Text>
+                  {value === null ? <Check size={18} color={colors.primary} /> : null}
+                </Pressable>
+              )] : []),
+              ...tree.map(({ top, subs }) => row(top, subs.length > 0, () => (subs.length ? setOpenTop(top.id) : pick(top.id)))),
+            ]}
         </View>
       </View>
       {onAdd ? (

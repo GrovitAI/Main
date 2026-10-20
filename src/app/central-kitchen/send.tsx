@@ -5,56 +5,70 @@ import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { MessageCircle } from 'lucide-react-native';
-import { editKitchenEntry, postKitchenEntry, kitchenBranch } from '@/lib/pos/kitchen-service';
+import { editKitchenEntry, postKitchenEntry, kitchenBranch, saveKitchenItem } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatDayLabel, formatMoney, formatQty, linesTotal, localDateKey, oftenSent, slipText, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry, KitchenEntryType, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, Sheet, SummaryBar, TextField } from '@/components/kitchen/ui';
+import { Field, GhostButton, KHeader, KScreen, Notice, PrimaryButton, SettingsGroup, Sheet } from '@/components/kitchen/ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { DateField, useDateGuard, LinesEditor, PartyPicker, draftToLines, isValidDateKey, typedLines, type DraftLines } from '@/components/kitchen/forms';
+import { useDateGuard, PartyPicker, draftToLines, isValidDateKey, typedLines } from '@/components/kitchen/forms';
+import { NoteRow, TotalBar, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
+import { ItemLines, ItemSearch, LinePad, startRate, useDraftLines } from '@/components/kitchen/EntryLines';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['sent'];
 
-/** Items to a branch. Stock goes down; the branch's figure goes up by the total. */
+/**
+ * Items to a branch (task 280, owner's layout): who it goes to as round circles, then rows, then
+ * the items with − and + and a rate on each. Finished goods and raw materials both go. The rate
+ * starts at the item's set price; an item without one asks for it, and the rate typed becomes
+ * its price for next time. Stock goes down; the branch owes the total.
+ */
 export default function SendScreen() {
   const data = useKitchenData();
+  const access = useKitchenAccess();
+  const { showAmounts } = access;
   const params = useLocalSearchParams<{ party?: string; edit?: string }>();
   const { editing, missing } = useEditEntry(EDITABLE);
   const [partyId, setPartyId] = useState<string | null>(params.party ?? null);
   const [date, setDate] = useState(localDateKey());
-  const [lines, setLines] = useState<DraftLines>({});
+  const draft = useDraftLines();
+  const { lines, order, active } = draft;
   const [note, setNote] = useState('');
   const [lockReason, setLockReason] = useState('');
-  const { showAmounts } = useKitchenAccess();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<KitchenEntry | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
+  const phone = !useResponsive().isTablet;
 
   // Editing: the form starts from the send as it was saved.
   useEffect(() => {
     if (!editing || prefilled === editing.id) return;
     setPartyId(editing.party_id);
     setDate(editing.entry_date);
-    setLines(Object.fromEntries(editing.lines.map((l) => [l.item_id, { qty: l.qty, price: l.price }])));
+    draft.reset(Object.fromEntries(editing.lines.map((l) => [l.item_id, { qty: l.qty, price: l.price }])), editing.lines.map((l) => l.item_id));
     setNote(editing.note ?? '');
     setPrefilled(editing.id);
-  }, [editing, prefilled]);
+  }, [editing, prefilled, draft]);
 
   const party = partyId ? data.partiesById.get(partyId) ?? null : null;
   const chosen = useMemo(() => draftToLines(lines), [lines]);
+  const withQty = Object.entries(lines).filter(([, l]) => l.qty > 0);
   const total = useMemo(() => linesTotal(Object.values(lines).filter((l) => l.qty > 0).map((l) => ({ qty: l.qty, price: l.price ?? 0 }))), [lines]);
-  const hasQty = Object.values(lines).some((l) => l.qty > 0);
-  const itemCount = Object.values(lines).filter((l) => l.qty > 0).length;
-  const phone = !useResponsive().isTablet;
-  // One-tap chips for what this branch usually gets (task 216); none while editing.
+  const unpriced = withQty.find(([, l]) => l.price === null);
+  const unpricedName = unpriced ? data.itemsById.get(unpriced[0])?.name ?? 'an item' : null;
+  // The items this branch usually gets, as round initials before anything is typed (task 216); none while editing.
   const picks = useMemo(() => (partyId && !editing ? oftenSent(data.entries, partyId) : []), [data.entries, partyId, editing]);
   const dateOk = useDateGuard(date, lockReason);
-  const canSave = !missing && !!partyId && hasQty && chosen !== null && chosen.length > 0 && isValidDateKey(date) && dateOk;
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
+  const reason = !partyId ? 'Choose a branch'
+    : withQty.length === 0 ? 'Add a quantity'
+    : unpricedName ? (showAmounts ? `Set ${unpricedName}’s rate` : `${unpricedName} has no price yet`)
+    : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined;
+  const canSave = !missing && !reason && chosen !== null && chosen.length > 0;
 
   // Task 221: Back asks first once items or a note are typed; never after the save.
   const typed = useTypedChanges(JSON.stringify({ lines: typedLines(lines), note: note.trim() }), prefilled);
@@ -65,12 +79,20 @@ export default function SendScreen() {
     setError(null);
     const input: PostEntryInput = { type: 'sent', party_id: partyId, entry_date: date, lines: chosen, note: note.trim() || null };
     const res = editing ? await editKitchenEntry(editing.id, input, lockReason) : await postKitchenEntry(input, lockReason);
-    setSaving(false);
     if (res.error || !res.data) {
+      setSaving(false);
       setError(res.error ?? 'Unable to save the send.');
       buzz('error');
       return;
     }
+    // Owner's ask: a rate typed for an item that had no price becomes its price for next time.
+    if (access.can('setup.items')) {
+      await Promise.all(chosen.map((l) => {
+        const it = data.itemsById.get(l.item_id);
+        return it && it.sell_price === null && l.price > 0 ? saveKitchenItem({ name: it.name, unit: it.unit, sell_price: l.price }, it.id) : Promise.resolve(null);
+      }));
+    }
+    setSaving(false);
     buzz('success');
     await data.load(true);
     setSaved({ ...res.data, lines: chosen.map((l, i) => ({ id: String(i), item_id: l.item_id, qty: l.qty, price: l.price, line_total: Math.round(l.qty * l.price * 100) / 100 })) });
@@ -103,50 +125,56 @@ export default function SendScreen() {
     backToKitchen();
   };
 
+  const activeItem = active ? data.itemsById.get(active.itemId) ?? null : null;
+  const activeLine = active ? lines[active.itemId] ?? null : null;
+  const pad = activeItem && activeLine && active ? (
+    <LinePad key={activeItem.id} it={activeItem} line={activeLine} field={active.field} showAmounts={showAmounts}
+      onField={(f) => draft.setActive({ itemId: activeItem.id, field: f })} onChange={(l) => draft.update(activeItem.id, l)} onDone={() => draft.setActive(null)} />
+  ) : null;
+  const caption = !party ? 'No items yet' : withQty.length === 0 ? 'No items yet' : `${party.name} will owe`;
+  const footer = phone && pad ? pad : (
+    <TotalBar caption={caption} total={formatMoney(total)} showTotal={showAmounts && withQty.length > 0}>
+      <PrimaryButton label={editing ? 'Save changes' : showAmounts && total > 0 ? `Send · ${formatMoney(total)}` : 'Send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={reason} />
+    </TotalBar>
+  );
+
+  const who = party ? (
+    <SettingsGroup>
+      <WhoRow name={party.name} sub={showAmounts ? (balanceNow > 0 ? `Owes ${formatMoney(balanceNow)}` : balanceNow < 0 ? `${formatMoney(-balanceNow)} in credit` : 'Settled up') : undefined}
+        onChange={editing ? undefined : () => setPartyId(null)} />
+      <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
+      <NoteRow value={note} onChange={setNote} />
+    </SettingsGroup>
+  ) : (
+    <Field label="To">
+      <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={setPartyId} />
+    </Field>
+  );
+  const items = (
+    <Field label={withQty.length ? `Items · ${withQty.length}` : 'Items'}>
+      <ItemSearch items={data.items} mode="sell" lines={lines} picks={picks} showAmounts={showAmounts} onAdd={(it) => draft.add(it, startRate(it, 'sell'))} />
+      <ItemLines items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts={showAmounts}
+        onOpen={(itemId, field) => draft.setActive({ itemId, field })} />
+    </Field>
+  );
+
   return (
     <KeyboardAvoider>
-      <KScreen
-        floatingFooter={phone}
-        footer={phone ? (
-          // Task 231: a phone's footer is the dark summary bar.
-          <SummaryBar caption={itemCount === 0 ? 'No items yet' : `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`} total={total} showTotal={showAmounts}>
-            <PrimaryButton label={editing ? 'Save changes' : 'Send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add a quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
-          </SummaryBar>
-        ) : (
-          <View className="flex-row items-center" style={{ gap: 12 }}>
-            <View className="flex-1" style={showAmounts ? undefined : { opacity: 0 }} accessibilityElementsHidden={!showAmounts} importantForAccessibility={showAmounts ? 'auto' : 'no-hide-descendants'}>
-              <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '700' }}>Total</Text>
-              <Text className="text-text-primary" style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.3, fontVariant: ['tabular-nums'] }}>{formatMoney(total)}</Text>
-            </View>
-            <View style={{ flex: 1.2 }}>
-              <PrimaryButton label={editing ? 'Save changes' : 'Save send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={!partyId ? 'Choose a branch' : !hasQty ? 'Add an item quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />
-            </View>
+      <KScreen footer={footer}>
+        <KHeader title={editing ? 'Edit send' : 'Send'} onBack={() => backToKitchen()} />
+        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a send." /> : null}
+        {phone ? <>{who}{items}</> : (
+          <View className="flex-row" style={{ gap: 20 }}>
+            <View style={{ width: 340 }}>{who}</View>
+            <View className="min-w-0 flex-1" style={{ marginTop: party ? -10 : 0 }}>{items}</View>
           </View>
         )}
-      >
-        <KHeader
-          title={editing ? 'Edit send' : 'Send to a branch'}
-          subtitle={editing ? 'The earlier entry is voided; this one takes its place' : 'Stock goes down; the branch owes the total'}
-          onBack={() => backToKitchen()}
-        />
-        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a send." /> : null}
-        <Field label="Branch">
-          <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={setPartyId} />
-        </Field>
-        {party && showAmounts ? (
-          <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>
-            {party.name} {balanceNow > 0 ? `is yet to pay ${formatMoney(balanceNow)}` : balanceNow < 0 ? `has ${formatMoney(-balanceNow)} in credit` : 'is settled up'}.
-          </Text>
-        ) : null}
-        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
-        <Field label="Items" hint={hasQty && chosen === null ? 'Every line with a quantity needs a price.' : undefined}>
-          <LinesEditor items={data.items} lines={lines} onChange={setLines} mode="sell" picks={picks} picksTitle={party ? `Often sent to ${party.name}` : undefined} />
-        </Field>
-        <Field label="Note" optional>
-          <TextField value={note} onChange={setNote} label="Note (optional)" />
-        </Field>
         {error ? <Notice text={error} /> : null}
+        <View style={{ height: 8 }} />
       </KScreen>
+
+      {/* A laptop types a line's quantity and rate in a small window. */}
+      {!phone ? <Sheet visible={!!pad} onClose={() => draft.setActive(null)} title="Quantity and rate">{pad}</Sheet> : null}
 
       <Sheet visible={saved !== null} onClose={done} title={editing ? 'Send corrected' : 'Sent'}>
         {saved && party ? (
