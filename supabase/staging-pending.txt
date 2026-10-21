@@ -17,7 +17,7 @@
 # Task 279 (20261020100000_kitchen_spent_particulars.sql) was applied to production by the
 # owner on 2026-10-20 and checked: the seven entry columns, kitchen_particulars with RLS, its
 # three policies and grants, and Transport/Salary advance asking in all three kitchen scopes.
-# Task 282 (2026-10-20): staging only until promoted.
-20261020110000_kitchen_drawings.sql
-# Task 288 (2026-10-20): optional customer name and phone on POS orders; staging only until promoted.
-20261020120000_open_order_customer.sql
+# Tasks 282 and 288 (20261020110000_kitchen_drawings.sql, 20261020120000_open_order_customer.sql)
+# were applied to production by the owner on 2026-10-21 and checked: kitchen_drawings with RLS and
+# no direct app access, its five functions, Cash & bank counting drawings, and the two customer
+# columns on open_orders with their checks. Nothing is pending.
