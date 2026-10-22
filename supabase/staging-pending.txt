@@ -21,4 +21,6 @@
 # were applied to production by the owner on 2026-10-21 and checked: kitchen_drawings with RLS and
 # no direct app access, its five functions, Cash & bank counting drawings, and the two customer
 # columns on open_orders with their checks.
-20261022100000_kitchen_drawings_in_cash_bank.sql
+# Task 289 (20261022100000_kitchen_drawings_in_cash_bank.sql) was applied to production by the
+# owner on 2026-10-22 and checked: kitchen_drawings_cash_rows (security definer, no anon) and the
+# summary and range report using it. Nothing is pending.

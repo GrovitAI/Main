@@ -141,10 +141,14 @@ function BottomBar({ state, navigation }: BarProps) {
     if (!route) return;
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
     if (event.defaultPrevented) return;
+    if (activeName === route.name) { setSheet(null); return; }
+    if (sheet === null) { navigation.navigate(route.name, route.params); return; }
+    // Task 290: from the More sheet, the sheet starts closing first and the section is drawn on
+    // the next frame; drawn together, the sheet stood still until the section was ready.
     setSheet(null);
-    if (activeName !== route.name) navigation.navigate(route.name, route.params);
+    requestAnimationFrame(() => setTimeout(() => navigation.navigate(route.name, route.params), 0));
   };
-  const go = (href: string): void => { setSheet(null); router.push(href as never); };
+  const go = (href: string): void => { setSheet(null); requestAnimationFrame(() => setTimeout(() => router.push(href as never), 0)); };
   const tab = (t: KitchenTab) => {
     // History is reached from Home, and Finished goods shares Stock.
     const focused = activeName === t.name || (t.name === 'items' && activeName === 'finished-goods') || (t.name === 'home' && activeName === 'history');
