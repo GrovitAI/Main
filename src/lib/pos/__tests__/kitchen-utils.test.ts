@@ -385,6 +385,13 @@ describe('moneyChangeOn', () => {
     const moves = [{ move_date: day, from_account: 'cash' as const, amount_paise: 50000 }, { move_date: '2026-10-15', from_account: 'bank' as const, amount_paise: 100 }];
     expect(moneyChangeOn(entries, moves, day)).toEqual({ cash: 850 - 150 - 500, bank: 2000 - 300 + 500 });
   });
+  it('takes money moved into drawings out, and puts money put back in (task 289)', () => {
+    const day = '2026-10-22';
+    const drawings = [{ draw_date: day, kind: 'in' as const, account: 'cash' as const, amount_paise: 200000 },
+      { draw_date: day, kind: 'back' as const, account: 'bank' as const, amount_paise: 50000 },
+      { draw_date: '2026-10-21', kind: 'in' as const, account: 'bank' as const, amount_paise: 999 }];
+    expect(moneyChangeOn([], [], day, drawings)).toEqual({ cash: -2000, bank: 500 });
+  });
 });
 
 describe('give to the kitchen (task 242)', () => {

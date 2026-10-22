@@ -20,4 +20,5 @@
 # Tasks 282 and 288 (20261020110000_kitchen_drawings.sql, 20261020120000_open_order_customer.sql)
 # were applied to production by the owner on 2026-10-21 and checked: kitchen_drawings with RLS and
 # no direct app access, its five functions, Cash & bank counting drawings, and the two customer
-# columns on open_orders with their checks. Nothing is pending.
+# columns on open_orders with their checks.
+20261022100000_kitchen_drawings_in_cash_bank.sql

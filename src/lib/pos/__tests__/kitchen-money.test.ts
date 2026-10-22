@@ -27,6 +27,14 @@ test('malformed summaries are rejected rather than shown', () => {
   expect(() => parseMoneySummary({ ...summary, moves: [{ ...summary.moves[0], from_account: 'upi' }] })).toThrow();
   expect(parseMoneySummary({ ...summary, has_opening: false, as_of: null }).as_of).toBeNull();
 });
+test('drawings moves come with the summary, without the owner for staff (task 289)', () => {
+  const draw = { id: 'd1', draw_date: '2026-10-22', kind: 'in', account: 'cash', amount_paise: 200000, note: null, owner_name: null, created_by: null, created_at: '2026-10-22T05:00:00Z' };
+  const parsed = parseMoneySummary({ ...summary, to_drawings_cash_paise: 200000, to_drawings_bank_paise: '-500', drawing_moves: [draw] });
+  expect(parsed.drawing_moves[0]).toEqual(draw);
+  expect(parsed.to_drawings_bank_paise).toBe(-500);
+  expect(parseMoneySummary(summary).drawing_moves).toEqual([]);
+  expect(() => parseMoneySummary({ ...summary, drawing_moves: [{ ...draw, kind: 'spend' }] })).toThrow();
+});
 test('a transfer sends both accounts, exact paise and a stable retry key', async () => {
   (supabase.rpc as jest.Mock).mockResolvedValue({ data: 'move', error: null });
   await moveKitchenMoney('2026-10-02', 'bank', 50000, '  ATM  ', 'stable-request-01');

@@ -243,13 +243,15 @@ export function amountReadBack(text: string): string | null {
 
 /**
  * How much cash in hand and the bank changed on one day, in rupees (task 237): money received in,
- * money paid out, and transfers between the two, by the same rules as kitchen_money_summary (cash,
- * or no mode, is Cash; UPI and bank are Bank). Voided entries do not count.
+ * money paid out, transfers between the two, and money moved into the owners' drawings or put back
+ * (task 289), by the same rules as kitchen_money_summary (cash, or no mode, is Cash; UPI and bank
+ * are Bank). Voided entries do not count.
  */
 export function moneyChangeOn(
   entries: readonly KitchenEntry[],
   moves: readonly { move_date: string; from_account: 'cash' | 'bank'; amount_paise: number }[],
   day: string,
+  drawings: readonly { draw_date: string; kind: 'in' | 'back'; account: 'cash' | 'bank'; amount_paise: number }[] = [],
 ): { cash: number; bank: number } {
   const out = { cash: 0, bank: 0 };
   for (const e of entries) {
@@ -262,6 +264,9 @@ export function moneyChangeOn(
     if (m.move_date !== day) continue;
     const rupees = m.amount_paise / 100;
     if (m.from_account === 'cash') { out.cash -= rupees; out.bank += rupees; } else { out.bank -= rupees; out.cash += rupees; }
+  }
+  for (const d of drawings) {
+    if (d.draw_date === day) out[d.account] += (d.kind === 'in' ? -1 : 1) * d.amount_paise / 100;
   }
   return { cash: Math.round(out.cash * 100) / 100, bank: Math.round(out.bank * 100) / 100 };
 }
