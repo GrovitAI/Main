@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { ApprovalDialogContainer, ApprovalDialogState } from '@/components/approval/ApprovalDialogContainer';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { approvalService } from './approval.service';
@@ -25,7 +25,8 @@ export interface ApprovalProviderProps {
 }
 
 export function ApprovalProvider({ children }: ApprovalProviderProps) {
-  const { session } = useSessionStore();
+  // Task 291: only the session, so other session-store changes do not redraw the app.
+  const session = useSessionStore((s) => s.session);
   const [approvalDialogState, setApprovalDialogState] = useState<ApprovalDialogState | null>(null);
 
   const requestApproval = useCallback(
@@ -61,8 +62,12 @@ export function ApprovalProvider({ children }: ApprovalProviderProps) {
     setApprovalDialogState(null);
   }, []);
 
+  // Task 291: the same value until a function changes. A new object on every navigation redrew
+  // every screen that asks for approvals, the POS ten times on each tab change.
+  const value = useMemo(() => ({ requestApproval, closeApprovalDialog }), [requestApproval, closeApprovalDialog]);
+
   return (
-    <ApprovalContext.Provider value={{ requestApproval, closeApprovalDialog }}>
+    <ApprovalContext.Provider value={value}>
       {children}
       <ApprovalDialogContainer state={approvalDialogState} onClose={closeApprovalDialog} />
     </ApprovalContext.Provider>

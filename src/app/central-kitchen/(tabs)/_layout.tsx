@@ -1,5 +1,5 @@
 import { hoverScope } from '@/lib/pos/web-hover';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Tabs, router, useNavigation } from 'expo-router';
 import { markKitchenTabsShown } from '@/lib/pos/kitchen-nav';
 import { FlatList, Image, Platform, Pressable, View, type ImageSourcePropType, type ViewStyle } from 'react-native';
@@ -15,6 +15,7 @@ import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { Sheet, SheetRow, toneColor } from '@/components/kitchen/ui';
 import { recordActions, stockActions } from '@/components/kitchen/record-actions';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
+import { TabScene } from '@/components/ui/TabScene';
 
 type KitchenTab = { name: string; label: string; icon: LucideIcon };
 
@@ -306,6 +307,7 @@ function Rail({ state, navigation }: BarProps) {
  */
 export default function KitchenTabsLayout() {
   const { isTablet } = useResponsive();
+  const lastTab = useRef<number | null>(null);
   // Task 269: once the tabs have been on screen, leaving a form can step back to them.
   const navigation = useNavigation();
   useEffect(() => {
@@ -317,6 +319,8 @@ export default function KitchenTabsLayout() {
       <Tabs
         // Task 250: a tab out of view stops redrawing (store reloads no longer re-render hidden tabs).
         screenOptions={{ headerShown: false, freezeOnBlur: true, sceneStyle: { backgroundColor: colors.kitchenCanvas } }}
+        // Task 291: the tab being opened fades in (and slides on a phone).
+        screenLayout={({ children, navigation, route }) => <TabScene navigation={navigation} routeKey={route.key} slide={!isTablet} lastIndex={lastTab}>{children}</TabScene>}
         tabBar={(props) =>
           isTablet ? null : <BottomBar {...props} />
         }

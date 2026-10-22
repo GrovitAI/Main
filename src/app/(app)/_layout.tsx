@@ -12,6 +12,7 @@ import type { PosSession } from '@/lib/pos/session-context';
 import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
+import { TabScene } from '@/components/ui/TabScene';
 import { DailyWorkNavigation } from '@/components/layout/DailyWorkNavigation';
 import { DesktopDailyWorkBar } from '@/components/layout/DesktopDailyWorkBar';
 import {
@@ -381,6 +382,7 @@ export default function AppTabLayout() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const isPhone = !isTablet;
+  const lastTab = useRef<number | null>(null);
 
   const roleTabs = session ? getDailyWorkTabs(session.role, isPhone) : [];
   const dailyWorkNavigation = session ? usesDailyWorkNavigation(session.role) : false;
@@ -507,6 +509,8 @@ export default function AppTabLayout() {
               headerShown: false,
               tabBarPosition: dailyWorkSidebar ? 'left' : 'bottom',
             }}
+            // Task 291: the tab being opened fades in (and slides on a phone).
+            screenLayout={({ children, navigation, route }) => <TabScene navigation={navigation} routeKey={route.key} slide={isPhone} lastIndex={lastTab}>{children}</TabScene>}
           >
             {APP_TAB_ROUTE_NAMES.map((routeName) => {
               const tab = getTabConfigForRoute(routeName, roleTabs);

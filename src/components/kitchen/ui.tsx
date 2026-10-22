@@ -17,6 +17,7 @@ import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { figureSize, amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
+import { playEntrance, webMotionNode } from '@/lib/pos/web-motion';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
 
@@ -1200,10 +1201,39 @@ export function LoadingBar({ active }: { active: boolean }) {
 /**
  * A screen opened from a list slides 16 px in from the right as it fades in
  * (task 216). For the web: the phone app's own navigation already slides.
+ * Task 291: coming back to it (Back, or the browser's Back) it glides in from
+ * the left, so leaving a page is a transition too. The browser plays both
+ * (web-motion.ts), so the page is not drawn again on every frame.
  */
-export function ScreenEnter({ children }: { children: React.ReactNode }) {
-  const enter = useEnterOnChange('open', 'x', true);
-  return <Animated.View style={[{ flex: 1 }, enter]}>{children}</Animated.View>;
+export function ScreenEnter({ children, navigation, enterOnMount = true }: {
+  children: React.ReactNode;
+  navigation: { addListener: (event: 'focus' | 'blur', callback: () => void) => () => void };
+  enterOnMount?: boolean;
+}) {
+  const reduce = useReducedMotion();
+  const view = useRef<View>(null);
+  const reduceRef = useRef(reduce);
+  reduceRef.current = reduce;
+  useLayoutEffect(() => {
+    const node = webMotionNode(view.current);
+    if (enterOnMount && node && !reduceRef.current) playEntrance(node, 16, 220);
+  }, [enterOnMount]);
+  useEffect(() => {
+    let covered = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const offBlur = navigation.addListener('blur', () => {
+      // After the next page has finished sliding over it.
+      timer = setTimeout(() => { covered = true; }, 260);
+    });
+    const offFocus = navigation.addListener('focus', () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      const node = webMotionNode(view.current);
+      if (covered && node && !reduceRef.current) playEntrance(node, -16, 220);
+      covered = false;
+    });
+    return () => { offBlur(); offFocus(); if (timer) clearTimeout(timer); };
+  }, [navigation]);
+  return <View ref={view} style={{ flex: 1 }}>{children}</View>;
 }
 
 // ─── Sheet ───────────────────────────────────────────────────────────────────

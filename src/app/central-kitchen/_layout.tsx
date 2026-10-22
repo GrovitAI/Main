@@ -55,9 +55,10 @@ export default function KitchenLayout() {
     <View style={{ flex: 1 }}>
       <OfflineBar />
       {/* Task 216: a screen opened from a list slides in. The phone app's navigation already
-          does this; in a browser each opened screen (not the tabs) gets a short slide-in. */}
+          does this; in a browser each opened screen (not the tabs) gets a short slide-in, and
+          task 291: the screen shown again on Back glides in from the left. */}
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.kitchenCanvas } }}
-        screenLayout={Platform.OS === 'web' ? ({ children, route }) => (route.name === '(tabs)' ? children : <ScreenEnter>{children}</ScreenEnter>) : undefined}>
+        screenLayout={Platform.OS === 'web' ? ({ children, route, navigation }) => <ScreenEnter navigation={navigation} enterOnMount={route.name !== '(tabs)'}>{children}</ScreenEnter> : undefined}>
         <Stack.Screen name="(tabs)" />
       </Stack>
       <Toast text={notice} />
