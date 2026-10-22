@@ -49,11 +49,17 @@ export default function KitchenHome() {
   }, [mayMoney]);
   useFocusEffect(loadMoney);
   const seenEntries = useRef(data.entries);
+  const entriesLoaded = useRef(data.loaded);
   useEffect(() => {
     if (seenEntries.current === data.entries) return undefined;
     seenEntries.current = data.entries;
+    // Task 292: the entries arriving for the first time are not a change; Home's own load has
+    // already asked, and asking again doubled the read on every opening of the kitchen.
+    const first = !entriesLoaded.current;
+    entriesLoaded.current = data.loaded;
+    if (first) return undefined;
     return loadMoney();
-  }, [data.entries, loadMoney]);
+  }, [data.entries, data.loaded, loadMoney]);
 
   // Task 222: two calm cards. What is owed and held comes first, each figure opening its page;
   // the month's totals follow. On a phone they sit below the four actions.

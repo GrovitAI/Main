@@ -110,7 +110,16 @@ export function DesktopDailyWorkBar({ state, navigation, role, hidden }: Props) 
   function openTab(tab: TabConfig): void {
     if (tab.name === 'more') { setMoreOpen(open => !open); return; }
     setMoreOpen(false);
-    if (tab.name === 'central-kitchen') { router.navigate(tab.href as Href); return; }
+    if (tab.name === 'central-kitchen') {
+      // Task 292: the kitchen takes a moment to draw; the pill moves to it first, and goes back to
+      // the open tab once the kitchen is over this bar, so it is right on the way back.
+      setPendingTab(tab.name);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        router.navigate(tab.href as Href);
+        setTimeout(() => setPendingTab(null), 400);
+      }));
+      return;
+    }
     const route = state.routes.find(entry => entry.name === tab.name);
     if (!route) return;
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });

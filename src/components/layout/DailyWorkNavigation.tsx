@@ -22,7 +22,8 @@ export function DailyWorkNavigation({ state, navigation, role, sidebar, hidden }
 
   function openTab(tab: TabConfig): void {
     if (tab.name === 'central-kitchen') {
-      router.navigate(tab.href as Href);
+      // Task 292: after the press has been drawn; the kitchen takes a moment to draw.
+      requestAnimationFrame(() => requestAnimationFrame(() => router.navigate(tab.href as Href)));
       return;
     }
     const route = state.routes.find((entry) => entry.name === tab.name);
