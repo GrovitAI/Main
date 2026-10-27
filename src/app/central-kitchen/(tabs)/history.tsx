@@ -4,7 +4,7 @@ import { ArrowDownWideNarrow, ArrowUpWideNarrow, SlidersHorizontal, RefreshCw } 
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
-import { entryAmountText, entryHeadline, entrySubline, formatMoney } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entryNames, entrySubline, formatMoney } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
 import { Empty, KHeader, KScreen, Notice, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
@@ -46,7 +46,7 @@ export default function HistoryScreen() {
   const entriesById = useMemo(() => new Map(data.entries.map(entry => [entry.id, entry])), [data.entries]);
   const open = openId ? entriesById.get(openId) ?? null : null;
   const rows = useMemo(() => filterKitchenHistory(data.entries, filters, entry => {
-    const names = { party: entry.party_id ? data.partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? data.itemsById.get(entry.item_id)?.name : null };
+    const names = entryNames(entry, data.partiesById, data.itemsById);
     return [entryHeadline(entry, names), entrySubline(entry, data.itemsById), entryAmountText(entry), entry.purchase_category_name, entry.category, entry.note];
   }), [data.entries, data.partiesById, data.itemsById, filters]);
   // Task 216: a heading for each day, pinned at the top while its entries scroll.

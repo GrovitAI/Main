@@ -9,6 +9,10 @@ export const colors = {
   primaryDeep: '#004a8d',
   /** Same as primary; explicit token for gradients */
   primaryMid: '#0066b2',
+  /** The logo image's own square blue: the badge blends only into this exact colour (task 271). */
+  logoBlue: '#0250a5',
+  /** The light-blue swooshes inside the logo, used as thin arcs beside it. */
+  logoSwoosh: '#7cc0ff',
   /** Logo inner highlight / swoosh */
   primaryLight: '#3399ff',
   /** Logo outer vignette — deepest navy for nav rail, dark backgrounds */

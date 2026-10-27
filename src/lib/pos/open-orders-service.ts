@@ -1070,6 +1070,29 @@ export async function updateOrderDiscount(
   }
 }
 
+/** Task 288: the customer's name and number on an open order; both optional. */
+export async function updateOrderCustomer(
+  orderId: string,
+  customer: { name: string | null; phone: string | null },
+): Promise<ServiceResult<null>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const { error } = await supabase
+      .from('open_orders')
+      .update({ customer_name: customer.name, customer_phone: customer.phone })
+      .eq('id', orderId)
+      .eq('tenant_id', tenant_id)
+      .eq('branch_id', branch_id);
+    if (error) {
+      logSupabaseError('updateOrderCustomer', error);
+      return { data: null, error: error.code === '23514' ? 'Check the name and number.' : 'Unable to save the customer.' };
+    }
+    return { data: null, error: null };
+  } catch {
+    return { data: null, error: 'Unable to save the customer.' };
+  }
+}
+
 export type OrderStatusUpdate = {
   status: OrderStatus;
   orderName?: string;

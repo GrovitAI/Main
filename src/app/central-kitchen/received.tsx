@@ -9,16 +9,25 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { AmountPad, Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, useSavedThen } from '@/components/kitchen/ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { semantic } from '@/lib/pos/brand';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { DateField, useDateGuard, ModePicker, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
+import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
+import { AmountPad, AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 
 const EDITABLE: readonly KitchenEntryType[] = ['received'];
+const PAID_IN: readonly { value: KitchenMode; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'bank', label: 'Bank' },
+];
 
-/** Money from a branch. Any amount; it comes off what the branch owes. */
+/**
+ * Money from a branch (task 280, owner's layout): the branch as round circles, then rows (paid
+ * in, when, note), the sends it is for if any, and the amount in a panel at the bottom on a phone.
+ * Any amount; it comes off what the branch owes.
+ */
 export default function ReceivedScreen() {
   const data = useKitchenData();
   const params = useLocalSearchParams<{ party?: string; edit?: string }>();
@@ -33,8 +42,9 @@ export default function ReceivedScreen() {
   const [docs, setDocs] = useState<KitchenOpenDocument[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  // Task 283: the number pad comes up only when the amount row is tapped.
+  const [padOpen, setPadOpen] = useState(false);
   const done = useSavedThen();
-  // Task 229: a phone takes the amount on a number pad; a tablet or desktop types it.
   const phone = !useResponsive().isTablet;
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
@@ -57,7 +67,9 @@ export default function ReceivedScreen() {
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
   const dateOk = useDateGuard(date, lockReason);
-  const canSave = !missing && !!partyId && amount > 0 && isValidDateKey(date) && dateOk;
+  const reason = !partyId ? 'Choose a branch' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined;
+  const canSave = !missing && !reason;
+  const after = balanceNow - amount;
 
   const onTick = (list: KitchenOpenDocument[], next: Set<string>) => {
     setDocs(list);
@@ -68,6 +80,7 @@ export default function ReceivedScreen() {
       setAmountText(sum > 0 ? String(Math.round(sum * 100) / 100) : '');
     }
   };
+  const onAmount = (t: string) => { setAmountText(t); setAmountTyped(t.trim().length > 0); };
 
   // Task 221: Back asks first once an amount or a note is typed; never after the save.
   const typed = useTypedChanges(JSON.stringify({ amountText: amountText.trim(), note: note.trim() }), prefilled);
@@ -89,50 +102,53 @@ export default function ReceivedScreen() {
     if (editing) {
       useKitchenStore.getState().setNotice('Changes saved');
     } else {
-      const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'branch', party?.opening ?? 0);
-      useKitchenStore.getState().setNotice(`Received ${formatMoney(amount)} from ${party?.name ?? 'the branch'} · now ${formatMoney(Math.max(0, after))} to pay`);
+      const left = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'branch', party?.opening ?? 0);
+      useKitchenStore.getState().setNotice(`Received ${formatMoney(amount)} from ${party?.name ?? 'the branch'} · now ${formatMoney(Math.max(0, left))} to pay`);
     }
     done.finish(backToKitchen);
   };
 
+  const saveButton = <PrimaryButton label={editing ? 'Save changes' : amount > 0 ? `Save · ${formatMoney(amount)}` : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={reason} />;
+  const afterLine = party && amount > 0 && !editing ? (
+    <Text className="mt-1.5 text-xs font-semibold text-text-secondary">{after < 0 ? `${formatMoney(-after)} paid ahead after this` : after === 0 ? 'Settled up after this' : `${formatMoney(after)} still owed after this`}</Text>
+  ) : null;
+
+  const rows = party ? (
+    <>
+      <SettingsGroup>
+        <WhoRow name={party.name} sub={balanceNow > 0 ? `Owes ${formatMoney(balanceNow)}` : balanceNow < 0 ? `${formatMoney(-balanceNow)} in credit` : 'Settled up'} onChange={editing ? undefined : () => { setPartyId(null); setTicked(new Set()); }} />
+        {phone ? <AmountRow amount={amount} open={padOpen} onPress={() => setPadOpen((o) => !o)} /> : null}
+        <SelectRow label="Paid in" value={mode} options={PAID_IN} onChange={setMode} />
+        <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
+        <NoteRow value={note} onChange={setNote} />
+      </SettingsGroup>
+      {phone ? afterLine : null}
+      <Field label="Against which sends" optional>
+        <OpenDocsPicker partyId={partyId} kind="branch" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.id} />
+      </Field>
+    </>
+  ) : (
+    <Field label="From">
+      <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={(id) => { setPartyId(id); setTicked(new Set()); }} />
+    </Field>
+  );
+
   return (
     <KeyboardAvoider>
-      <KScreen footer={<PrimaryButton label={editing ? 'Save changes' : phone && amount > 0 ? `Save ${formatMoney(amount)}` : 'Save'} onPress={() => void save()} disabled={!canSave} loading={saving} done={done.saved} reason={!partyId ? 'Choose a branch' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined} />}>
-        <KHeader
-          title={editing ? 'Edit receipt' : 'Received from a branch'}
-          subtitle={editing ? 'The earlier entry is voided; this one takes its place' : 'Any amount; it comes off what they owe'}
-          onBack={() => backToKitchen()}
-        />
+      <KScreen footer={phone && padOpen && !!party ? <AmountPad value={amountText} onChange={onAmount} onDone={() => setPadOpen(false)} save={canSave ? saveButton : undefined} /> : saveButton}>
+        <KHeader title={editing ? 'Edit receipt' : 'Received'} onBack={() => backToKitchen()} />
         {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a receipt." /> : null}
-        <Field label="Branch">
-          <PartyPicker kind="branch" parties={data.parties} balances={data.balances} value={partyId} onChange={(id) => { setPartyId(id); setTicked(new Set()); }} />
-        </Field>
-        {phone ? (
-          <View style={{ marginTop: 14, gap: 4 }}>
-            {party ? <View className="items-center"><View className="rounded-full px-3 py-1" style={{ backgroundColor: semantic.successSoft }}><Text style={{ color: semantic.success, fontSize: 13, fontWeight: '700' }}>{party.name} owes {formatMoney(balanceNow)}{amount > 0 && !editing ? ` · then ${balanceNow - amount < 0 ? `${formatMoney(amount - balanceNow)} paid ahead` : formatMoney(balanceNow - amount)}` : ''}</Text></View></View> : null}
-            <AmountPad value={amountText} onChange={(t) => { setAmountText(t); setAmountTyped(t.trim().length > 0); }} />
+        {phone ? rows : (
+          <View className="flex-row" style={{ gap: 20 }}>
+            <View className="min-w-0 flex-1">{rows}</View>
+            <View className="min-w-0 flex-1">
+              <Field label="Amount">
+                <TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big autoFocus={!!params.party} />
+                {afterLine}
+              </Field>
+            </View>
           </View>
-        ) : null}
-        {phone ? null : <Field label="Amount">
-          <TextField value={amountText} onChange={(t) => { setAmountText(t); setAmountTyped(t.trim().length > 0); }} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big autoFocus={!!params.party} />
-          {party ? (
-            <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', marginTop: 8 }}>
-              {party.name}: {formatMoney(balanceNow)} yet to pay{amount > 0 && !editing ? ` → after this ${formatMoney(balanceNow - amount)}` : ''}
-            </Text>
-          ) : null}
-        </Field>}
-        <Field label="Mode">
-          <ModePicker value={mode} onChange={setMode} />
-        </Field>
-        <DateField value={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
-        {partyId ? (
-          <Field label="Against which sends" optional hint="Tick what this money is for and the amount fills in.">
-            <OpenDocsPicker partyId={partyId} kind="branch" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.id} />
-          </Field>
-        ) : null}
-        <Field label="Note" optional>
-          <TextField value={note} onChange={setNote} label="Note (optional)" />
-        </Field>
+        )}
         {error ? <Notice text={error} /> : null}
         <View style={{ height: 8 }} />
       </KScreen>

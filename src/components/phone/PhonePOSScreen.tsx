@@ -6,6 +6,7 @@ import { Search, ShoppingCart, ChevronRight, Trash2, Minus, Plus } from 'lucide-
 import { colors } from '@/lib/pos/brand';
 import { PhoneScreenHeader } from '@/components/phone/PhoneScreenHeader';
 import type { Category, Product } from '@/lib/pos/products-service';
+import { CustomerRow } from '@/components/pos/CustomerRow';
 
 type CartItem = {
   id: string;
@@ -266,6 +267,11 @@ export function PhonePOSScreen(props: PhonePOSScreenProps) {
 
         {/* Totals & Actions Footer */}
         <View className="bg-white border-t border-[#c5d9eb] px-4 py-4 shadow-lg" style={{ paddingBottom: insets.bottom + 90 }}>
+          {props.cartItems.length > 0 ? (
+            <View className="mb-3">
+              <CustomerRow canEdit={!props.isReadOnlyView && (props.orderStatus === 'draft' || props.orderStatus === 'open' || props.isEditingUnpaid)} />
+            </View>
+          ) : null}
           <View className="flex-row justify-between mb-1">
             <Text className="text-sm text-[#5b6b7c]">Subtotal</Text>
             <Text className="text-sm font-medium text-[#0f2744]">₹{props.subtotal.toFixed(2)}</Text>

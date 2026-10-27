@@ -17,6 +17,7 @@ import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { figureSize, amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
+import { playEntrance, webMotionNode } from '@/lib/pos/web-motion';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
 
@@ -857,6 +858,40 @@ export function SelectRow<T extends string>({ label, hint, value, valueLabel, op
   );
 }
 
+/**
+ * Task 279: a row naming a question and its answer, which opens its own picker when tapped (a
+ * route, a date, a quantity). Not answered yet, it shows the placeholder in grey; a required one
+ * carries a red star.
+ */
+export function ValueRow({ label, value, placeholder = 'Choose', required = false, onPress, lead, sub, action = 'chevron', disabled = false }: {
+  label: string; value?: string | null; placeholder?: string; required?: boolean; onPress: () => void;
+  /** Something before the label, such as an initial circle. */
+  lead?: React.ReactNode;
+  /** A small second line under the label. */
+  sub?: string;
+  /** What sits after the value: a chevron for a choice, an arrow for a page it opens, a plus for something optional not added yet. */
+  action?: 'chevron' | 'open' | 'plus' | 'none';
+  disabled?: boolean;
+}) {
+  const answered = value !== undefined && value !== null && value !== '';
+  return (
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={`${label}: ${answered ? value : placeholder}`} accessibilityState={{ disabled }}
+      className={rowClass + (disabled ? ' opacity-50' : '')}>
+      {lead ?? null}
+      <View className="min-w-0 flex-1 gap-0.5">
+        <Text className="text-[15px] font-bold leading-5 text-text-primary" numberOfLines={1}>
+          {label}{required && !answered ? <Text style={{ color: semantic.danger }}> *</Text> : null}
+        </Text>
+        {sub ? <Text className="text-xs font-semibold leading-[17px] text-text-secondary" numberOfLines={1}>{sub}</Text> : null}
+      </View>
+      <View className="max-w-[58%] shrink-0 flex-row items-center gap-1">
+        <Text className={`text-sm font-bold ${answered ? 'text-primary' : 'text-text-secondary'}`} numberOfLines={1}>{answered ? value : placeholder}</Text>
+        {action === 'plus' && !answered ? <Plus size={16} color={colors.textSecondary} /> : action === 'none' ? null : action === 'open' ? <ChevronRight size={16} color={colors.textSecondary} /> : <ChevronDown size={16} color={answered ? colors.primary : colors.textSecondary} />}
+      </View>
+    </Pressable>
+  );
+}
+
 export type MenuItem = { label: string; icon: LucideIcon; onPress: () => void; tone?: Tone };
 
 /**
@@ -1166,10 +1201,39 @@ export function LoadingBar({ active }: { active: boolean }) {
 /**
  * A screen opened from a list slides 16 px in from the right as it fades in
  * (task 216). For the web: the phone app's own navigation already slides.
+ * Task 291: coming back to it (Back, or the browser's Back) it glides in from
+ * the left, so leaving a page is a transition too. The browser plays both
+ * (web-motion.ts), so the page is not drawn again on every frame.
  */
-export function ScreenEnter({ children }: { children: React.ReactNode }) {
-  const enter = useEnterOnChange('open', 'x', true);
-  return <Animated.View style={[{ flex: 1 }, enter]}>{children}</Animated.View>;
+export function ScreenEnter({ children, navigation, enterOnMount = true }: {
+  children: React.ReactNode;
+  navigation: { addListener: (event: 'focus' | 'blur', callback: () => void) => () => void };
+  enterOnMount?: boolean;
+}) {
+  const reduce = useReducedMotion();
+  const view = useRef<View>(null);
+  const reduceRef = useRef(reduce);
+  reduceRef.current = reduce;
+  useLayoutEffect(() => {
+    const node = webMotionNode(view.current);
+    if (enterOnMount && node && !reduceRef.current) playEntrance(node, 16, 220);
+  }, [enterOnMount]);
+  useEffect(() => {
+    let covered = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const offBlur = navigation.addListener('blur', () => {
+      // After the next page has finished sliding over it.
+      timer = setTimeout(() => { covered = true; }, 260);
+    });
+    const offFocus = navigation.addListener('focus', () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      const node = webMotionNode(view.current);
+      if (covered && node && !reduceRef.current) playEntrance(node, -16, 220);
+      covered = false;
+    });
+    return () => { offBlur(); offFocus(); if (timer) clearTimeout(timer); };
+  }, [navigation]);
+  return <View ref={view} style={{ flex: 1 }}>{children}</View>;
 }
 
 // ─── Sheet ───────────────────────────────────────────────────────────────────
@@ -1236,8 +1300,23 @@ function toneOf(name: string): (typeof avatarTones)[number] {
  * A name's initial circle (task 229). The colour comes from the name itself, so a branch looks the
  * same in every list. A selected circle turns Le Laban blue inside a blue ring.
  */
-export function Avatar({ name, size = 44, selected = false }: { name: string; size?: number; selected?: boolean }) {
-  const tone = toneOf(name);
+export function Avatar({ name, size = 44, selected = false, toneKey, toneIndex, ring = true }: {
+  name: string; size?: number; selected?: boolean;
+  /** Task 279: colour from this name instead, so a particular shares its category's colour. */
+  toneKey?: string;
+  /** Task 279: a set colour (its place in a list), so neighbouring categories never share one. */
+  toneIndex?: number;
+  /** Room for the selection ring around the circle; off inside rows. */
+  ring?: boolean;
+}) {
+  const tone = toneIndex !== undefined ? avatarTones[toneIndex % avatarTones.length] ?? avatarTones[0] : toneOf(toneKey ?? name);
+  if (!ring) {
+    return (
+      <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: tone.bg }}>
+        <Text style={{ fontSize: Math.round(size * 0.32), fontWeight: '800', color: tone.fg }}>{initialsOf(name)}</Text>
+      </View>
+    );
+  }
   return (
     <View style={{ width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, borderWidth: 2.5, borderColor: selected ? colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
       <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.primary : tone.bg }}>
@@ -1281,6 +1360,47 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+/**
+ * Task 279: a phone form's amount, pinned at the bottom within thumb reach: the amount large on the
+ * right, a flat number pad, and the save action under it. Nothing is filled in for the person.
+ */
+export function AmountPanel({ value, onChange, label = 'Amount', top, children }: {
+  value: string; onChange: (next: string) => void; label?: string;
+  /** Task 280: what sits above the keys instead of the label and amount (a line's qty and rate). */
+  top?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const shown = padDisplay(value);
+  const press = (key: PadKey): void => {
+    buzz('select');
+    const next = padPress(value, key);
+    if (next !== value) onChange(next);
+  };
+  return (
+    <View>
+      {top ?? (
+        <View className="flex-row items-center justify-between px-1 pb-2" accessibilityLiveRegion="polite" accessibilityLabel={`${label} ${shown}`}>
+          <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>
+          <Text style={{ fontSize: figureSize(shown, 34, 10, 24), fontWeight: '800', letterSpacing: -0.8, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1}>{shown}</Text>
+        </View>
+      )}
+      <View style={{ gap: 6 }}>
+        {[0, 1, 2, 3].map((row) => (
+          <View key={row} className="flex-row" style={{ gap: 6 }}>
+            {PAD_KEYS.slice(row * 3, row * 3 + 3).map((key) => (
+              <Pressable key={key} onPress={() => press(key)} accessibilityRole="button" accessibilityLabel={key === 'del' ? 'Delete a digit' : key === '.' ? 'Decimal point' : key}
+                className="h-[50px] flex-1 items-center justify-center rounded-[14px] bg-kitchen-canvas hover:bg-surface-tint active:bg-surface-tint">
+                {key === 'del' ? <Delete size={22} color={colors.textSecondary} /> : <Text style={{ fontSize: key === '.' ? 26 : 22, fontWeight: '700', color: colors.textPrimary }}>{key}</Text>}
+              </Pressable>
+            ))}
+          </View>
+        ))}
+      </View>
+      <View style={{ marginTop: 10 }}>{children}</View>
     </View>
   );
 }

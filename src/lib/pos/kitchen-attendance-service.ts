@@ -30,6 +30,16 @@ function failure(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** The people on the attendance list who are still working here (task 279: who took an advance). */
+export async function fetchKitchenRoster(): Promise<ServiceResult<KitchenStaffMember[]>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const { data, error } = await supabase.from('kitchen_staff_roster').select(STAFF_COLUMNS).eq('tenant_id', tenant_id).eq('branch_id', branch_id).eq('is_active', true).order('name').limit(1000);
+    if (error || !Array.isArray(data)) return { data: null, error: failure(error, 'Unable to load the staff list.') };
+    return { data: data.filter(record).map(staffRow), error: null };
+  } catch (error) { return { data: null, error: failure(error, 'Unable to load the staff list.') }; }
+}
+
 export async function fetchKitchenAttendance(date: string): Promise<ServiceResult<KitchenAttendanceDay>> {
   try {
     if (!validKitchenDate(date) || date > kitchenToday()) return { data: null, error: 'Choose today or an earlier attendance date.' };

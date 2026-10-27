@@ -644,6 +644,9 @@ export default function InventoryScreen() {
   }), []);
 
   const loadedEntities = useRef<Set<string>>(new Set());
+  // Task 292: what is being fetched now, so the first visit's three triggers (mount, focus and
+  // the tab) do not each fetch everything again.
+  const loadingEntities = useRef<Set<string>>(new Set());
   const lastFetchedBranchId = useRef<string | null>(null);
 
   const invalidateEntities = useCallback((entities: string[]) => {
@@ -653,11 +656,12 @@ export default function InventoryScreen() {
   const loadAllData = useCallback(async (silent = false, targetBranchId = viewedBranchId) => {
     if (lastFetchedBranchId.current !== targetBranchId) {
       loadedEntities.current.clear();
+      loadingEntities.current.clear();
       lastFetchedBranchId.current = targetBranchId;
     }
 
     const deps = TAB_DEPENDENCIES[activeTab] || [];
-    const needed = deps.filter((d) => !loadedEntities.current.has(d));
+    const needed = deps.filter((d) => !loadedEntities.current.has(d) && !loadingEntities.current.has(d));
 
     if (needed.length === 0) return;
 
@@ -705,19 +709,28 @@ export default function InventoryScreen() {
         products: setProducts,
       };
 
-      await Promise.all(
+      needed.forEach((entity) => loadingEntities.current.add(entity));
+      const results = await Promise.all(
         needed.map(async (entity) => {
           const fetcher = fetchers[entity];
-          if (!fetcher) return;
-          const res = await fetcher();
-          if (res.data) {
-            // Each entity's setter matches its own fetcher; the map is keyed by
-            // entity name so the payload type cannot be expressed generically.
-            (setters[entity] as (data: unknown) => void)(res.data);
-            loadedEntities.current.add(entity);
+          if (!fetcher) return null;
+          try {
+            return { entity, res: await fetcher() };
+          } finally {
+            loadingEntities.current.delete(entity);
           }
         })
       );
+      // Task 292: all at once, so the screen is drawn once rather than once per list. A list
+      // from a branch no longer being viewed is dropped.
+      if (lastFetchedBranchId.current !== targetBranchId) return;
+      for (const result of results) {
+        if (!result?.res.data) continue;
+        // Each entity's setter matches its own fetcher; the map is keyed by
+        // entity name so the payload type cannot be expressed generically.
+        (setters[result.entity] as (data: unknown) => void)(result.res.data);
+        loadedEntities.current.add(result.entity);
+      }
     } catch (err) {
       setErrorMsg(getErrorMessage(err) || 'Unable to fetch inventory records.');
     } finally {

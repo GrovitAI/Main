@@ -15,6 +15,18 @@ export type MoneySummary = {
   has_opening: boolean; as_of: string | null; opening_cash_paise: number; opening_bank_paise: number; opening_updated_by: string | null;
   cash_in_paise: number; cash_out_paise: number; bank_in_paise: number; bank_out_paise: number;
   moved_to_bank_paise: number; moved_to_cash_paise: number; cash_paise: number; bank_paise: number; moves: MoneyMove[];
+  /** Task 282: what is in the owners' drawings in all; null for anyone but an owner (or before the update). */
+  drawings_paise: number | null;
+  /** Task 289: what drawings took from each account since the opening (moves in less money put back). */
+  to_drawings_cash_paise: number; to_drawings_bank_paise: number;
+  /** Task 289: the latest moves into drawings and money put back, listed with the transfers. */
+  drawing_moves: DrawingMove[];
+};
+/** Task 289: money moved into the owners' drawings ('in') or put back ('back'). The owner, the note and
+ *  who saved it come only to owners. */
+export type DrawingMove = {
+  id: string; draw_date: string; kind: 'in' | 'back'; account: MoneyAccount; amount_paise: number;
+  note: string | null; owner_name: string | null; created_by: string | null; created_at: string;
 };
 
 /** ₹100 crore cap per figure, matching the database checks (10^11 paise). */
@@ -34,13 +46,23 @@ function move(v: unknown): MoneyMove {
   return { id: text(r.id), move_date: date(r.move_date), from_account: account(r.from_account), to_account: account(r.to_account),
     amount_paise: amount, note: nullableText(r.note), created_by: text(r.created_by), created_at: text(r.created_at) };
 }
+function drawingMove(v: unknown): DrawingMove {
+  const r = object(v); const amount = paise(r.amount_paise);
+  if (amount <= 0 || (r.kind !== 'in' && r.kind !== 'back')) throw Error('Invalid drawings move');
+  return { id: text(r.id), draw_date: date(r.draw_date), kind: r.kind, account: account(r.account), amount_paise: amount,
+    note: nullableText(r.note), owner_name: nullableText(r.owner_name), created_by: nullableText(r.created_by), created_at: text(r.created_at) };
+}
 export function parseMoneySummary(v: unknown): MoneySummary {
   const r = object(v); const has = r.has_opening === true;
   const moves = Array.isArray(r.moves) ? r.moves.map(move) : [];
   return { has_opening: has, as_of: has ? date(r.as_of) : null, opening_cash_paise: paise(r.opening_cash_paise), opening_bank_paise: paise(r.opening_bank_paise),
     opening_updated_by: nullableText(r.opening_updated_by), cash_in_paise: paise(r.cash_in_paise), cash_out_paise: paise(r.cash_out_paise),
     bank_in_paise: paise(r.bank_in_paise), bank_out_paise: paise(r.bank_out_paise), moved_to_bank_paise: paise(r.moved_to_bank_paise),
-    moved_to_cash_paise: paise(r.moved_to_cash_paise), cash_paise: paise(r.cash_paise), bank_paise: paise(r.bank_paise), moves };
+    moved_to_cash_paise: paise(r.moved_to_cash_paise), cash_paise: paise(r.cash_paise), bank_paise: paise(r.bank_paise), moves,
+    drawings_paise: r.drawings_paise === null || r.drawings_paise === undefined ? null : paise(r.drawings_paise),
+    to_drawings_cash_paise: r.to_drawings_cash_paise === undefined ? 0 : paise(r.to_drawings_cash_paise),
+    to_drawings_bank_paise: r.to_drawings_bank_paise === undefined ? 0 : paise(r.to_drawings_bank_paise),
+    drawing_moves: Array.isArray(r.drawing_moves) ? r.drawing_moves.map(drawingMove) : [] };
 }
 function scope(): { p_tenant_id: string; p_branch_id: string } {
   return { p_tenant_id: getTenantContext().tenant_id, p_branch_id: kitchenBranch().id };

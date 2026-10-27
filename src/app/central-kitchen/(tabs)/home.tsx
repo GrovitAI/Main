@@ -49,11 +49,17 @@ export default function KitchenHome() {
   }, [mayMoney]);
   useFocusEffect(loadMoney);
   const seenEntries = useRef(data.entries);
+  const entriesLoaded = useRef(data.loaded);
   useEffect(() => {
     if (seenEntries.current === data.entries) return undefined;
     seenEntries.current = data.entries;
+    // Task 292: the entries arriving for the first time are not a change; Home's own load has
+    // already asked, and asking again doubled the read on every opening of the kitchen.
+    const first = !entriesLoaded.current;
+    entriesLoaded.current = data.loaded;
+    if (first) return undefined;
     return loadMoney();
-  }, [data.entries, loadMoney]);
+  }, [data.entries, data.loaded, loadMoney]);
 
   // Task 222: two calm cards. What is owed and held comes first, each figure opening its page;
   // the month's totals follow. On a phone they sit below the four actions.
@@ -113,15 +119,20 @@ export default function KitchenHome() {
   const phone = !isTablet;
   const roundActions = tiles.length === 0 ? null : (
     <View className="flex-row" style={{ marginTop: 4 }}>
+      {/* Task 278: all four look the same; solid blue means selected elsewhere, so Send is no longer filled. */}
       {tiles.map((t) => {
-        const lead = t.key === 'send';
         return (
           <Pressable key={t.key} onPress={() => router.push(t.href as never)} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.caption}`} {...hoverFace}
-            className="flex-1 items-center gap-1.5 py-1 active:opacity-70">
-            <View {...hoverFaceMark} className={`h-14 w-14 items-center justify-center rounded-full border ${lead ? 'border-primary bg-primary' : 'border-border bg-surface-elevated'}`}>
-              <t.icon size={22} color={lead ? colors.textOnPrimary : colors.primary} />
-            </View>
-            <Text className="text-[13px] font-bold text-text-primary">{t.label}</Text>
+            className="flex-1 items-center gap-1.5 py-1">
+            {({ pressed }) => (
+              <>
+                {/* A light fill while pressed; a pointer gets the shared hover tint (hoverFace). */}
+                <View {...hoverFaceMark} className="h-14 w-14 items-center justify-center rounded-full border border-border" style={{ backgroundColor: pressed ? colors.surfaceTint : colors.surfaceElevated }}>
+                  <t.icon size={22} color={colors.primary} />
+                </View>
+                <Text className="text-[13px] font-bold text-text-primary">{t.label}</Text>
+              </>
+            )}
           </Pressable>
         );
       })}

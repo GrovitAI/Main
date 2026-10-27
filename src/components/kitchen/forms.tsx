@@ -445,7 +445,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
   if (!partyId) return null;
   const noun = kind === 'vendor' ? 'buys' : 'sends';
   if (!loading && docs.length === 0) {
-    return <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600' }}>No open {noun} for this {kind}. The amount simply comes off the balance.</Text>;
+    return <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600' }}>No open {noun}.</Text>;
   }
   return (
     <View className="rounded-2xl border border-border-soft bg-surface-elevated" style={{ paddingHorizontal: 14, overflow: 'hidden' }}>

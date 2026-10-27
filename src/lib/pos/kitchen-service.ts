@@ -27,6 +27,7 @@ import type {
   KitchenPartyBalance,
   KitchenPartyInput,
   KitchenPartyKind,
+  KitchenParticular,
   KitchenUnit,
   PostEntryInput,
   ServiceResult,
@@ -90,7 +91,7 @@ const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, cost_price_pa
 const ITEM_COLUMNS_BEFORE_COST = 'id, name, item_kind, unit, sell_price_paise, stock, is_active, updated_at';
 const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise, purchase_category_id';
 const ENTRY_COLUMNS =
-  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_by_id, created_at, voided_at, voided_by, void_reason, replaces_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
+  'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_by_id, created_at, voided_at, voided_by, void_reason, replaces_id, particular_id, category_id, subcategory, qty_unit, route_party_id, route_dir, roster_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
 const UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
 const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count', 'issued'];
@@ -160,6 +161,13 @@ function mapEntry(row: Record<string, unknown>): KitchenEntry {
     voided_by: toStringOrNull(row.voided_by),
     void_reason: toStringOrNull(row.void_reason),
     replaces_id: toStringOrNull(row.replaces_id),
+    particular_id: toStringOrNull(row.particular_id),
+    category_id: toStringOrNull(row.category_id),
+    subcategory: toStringOrNull(row.subcategory),
+    qty_unit: UNITS.find((u) => u === row.qty_unit) ?? null,
+    route_party_id: toStringOrNull(row.route_party_id),
+    route_dir: row.route_dir === 'from' || row.route_dir === 'to' ? row.route_dir : null,
+    roster_id: toStringOrNull(row.roster_id),
     lines,
   };
 }
@@ -463,6 +471,16 @@ function entryPayload(input: PostEntryInput): Record<string, unknown> {
       payload.amount_paise = toPaise(input.amount);
       payload.mode = input.mode;
       payload.category = input.category;
+      if (input.spend) {
+        // Task 279: the database files it under the category; the particular is the entry's note.
+        const d = input.spend;
+        if (d.particular_id) payload.particular_id = d.particular_id;
+        payload.particular_name = d.particular_name;
+        payload.category_id = d.category_id;
+        if (d.qty !== null && d.qty_unit) { payload.qty = d.qty; payload.qty_unit = d.qty_unit; }
+        if (d.route_party_id && d.route_dir) { payload.route_party_id = d.route_party_id; payload.route_dir = d.route_dir; }
+        if (d.roster_id) payload.roster_id = d.roster_id;
+      }
       break;
     case 'made':
     case 'count':
@@ -511,6 +529,62 @@ export async function voidKitchenEntry(id: string, reason?: string | null): Prom
     return { data: mapEntry({ ...data, lines: [] }), error: null };
   } catch (err) {
     return { data: null, error: explain(err, 'Unable to void the entry.') };
+  }
+}
+
+// ─── Particulars (task 279) ──────────────────────────────────────────────────
+
+const PARTICULAR_COLUMNS = 'id, name, category_id, is_active';
+
+function mapParticular(row: Record<string, unknown>): KitchenParticular {
+  return { id: String(row.id), name: String(row.name ?? ''), category_id: String(row.category_id ?? ''), is_active: row.is_active !== false };
+}
+
+/** What Spent entries have been for, each with the category it brings. */
+export async function fetchKitchenParticulars(): Promise<ServiceResult<KitchenParticular[]>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const { data, error } = await supabase.from('kitchen_particulars').select(PARTICULAR_COLUMNS)
+      .eq('tenant_id', tenant_id).eq('branch_id', branch_id).eq('is_active', true).order('name').limit(2000);
+    // Before migration 20261020100000 there is no list; Spent still works, without suggestions.
+    if (error?.code === '42P01' || error?.code === 'PGRST205') return { data: [], error: null };
+    if (error) return { data: null, error: explain(error, 'Unable to load the particulars.') };
+    return { data: (data ?? []).filter(isRecord).map(mapParticular), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to load the particulars.') };
+  }
+}
+
+/** Renames a particular, files it under another category, or archives it (is_active false). */
+export async function updateKitchenParticular(id: string, fields: { name?: string; category_id?: string; is_active?: boolean }): Promise<ServiceResult<KitchenParticular>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const clean = fields.name === undefined ? undefined : fields.name.trim();
+    if (clean !== undefined && (clean.length < 1 || clean.length > 80)) return { data: null, error: 'Use a name between 1 and 80 characters.' };
+    const { data, error } = await supabase.from('kitchen_particulars')
+      .update({ ...fields, ...(clean !== undefined ? { name: clean } : {}) })
+      .eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
+      .select(PARTICULAR_COLUMNS).single();
+    if (error || !isRecord(data)) return { data: null, error: error?.code === '23505' ? 'That particular is already in the list.' : explain(error, 'Unable to save the particular.') };
+    return { data: mapParticular(data), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to save the particular.') };
+  }
+}
+
+/** Adds a particular under a category, from the Categories page. */
+export async function addKitchenParticular(name: string, categoryId: string): Promise<ServiceResult<KitchenParticular>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const clean = name.trim();
+    if (clean.length < 1 || clean.length > 80) return { data: null, error: 'Use a name between 1 and 80 characters.' };
+    const { data, error } = await supabase.from('kitchen_particulars')
+      .insert({ tenant_id, branch_id, name: clean, category_id: categoryId })
+      .select(PARTICULAR_COLUMNS).single();
+    if (error || !isRecord(data)) return { data: null, error: error?.code === '23505' ? 'That particular is already in the list.' : explain(error, 'Unable to add the particular.') };
+    return { data: mapParticular(data), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to add the particular.') };
   }
 }
 

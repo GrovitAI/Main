@@ -2,6 +2,7 @@ import { colors } from '@/lib/pos/brand';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import { historyDateLabel, historyRecordedDay, historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import type { KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
+import { PRINT_LOGO_DATA_URI } from '@/lib/pos/kitchen-print-logo';
 
 /** The kitchen's own gap-free sequence, shown as five digits: 01000, 01001 ... */
 export const invoiceNumber = (invoiceNo: number): string => String(invoiceNo).padStart(5, '0');
@@ -23,7 +24,8 @@ export function kitchenInvoiceHtml(invoice: KitchenInvoice, checkedAt: Date = ne
     section{margin:18px 0}table{width:100%;border-collapse:collapse}thead{display:table-header-group}th{text-align:left;font-size:11px;color:${colors.textSecondary};background:${colors.surfaceTint}}
     td,th{padding:8px;border-bottom:1px solid ${colors.borderSoft};overflow-wrap:anywhere}tr{break-inside:avoid}.number{text-align:right;font-variant-numeric:tabular-nums}.totals{margin-left:auto;width:260px}.totals p{display:flex;justify-content:space-between;gap:16px}
     footer{border-top:1px solid ${colors.borderSoft};padding-top:12px;color:${colors.textSecondary};font-size:11px}@media print{body{padding:0}}
-    </style></head><body><header><div><h2>${e(invoice.kitchen_name)}</h2><p>Branch supply invoice</p></div><div><h1>${e(invoiceNumber(invoice.invoice_no))}</h1><p>${e(invoiceStatus(invoice.status))}</p><p>Issued ${e(invoiceIssuedDate(invoice.created_at))}</p></div></header>
+    .brand{display:flex;align-items:center;gap:14px}.logo{width:112px;height:auto;display:block}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    </style></head><body><header><div class="brand"><img class="logo" src="${PRINT_LOGO_DATA_URI}" alt="Le Laban"><div><h2>${e(invoice.kitchen_name)}</h2><p>Branch supply invoice</p></div></div><div><h1>${e(invoiceNumber(invoice.invoice_no))}</h1><p>${e(invoiceStatus(invoice.status))}</p><p>Issued ${e(invoiceIssuedDate(invoice.created_at))}</p></div></header>
     <section><strong>Bill to ${e(invoice.party_name)}</strong><p>Delivery period: ${e(invoiceDate(invoice.start_date))} to ${e(invoiceDate(invoice.end_date))} (inclusive)</p></section>
     ${invoice.cancelled_at ? `<section><strong>Cancelled</strong><p>${e(invoice.cancel_reason ?? '')}</p></section>` : ''}
     <table><thead><tr><th>Date</th><th>Finished goods</th><th class="number">Quantity</th><th class="number">Rate</th><th class="number">Amount</th></tr></thead><tbody>${body}</tbody></table>

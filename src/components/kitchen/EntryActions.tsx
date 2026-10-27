@@ -6,7 +6,7 @@ import { Pencil } from 'lucide-react-native';
 import { voidKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { entryAmountText, entryHeadline, entrySubline, formatDayLabel, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryHeadline, entryNames, entrySubline, formatDayLabel, formatMoney, formatQty, modeLabel, typeLabel } from '@/lib/pos/kitchen-utils';
 import { historyAuditText, historyDateLabel, historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { GhostButton, Notice, Sheet, TextField } from './ui';
@@ -46,7 +46,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
   const mayChange = access.isOwner || (access.canFix(entry) && !locked);
   const ownerLocked = locked && access.isOwner;
   const blockedText = locked ? `${formatDayLabel(entry.entry_date)} is locked. Ask the owner to correct this entry.` : 'Your login cannot change this entry. Ask the owner or a kitchen manager.';
-  const names = { party: entry.party_id ? partiesById.get(entry.party_id)?.name : null, item: entry.item_id ? itemsById.get(entry.item_id)?.name : null };
+  const names = entryNames(entry, partiesById, itemsById);
   const href = editHref(entry);
 
   const edit = () => {
@@ -112,7 +112,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
         {historyAuditText(entry) ? <Notice tone="neutral" text={historyAuditText(entry) ?? ''} /> : null}
         {previousEntry ? <View className="gap-1 border-t border-border-soft pt-3">
           <Text className="text-sm font-bold text-text-primary">Before this edit</Text>
-          <Text className="text-sm text-text-primary">{entryHeadline(previousEntry, { party: previousEntry.party_id ? partiesById.get(previousEntry.party_id)?.name : null, item: previousEntry.item_id ? itemsById.get(previousEntry.item_id)?.name : null })} · {entryAmountText(previousEntry)}</Text>
+          <Text className="text-sm text-text-primary">{entryHeadline(previousEntry, entryNames(previousEntry, partiesById, itemsById))} · {entryAmountText(previousEntry)}</Text>
           <Text className="text-xs leading-4 text-text-secondary">{entrySubline(previousEntry, itemsById)}</Text>
           <Text className="text-xs leading-4 text-text-secondary">Transaction {historyDateLabel(previousEntry.entry_date)} · Entered by {previousEntry.created_by} · {historyTimeLabel(previousEntry.created_at)}</Text>
         </View> : previousEntry === null && entry.replaces_id ? <Text className="text-xs leading-4 text-text-secondary">The earlier version is outside the loaded history window.</Text> : null}

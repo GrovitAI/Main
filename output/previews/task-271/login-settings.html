@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login and Settings</title>
+<link rel="stylesheet" href="../task-228/phones.css">
+<style>
+.sheet { grid-template-columns: 390px 820px; gap: 56px 40px; }
+.group { grid-column: 1 / -1; margin: 10px 0 -30px 6px; max-width: 1250px; }
+.group h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--navy); letter-spacing: -0.3px; }
+.group p { margin: 6px 0 0; font-size: 15px; font-weight: 600; color: var(--text2); line-height: 1.45; max-width: 1100px; }
+.desk { width: 820px; height: 512px; border-radius: 14px; overflow: hidden; outline: 8px solid #0f1b2a; position: relative; background: var(--canvas); }
+.desk .inner { width: 1280px; height: 800px; transform: scale(0.640625); transform-origin: 0 0; position: relative; }
+.f12 { font-size: 12px; font-weight: 600; } .f13 { font-size: 13px; font-weight: 600; } .f14 { font-size: 14px; font-weight: 600; } .f15 { font-size: 15px; font-weight: 600; }
+.muted { color: var(--text2); }
+.lbl { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+.input { height: 52px; border-radius: 14px; border: 1px solid var(--border); background: var(--card); display: flex; align-items: center; padding: 0 14px; gap: 10px; font-size: 16px; color: var(--text); }
+.input.ph { color: #8a9bb0; }
+.input.focus { border: 2px solid var(--primary); }
+.btn { height: 52px; border-radius: 14px; background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.link { color: var(--primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.logo { width: 76px; height: 76px; border-radius: 22px; background: var(--primary); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 26px; letter-spacing: -1px; font-style: italic; }
+.logo.sm { width: 44px; height: 44px; border-radius: 13px; font-size: 16px; }
+.logo.white { background: #fff; color: var(--primary); }
+.card { background: var(--card); border: 1px solid var(--soft); border-radius: 20px; }
+.row { display: flex; align-items: center; gap: 12px; }
+.srow { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border-top: 1px solid var(--soft); }
+.srow:first-child { border-top: 0; }
+.srow .ic { width: 34px; height: 34px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: var(--accentSoft); color: var(--primary); flex: none; }
+.srow .ic .lucide { width: 18px; height: 18px; }
+.srow .t { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; }
+.srow .t small { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-top: 1px; }
+.srow .v { font-size: 14px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+.srow .chev { color: #9fb0c2; }
+.srow .chev .lucide { width: 18px; height: 18px; }
+.sec { font-size: 13px; font-weight: 700; color: var(--text2); margin: 18px 4px 8px; }
+.toggle { width: 46px; height: 28px; border-radius: 14px; background: var(--primary); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 11px; background: #fff; }
+.toggle.off { background: var(--border); }
+.toggle.off::after { right: auto; left: 3px; }
+.dot { width: 8px; height: 8px; border-radius: 4px; display: inline-block; }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.ok { background: var(--okSoft); color: var(--ok); } .warn { background: var(--warnSoft); color: var(--warn); } .bad { background: var(--badSoft); color: var(--bad); } .neutral { background: var(--tint); color: var(--text2); }
+.rail { position: absolute; left: 0; top: 0; bottom: 0; width: 72px; background: linear-gradient(180deg, #004a8d, #003a72); }
+.rail .r { width: 44px; height: 44px; border-radius: 13px; margin: 14px auto 0; display: flex; align-items: center; justify-content: center; color: #cfe2f6; }
+.rail .r.on { background: rgba(255,255,255,0.16); color: #fff; }
+.dock { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); height: 64px; border-radius: 22px; background: #fff; border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 8px; box-shadow: 0 8px 24px rgba(0,45,90,0.08); }
+.dock div { width: 108px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text2); }
+.dock div.on { background: var(--primary); color: #fff; }
+.dock .lucide { width: 16px; height: 16px; }
+.tabbar4 { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; background: #fff; border-top: 1px solid var(--soft); display: flex; justify-content: space-around; padding-top: 10px; }
+.backrow { display: flex; align-items: center; gap: 6px; }
+.backrow .lucide { width: 26px; height: 26px; }
+.prn { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--soft); }
+.prn:first-child { border-top: 0; }
+.seg2 { display: flex; background: var(--tint); border: 1px solid var(--border); border-radius: 12px; padding: 3px; }
+.seg2 div { flex: 1; text-align: center; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--text2); }
+.seg2 div.on { background: #fff; color: var(--primary); border: 1px solid var(--border); }
+.tile { padding: 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--soft); }
+.tile .k { font-size: 12px; font-weight: 700; color: var(--text2); }
+.tile .n { font-size: 22px; font-weight: 700; margin-top: 4px; letter-spacing: -0.3px; }
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+const ic = (n, st = '') => `<i data-lucide="${n}"${st ? ` style="${st}"` : ''}></i>`;
+const status = (light) => `<div class="island"></div><div class="status"${light ? ' style="color:#fff"' : ''}><span>9:41</span><span class="r"><i data-lucide="signal" class="s16"></i><i data-lucide="wifi" class="s16"></i><i data-lucide="battery-full" class="s16"></i></span></div>`;
+const phoneTabs = (on) => `<div class="tabbar4">${[['chart-column','Analytics'],['chef-hat','Kitchen'],['package','Inventory'],['ellipsis','More']].map(([i,l]) => `<div class="tab${l===on?' on':''}">${ic(i)}${l}</div>`).join('')}</div>`;
+const dock = (on) => `<div class="dock">${[['shopping-cart','Orders'],['package','Inventory'],['trending-up','Analytics'],['chef-hat','Kitchen'],['ellipsis','More']].map(([i,l]) => `<div class="${l===on?'on':''}">${ic(i)}${l}</div>`).join('')}</div>`;
+const pwd = (show) => `<div class="input" style="justify-content:space-between"><span style="letter-spacing:${show?'0':'3px'}">${show ? 'lelaban2026' : '•••••••••'}</span><span class="muted" style="display:flex">${ic(show ? 'eye-off' : 'eye', 'width:20px;height:20px')}</span></div>`;
+
+// ── Login A: Brand split ────────────────────────────────────────────────
+const loginForm = (opts = {}) => `
+  <div style="font-size:${opts.big ? 30 : 26}px;font-weight:700;letter-spacing:-0.5px">Sign in</div>
+  <div class="f15 muted" style="margin-top:4px">${opts.sub || 'Use the email and password your owner set up.'}</div>
+  <div style="margin-top:22px"><div class="lbl">Email</div><div class="input focus">owner@lelaban.in</div></div>
+  <div style="margin-top:14px"><div class="lbl">Password</div>${pwd(false)}</div>
+  ${opts.error ? `<div class="f13" style="margin-top:12px;color:var(--bad);background:var(--badSoft);padding:10px 12px;border-radius:12px">That email and password don't match. Check them and try again.</div>` : ''}
+  <div class="btn" style="margin-top:20px">Sign in</div>
+  <div class="f13 muted" style="margin-top:14px;text-align:center">Forgot it? Ask the owner to reset your password in Settings › Staff.</div>`;
+
+const loginA_phone = `<div style="position:absolute;inset:0;background:radial-gradient(120% 70% at 85% -10%, #3399ff 0%, rgba(51,153,255,0) 55%), linear-gradient(160deg,#0066b2,#003a72)"></div>${status(true)}
+  <div style="position:relative;padding:40px 24px 0;color:#fff"><div class="logo white">Le</div><div style="font-size:30px;font-weight:700;margin-top:18px;letter-spacing:-0.5px">Le Laban</div><div class="f15" style="opacity:0.85;margin-top:4px">Billing, kitchen and accounts</div></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:30px 30px 0 0;padding:26px 22px 40px">${loginForm()}</div>`;
+const loginA_desk = `<div class="inner" style="display:flex">
+  <div style="width:560px;background:radial-gradient(120% 80% at 90% -10%, #3399ff 0%, rgba(51,153,255,0) 55%), linear-gradient(160deg,#0066b2,#003a72);color:#fff;padding:64px;display:flex;flex-direction:column;justify-content:space-between">
+    <div><div class="logo white">Le</div><div style="font-size:44px;font-weight:700;margin-top:28px;letter-spacing:-1px;line-height:1.1">Le Laban</div><div style="font-size:18px;font-weight:600;opacity:0.85;margin-top:10px;max-width:360px;line-height:1.45">Billing at the counter, the central kitchen's books, and the day's figures in one place.</div></div>
+    <div class="f14" style="opacity:0.7">Kolathur · Velachery · Central Kitchen</div></div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center"><div style="width:400px">${loginForm({ big: true })}</div></div></div>`;
+
+// ── Login B: Calm card on the canvas ────────────────────────────────────
+const loginB_phone = `${status()}<div style="padding:56px 22px 0"><div style="display:flex;justify-content:center"><div class="logo">Le</div></div>
+  <div style="text-align:center;font-size:24px;font-weight:700;margin-top:16px">Le Laban</div><div class="f14 muted" style="text-align:center;margin-top:2px">Sign in to continue</div>
+  <div class="card" style="margin-top:26px;padding:20px">${loginForm({ sub: 'Your email and password.', error: true }).replace('<div style="font-size:26px;font-weight:700;letter-spacing:-0.5px">Sign in</div>', '').replace('<div class="f15 muted" style="margin-top:4px">Your email and password.</div>', '').replace('margin-top:22px', 'margin-top:0')}</div></div>`;
+const loginB_desk = `<div class="inner" style="display:flex;align-items:center;justify-content:center"><div style="width:420px">
+  <div style="display:flex;justify-content:center"><div class="logo">Le</div></div>
+  <div style="text-align:center;font-size:28px;font-weight:700;margin-top:18px">Le Laban</div><div class="f15 muted" style="text-align:center;margin-top:2px">Sign in to continue</div>
+  <div class="card" style="margin-top:28px;padding:28px">${loginForm({ error: true }).replace('<div style="font-size:26px;font-weight:700;letter-spacing:-0.5px">Sign in</div>', '').replace('<div class="f15 muted" style="margin-top:4px">Use the email and password your owner set up.</div>', '').replace('margin-top:22px', 'margin-top:0')}</div>
+  <div class="f13 muted" style="text-align:center;margin-top:18px">${ic('shield-check','width:14px;height:14px;vertical-align:-2px')} Signed-in devices stay signed in until you sign out.</div></div></div>`;
+
+// ── Login C: Two steps, large targets ───────────────────────────────────
+const loginC_phone = `${status()}<div style="padding:20px 22px 0"><div class="row"><div class="logo sm">Le</div><div style="font-size:18px;font-weight:700">Le Laban</div></div>
+  <div style="font-size:34px;font-weight:700;letter-spacing:-0.8px;margin-top:44px;line-height:1.1">Welcome back</div>
+  <div class="f15 muted" style="margin-top:6px">Step 2 of 2 · your password</div>
+  <div class="card" style="margin-top:22px;padding:14px 16px" ><div class="row"><div style="width:40px;height:40px;border-radius:20px;background:var(--accentSoft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700">O</div><div style="flex:1"><div class="f15" style="font-weight:700">owner@lelaban.in</div><div class="f12 muted">Not you? <span class="link">Change</span></div></div></div></div>
+  <div style="margin-top:18px"><div class="lbl">Password</div>${pwd(true)}</div>
+  <div class="btn" style="margin-top:20px;height:56px">Sign in</div></div>`;
+const loginC_desk = `<div class="inner" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--canvas),#e8f2fa)">
+  <div class="card" style="width:880px;height:500px;display:flex;overflow:hidden;box-shadow:0 20px 50px rgba(0,45,90,0.10)">
+    <div style="width:380px;padding:44px;border-right:1px solid var(--soft)"><div class="row"><div class="logo sm">Le</div><div style="font-size:18px;font-weight:700">Le Laban</div></div>
+      <div style="font-size:36px;font-weight:700;letter-spacing:-0.8px;margin-top:60px;line-height:1.1">Welcome back</div><div class="f15 muted" style="margin-top:10px;line-height:1.5">Step 1: your email. Step 2: your password. Each step is one field, easy at a busy counter.</div></div>
+    <div style="flex:1;padding:44px 56px;display:flex;flex-direction:column;justify-content:center">
+      <div class="f13 muted">Step 1 of 2</div><div style="font-size:22px;font-weight:700;margin-top:4px">Your email</div>
+      <div style="margin-top:18px"><div class="input focus" style="height:56px">owner@lelaban.in</div></div>
+      <div class="btn" style="margin-top:18px;height:56px">Continue ${ic('arrow-right','width:18px;height:18px')}</div></div></div></div>`;
+
+// ── Settings data ───────────────────────────────────────────────────────
+const PRINTERS = [['Counter TVS RP3160', 'Prints bills', 'ok', 'Online'], ['Kitchen Epson TM-T82', 'Prints kitchen orders', 'ok', 'Online'], ['Back office HP', 'Not used', 'neutral', 'Offline']];
+const RULES = ['Re-print a bill', 'Cancel a bill', 'Complimentary bill', 'Custom discount', 'Change items on an unpaid bill', 'Cancel items sent to the kitchen', 'Void a payment', 'Reopen a paid bill'];
+const RULE_ON = [true, true, true, true, false, true, true, false];
+const sr = (icon, t, sub, v, chev = true) => `<div class="srow"><div class="ic">${ic(icon)}</div><div class="t">${t}${sub ? `<small>${sub}</small>` : ''}</div>${v ? `<div class="v">${v}</div>` : ''}${chev ? `<div class="chev">${ic('chevron-right')}</div>` : ''}</div>`;
+const tr = (t, sub, on) => `<div class="srow"><div class="t">${t}${sub ? `<small>${sub}</small>` : ''}</div><span class="toggle${on ? '' : ' off'}"></span></div>`;
+const account = (big) => `<div class="card" style="padding:16px;display:flex;align-items:center;gap:14px"><div style="width:${big?56:48}px;height:${big?56:48}px;border-radius:50%;background:var(--accentSoft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px">OW</div><div style="flex:1"><div style="font-size:17px;font-weight:700">Owner</div><div class="f13 muted">owner@lelaban.in · Kolathur</div></div><span class="link f14">Sign out</span></div>`;
+
+// ── Settings A: Grouped list (one pattern with the kitchen's Team page) ─
+const setA_home = `${status()}<div class="body"><div class="ttl" style="font-size:27px;font-weight:700;letter-spacing:-0.5px">Settings</div><div style="margin-top:14px">${account()}</div>
+  <div class="sec">Printing</div><div class="card">${sr('printer', 'Printers', 'Bills on Counter TVS · kitchen on Epson', '<span class="chip ok"><span class="dot" style="background:var(--ok)"></span>2 online</span>')}${sr('receipt-text', 'Receipt footer', '“Thank you! Visit again.”')}</div>
+  <div class="sec">Till</div><div class="card">${sr('shield-check', 'Approvals', '6 of 10 actions need the owner', 'On')}</div>
+  <div class="sec">More</div><div class="card">${sr('chef-hat', 'Central Kitchen', 'Books, stock and branch dues')}${sr('info', 'About this device', 'Version 1.0.1 · INR · ESC/POS')}</div></div>${phoneTabs('More')}`;
+const setA_printers = `${status()}<div class="body"><div class="backrow">${ic('chevron-left')}<div style="font-size:22px;font-weight:700">Printers</div></div>
+  <div class="f13 muted" style="margin:6px 4px 0">From PrintNode on the counter PC. <span class="link">Refresh</span></div>
+  <div class="sec">Bills print on</div><div class="card">${PRINTERS.map(([n, role, tone, st], i) => `<div class="srow"><div class="t">${n}<small><span class="dot" style="background:${tone==='ok'?'var(--ok)':'#9fb0c2'}"></span> ${st}</small></div>${i===0 ? ic('check','color:var(--primary);width:20px;height:20px') : ''}</div>`).join('')}</div>
+  <div class="sec">Kitchen orders print on</div><div class="card">${PRINTERS.slice(0,2).map(([n],i) => `<div class="srow"><div class="t">${n}</div>${i===1 ? ic('check','color:var(--primary);width:20px;height:20px') : ''}</div>`).join('')}</div>
+  <div style="margin-top:14px;text-align:center"><span class="link f14">Print a test bill</span></div></div>${phoneTabs('More')}`;
+const setA_desk = `<div class="inner"><div style="position:absolute;inset:0 0 0 0;display:flex;justify-content:center;padding-top:28px">
+  <div style="width:1040px;display:flex;gap:24px">
+    <div style="width:320px"><div style="font-size:28px;font-weight:700">Settings</div><div style="margin-top:16px">${account()}</div>
+      <div class="card" style="margin-top:14px">${[['printer','Printers','2 online'],['receipt-text','Receipt footer',''],['shield-check','Approvals','On'],['chef-hat','Central Kitchen',''],['info','About this device','']].map(([i,t,v],k)=>`<div class="srow" style="${k===0?'background:var(--tint);':''}"><div class="ic">${ic(i)}</div><div class="t">${t}</div>${v?`<div class="v" style="color:var(--text2);font-weight:600">${v}</div>`:''}</div>`).join('')}</div></div>
+    <div style="flex:1"><div style="font-size:20px;font-weight:700;margin-top:6px">Printers</div><div class="f14 muted" style="margin-top:4px">From PrintNode on the counter PC. <span class="link">Refresh</span></div>
+      <div class="card" style="margin-top:16px">${PRINTERS.map(([n, role, tone, st]) => `<div class="prn"><div style="width:40px;height:40px;border-radius:12px;background:var(--tint);display:flex;align-items:center;justify-content:center;color:var(--primary)">${ic('printer','width:20px;height:20px')}</div><div style="flex:1"><div class="f15" style="font-weight:700">${n}</div><div class="f12 muted"><span class="dot" style="background:${tone==='ok'?'var(--ok)':'#9fb0c2'}"></span> ${st}</div></div><div class="v f14" style="color:var(--primary);font-weight:700;display:flex;align-items:center;gap:4px">${role} ${ic('chevron-down','width:16px;height:16px')}</div><span class="link f13" style="margin-left:18px">Test</span></div>`).join('')}</div>
+      <div style="font-size:16px;font-weight:700;margin-top:22px">Receipt footer</div><div class="input" style="margin-top:8px">Thank you! Visit again.</div></div></div></div>${dock('More')}</div>`;
+
+// ── Settings B: One page of sections (label left, card right) ──────────
+const secB = (title, desc, body) => `<div style="display:flex;gap:28px;margin-top:26px"><div style="width:250px"><div style="font-size:16px;font-weight:700">${title}</div><div class="f13 muted" style="margin-top:4px;line-height:1.5">${desc}</div></div><div style="flex:1">${body}</div></div>`;
+const setB_desk = `<div class="inner"><div style="padding:28px 0 0;display:flex;justify-content:center"><div style="width:980px">
+  <div class="row" style="justify-content:space-between"><div><div style="font-size:28px;font-weight:700">Settings</div><div class="f14 muted">Le Laban · signed in as Owner</div></div><span class="link f14">Sign out</span></div>
+  ${secB('Printers', 'Which printer takes bills and which takes kitchen orders. From PrintNode on the counter PC.', `<div class="card">${PRINTERS.slice(0,2).map(([n, role]) => `<div class="srow"><div class="t">${role}<small>${n}</small></div><div class="v">Change ${ic('chevron-down','width:16px;height:16px')}</div></div>`).join('')}<div class="srow"><div class="t" style="font-weight:600;color:var(--text2)">2 of 3 printers online</div><span class="link f13">Test print</span><span class="link f13" style="margin-left:14px">Refresh</span></div></div>`)}
+  ${secB('Receipt', 'The note at the bottom of every customer bill.', `<div class="input">Thank you! Visit again.</div>`)}
+  ${secB('Approvals', 'Till actions that need the owner’s code before they go through.', `<div class="card">${tr('Ask for approval', 'Kolathur · 6 of 10 actions', true)}${RULES.slice(0,3).map((r,i)=>tr(r,'',RULE_ON[i])).join('')}<div class="srow"><span class="link f13">Show all 10 actions</span></div></div>`)}
+  </div></div>${dock('More')}</div>`;
+const setB_phone = `${status()}<div class="body"><div class="row" style="justify-content:space-between"><div style="font-size:27px;font-weight:700">Settings</div><span class="link f14">Sign out</span></div>
+  <div class="f13 muted">Le Laban · signed in as Owner</div>
+  <div class="sec">Printers</div><div class="card">${PRINTERS.slice(0,2).map(([n, role]) => `<div class="srow"><div class="t">${role}<small>${n}</small></div><div class="v">${ic('chevron-down','width:16px;height:16px')}</div></div>`).join('')}</div>
+  <div class="f12 muted" style="margin:6px 4px 0">2 of 3 online · <span class="link">Test print</span></div>
+  <div class="sec">Receipt footer</div><div class="input">Thank you! Visit again.</div>
+  <div class="sec">Approvals</div><div class="card">${tr('Ask for approval', 'Kolathur · 6 of 10', true)}${RULES.slice(0,2).map((r,i)=>tr(r,'',RULE_ON[i])).join('')}</div></div>${phoneTabs('More')}`;
+const setB_approvals = `${status()}<div class="body"><div class="backrow">${ic('chevron-left')}<div style="font-size:22px;font-weight:700">Approvals</div></div>
+  <div class="card" style="margin-top:12px">${tr('Ask for approval', 'The owner gets a code by email', true)}<div class="srow"><div class="t">Branch</div><div class="v">Kolathur ${ic('chevron-down','width:16px;height:16px')}</div></div></div>
+  <div class="sec">Needs the owner's code</div><div class="card">${RULES.map((r,i)=>tr(r,'',RULE_ON[i])).join('')}</div></div>
+  <div style="position:absolute;left:16px;right:16px;bottom:100px"><div class="btn">Save 2 changes</div></div>${phoneTabs('More')}`;
+
+// ── Settings C: Status first ────────────────────────────────────────────
+const setC_phone = `${status()}<div class="body"><div style="font-size:27px;font-weight:700">Settings</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+    <div class="tile"><div class="k">Printers</div><div class="n" style="color:var(--ok)">2 online</div><div class="f12 muted">1 offline</div></div>
+    <div class="tile"><div class="k">Approvals</div><div class="n">6 of 10</div><div class="f12 muted">actions guarded</div></div></div>
+  <div class="card" style="margin-top:12px;padding:14px;display:flex;gap:12px;align-items:center;background:var(--warnSoft);border-color:#f6d9a8"><div style="color:var(--warn)">${ic('triangle-alert')}</div><div class="f13" style="flex:1;color:#7a4a06">Back office HP has been offline since 11:20.</div><span class="link f13">Check</span></div>
+  <div class="card" style="margin-top:14px">${sr('printer','Printers','')}${sr('receipt-text','Receipt footer','')}${sr('shield-check','Approvals','')}${sr('chef-hat','Central Kitchen','')}</div>
+  <div style="margin-top:14px">${account()}</div></div>${phoneTabs('More')}`;
+const setC_desk = `<div class="inner"><div style="padding:28px 0 0;display:flex;justify-content:center"><div style="width:1040px">
+  <div class="row" style="justify-content:space-between"><div style="font-size:28px;font-weight:700">Settings</div>${account().replace('class="card"', 'class="card" style="padding:10px 14px;display:flex;align-items:center;gap:12px;width:380px"')}</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px">
+    <div class="tile"><div class="k">Printers</div><div class="n" style="color:var(--ok)">2 of 3 online</div><div class="f13 muted" style="margin-top:4px">Bills → Counter TVS · Kitchen → Epson</div></div>
+    <div class="tile"><div class="k">Approvals · Kolathur</div><div class="n">6 of 10 actions</div><div class="f13 muted" style="margin-top:4px">Owner code by email</div></div>
+    <div class="tile"><div class="k">Receipt footer</div><div class="n" style="font-size:18px">“Thank you! Visit again.”</div><div class="f13 muted" style="margin-top:4px">On every customer bill</div></div></div>
+  <div class="card" style="margin-top:14px;padding:14px;display:flex;gap:12px;align-items:center;background:var(--warnSoft);border-color:#f6d9a8"><div style="color:var(--warn)">${ic('triangle-alert')}</div><div class="f14" style="flex:1;color:#7a4a06">Back office HP has been offline since 11:20. Bills and kitchen orders are not affected.</div><span class="link f14">Check printers</span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+    <div class="card"><div style="padding:14px 14px 4px;font-weight:700">Printers</div>${PRINTERS.slice(0,2).map(([n, role]) => `<div class="srow"><div class="t">${role}<small>${n}</small></div><div class="v">Change</div></div>`).join('')}</div>
+    <div class="card"><div style="padding:14px 14px 4px;font-weight:700">Approvals</div>${RULES.slice(0,3).map((r,i)=>tr(r,'',RULE_ON[i])).join('')}</div></div>
+  </div></div>${dock('More')}</div>`;
+
+const pages = [
+  { g: ['Login A · Brand split', 'Le Laban blue carries the brand: a full blue panel on the left of a laptop, the top of the screen on a phone, with the form on a white sheet. Show-password eye, one Sign in button, and the way back if a password is forgotten.'] },
+  { n: 1, l: 'Phone', p: loginA_phone, light: true }, { n: 2, l: 'Desktop', d: loginA_desk },
+  { g: ['Login B · Calm card on the canvas', 'The quiet version: the same pale canvas and white cards as the rest of the app, the logo above a small form. Shown with the wrong-password message, which says what to do.'] },
+  { n: 3, l: 'Phone, wrong password', p: loginB_phone }, { n: 4, l: 'Desktop, wrong password', d: loginB_desk },
+  { g: ['Login C · One field at a time', 'Email first, then password, each on its own step with large targets; quick at a busy counter and on a phone held in one hand. The second step shows who is signing in, with Change.'] },
+  { n: 5, l: 'Phone, step 2', p: loginC_phone }, { n: 6, l: 'Desktop, step 1', d: loginC_desk },
+  { g: ['Settings A · Grouped list', 'The kitchen Team page\'s pattern: account at the top, then grouped rows that open their own page. On a laptop the list stays on the left and the chosen page opens beside it. Technical details (currency, print protocol, bridge address) move to About this device.'] },
+  { n: 7, l: 'Phone, Settings', p: setA_home }, { n: 8, l: 'Desktop, Printers open', d: setA_desk },
+  { n: 9, l: 'Phone, Printers', p: setA_printers }, { spacer: true },
+  { g: ['Settings B · One page of sections', 'Everything on one page: a short label and sentence on the left, the controls on the right (stacked on a phone). Printers by job (bills, kitchen orders), the receipt note, and approvals as switches with Save only after a change.'] },
+  { n: 10, l: 'Phone, Settings', p: setB_phone }, { n: 11, l: 'Desktop', d: setB_desk },
+  { n: 12, l: 'Phone, Approvals (2 changes)', p: setB_approvals }, { spacer: true },
+  { g: ['Settings C · Status first', 'Settings opens on how things stand: printers online, how many till actions are guarded, the receipt note, and a warning when a printer drops off. The rows below open each part.'] },
+  { n: 13, l: 'Phone', p: setC_phone }, { n: 14, l: 'Desktop', d: setC_desk },
+];
+const sheet = document.getElementById('sheet');
+for (const pg of pages) {
+  if (pg.g) { sheet.insertAdjacentHTML('beforeend', `<div class="group"><h2>${pg.g[0]}</h2><p>${pg.g[1]}</p></div>`); continue; }
+  if (pg.spacer) { sheet.insertAdjacentHTML('beforeend', '<div></div>'); continue; }
+  const frame = pg.p ? `<div class="phone">${pg.p}<div class="home-ind"${pg.light ? '' : ''}></div></div>` : `<div class="desk">${pg.d}</div>`;
+  sheet.insertAdjacentHTML('beforeend', `<div><div class="label"><b>${pg.n}</b>${pg.l}</div>${frame}</div>`);
+}
+</script>
+<script src="https://unpkg.com/lucide@0.452.0/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

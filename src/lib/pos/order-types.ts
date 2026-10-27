@@ -34,6 +34,10 @@ export type OpenOrder = {
   discount_type?: 'percent' | 'fixed' | null;
   discount_value?: number | null;
   discount_amount?: number | null;
+
+  /** Task 288: optional, printed on the bill. The phone is digits only, with an optional +. */
+  customer_name?: string | null;
+  customer_phone?: string | null;
 };
 
 export type KotTicketItem = {

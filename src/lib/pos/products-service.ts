@@ -55,6 +55,30 @@ export async function getCategories(): Promise<ServiceResult<Category[]>> {
   }
 }
 
+/**
+ * Adds a menu category (task 276). Categories are shared by every branch, as getCategories reads
+ * them; the row still records the branch that made it. The caller checks the name against the
+ * categories it has loaded.
+ */
+export async function addCategory(name: string): Promise<ServiceResult<Category>> {
+  try {
+    const { tenant_id, branch_id } = getTenantContext();
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({ tenant_id, branch_id, name: name.trim() })
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      if (error) logSupabaseError('addCategory', error);
+      return { data: null, error: 'Unable to add the category.' };
+    }
+    return { data: data as Category, error: null };
+  } catch {
+    return { data: null, error: 'Unable to add the category.' };
+  }
+}
+
 export async function getProducts(
   categoryId?: string,
 ): Promise<ServiceResult<Product[]>> {

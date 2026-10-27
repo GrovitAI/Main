@@ -12,4 +12,15 @@
 # Tasks 206-209, 224, 234 and 242 (seven migrations, 20261014100000 through
 # 20261017110000) were promoted on 2026-10-18 in order; production kitchen
 # functions, grants and the 19 pinned functions were checked to match staging.
-20261018100000_kitchen_shared_categories.sql
+# Task 255 (20261018100000_kitchen_shared_categories.sql) was applied to production
+# by the owner on 2026-10-19; each kitchen scope then held its 9-10 shared categories.
+# Task 279 (20261020100000_kitchen_spent_particulars.sql) was applied to production by the
+# owner on 2026-10-20 and checked: the seven entry columns, kitchen_particulars with RLS, its
+# three policies and grants, and Transport/Salary advance asking in all three kitchen scopes.
+# Tasks 282 and 288 (20261020110000_kitchen_drawings.sql, 20261020120000_open_order_customer.sql)
+# were applied to production by the owner on 2026-10-21 and checked: kitchen_drawings with RLS and
+# no direct app access, its five functions, Cash & bank counting drawings, and the two customer
+# columns on open_orders with their checks.
+# Task 289 (20261022100000_kitchen_drawings_in_cash_bank.sql) was applied to production by the
+# owner on 2026-10-22 and checked: kitchen_drawings_cash_rows (security definer, no anon) and the
+# summary and range report using it. Nothing is pending.
