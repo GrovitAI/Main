@@ -153,7 +153,7 @@ export default function SendScreen() {
   const items = (
     <Field label={withQty.length ? `Items · ${withQty.length}` : 'Items'}>
       <ItemSearch items={data.items} mode="sell" lines={lines} picks={picks} showAmounts={showAmounts} onAdd={(it) => draft.add(it, startRate(it, 'sell'))} />
-      <ItemLines items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts={showAmounts}
+      <ItemLines typed={!phone} onType={draft.update} focusItemId={draft.lastAdded} items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts={showAmounts}
         onOpen={(itemId, field) => draft.setActive({ itemId, field })} />
     </Field>
   );

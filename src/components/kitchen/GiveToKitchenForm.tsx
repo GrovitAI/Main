@@ -93,7 +93,7 @@ export function GiveToKitchenForm() {
   const items = (
     <Field label={chosen.length ? `Raw materials · ${chosen.length}` : 'Raw materials'}>
       <ItemSearch items={data.items} mode="cost" lines={lines} picks={picks} showAmounts={false} onAdd={(it) => draft.add(it, null)} />
-      <ItemLines items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts={false}
+      <ItemLines typed={!phone} onType={draft.update} focusItemId={draft.lastAdded} items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts={false}
         onOpen={(itemId) => draft.setActive({ itemId, field: 'qty' })} />
       {over.length > 0 ? (
         <Text className="mt-2 px-1 text-[13px] font-semibold text-text-secondary">

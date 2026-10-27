@@ -86,7 +86,7 @@ export function AmountRow({ amount, open, onPress, label = 'Amount', entered }: 
  */
 export function AmountPad({ value, onChange, onDone, save, label }: { value: string; onChange: (next: string) => void; onDone: () => void; save?: React.ReactNode; label?: string }) {
   return (
-    <AmountPanel value={value} onChange={onChange} label={label}>
+    <AmountPanel value={value} onChange={onChange} label={label} onEnter={onDone}>
       {save ?? <PrimaryButton label="Done" onPress={onDone} />}
     </AmountPanel>
   );

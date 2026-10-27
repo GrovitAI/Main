@@ -6,13 +6,13 @@
  * price paid on a buy.
  */
 import React, { memo, useMemo, useState } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
+import { FlatList, Platform, Pressable, View } from 'react-native';
 import { Minus, Plus } from 'lucide-react-native';
-import { Text } from '@/components/ui/Typography';
+import { Text, TextInput } from '@/components/ui/Typography';
 import { colors, semantic } from '@/lib/pos/brand';
 import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { formatMoney, formatQty, lineTotal, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
+import { cleanTypedNumber, formatMoney, formatQty, lineTotal, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem } from '@/lib/pos/kitchen-types';
 import { AmountPanel, Avatar, PrimaryButton, SearchBox } from './ui';
 import type { DraftLine, DraftLines } from './forms';
@@ -87,13 +87,69 @@ export function ItemSearch({ items, mode, lines, lastCost, picks, showAmounts, o
   );
 }
 
+const webNoOutline = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {};
+
+/**
+ * Task 293: a figure typed straight in on a computer, in place of the pad: the quantity in the
+ * − qty + control, or the rate. While it is being typed the text is kept as typed ("2." stays
+ * "2."); otherwise it shows the line's figure, so − and + still move it.
+ */
+function TypedFigure({ value, onChange, decimals, label, placeholder, prefix, suffix, autoFocus, invalid, framed }: {
+  value: string; onChange: (text: string) => void; decimals: number; label: string; placeholder: string;
+  prefix?: string; suffix?: string; autoFocus?: boolean; invalid?: boolean;
+  /** The rate sits in a bordered box; the quantity sits in the − + well. */
+  framed: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [text, setText] = useState(value);
+  const shown = focused ? text : value;
+  const chars = Math.max(shown.length || placeholder.length, 1);
+  const tint = invalid && !shown ? semantic.danger : colors.textPrimary;
+  return (
+    <View className={`flex-row items-center justify-center ${framed ? 'h-9 rounded-[10px] px-2.5' : 'h-[30px] min-w-[68px] rounded-[9px] px-2'} ${focused ? '' : 'hover:bg-surface-tint'}`}
+      style={{
+        borderWidth: framed || focused ? (focused ? 2 : 1) : 0,
+        borderColor: focused ? colors.primary : invalid && !shown ? semantic.dangerSoft : colors.border,
+        backgroundColor: invalid && !shown && !focused ? semantic.dangerSoft : colors.surfaceElevated,
+      }}>
+      {prefix ? <Text className="text-[13px] font-bold" style={{ color: tint, ...tabular }}>{prefix}</Text> : null}
+      <TextInput
+        value={shown}
+        onChangeText={(t) => { const next = cleanTypedNumber(t, decimals); setText(next); onChange(next); }}
+        onFocus={() => { setText(value); setFocused(true); }}
+        onBlur={() => setFocused(false)}
+        selectTextOnFocus
+        autoFocus={autoFocus}
+        placeholder={placeholder}
+        placeholderTextColor={invalid ? semantic.danger : colors.textSecondary}
+        keyboardType="decimal-pad"
+        inputMode="decimal"
+        accessibilityLabel={label}
+        style={{ width: chars * 8.6 + 6, padding: 0, textAlign: framed ? 'left' : 'right', fontSize: framed ? 13 : 14, fontWeight: '700', color: colors.textPrimary, ...tabular, ...webNoOutline }}
+      />
+      {suffix ? <Text className="text-[13px] font-bold" style={{ color: colors.textSecondary }}>{suffix}</Text> : null}
+    </View>
+  );
+}
+
 /** One line: the item and its total, then its rate and a − qty + control. */
-const LineRow = memo(function LineRow({ it, line, active, first, showAmounts, onStep, onOpen }: {
+const LineRow = memo(function LineRow({ it, line, active, first, showAmounts, onStep, onOpen, typed, onType, focusQty }: {
   it: KitchenItem; line: DraftLine; active: LineField | null; first: boolean; showAmounts: boolean;
   onStep: (it: KitchenItem, delta: number) => void; onOpen: (itemId: string, field: LineField) => void;
+  /** Task 293: on a computer the qty and rate are typed in place instead of opening the pad. */
+  typed: boolean; onType: (itemId: string, line: DraftLine) => void; focusQty: boolean;
 }) {
   const noRate = line.price === null;
   const total = line.price === null ? null : lineTotal(line.qty, line.price);
+  const rate = typed ? (
+    <TypedFigure framed decimals={2} label={`${it.name} rate per ${it.unit}`} placeholder={noRate ? 'Set rate' : '0'} invalid={noRate}
+      prefix={noRate ? undefined : '₹'} suffix={` / ${it.unit}`} value={line.price === null ? '' : String(line.price)}
+      onChange={(t) => onType(it.id, { ...line, price: t === '' ? null : Number(t) })} />
+  ) : null;
+  const qty = typed ? (
+    <TypedFigure framed={false} decimals={it.unit === 'pcs' ? 0 : 3} label={`${it.name} quantity in ${it.unit}`} placeholder="0" suffix={` ${it.unit}`}
+      value={asTyped(line.qty)} autoFocus={focusQty} onChange={(t) => onType(it.id, { ...line, qty: t === '' ? 0 : Number(t) })} />
+  ) : null;
   return (
     <View className={`px-3.5 pb-2.5 pt-2.5 ${first ? '' : 'border-t border-border-soft'}`} style={active ? { backgroundColor: colors.surfaceTint } : undefined}>
       <View className="flex-row items-center gap-3">
@@ -105,7 +161,7 @@ const LineRow = memo(function LineRow({ it, line, active, first, showAmounts, on
         {showAmounts ? <Text className="text-[15px] font-bold text-text-primary" style={tabular}>{total === null ? '—' : formatMoney(total)}</Text> : null}
       </View>
       <View className="mt-2 flex-row items-center justify-between" style={{ marginLeft: 48 }}>
-        {showAmounts ? (
+        {showAmounts && rate ? rate : showAmounts ? (
           <Pressable onPress={() => onOpen(it.id, 'rate')} accessibilityRole="button" accessibilityLabel={noRate ? `Set ${it.name} rate` : `${it.name} rate ${formatMoney(line.price ?? 0)} per ${it.unit}`}
             className="h-9 justify-center rounded-[10px] border px-2.5 hover:bg-surface-tint"
             style={{ borderColor: active === 'rate' ? colors.primary : noRate ? semantic.dangerSoft : colors.border, backgroundColor: noRate ? semantic.dangerSoft : colors.surfaceElevated }}>
@@ -116,10 +172,12 @@ const LineRow = memo(function LineRow({ it, line, active, first, showAmounts, on
           <Pressable onPress={() => onStep(it, -1)} accessibilityRole="button" accessibilityLabel={`Less ${it.name}`} hitSlop={4} className="h-9 w-10 items-center justify-center rounded-xl hover:bg-accent-soft">
             <Minus size={16} color={colors.primary} />
           </Pressable>
-          <Pressable onPress={() => onOpen(it.id, 'qty')} accessibilityRole="button" accessibilityLabel={`${it.name} quantity ${formatQty(line.qty, it.unit)}`}
-            className="h-[30px] min-w-[68px] items-center justify-center rounded-[9px] px-2" style={{ backgroundColor: active === 'qty' ? colors.primary : colors.surfaceElevated }}>
-            <Text className="text-sm font-bold" style={{ color: active === 'qty' ? colors.textOnPrimary : line.qty > 0 ? colors.textPrimary : colors.textSecondary, ...tabular }}>{formatQty(line.qty, it.unit)}</Text>
-          </Pressable>
+          {qty ?? (
+            <Pressable onPress={() => onOpen(it.id, 'qty')} accessibilityRole="button" accessibilityLabel={`${it.name} quantity ${formatQty(line.qty, it.unit)}`}
+              className="h-[30px] min-w-[68px] items-center justify-center rounded-[9px] px-2" style={{ backgroundColor: active === 'qty' ? colors.primary : colors.surfaceElevated }}>
+              <Text className="text-sm font-bold" style={{ color: active === 'qty' ? colors.textOnPrimary : line.qty > 0 ? colors.textPrimary : colors.textSecondary, ...tabular }}>{formatQty(line.qty, it.unit)}</Text>
+            </Pressable>
+          )}
           <Pressable onPress={() => onStep(it, 1)} accessibilityRole="button" accessibilityLabel={`More ${it.name}`} hitSlop={4} className="h-9 w-10 items-center justify-center rounded-xl hover:bg-accent-soft">
             <Plus size={16} color={colors.primary} />
           </Pressable>
@@ -130,10 +188,15 @@ const LineRow = memo(function LineRow({ it, line, active, first, showAmounts, on
 });
 
 /** The lines on the entry, in the order they were added; − on an empty line takes it off. */
-export function ItemLines({ items, lines, order, onChange, active, onOpen, showAmounts }: {
+export function ItemLines({ items, lines, order, onChange, active, onOpen, showAmounts, typed = false, onType, focusItemId = null }: {
   items: ReadonlyMap<string, KitchenItem>; lines: DraftLines; order: readonly string[]; onChange: (lines: DraftLines, order: string[]) => void;
   active: ActiveLine; onOpen: (itemId: string, field: LineField) => void; showAmounts: boolean;
+  /** Task 293: a computer types the qty and rate in place; a phone opens the pad. */
+  typed?: boolean; onType?: (itemId: string, line: DraftLine) => void;
+  /** The line just added, whose quantity takes the cursor when typing in place. */
+  focusItemId?: string | null;
 }) {
+  const typeLine = onType ?? ((itemId: string, line: DraftLine) => onChange({ ...lines, [itemId]: line }, [...order]));
   const shown = order.filter((id) => id in lines && items.has(id));
   const step = (it: KitchenItem, delta: number) => {
     buzz('select');
@@ -155,7 +218,8 @@ export function ItemLines({ items, lines, order, onChange, active, onOpen, showA
         const it = items.get(id);
         const line = lines[id];
         if (!it || !line) return null;
-        return <LineRow key={id} it={it} line={line} first={i === 0} showAmounts={showAmounts} active={active?.itemId === id ? active.field : null} onStep={step} onOpen={onOpen} />;
+        return <LineRow key={id} it={it} line={line} first={i === 0} showAmounts={showAmounts} active={active?.itemId === id ? active.field : null} onStep={step} onOpen={onOpen}
+          typed={typed} onType={typeLine} focusQty={typed && focusItemId === id} />;
       })}
     </View>
   );
@@ -197,7 +261,7 @@ export function LinePad({ it, line, field, onField, onChange, onDone, showAmount
     );
   };
   return (
-    <AmountPanel value={typing} onChange={set} top={(
+    <AmountPanel value={typing} onChange={set} onEnter={onDone} top={(
       <View>
         <View className="flex-row items-center gap-3 px-1 pb-2">
           <View className="min-w-0 flex-1">
@@ -223,16 +287,20 @@ export function useDraftLines() {
   const [lines, setLines] = useState<DraftLines>({});
   const [order, setOrder] = useState<string[]>([]);
   const [active, setActive] = useState<ActiveLine>(null);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
   return {
     lines, order, active, setActive,
+    /** Task 293: the item added last, so typing in place can start in its quantity. */
+    lastAdded,
     /** Replaces everything, as when an edit starts from the saved entry. */
-    reset: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); setActive(null); },
+    reset: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); setActive(null); setLastAdded(null); },
     change: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); if (active && !(active.itemId in next)) setActive(null); },
     /** Adds an item with no quantity yet at its starting rate; the pad opens only on a tap (task 284). */
     add: (it: KitchenItem, rate: number | null) => {
       if (!(it.id in lines)) {
         setLines({ ...lines, [it.id]: { qty: 0, price: rate } });
         setOrder([...order, it.id]);
+        setLastAdded(it.id);
       }
     },
     update: (itemId: string, line: DraftLine) => setLines((all) => ({ ...all, [itemId]: line })),
