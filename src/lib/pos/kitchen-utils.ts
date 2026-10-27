@@ -287,6 +287,29 @@ export function padPress(value: string, key: PadKey): string {
   return rupees.length >= 9 ? value : value + key;
 }
 
+const KEYBOARD_PAD_KEYS: Readonly<Record<string, PadKey>> = {
+  '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
+  '.': '.', ',': '.', Decimal: '.', Backspace: 'del', Delete: 'del',
+};
+
+/** Task 293: the pad key a computer keyboard press stands for, or null for any other key. */
+export function padKeyFor(key: string): PadKey | null {
+  return KEYBOARD_PAD_KEYS[key] ?? null;
+}
+
+/**
+ * Task 293: what a typed quantity or rate box keeps on a computer: digits and one point, up to
+ * nine whole digits and `decimals` after the point. Anything else typed or pasted is dropped.
+ */
+export function cleanTypedNumber(text: string, decimals: number): string {
+  const kept = text.replace(/[^0-9.]/g, '');
+  const point = kept.indexOf('.');
+  const whole = (point === -1 ? kept : kept.slice(0, point)).replace(/^0+(?=\d)/, '').slice(0, 9);
+  if (point === -1 || decimals <= 0) return whole;
+  const after = kept.slice(point + 1).replace(/\./g, '').slice(0, decimals);
+  return `${whole || '0'}.${after}`;
+}
+
 /** The pad's amount as typed, grouped the Indian way: "₹1,12,000", "₹12." and "₹1,234.5". */
 export function padDisplay(value: string): string {
   const [rupees = '', paise] = value.split('.');

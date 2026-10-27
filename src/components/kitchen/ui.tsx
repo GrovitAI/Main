@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, ChevronLeft, ChevronRight, Delete, MoreHorizontal, Search, WifiOff, X, Check, Minus, Plus, type LucideIcon } from 'lucide-react-native';
 import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
-import { figureSize, amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
+import { figureSize, amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padKeyFor, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { playEntrance, webMotionNode } from '@/lib/pos/web-motion';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
@@ -1330,6 +1330,42 @@ export function Avatar({ name, size = 44, selected = false, toneKey, toneIndex, 
 const PAD_KEYS: readonly PadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'];
 
 /**
+ * Task 293: in a browser the computer's keyboard types into a number pad that is on screen —
+ * digits, the point, Backspace — and Enter does what the pad's Done does. Keys meant for a text
+ * box, a button or a shortcut are left alone, as is a pad that is not visible.
+ */
+function usePadKeyboard(root: React.RefObject<View | null>, value: string, onChange: (next: string) => void, onEnter?: () => void): void {
+  const latest = useRef({ value, onChange, onEnter });
+  latest.current = { value, onChange, onEnter };
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined' || typeof HTMLElement === 'undefined') return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      const node: unknown = root.current;
+      if (!(node instanceof HTMLElement) || !node.isConnected || node.offsetParent === null) return;
+      const now = latest.current;
+      if (event.key === 'Enter') {
+        // A focused button or link keeps Enter for itself.
+        const role = target instanceof HTMLElement ? target.getAttribute('role') : null;
+        if (!now.onEnter || role === 'button' || role === 'link' || (target instanceof HTMLElement && ['BUTTON', 'A'].includes(target.tagName))) return;
+        event.preventDefault();
+        now.onEnter();
+        return;
+      }
+      const key = padKeyFor(event.key);
+      if (!key) return;
+      event.preventDefault();
+      const next = padPress(now.value, key);
+      if (next !== now.value) now.onChange(next);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [root]);
+}
+
+/**
  * A phone's amount entry (task 229): the amount large and centred, its lakh read-back, and a
  * number pad for one thumb. Nothing is filled in for the person; the pad only adds what is tapped.
  */
@@ -1337,13 +1373,15 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
   const shown = padDisplay(value);
   const padSize = figureSize(shown, 46, 11, 28);
   const lakh = amountReadBack(value)?.split(' · ')[1] ?? null;
+  const root = useRef<View>(null);
+  usePadKeyboard(root, value, onChange);
   const press = (key: PadKey): void => {
     buzz('select');
     const next = padPress(value, key);
     if (next !== value) onChange(next);
   };
   return (
-    <View>
+    <View ref={root}>
       <View accessibilityLiveRegion="polite" accessibilityLabel={`Amount ${shown}`} style={{ alignItems: 'center', paddingVertical: 6 }}>
         <Text style={{ fontSize: padSize, lineHeight: 54, fontWeight: '800', letterSpacing: -1.5, color: value.trim() ? colors.textPrimary : colors.border, ...tabular }} numberOfLines={1}>{shown}</Text>
         <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textSecondary, minHeight: 20 }}>{lakh ?? note ?? ''}</Text>
@@ -1368,20 +1406,24 @@ export function AmountPad({ value, onChange, note }: { value: string; onChange: 
  * Task 279: a phone form's amount, pinned at the bottom within thumb reach: the amount large on the
  * right, a flat number pad, and the save action under it. Nothing is filled in for the person.
  */
-export function AmountPanel({ value, onChange, label = 'Amount', top, children }: {
+export function AmountPanel({ value, onChange, label = 'Amount', top, onEnter, children }: {
   value: string; onChange: (next: string) => void; label?: string;
   /** Task 280: what sits above the keys instead of the label and amount (a line's qty and rate). */
   top?: React.ReactNode;
+  /** Task 293: what Enter on a computer keyboard does, normally the same as the pad's Done. */
+  onEnter?: () => void;
   children: React.ReactNode;
 }) {
   const shown = padDisplay(value);
+  const root = useRef<View>(null);
+  usePadKeyboard(root, value, onChange, onEnter);
   const press = (key: PadKey): void => {
     buzz('select');
     const next = padPress(value, key);
     if (next !== value) onChange(next);
   };
   return (
-    <View>
+    <View ref={root}>
       {top ?? (
         <View className="flex-row items-center justify-between px-1 pb-2" accessibilityLiveRegion="polite" accessibilityLabel={`${label} ${shown}`}>
           <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>

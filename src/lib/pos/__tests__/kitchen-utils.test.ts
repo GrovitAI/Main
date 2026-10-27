@@ -1,6 +1,8 @@
 import {
   allocateAcross,
   amountReadBack,
+  cleanTypedNumber,
+  padKeyFor,
   balanceFromEntries,
   describeKitchenError,
   figureSize,
@@ -417,5 +419,31 @@ describe('keepIfSame (task 250)', () => {
     const changed = [{ id: 'a', stock: 5 }];
     expect(keepIfSame(held, changed)).toBe(changed);
     expect(keepIfSame(held, null)).toBe(held);
+  });
+});
+
+describe('typing figures on a computer (task 293)', () => {
+  it('maps keyboard keys onto the number pad', () => {
+    expect(padKeyFor('7')).toBe('7');
+    expect(padKeyFor('.')).toBe('.');
+    expect(padKeyFor(',')).toBe('.');
+    expect(padKeyFor('Backspace')).toBe('del');
+    expect(padKeyFor('Delete')).toBe('del');
+    expect(padKeyFor('a')).toBeNull();
+    expect(padKeyFor('Enter')).toBeNull();
+  });
+
+  it('keeps digits and one point, with a cap on the places after it', () => {
+    expect(cleanTypedNumber('12.345', 3)).toBe('12.345');
+    expect(cleanTypedNumber('12.3456', 3)).toBe('12.345');
+    expect(cleanTypedNumber('1,250.50', 2)).toBe('1250.50');
+    expect(cleanTypedNumber('.5', 3)).toBe('0.5');
+    expect(cleanTypedNumber('1.2.3', 3)).toBe('1.23');
+    expect(cleanTypedNumber('007', 3)).toBe('7');
+    expect(cleanTypedNumber('0.5', 3)).toBe('0.5');
+    expect(cleanTypedNumber('2 kg', 3)).toBe('2');
+    expect(cleanTypedNumber('12.9', 0)).toBe('12');
+    expect(cleanTypedNumber('', 2)).toBe('');
+    expect(cleanTypedNumber('1234567890123', 2)).toBe('123456789');
   });
 });

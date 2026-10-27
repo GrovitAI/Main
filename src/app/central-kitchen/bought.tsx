@@ -150,7 +150,7 @@ export default function BoughtScreen() {
   const items = (
     <Field label={withQty.length ? `Items · ${withQty.length}` : 'Items'}>
       <ItemSearch items={data.items} mode="cost" lines={lines} lastCost={lastCost} showAmounts onAdd={(it) => draft.add(it, startRate(it, 'cost', lastCost))} />
-      <ItemLines items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts
+      <ItemLines typed={!phone} onType={draft.update} focusItemId={draft.lastAdded} items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts
         onOpen={(itemId, field) => draft.setActive({ itemId, field })} />
     </Field>
   );
