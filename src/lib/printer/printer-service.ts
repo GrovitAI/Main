@@ -262,8 +262,6 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   // Task 287: the badge goes with every bill. It used to ask for a logo pre-loaded into the
   // printer's own memory, which prints nothing on a printer that has none.
 
-  // Legal trading name, printed above the brand as on the stamped receipts.
-  const tradingName = 'NS TRADERS';
   const title = 'LE LABAN';
   const phone = branch?.phone || '90309 13610';
   const gstin = branch?.gstin;
@@ -275,7 +273,6 @@ function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
   const lines: string[] = [
     '\x1Ba\x01',   // center alignment
     LOGO_MARK + '\n',
-    boldOn + tradingName + boldOff + '\n',
     boldOn + title + boldOff + '\n',
     '\n',
     ...addressParts.map((part) => center(part, width) + '\n'),
