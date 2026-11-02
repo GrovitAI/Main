@@ -142,7 +142,8 @@ export function KHeader({ title, subtitle, onBack, right, large = !onBack }: Hea
         <View className="flex-1" style={{ minWidth: 0 }}>
           <Text
             className={`font-extrabold text-text-primary ${large ? compact ? 'text-2xl leading-7' : 'text-[28px] leading-8' : compact ? 'text-lg leading-6' : 'text-xl leading-6'}`}
-            style={{ letterSpacing: -0.4 }}
+            // Task 296: on a phone the font (Source Sans 3) needs about 1.26x its size, or iOS cuts the top of the title off.
+            style={{ letterSpacing: -0.4, ...(Platform.OS === 'web' ? {} : { lineHeight: large ? 36 : 26 }) }}
             numberOfLines={2}
             accessibilityRole="header"
           >

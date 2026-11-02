@@ -171,7 +171,7 @@ function BottomBar({ state, navigation }: BarProps) {
         {phone.filter(t => t.name === 'items').map(tab)}
         {more.length > 0 || access.isOwner ? (
           <Pressable accessibilityRole="button" accessibilityLabel="More kitchen sections" accessibilityState={{ expanded: sheet === 'more' }} onPress={() => setSheet('more')}
-            className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 focus-visible:border focus-visible:border-primary">
+            className="min-h-[52px] flex-1 items-center justify-center rounded-xl py-1.5 hover:bg-surface-tint active:opacity-60 web:focus-visible:border web:focus-visible:border-primary">
             <View className={'h-[30px] w-11 items-center justify-center rounded-xl ' + (moreActive ? 'bg-accent-soft' : '')}><Ellipsis size={21} color={moreActive ? colors.primary : colors.textSecondary} /></View>
             <Text className={`mt-0.5 text-xs ${moreActive ? 'font-extrabold' : 'font-semibold'}`} style={{ color: moreActive ? colors.primary : colors.textSecondary }}>More</Text>
           </Pressable>
