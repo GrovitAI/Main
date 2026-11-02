@@ -29,6 +29,7 @@ import type {
   KitchenPartyKind,
   KitchenParticular,
   KitchenUnit,
+  KitchenVendorItem,
   PostEntryInput,
   ServiceResult,
 } from './kitchen-types';
@@ -86,7 +87,9 @@ function actorName(): string {
   return useSessionStore.getState().session?.displayName?.trim() || 'Staff';
 }
 
-const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, cost_price_paise, stock, is_active, updated_at';
+const ITEM_COLUMNS = 'id, name, item_kind, unit, sell_price_paise, cost_price_paise, packing_price_paise, category_id, stock, is_active, updated_at';
+/** Before migration 20261102100000 there is no category or packing; the list still loads without them. */
+const ITEM_COLUMNS_BEFORE_CATALOG = 'id, name, item_kind, unit, sell_price_paise, cost_price_paise, stock, is_active, updated_at';
 /** Before migration 20261014100200 there is no cost column; the list still loads, without costs. */
 const ITEM_COLUMNS_BEFORE_COST = 'id, name, item_kind, unit, sell_price_paise, stock, is_active, updated_at';
 const PARTY_COLUMNS = 'id, kind, name, phone, is_active, opening_paise, purchase_category_id';
@@ -106,6 +109,8 @@ function mapItem(row: Record<string, unknown>): KitchenItem {
     unit,
     sell_price: row.sell_price_paise === null || row.sell_price_paise === undefined ? null : fromPaise(toNumber(row.sell_price_paise)),
     cost_price: row.cost_price_paise === null || row.cost_price_paise === undefined ? null : fromPaise(toNumber(row.cost_price_paise)),
+    packing_price: row.packing_price_paise === null || row.packing_price_paise === undefined ? null : fromPaise(toNumber(row.packing_price_paise)),
+    category_id: toStringOrNull(row.category_id),
     stock: toNumber(row.stock),
     is_active: row.is_active !== false,
     updated_at: String(row.updated_at ?? ''),
@@ -182,6 +187,7 @@ export async function fetchKitchenItems(includeInactive = false): Promise<Servic
       return includeInactive ? query : query.eq('is_active', true);
     };
     let { data, error } = await read(ITEM_COLUMNS);
+    if (error?.code === '42703') ({ data, error } = await read(ITEM_COLUMNS_BEFORE_CATALOG));
     if (error?.code === '42703') ({ data, error } = await read(ITEM_COLUMNS_BEFORE_COST));
     if (error) return { data: null, error: explain(error, 'Unable to load the items.') };
     return { data: ((data ?? []) as unknown[]).filter(isRecord).map(mapItem), error: null };
@@ -202,11 +208,14 @@ export async function saveKitchenItem(input: KitchenItemInput, id?: string): Pro
       unit: input.unit,
       sell_price_paise: input.sell_price === null ? null : toPaise(input.sell_price),
       ...(input.cost_price !== undefined ? { cost_price_paise: input.cost_price === null ? null : toPaise(input.cost_price) } : {}),
+      ...(input.packing_price !== undefined ? { packing_price_paise: input.packing_price === null ? null : toPaise(input.packing_price) } : {}),
+      ...(input.category_id !== undefined ? { category_id: input.category_id } : {}),
     };
     const query = id
       ? supabase.from('kitchen_items').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
       : supabase.from('kitchen_items').insert({ ...fields, item_kind: input.item_kind ?? (input.sell_price === null ? 'raw_material' : 'finished_good'), tenant_id, branch_id, stock: input.opening_stock ?? 0 });
     const { data, error } = await query.select(ITEM_COLUMNS).single();
+    if (error?.code === '23514' && error.message?.includes('KITCHEN_ITEM_CATEGORY')) return { data: null, error: 'Pick a category of this item’s type.' };
     if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to save the item.') };
     return { data: mapItem(data), error: null };
   } catch (err) {
@@ -280,6 +289,39 @@ export async function setKitchenPartyActive(id: string, isActive: boolean): Prom
     return { data: (data ?? []).length > 0, error: null };
   } catch (err) {
     return { data: false, error: explain(err, 'Unable to change the list.') };
+  }
+}
+
+/** Task 295: the items each vendor usually supplies. Before migration 20261102100000, none. */
+export async function fetchKitchenVendorItems(): Promise<ServiceResult<KitchenVendorItem[]>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const { data, error } = await supabase.from('kitchen_vendor_items').select('party_id, item_id').eq('tenant_id', tenant_id).eq('branch_id', branch_id);
+    if (error?.code === '42P01' || error?.code === 'PGRST205') return { data: [], error: null };
+    if (error) return { data: null, error: explain(error, 'Unable to load the vendors’ items.') };
+    return { data: (data ?? []).filter(isRecord).map((r) => ({ party_id: String(r.party_id), item_id: String(r.item_id) })), error: null };
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to load the vendors’ items.') };
+  }
+}
+
+/** Task 295: sets the items a vendor usually supplies: adds the new ones, removes the dropped ones. */
+export async function setKitchenVendorItems(partyId: string, itemIds: readonly string[], before: readonly string[]): Promise<ServiceResult<boolean>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const added = itemIds.filter((id) => !before.includes(id));
+    const removed = before.filter((id) => !itemIds.includes(id));
+    if (added.length) {
+      const { error } = await supabase.from('kitchen_vendor_items').insert(added.map((item_id) => ({ tenant_id, branch_id, party_id: partyId, item_id })));
+      if (error && error.code !== '23505') return { data: false, error: explain(error, 'Unable to save the vendor’s items.') };
+    }
+    if (removed.length) {
+      const { error } = await supabase.from('kitchen_vendor_items').delete().eq('tenant_id', tenant_id).eq('branch_id', branch_id).eq('party_id', partyId).in('item_id', removed);
+      if (error) return { data: false, error: explain(error, 'Unable to save the vendor’s items.') };
+    }
+    return { data: true, error: null };
+  } catch (err) {
+    return { data: false, error: explain(err, 'Unable to save the vendor’s items.') };
   }
 }
 

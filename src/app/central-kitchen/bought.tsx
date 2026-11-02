@@ -7,7 +7,7 @@ import { editKitchenEntry, postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { balanceFromEntries, formatMoney, lastCostByItem, linesTotal, localDateKey } from '@/lib/pos/kitchen-utils';
-import { placeOf } from '@/lib/pos/kitchen-spend-utils';
+import { categoryOfItems, placeOf } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenCategory, KitchenEntryType, KitchenMode, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, Sheet, ValueRow, useSavedThen } from '@/components/kitchen/ui';
@@ -66,7 +66,11 @@ export default function BoughtScreen() {
   }, [editing, prefilled, draft]);
 
   const party = partyId ? data.partiesById.get(partyId) ?? null : null;
-  const categoryId = categoryOverride === undefined ? party?.purchase_category_id ?? null : categoryOverride;
+  // Task 295: unless one is picked, a buy is filed by what was bought, else by the vendor's usual category.
+  const fromItems = useMemo(() => categoryOfItems(order.map((itemId) => data.itemsById.get(itemId)?.category_id ?? null), data.purchaseCategories), [order, data.itemsById, data.purchaseCategories]);
+  const categoryId = categoryOverride === undefined ? fromItems ?? party?.purchase_category_id ?? null : categoryOverride;
+  // Task 295: the vendor's usual items as round initials before anything is typed.
+  const usual = useMemo(() => (partyId ? data.vendorItems.filter((v) => v.party_id === partyId).map((v) => ({ itemId: v.item_id, lastQty: 0 })) : []), [data.vendorItems, partyId]);
   const keepsSavedCategory = !!editing && categoryId === (editing.purchase_category_id ?? null);
   // Task 279: Transport and Salary advance are for Spent only.
   const buyCategories = useMemo(() => data.purchaseCategories.filter((c) => !c.asks || c.id === categoryId), [data.purchaseCategories, categoryId]);
@@ -149,7 +153,7 @@ export default function BoughtScreen() {
   );
   const items = (
     <Field label={withQty.length ? `Items · ${withQty.length}` : 'Items'}>
-      <ItemSearch items={data.items} mode="cost" lines={lines} lastCost={lastCost} showAmounts onAdd={(it) => draft.add(it, startRate(it, 'cost', lastCost))} />
+      <ItemSearch items={data.items} mode="cost" lines={lines} lastCost={lastCost} picks={usual} showAmounts onAdd={(it) => draft.add(it, startRate(it, 'cost', lastCost))} />
       <ItemLines typed={!phone} onType={draft.update} focusItemId={draft.lastAdded} items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts
         onOpen={(itemId, field) => draft.setActive({ itemId, field })} />
     </Field>

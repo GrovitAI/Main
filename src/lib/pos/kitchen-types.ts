@@ -23,8 +23,12 @@ export type KitchenItem = {
   unit: KitchenUnit;
   /** What a branch pays per unit; null for a raw material the kitchen only buys. */
   sell_price: number | null;
-  /** What one unit costs the kitchen to make (finished goods); null when not set. Used for profit. */
+  /** What one unit costs the kitchen to make (finished goods), the rate without packing; null when not set. */
   cost_price: number | null;
+  /** Task 295: packing for one unit (finished goods), added to the rate for the cost; null when none. */
+  packing_price: number | null;
+  /** Task 295: its category: a spending one for a raw material, a finished goods one for a finished good. */
+  category_id: string | null;
   stock: number;
   is_active: boolean;
   updated_at: string;
@@ -38,9 +42,16 @@ export type KitchenItemInput = {
   sell_price: number | null;
   /** Left out: unchanged. */
   cost_price?: number | null;
+  /** Task 295: left out, unchanged. */
+  packing_price?: number | null;
+  /** Task 295: left out, unchanged. */
+  category_id?: string | null;
   /** Only read when the item is created. */
   opening_stock?: number;
 };
+
+/** Task 295: one item a vendor usually supplies. */
+export type KitchenVendorItem = { party_id: string; item_id: string };
 
 export type KitchenParty = {
   id: string;
@@ -72,6 +83,8 @@ export type KitchenCategory = {
   parent_id?: string | null;
   /** Task 279: what an entry under it must name: the route (Transport) or the person (Salary advance). */
   asks?: KitchenCategoryAsks | null;
+  /** Task 295: 'goods' for a finished goods category; spending categories leave it out. */
+  scope?: 'spend' | 'goods';
 };
 
 export type KitchenCategoryAsks = 'route' | 'person';

@@ -23,4 +23,8 @@
 # columns on open_orders with their checks.
 # Task 289 (20261022100000_kitchen_drawings_in_cash_bank.sql) was applied to production by the
 # owner on 2026-10-22 and checked: kitchen_drawings_cash_rows (security definer, no anon) and the
-# summary and range report using it. Nothing is pending.
+# summary and range report using it.
+20261102100000_kitchen_item_catalog.sql
+# Then, once, the data script supabase/scripts/20261102_kitchen_fresh_start.sql (task 295): clears the
+# kitchen's test data and loads the owner's items, categories, vendors and branches. Run on staging
+# 2026-11-02. It refuses to run twice.

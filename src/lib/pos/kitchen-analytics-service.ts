@@ -78,37 +78,53 @@ export async function fetchKitchenReport(filter: KitchenReportFilter, signal?: A
   }
 }
 
-const PURCHASE_CATEGORY_COLUMNS = 'id,name,is_active,parent_id,asks';
+const PURCHASE_CATEGORY_COLUMNS = 'id,name,is_active,parent_id,asks,scope';
+/** Before migration 20261102100000 there is no scope: every category is a spending one. */
+const PURCHASE_CATEGORY_COLUMNS_BEFORE_SCOPE = 'id,name,is_active,parent_id,asks';
 function purchaseCategory(row: Record<string, unknown>): KitchenCategory {
   return {
     id: String(row.id), name: String(row.name), is_active: row.is_active === true, sort_order: 0,
     parent_id: typeof row.parent_id === 'string' ? row.parent_id : null,
     asks: row.asks === 'route' || row.asks === 'person' ? row.asks : null,
+    scope: row.scope === 'goods' ? 'goods' : 'spend',
   };
 }
 
-export async function fetchKitchenPurchaseCategories(includeInactive = false): Promise<ServiceResult<KitchenCategory[]>> {
+/**
+ * The spending categories (Spent and Bought), or with `scope` 'goods' (task 295) the finished
+ * goods' categories. Before the scope column, every category is a spending one and there are no
+ * goods categories.
+ */
+export async function fetchKitchenPurchaseCategories(includeInactive = false, scope: 'spend' | 'goods' = 'spend'): Promise<ServiceResult<KitchenCategory[]>> {
   try {
     const { tenant_id } = getTenantContext();
     const branch_id = kitchenBranch().id;
-    let query = supabase.from('kitchen_purchase_categories').select(PURCHASE_CATEGORY_COLUMNS).eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name');
-    if (!includeInactive) query = query.eq('is_active', true);
-    const { data, error } = await query;
+    const read = (columns: string, withScope: boolean) => {
+      let query = supabase.from('kitchen_purchase_categories').select(columns).eq('tenant_id', tenant_id).eq('branch_id', branch_id).order('name');
+      if (withScope) query = query.eq('scope', scope);
+      return includeInactive ? query : query.eq('is_active', true);
+    };
+    let { data, error } = await read(PURCHASE_CATEGORY_COLUMNS, true);
+    if (error?.code === '42703') {
+      if (scope === 'goods') return { data: [], error: null };
+      ({ data, error } = await read(PURCHASE_CATEGORY_COLUMNS_BEFORE_SCOPE, false));
+    }
     if (error) return { data: null, error: 'Unable to load purchase categories. Please retry.' };
-    return { data: (data ?? []).filter(record).map(purchaseCategory), error: null };
+    return { data: ((data ?? []) as unknown[]).filter(record).map(purchaseCategory), error: null };
   } catch {
     return { data: null, error: 'Unable to load purchase categories. Please retry.' };
   }
 }
 
 /** `parentId` (task 279): the category it sits in, or null for a top-level one; left out, unchanged. */
-export async function saveKitchenPurchaseCategory(name: string, id?: string, isActive = true, parentId?: string | null): Promise<ServiceResult<KitchenCategory>> {
+export async function saveKitchenPurchaseCategory(name: string, id?: string, isActive = true, parentId?: string | null, scope?: 'goods'): Promise<ServiceResult<KitchenCategory>> {
   try {
     const clean = name.trim();
     if (!clean || clean.length > 80) return { data: null, error: 'Use a category name between 1 and 80 characters.' };
     const { tenant_id } = getTenantContext();
     const branch_id = kitchenBranch().id;
-    const fields = { name: clean, is_active: isActive, ...(parentId !== undefined ? { parent_id: parentId } : {}) };
+    // Task 295: a new finished goods category says so; a spending one keeps the column's default.
+    const fields = { name: clean, is_active: isActive, ...(parentId !== undefined ? { parent_id: parentId } : {}), ...(scope && !id ? { scope } : {}) };
     const query = id
       ? supabase.from('kitchen_purchase_categories').update(fields).eq('id', id).eq('tenant_id', tenant_id).eq('branch_id', branch_id)
       : supabase.from('kitchen_purchase_categories').insert({ ...fields, tenant_id, branch_id });

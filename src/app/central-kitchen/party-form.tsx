@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { useLeaveGuard } from '@/lib/pos/use-leave-guard';
-import { saveKitchenParty } from '@/lib/pos/kitchen-service';
+import { saveKitchenParty, setKitchenVendorItems } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SettingsGroup, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { VendorItemsSheet } from '@/components/kitchen/VendorItemsSheet';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { PurchaseCategoryPicker } from '@/components/kitchen/PurchaseCategoryPicker';
 
@@ -29,6 +30,24 @@ export default function PartyFormScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(existing?.purchase_category_id ?? null);
   const [openingText, setOpeningText] = useState(existing && existing.opening !== 0 ? String(Math.abs(existing.opening)) : '');
   const [side, setSide] = useState<Side>(existing && existing.opening < 0 ? 'ahead' : 'owed');
+  // Opened by a link or a reload, the list arrives after the first render: fill the form then.
+  const hydrated = useRef(existing?.id);
+  useEffect(() => {
+    if (!existing || hydrated.current === existing.id) return;
+    hydrated.current = existing.id;
+    setName(existing.name);
+    setPhone(existing.phone ?? '');
+    setCategoryId(existing.purchase_category_id ?? null);
+    setOpeningText(existing.opening !== 0 ? String(Math.abs(existing.opening)) : '');
+    setSide(existing.opening < 0 ? 'ahead' : 'owed');
+  }, [existing]);
+  // Task 295: the items this vendor usually supplies.
+  const savedItems = useMemo(() => (existing ? data.vendorItems.filter((v) => v.party_id === existing.id).map((v) => v.item_id) : []), [data.vendorItems, existing]);
+  const [usualItems, setUsualItems] = useState<string[] | null>(null);
+  const usual = usualItems ?? savedItems;
+  const usualChanged = usualItems !== null && (usualItems.length !== savedItems.length || usualItems.some((id) => !savedItems.includes(id)));
+  const [pickingItems, setPickingItems] = useState(false);
+  const allCategories = useMemo(() => [...data.purchaseCategories, ...data.goodsCategories], [data.purchaseCategories, data.goodsCategories]);
   const [saving, setSaving] = useState(false);
   const done = useSavedThen();
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +58,8 @@ export default function PartyFormScreen() {
 
   // Task 221: Back asks first once something differs from the saved entry, or anything is typed for a new one.
   const typed = existing
-    ? name !== existing.name || phone !== (existing.phone ?? '') || openingText !== (existing.opening !== 0 ? String(Math.abs(existing.opening)) : '')
-    : Boolean(name.trim() || phone.trim() || openingText.trim());
+    ? name !== existing.name || phone !== (existing.phone ?? '') || openingText !== (existing.opening !== 0 ? String(Math.abs(existing.opening)) : '') || usualChanged
+    : Boolean(name.trim() || phone.trim() || openingText.trim() || usual.length);
   useLeaveGuard(typed && !done.saved, 'What you typed');
   const save = async () => {
     if (!name.trim()) return;
@@ -52,6 +71,15 @@ export default function PartyFormScreen() {
       setError(res.error ?? `Unable to save the ${noun}.`);
       buzz('error');
       return;
+    }
+    if (!isBranch && (usualChanged || (!existing && usual.length))) {
+      const linked = await setKitchenVendorItems(res.data.id, usual, existing ? savedItems : []);
+      if (linked.error) {
+        setSaving(false);
+        setError(linked.error);
+        buzz('error');
+        return;
+      }
     }
     done.mark();
     await data.load(true);
@@ -79,6 +107,13 @@ export default function PartyFormScreen() {
             <PurchaseCategoryPicker categories={data.purchaseCategories.filter((c) => !c.asks || c.id === categoryId)} value={categoryId} onChange={setCategoryId} />
           </Field>
         ) : null}
+        {!isBranch ? (
+          <Field label="Usual items" optional>
+            <SettingsGroup>
+              <ValueRow label="Items" value={usual.length ? `${usual.length} ${usual.length === 1 ? 'item' : 'items'}` : null} placeholder="None" onPress={() => setPickingItems(true)} disabled={!mayEdit} />
+            </SettingsGroup>
+          </Field>
+        ) : null}
         <Field
           label="Opening balance"
           optional
@@ -99,6 +134,8 @@ export default function PartyFormScreen() {
         </Field>
         {error ? <Notice text={error} /> : null}
       </KScreen>
+      {!isBranch ? <VendorItemsSheet visible={pickingItems} onClose={() => setPickingItems(false)} items={data.items} categories={allCategories} value={usual}
+        onDone={(ids) => { setUsualItems(ids); setPickingItems(false); }} /> : null}
     </KeyboardAvoider>
   );
 }

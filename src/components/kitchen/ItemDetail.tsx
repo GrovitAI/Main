@@ -8,9 +8,10 @@ import { fetchKitchenItemEntries, postKitchenEntry, setKitchenItemActive } from 
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { formatMoney, formatQty, stockLevels } from '@/lib/pos/kitchen-utils';
+import { itemCategoryName } from '@/lib/pos/kitchen-spend-utils';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { chart, colors, semantic } from '@/lib/pos/brand';
-import type { KitchenEntry } from '@/lib/pos/kitchen-types';
+import type { KitchenCategory, KitchenEntry, KitchenItem } from '@/lib/pos/kitchen-types';
 import { AmountPanel, Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, QtyFigure, Section, Sheet, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
 import { EntryList } from './EntryList';
 import { EntryActions } from './EntryActions';
@@ -158,7 +159,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
     <View onLayout={measure}>
       <KHeader
         title={item.name}
-        subtitle={item.item_kind === 'raw_material' ? 'Raw material · stored as purchased' : !showAmounts ? 'Finished good' : `${item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'Finished good · price entered on each send'}${item.cost_price !== null ? ` · costs ${formatMoney(item.cost_price)}` : ' · no cost set'}`}
+        subtitle={itemSubtitle(item, [...data.purchaseCategories, ...data.goodsCategories], showAmounts)}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
         right={can('setup.items') ? <MoreMenu label={`More for ${item.name}`} items={[
@@ -213,4 +214,20 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
       <EntryActions entry={open} onClose={() => { setOpen(null); void loadMoves(); }} itemsById={data.itemsById} partiesById={data.partiesById} />
     </View>
   );
+}
+
+/**
+ * Task 295: what an item is, under its name: its category, then for a raw material its branch price if it
+ * is also sent on, and for a finished good its price and its cost as rate + packing.
+ */
+function itemSubtitle(item: KitchenItem, categories: readonly KitchenCategory[], showAmounts: boolean): string {
+  const category = itemCategoryName(categories, item.category_id);
+  if (item.item_kind === 'raw_material') {
+    return [category ?? 'Raw material', 'stored as purchased', showAmounts && item.sell_price !== null ? `branches pay ${formatMoney(item.sell_price)} per ${item.unit}` : null].filter(Boolean).join(' · ');
+  }
+  if (!showAmounts) return category ?? 'Finished good';
+  const price = item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'price entered on each send';
+  const cost = item.cost_price === null ? 'no cost set'
+    : item.packing_price ? `costs ${formatMoney(item.cost_price)} + ${formatMoney(item.packing_price)} packing` : `costs ${formatMoney(item.cost_price)}`;
+  return [category, price, cost].filter(Boolean).join(' · ');
 }

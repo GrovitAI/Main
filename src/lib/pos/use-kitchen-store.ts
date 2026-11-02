@@ -13,6 +13,7 @@ import {
   fetchKitchenItems,
   fetchKitchenParties,
   fetchKitchenParticulars,
+  fetchKitchenVendorItems,
 } from './kitchen-service';
 import { keepIfSame, localDateKey } from './kitchen-utils';
 import { fetchKitchenPurchaseCategories } from '@/lib/pos/kitchen-analytics-service';
@@ -21,7 +22,7 @@ import { fetchKitchenAccess } from '@/lib/pos/kitchen-access-service';
 import { can, canFix, dateBlock, fullAccess, isDayLocked } from '@/lib/pos/kitchen-access-utils';
 import type { KitchenAccess, KitchenPermission } from '@/lib/pos/kitchen-access-types';
 import { useSessionStore } from '@/lib/pos/use-session-store';
-import type { KitchenCategory, KitchenEntry, KitchenItem, KitchenParticular, KitchenParty, KitchenPartyBalance } from './kitchen-types';
+import type { KitchenCategory, KitchenEntry, KitchenItem, KitchenParticular, KitchenParty, KitchenPartyBalance, KitchenVendorItem } from './kitchen-types';
 
 /** How far back the home and history look without asking for more. */
 const RECENT_DAYS = 92;
@@ -40,6 +41,10 @@ type KitchenState = {
   parties: KitchenParty[];
   categories: KitchenCategory[];
   purchaseCategories: KitchenCategory[];
+  /** Task 295: the finished goods' categories. */
+  goodsCategories: KitchenCategory[];
+  /** Task 295: the items each vendor usually supplies. */
+  vendorItems: KitchenVendorItem[];
   /** Task 279: what Spent entries have been for, each bringing its category. */
   particulars: KitchenParticular[];
   balances: KitchenPartyBalance[];
@@ -58,7 +63,7 @@ type KitchenState = {
   reset: () => void;
 };
 
-const EMPTY = { items: [], parties: [], categories: [], purchaseCategories: [], particulars: [], balances: [], entries: [], access: fullAccess(kitchenToday()), loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
+const EMPTY = { items: [], parties: [], categories: [], purchaseCategories: [], goodsCategories: [], vendorItems: [], particulars: [], balances: [], entries: [], access: fullAccess(kitchenToday()), loaded: false, loading: false, error: null, loadedAt: 0, notice: null };
 
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -73,7 +78,7 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
     if (get().loading) return;
     set({ loading: true, error: silent ? get().error : null });
     // Task 255: Spent uses the purchase categories too, so the old expense list is not loaded.
-    const [items, parties, balances, entries, purchaseCategories, access, particulars] = await Promise.all([
+    const [items, parties, balances, entries, purchaseCategories, access, particulars, goodsCategories, vendorItems] = await Promise.all([
       fetchKitchenItems(),
       fetchKitchenParties(),
       fetchKitchenBalances(),
@@ -81,12 +86,16 @@ export const useKitchenStore = create<KitchenState>((set, get) => ({
       fetchKitchenPurchaseCategories(true),
       fetchKitchenAccess(kitchenToday()),
       fetchKitchenParticulars(),
+      fetchKitchenPurchaseCategories(true, 'goods'),
+      fetchKitchenVendorItems(),
     ]);
-    const error = items.error ?? parties.error ?? balances.error ?? entries.error ?? purchaseCategories.error ?? access.error ?? particulars.error;
+    const error = items.error ?? parties.error ?? balances.error ?? entries.error ?? purchaseCategories.error ?? access.error ?? particulars.error ?? goodsCategories.error ?? vendorItems.error;
     set({
       items: keepIfSame(get().items, items.data),
       parties: keepIfSame(get().parties, parties.data),
       purchaseCategories: keepIfSame(get().purchaseCategories, purchaseCategories.data),
+      goodsCategories: keepIfSame(get().goodsCategories, goodsCategories.data),
+      vendorItems: keepIfSame(get().vendorItems, vendorItems.data),
       particulars: keepIfSame(get().particulars, particulars.data),
       balances: keepIfSame(get().balances, balances.data),
       entries: keepIfSame(get().entries, entries.data),
@@ -109,7 +118,7 @@ export function useKitchenData() {
   // Task 258: everything but the passing notice, so a "Saved" line coming and going does not
   // re-render every kitchen screen that is mounted.
   const state = useKitchenStore(useShallow((s) => ({
-    items: s.items, parties: s.parties, categories: s.categories, purchaseCategories: s.purchaseCategories, particulars: s.particulars, balances: s.balances,
+    items: s.items, parties: s.parties, categories: s.categories, purchaseCategories: s.purchaseCategories, goodsCategories: s.goodsCategories, vendorItems: s.vendorItems, particulars: s.particulars, balances: s.balances,
     entries: s.entries, access: s.access, loaded: s.loaded, loading: s.loading, error: s.error, loadedAt: s.loadedAt, load: s.load, reset: s.reset,
   })));
   const load = state.load;

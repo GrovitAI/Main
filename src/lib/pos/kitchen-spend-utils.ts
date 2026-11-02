@@ -25,6 +25,36 @@ export function placeOf(categories: readonly KitchenCategory[], categoryId: stri
   return { top: picked, sub: null, label: picked.name, asks: picked.asks ?? null };
 }
 
+/** Task 295: an item's category as shown on it: the sub-category's own name (Dairy), else the category's. */
+export function itemCategoryName(categories: readonly KitchenCategory[], categoryId: string | null | undefined): string | null {
+  const place = placeOf(categories, categoryId);
+  return place ? (place.sub ?? place.top).name : null;
+}
+
+/**
+ * Task 295: the category a buy is filed under from what was bought: the items' own category when
+ * they share one (Food > Dairy), else the category they all sit in (Food), else null (the vendor's
+ * usual category is used then). Items without a category do not count.
+ */
+export function categoryOfItems(itemCategoryIds: readonly (string | null)[], categories: readonly KitchenCategory[]): string | null {
+  const places = itemCategoryIds.map((id) => placeOf(categories, id)).filter((p): p is CategoryPlace => p !== null);
+  if (places.length === 0) return null;
+  const own = new Set(places.map((p) => (p.sub ?? p.top).id));
+  if (own.size === 1) return [...own][0] ?? null;
+  const tops = new Set(places.map((p) => p.top.id));
+  return tops.size === 1 ? [...tops][0] ?? null : null;
+}
+
+/** Task 295: items in category order (those without one last), then by name. */
+export function byCategoryThenName<T extends { name: string; category_id: string | null }>(items: readonly T[], categories: readonly KitchenCategory[]): T[] {
+  const name = (it: T) => itemCategoryName(categories, it.category_id);
+  return [...items].sort((a, b) => {
+    const ca = name(a); const cb = name(b);
+    if (ca !== cb) return ca === null ? 1 : cb === null ? -1 : ca.localeCompare(cb);
+    return a.name.localeCompare(b.name);
+  });
+}
+
 /** Top-level categories in name order, each with its sub-categories; archived ones left out. */
 export function categoryTree(categories: readonly KitchenCategory[], includeArchived = false): { top: KitchenCategory; subs: KitchenCategory[] }[] {
   const shown = categories.filter((c) => includeArchived || c.is_active);
