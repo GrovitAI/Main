@@ -3,16 +3,26 @@ import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { useLeaveGuard } from '@/lib/pos/use-leave-guard';
 import { saveKitchenItem } from '@/lib/pos/kitchen-service';
+import { saveKitchenPurchaseCategory } from '@/lib/pos/kitchen-analytics-service';
+import { placeOf } from '@/lib/pos/kitchen-spend-utils';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { KITCHEN_UNITS, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
+import { KITCHEN_UNITS, type KitchenCategory, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Chips, Field, KHeader, KScreen, Notice, PrimaryButton, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { Chips, Field, KHeader, KScreen, Notice, PrimaryButton, SettingsGroup, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { CategorySheet } from '@/components/kitchen/SpendFields';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 
 const UNIT_LABELS: Record<KitchenUnit, string> = { kg: 'Kilograms', L: 'Litres', pcs: 'Pieces' };
 
-/** A new item, or a change to one: name, unit, the price a branch pays and, for profit, what it costs to make. */
+const money = (text: string): string => text.replace(/[,\s]/g, '');
+const asText = (n: number | null | undefined): string => (n === null || n === undefined ? '' : String(n));
+
+/**
+ * A new item, or a change to one: name, unit, the price a branch pays and, for profit, what it costs to make.
+ * Task 295: its category (a spending one for a raw material, a finished goods one for a finished good), the
+ * cost as a rate and an optional packing, and a branch price on a raw material that is also sold on.
+ */
 export default function ItemFormScreen() {
   const access = useKitchenAccess();
   const mayEdit = access.can('setup.items');
@@ -23,7 +33,10 @@ export default function ItemFormScreen() {
   const [kind, setKind] = useState<KitchenItemKind>(existing?.item_kind ?? (initialKind === 'finished_good' ? 'finished_good' : 'raw_material'));
   const [unit, setUnit] = useState<KitchenUnit>(existing?.unit ?? 'kg');
   const [price, setPrice] = useState(existing?.sell_price !== null && existing?.sell_price !== undefined ? String(existing.sell_price) : '');
-  const [cost, setCost] = useState(existing?.cost_price !== null && existing?.cost_price !== undefined ? String(existing.cost_price) : '');
+  const [cost, setCost] = useState(asText(existing?.cost_price));
+  const [packing, setPacking] = useState(asText(existing?.packing_price));
+  const [categoryId, setCategoryId] = useState<string | null>(existing?.category_id ?? null);
+  const [pickingCategory, setPickingCategory] = useState(false);
   const [opening, setOpening] = useState('');
   const [saving, setSaving] = useState(false);
   const done = useSavedThen();
@@ -36,38 +49,59 @@ export default function ItemFormScreen() {
     setKind(existing.item_kind);
     setUnit(existing.unit);
     setPrice(existing.sell_price === null ? '' : String(existing.sell_price));
-    setCost(existing.cost_price === null ? '' : String(existing.cost_price));
+    setCost(asText(existing.cost_price));
+    setPacking(asText(existing.packing_price));
+    setCategoryId(existing.category_id);
   }, [existing]);
 
-  const sellNumber = Number(price.replace(/[,s]/g, ''));
-  const costNumber = Number(cost.replace(/[,s]/g, ''));
-  const margin = kind === 'finished_good' && price.trim() && cost.trim() && Number.isFinite(sellNumber) && Number.isFinite(costNumber) && sellNumber > 0
-    ? { each: sellNumber - costNumber, percent: Math.round(((sellNumber - costNumber) / sellNumber) * 100) } : null;
+  const finished = kind === 'finished_good';
+  // A raw material sits under a spending category (not one that asks for a route or a person).
+  const categories: KitchenCategory[] = finished ? data.goodsCategories : data.purchaseCategories.filter((c) => !c.asks);
+  const category = placeOf(categories, categoryId);
+  const sellNumber = Number(money(price));
+  const costNumber = Number(money(cost));
+  const packingNumber = packing.trim() ? Number(money(packing)) : 0;
+  const totalCost = finished && cost.trim() && Number.isFinite(costNumber) && Number.isFinite(packingNumber) ? costNumber + packingNumber : null;
+  const margin = finished && price.trim() && totalCost !== null && Number.isFinite(sellNumber) && sellNumber > 0
+    ? { each: sellNumber - totalCost, percent: Math.round(((sellNumber - totalCost) / sellNumber) * 100) } : null;
+  const changeKind = (next: KitchenItemKind): void => {
+    // The other type's categories are a different list.
+    if (next !== kind) setCategoryId(null);
+    setKind(next);
+  };
+  const addCategory = async (categoryName: string, parentId: string | null): Promise<KitchenCategory | string> => {
+    const res = await saveKitchenPurchaseCategory(categoryName, undefined, true, finished ? null : parentId, finished ? 'goods' : undefined);
+    if (!res.data) return res.error ?? 'Unable to add the category.';
+    await data.load(true);
+    return res.data;
+  };
 
   // Task 221: Back asks first once something differs from the saved item, or anything is typed for a new one.
   const typed = existing
-    ? name !== existing.name || price !== (existing.sell_price === null ? '' : String(existing.sell_price)) || cost !== (existing.cost_price === null ? '' : String(existing.cost_price))
-    : Boolean(name.trim() || price.trim() || cost.trim() || opening.trim());
+    ? name !== existing.name || price !== asText(existing.sell_price) || cost !== asText(existing.cost_price) || packing !== asText(existing.packing_price) || categoryId !== existing.category_id
+    : Boolean(name.trim() || price.trim() || cost.trim() || packing.trim() || opening.trim() || categoryId);
   useLeaveGuard(typed && !done.saved, 'What you typed');
   const save = async () => {
     if (!name.trim() || (id && !existing)) return;
-    const openingQty = Number(opening.replace(/[,\s]/g, ''));
-    const sellingPrice = Number(price.replace(/[,\s]/g, ''));
-    if ((!existing && (!Number.isFinite(openingQty) || openingQty < 0)) || (kind === 'finished_good' && price.trim() !== '' && (!Number.isFinite(sellingPrice) || sellingPrice < 0))) {
+    const openingQty = Number(money(opening));
+    if ((!existing && (!Number.isFinite(openingQty) || openingQty < 0)) || (price.trim() !== '' && (!Number.isFinite(sellNumber) || sellNumber < 0))) {
       setError('Enter a valid stock quantity and selling price, zero or greater.');
       return;
     }
-    if (kind === 'finished_good' && cost.trim() !== '' && (!Number.isFinite(costNumber) || costNumber < 0)) {
-      setError('Enter a valid cost, zero or greater.');
+    if (finished && ((cost.trim() !== '' && (!Number.isFinite(costNumber) || costNumber < 0)) || (packing.trim() !== '' && (!Number.isFinite(packingNumber) || packingNumber < 0)))) {
+      setError('Enter a valid rate and packing, zero or greater.');
       return;
     }
     setSaving(true);
     setError(null);
     const res = await saveKitchenItem(
       {
-        name, item_kind: kind, unit, sell_price: kind === 'raw_material' || price.trim() === '' ? null : parseAmount(price), opening_stock: openingQty,
+        name, item_kind: kind, unit, sell_price: price.trim() === '' ? null : parseAmount(price), opening_stock: openingQty, category_id: categoryId,
         // Only a login that sees amounts edits the cost; otherwise it is left as it is.
-        ...(access.showAmounts ? { cost_price: kind === 'raw_material' || cost.trim() === '' ? null : parseAmount(cost) } : {}),
+        ...(access.showAmounts ? {
+          cost_price: !finished || cost.trim() === '' ? null : parseAmount(cost),
+          packing_price: !finished || packing.trim() === '' ? null : parseAmount(packing),
+        } : {}),
       },
       existing?.id,
     );
@@ -89,19 +123,28 @@ export default function ItemFormScreen() {
         <KHeader title={existing ? 'Edit item' : kind === 'finished_good' ? 'Add a finished good' : 'Add a raw material'} onBack={() => backToKitchen()} />
         {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change items. Ask the owner." /> : null}
         <Field label="Item type" hint={existing ? 'Decides which stock list shows it; past entries stay as they are.' : undefined}>
-          <Chips options={[{ value: 'raw_material', label: 'Raw material' }, { value: 'finished_good', label: 'Finished good' }]} value={kind} onChange={setKind} />
+          <Chips options={[{ value: 'raw_material', label: 'Raw material' }, { value: 'finished_good', label: 'Finished good' }]} value={kind} onChange={changeKind} />
         </Field>
         <Field label="Name">
           <TextField value={name} onChange={setName} label="Item name" placeholder="e.g. Nutella sauce" autoFocus={!existing} />
         </Field>
+        <Field label="Category" optional>
+          <SettingsGroup>
+            <ValueRow label={finished ? 'Finished goods' : 'Bought as'} value={category?.label ?? null} onPress={() => setPickingCategory(true)} disabled={!mayEdit} />
+          </SettingsGroup>
+        </Field>
         <Field label="Counted in" hint={existing ? 'The stock figure is not converted, so count it again after a change.' : undefined}>
           <Chips options={KITCHEN_UNITS.map((u) => ({ value: u, label: UNIT_LABELS[u], hint: u }))} value={unit} onChange={setUnit} />
         </Field>
-        {kind === 'finished_good' ? <Field label={`Sells at, ₹ per ${unit}`} optional hint="Fills in on each send; leave it blank to type a price each time.">
+        <Field label={finished ? `Sells at, ₹ per ${unit}` : `Branch price, ₹ per ${unit}`} optional hint={finished ? 'Fills in on each send.' : 'Only if it is also sent to branches.'}>
           <TextField value={price} onChange={setPrice} label="Selling price (optional)" keyboardType="decimal-pad" prefix="₹" />
+        </Field>
+        {finished && access.showAmounts ? <Field label={`Rate, ₹ per ${unit}`} optional>
+          <TextField value={cost} onChange={setCost} label="Rate per unit (optional)" keyboardType="decimal-pad" prefix="₹" />
         </Field> : null}
-        {kind === 'finished_good' && access.showAmounts ? <Field label={`Costs us, ₹ per ${unit}`} optional hint={`${margin ? `${formatMoney(margin.each)} profit per ${unit} at the selling price (${margin.percent}%).` : `Ingredients and packing for one ${unit}, for profit in Analytics.`}${existing ? ' Past sends keep their cost.' : ''}`}>
-          <TextField value={cost} onChange={setCost} label="Cost per unit (optional)" keyboardType="decimal-pad" prefix="₹" />
+        {finished && access.showAmounts ? <Field label={`Packing, ₹ per ${unit}`} optional
+          hint={totalCost !== null ? `Costs ${formatMoney(totalCost)}${margin ? ` · ${formatMoney(margin.each)} profit (${margin.percent}%)` : ''}${existing ? ' · past sends keep their cost' : ''}` : undefined}>
+          <TextField value={packing} onChange={setPacking} label="Packing per unit (optional)" keyboardType="decimal-pad" prefix="₹" />
         </Field> : null}
         {!existing ? (
           <Field label={`In stock today, ${unit}`} hint={kind === 'finished_good' ? 'What is on the shelf now; batches add to it and sends take from it.' : 'What is on the shelf now; purchases add to it.'}>
@@ -111,6 +154,9 @@ export default function ItemFormScreen() {
         {error ? <Notice text={error} /> : null}
         {id && data.loaded && !existing ? <Notice text="This item is no longer in the list. Go back to Stock and choose an active item." /> : null}
       </KScreen>
+      <CategorySheet visible={pickingCategory} onClose={() => setPickingCategory(false)} title={finished ? 'Finished goods' : 'Bought as'} categories={categories} value={categoryId}
+        onPick={(picked) => { setCategoryId(picked); setPickingCategory(false); }} onNone={() => { setCategoryId(null); setPickingCategory(false); }} noneLabel="No category"
+        onAdd={access.can('setup.categories') ? addCategory : undefined} />
     </KeyboardAvoider>
   );
 }

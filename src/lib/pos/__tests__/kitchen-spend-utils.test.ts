@@ -1,4 +1,4 @@
-import { categoryTree, lastAmounts, matchParticulars, oftenParticulars, placeOf, sameParticular } from '../kitchen-spend-utils';
+import { byCategoryThenName, categoryOfItems, categoryTree, itemCategoryName, lastAmounts, matchParticulars, oftenParticulars, placeOf, sameParticular } from '../kitchen-spend-utils';
 import type { KitchenCategory, KitchenEntry, KitchenParticular } from '../kitchen-types';
 
 const cat = (id: string, name: string, extra: Partial<KitchenCategory> = {}): KitchenCategory => ({ id, name, sort_order: 0, is_active: true, ...extra });
@@ -38,5 +38,23 @@ describe('kitchen spend utils (task 279)', () => {
     const entries = [spent('1', 'm', 400, '2026-10-01'), spent('2', 'm', 480, '2026-10-05'), spent('3', 'v', 650, '2026-10-06'), spent('4', 'v', 999, '2026-10-07', true)];
     expect(oftenParticulars(entries, particulars).map((o) => [o.particular.name, o.lastAmount])).toEqual([['Milk', 480], ['Van', 650]]);
     expect(lastAmounts(entries).get('v')).toBe(650);
+  });
+});
+
+describe('item categories (task 295)', () => {
+  it('files a buy by what was bought', () => {
+    expect(categoryOfItems(['dairy', 'dairy'], categories)).toBe('dairy');
+    expect(categoryOfItems(['dairy', 'fruit'], categories)).toBe('food');
+    expect(categoryOfItems(['dairy', null], categories)).toBe('dairy');
+    expect(categoryOfItems(['dairy', 'tr'], categories)).toBeNull();
+    expect(categoryOfItems([null, 'missing'], categories)).toBeNull();
+    expect(categoryOfItems([], categories)).toBeNull();
+  });
+  it('names an item by its own category and lists items by category, the uncategorised last', () => {
+    expect(itemCategoryName(categories, 'dairy')).toBe('Dairy');
+    expect(itemCategoryName(categories, 'food')).toBe('Food');
+    expect(itemCategoryName(categories, null)).toBeNull();
+    const items = [{ name: 'Mango', category_id: 'fruit' }, { name: 'Oil', category_id: null }, { name: 'Milk', category_id: 'dairy' }, { name: 'Cream', category_id: 'dairy' }];
+    expect(byCategoryThenName(items, categories).map((i) => i.name)).toEqual(['Cream', 'Milk', 'Mango', 'Oil']);
   });
 });

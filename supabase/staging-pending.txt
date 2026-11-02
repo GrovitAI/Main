@@ -23,4 +23,8 @@
 # columns on open_orders with their checks.
 # Task 289 (20261022100000_kitchen_drawings_in_cash_bank.sql) was applied to production by the
 # owner on 2026-10-22 and checked: kitchen_drawings_cash_rows (security definer, no anon) and the
-# summary and range report using it. Nothing is pending.
+# summary and range report using it.
+# Task 295 (20261102100000_kitchen_item_catalog.sql and the data script
+# supabase/scripts/20261102_kitchen_fresh_start.sql) were applied to production by the owner on
+# 2026-11-02 and checked: 38 items all with a category, 9 vendors with 26 usual items, Kolathur and
+# Velachery LeLaban, the goods categories and Food's 8 groups, and no test entries left. Nothing is pending.
