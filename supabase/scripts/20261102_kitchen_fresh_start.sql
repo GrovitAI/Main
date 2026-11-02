@@ -7,8 +7,8 @@
 --   2. adds Food's sub-categories and the finished goods' categories.
 --   3. adds the items (owner's lists; units of raw materials are first guesses to confirm),
 --      the vendors with the items each usually supplies, and the two restaurant branches.
--- It stops without changing anything if the catalogue is already there (Fazea base exists), so
--- running it again can never clear real data.
+-- It stops without changing anything if the catalogue is already there (vendors' usual items exist:
+-- only this script and the app after it make them), so running it again can never clear real data.
 
 BEGIN;
 
@@ -24,7 +24,7 @@ DECLARE
   v_cats jsonb;
 BEGIN
   FOR k IN SELECT b.id, b.tenant_id FROM public.branches b WHERE b.branch_type = 'CENTRAL_KITCHEN' LOOP
-    IF EXISTS (SELECT 1 FROM public.kitchen_items i WHERE i.tenant_id = k.tenant_id AND i.branch_id = k.id AND lower(i.name) = 'fazea base') THEN
+    IF EXISTS (SELECT 1 FROM public.kitchen_vendor_items v WHERE v.tenant_id = k.tenant_id AND v.branch_id = k.id) THEN
       RAISE EXCEPTION 'The catalogue is already in this kitchen; nothing was changed.';
     END IF;
 
