@@ -181,6 +181,50 @@ export function lastCostByItem(entries: readonly KitchenEntry[]): Map<string, nu
   return out;
 }
 
+export type StockMovement = { opening: number; in: number; out: number; counted: number; closing: number };
+
+const round3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+/**
+ * Task 300: each item's opening and closing stock over a range, walked back from its stock now.
+ * `entries` must hold every stock entry dated from the range's start onwards. In is buys and
+ * batches; out is sends and gives; counted is what counts changed it by.
+ */
+export function stockMovements(entries: readonly KitchenEntry[], items: readonly { id: string; stock: number }[], from: string, to: string): Map<string, StockMovement> {
+  const out = new Map<string, StockMovement>();
+  const after = new Map<string, number>();
+  for (const item of items) out.set(item.id, { opening: 0, in: 0, out: 0, counted: 0, closing: 0 });
+  const add = (e: KitchenEntry, itemId: string | null, change: number, column: 'in' | 'out' | 'counted'): void => {
+    if (!itemId || e.entry_date < from) return;
+    if (e.entry_date > to) { after.set(itemId, (after.get(itemId) ?? 0) + change); return; }
+    const row = out.get(itemId);
+    if (row) row[column] += column === 'out' ? -change : change;
+  };
+  for (const e of entries) {
+    if (e.voided_at !== null) continue;
+    if (e.type === 'made') add(e, e.item_id, e.qty ?? 0, 'in');
+    else if (e.type === 'count') add(e, e.item_id, e.qty === null || e.from_qty === null ? 0 : e.qty - e.from_qty, 'counted');
+    else if (e.type === 'bought') for (const l of e.lines) add(e, l.item_id, l.qty, 'in');
+    else if (e.type === 'sent' || e.type === 'issued') for (const l of e.lines) add(e, l.item_id, -l.qty, 'out');
+  }
+  for (const item of items) {
+    const row = out.get(item.id);
+    if (!row) continue;
+    row.closing = round3(item.stock - (after.get(item.id) ?? 0));
+    row.in = round3(row.in);
+    row.out = round3(row.out);
+    row.counted = round3(row.counted);
+    row.opening = round3(row.closing - row.in + row.out - row.counted);
+  }
+  return out;
+}
+
+/** What one unit of an item is worth in stock: raw materials at the last price paid, finished goods at rate + packing. */
+export function stockUnitValue(item: { id: string; item_kind: string; cost_price: number | null; packing_price?: number | null }, lastCost: ReadonlyMap<string, number>): number | null {
+  if (item.item_kind === 'finished_good') return item.cost_price === null ? null : item.cost_price + (item.packing_price ?? 0);
+  return lastCost.get(item.id) ?? item.cost_price;
+}
+
 export type StatementRow = { entry: KitchenEntry; balanceAfter: number };
 
 /** A party's give-and-take, newest first, with the figure after each line. */

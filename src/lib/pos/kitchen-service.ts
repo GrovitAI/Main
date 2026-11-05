@@ -446,6 +446,33 @@ export async function fetchKitchenEntries(filter: KitchenEntryFilter = {}): Prom
   }
 }
 
+/** Task 300: every stock entry dated from a day onwards, a page at a time, however many there are. */
+export async function fetchKitchenStockEntries(from: string): Promise<ServiceResult<KitchenEntry[]>> {
+  try {
+    const { tenant_id, branch_id } = scope();
+    const all: KitchenEntry[] = [];
+    const size = 500;
+    for (let start = 0; ; start += size) {
+      const { data, error } = await supabase
+        .from('kitchen_entries')
+        .select(ENTRY_COLUMNS)
+        .eq('tenant_id', tenant_id)
+        .eq('branch_id', branch_id)
+        .in('type', ['sent', 'bought', 'issued', 'made', 'count'])
+        .is('voided_at', null)
+        .gte('entry_date', from)
+        .order('id')
+        .range(start, start + size - 1);
+      if (error) return { data: null, error: explain(error, 'Unable to load the stock report.') };
+      const rows = (data ?? []).filter(isRecord).map(mapEntry);
+      all.push(...rows);
+      if (rows.length < size) return { data: all, error: null };
+    }
+  } catch (err) {
+    return { data: null, error: explain(err, 'Unable to load the stock report.') };
+  }
+}
+
 /** Every entry that touched an item: its own made/count rows and the sends and buys it was on. */
 export async function fetchKitchenItemEntries(itemId: string, limit = 100): Promise<ServiceResult<KitchenEntry[]>> {
   try {
