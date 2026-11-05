@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Share, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
@@ -41,6 +41,10 @@ export default function SendScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<KitchenEntry | null>(null);
+  // Task 297: once posted the typing is spent, for good: closing the slip must not make the form "unsaved" again.
+  const [posted, setPosted] = useState(false);
+  const [slipClosed, setSlipClosed] = useState(false);
+  const leaving = useRef(false);
   const [prefilled, setPrefilled] = useState<string | null>(null);
   const phone = !useResponsive().isTablet;
 
@@ -72,7 +76,7 @@ export default function SendScreen() {
 
   // Task 221: Back asks first once items or a note are typed; never after the save.
   const typed = useTypedChanges(JSON.stringify({ lines: typedLines(lines), note: note.trim() }), prefilled);
-  useLeaveGuard(typed && saved === null, 'The items you typed');
+  useLeaveGuard(typed && !posted, 'The items you typed');
   const save = async () => {
     if (!partyId || !chosen || chosen.length === 0 || missing) return;
     setSaving(true);
@@ -85,6 +89,7 @@ export default function SendScreen() {
       buzz('error');
       return;
     }
+    setPosted(true);
     // Owner's ask: a rate typed for an item that had no price becomes its price for next time.
     if (access.can('setup.items')) {
       await Promise.all(chosen.map((l) => {
@@ -92,9 +97,9 @@ export default function SendScreen() {
         return it && it.sell_price === null && l.price > 0 ? saveKitchenItem({ name: it.name, unit: it.unit, sell_price: l.price }, it.id) : Promise.resolve(null);
       }));
     }
-    setSaving(false);
     buzz('success');
     await data.load(true);
+    setSaving(false);
     setSaved({ ...res.data, lines: chosen.map((l, i) => ({ id: String(i), item_id: l.item_id, qty: l.qty, price: l.price, line_total: Math.round(l.qty * l.price * 100) / 100 })) });
   };
 
@@ -120,8 +125,10 @@ export default function SendScreen() {
   };
 
   const done = () => {
+    if (leaving.current) return;
+    leaving.current = true;
     useKitchenStore.getState().setNotice(editing ? 'Changes saved' : `Sent to ${party?.name ?? 'the branch'}${showAmounts ? ` · ${formatMoney(saved?.amount ?? total)}` : ''}`);
-    setSaved(null);
+    setSlipClosed(true);
     backToKitchen();
   };
 
@@ -134,7 +141,7 @@ export default function SendScreen() {
   const caption = !party ? 'No items yet' : withQty.length === 0 ? 'No items yet' : `${party.name} will owe`;
   const footer = phone && pad ? pad : (
     <TotalBar caption={caption} total={formatMoney(total)} showTotal={showAmounts && withQty.length > 0}>
-      <PrimaryButton label={editing ? 'Save changes' : showAmounts && total > 0 ? `Send · ${formatMoney(total)}` : 'Send'} onPress={() => void save()} disabled={!canSave} loading={saving} reason={reason} />
+      <PrimaryButton label={editing ? 'Save changes' : showAmounts && total > 0 ? `Send · ${formatMoney(total)}` : 'Send'} onPress={() => void save()} disabled={!canSave || posted} loading={saving} reason={reason} />
     </TotalBar>
   );
 
@@ -152,7 +159,7 @@ export default function SendScreen() {
   );
   const items = (
     <Field label={withQty.length ? `Items · ${withQty.length}` : 'Items'}>
-      <ItemSearch items={data.items} mode="sell" lines={lines} picks={picks} showAmounts={showAmounts} onAdd={(it) => draft.add(it, startRate(it, 'sell'))} />
+      <ItemSearch items={data.items} mode="sell" lines={lines} picks={picks} showAmounts={showAmounts} onAdd={(it) => draft.add(it, startRate(it, 'sell'), phone)} />
       <ItemLines typed={!phone} onType={draft.update} focusItemId={draft.lastAdded} items={data.itemsById} lines={lines} order={order} onChange={draft.change} active={active} showAmounts={showAmounts}
         onOpen={(itemId, field) => draft.setActive({ itemId, field })} />
     </Field>
@@ -176,7 +183,7 @@ export default function SendScreen() {
       {/* A laptop types a line's quantity and rate in a small window. */}
       {!phone ? <Sheet visible={!!pad} onClose={() => draft.setActive(null)} title="Quantity and rate">{pad}</Sheet> : null}
 
-      <Sheet visible={saved !== null} onClose={done} title={editing ? 'Send corrected' : 'Sent'}>
+      <Sheet visible={saved !== null && !slipClosed} onClose={done} title={editing ? 'Send corrected' : 'Sent'}>
         {saved && party ? (
           <View style={{ gap: 14 }}>
             {/* The slip is the sheet's own content: hairlines, no box inside the box. */}

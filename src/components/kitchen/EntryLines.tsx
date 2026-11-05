@@ -6,7 +6,7 @@
  * price paid on a buy.
  */
 import React, { memo, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, View } from 'react-native';
+import { FlatList, Keyboard, Platform, Pressable, View } from 'react-native';
 import { Minus, Plus } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { colors, semantic } from '@/lib/pos/brand';
@@ -48,7 +48,7 @@ export function ItemSearch({ items, mode, lines, lastCost, picks, showAmounts, o
   const offered = useMemo(() => offeredItems(items, mode), [items, mode]);
   const matches = useMemo(() => (query.trim() ? offered.filter((i) => matchesSearch(query, i.name, i.unit)).slice(0, 8) : []), [offered, query]);
   const often = useMemo(() => (picks ?? []).map((p) => offered.find((i) => i.id === p.itemId)).filter((i): i is KitchenItem => !!i && !(i.id in lines)), [picks, offered, lines]);
-  const add = (it: KitchenItem) => { setQuery(''); onAdd(it); };
+  const add = (it: KitchenItem) => { setQuery(''); Keyboard.dismiss(); onAdd(it); };
   return (
     <View>
       <SearchBox value={query} onChange={setQuery} placeholder={mode === 'sell' ? 'Mousse, milk, sugar…' : 'Milk, sugar, nutella…'} />
@@ -295,13 +295,14 @@ export function useDraftLines() {
     /** Replaces everything, as when an edit starts from the saved entry. */
     reset: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); setActive(null); setLastAdded(null); },
     change: (next: DraftLines, nextOrder: string[]) => { setLines(next); setOrder(nextOrder); if (active && !(active.itemId in next)) setActive(null); },
-    /** Adds an item with no quantity yet at its starting rate; the pad opens only on a tap (task 284). */
-    add: (it: KitchenItem, rate: number | null) => {
+    /** Adds an item with no quantity yet at its starting rate. Task 297: a phone goes straight to its quantity on the pad. */
+    add: (it: KitchenItem, rate: number | null, openPad = false) => {
       if (!(it.id in lines)) {
         setLines({ ...lines, [it.id]: { qty: 0, price: rate } });
         setOrder([...order, it.id]);
         setLastAdded(it.id);
       }
+      if (openPad) setActive({ itemId: it.id, field: 'qty' });
     },
     update: (itemId: string, line: DraftLine) => setLines((all) => ({ ...all, [itemId]: line })),
   };

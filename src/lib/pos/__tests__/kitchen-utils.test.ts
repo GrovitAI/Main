@@ -1,5 +1,7 @@
 import {
   allocateAcross,
+  stockMovements,
+  stockUnitValue,
   amountReadBack,
   cleanTypedNumber,
   padKeyFor,
@@ -445,5 +447,35 @@ describe('typing figures on a computer (task 293)', () => {
     expect(cleanTypedNumber('12.9', 0)).toBe('12');
     expect(cleanTypedNumber('', 2)).toBe('');
     expect(cleanTypedNumber('1234567890123', 2)).toBe('123456789');
+  });
+});
+
+describe('stockMovements (task 300)', () => {
+  const made = (over: Partial<KitchenEntry> & Pick<KitchenEntry, 'type'>): KitchenEntry => entry({ entry_date: '2026-11-05', ...over });
+  const line = (item_id: string, qty: number) => ({ id: item_id, item_id, qty, price: 1, line_total: qty });
+
+  it('walks back from the stock now, and one month closes where the next opens', () => {
+    const items = [{ id: 'a', stock: 12 }];
+    const entries = [
+      made({ type: 'bought', entry_date: '2026-10-20', lines: [line('a', 30)] }),
+      made({ type: 'sent', entry_date: '2026-10-25', lines: [line('a', 10)] }),
+      made({ type: 'made', entry_date: '2026-11-02', item_id: 'a', qty: 5 }),
+      made({ type: 'issued', entry_date: '2026-11-03', lines: [line('a', 3)] }),
+      made({ type: 'count', entry_date: '2026-11-04', item_id: 'a', qty: 12, from_qty: 22 }),
+      made({ type: 'sent', entry_date: '2026-11-04', lines: [line('a', 100)], voided_at: '2026-11-04T10:00:00Z' }),
+    ];
+    const oct = stockMovements(entries, items, '2026-10-01', '2026-10-31').get('a');
+    const nov = stockMovements(entries, items, '2026-11-01', '2026-11-30').get('a');
+    expect(nov).toEqual({ opening: 20, in: 5, out: 3, counted: -10, closing: 12 });
+    expect(oct).toEqual({ opening: 0, in: 30, out: 10, counted: 0, closing: 20 });
+    expect(oct?.closing).toBe(nov?.opening);
+  });
+
+  it('values raw materials at the last price paid and finished goods at rate + packing', () => {
+    const last = new Map([['r', 40]]);
+    expect(stockUnitValue({ id: 'r', item_kind: 'raw_material', cost_price: 30 }, last)).toBe(40);
+    expect(stockUnitValue({ id: 'x', item_kind: 'raw_material', cost_price: 30 }, last)).toBe(30);
+    expect(stockUnitValue({ id: 'f', item_kind: 'finished_good', cost_price: 91.5, packing_price: 11 }, last)).toBe(102.5);
+    expect(stockUnitValue({ id: 'g', item_kind: 'finished_good', cost_price: null }, last)).toBeNull();
   });
 });
