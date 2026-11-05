@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, Pressable, ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
-import { ChevronRight, Plus, RefreshCw } from 'lucide-react-native';
+import { CalendarRange, ClipboardCheck, PackagePlus, Plus, RefreshCw, type LucideIcon } from 'lucide-react-native';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import type { KitchenItem, KitchenItemKind } from '@/lib/pos/kitchen-types';
 import { formatDayLabel, formatMoney, formatQty, matchesSearch, stockLevels, type StockLevel } from '@/lib/pos/kitchen-utils';
 import { byCategoryThenName, itemCategoryName } from '@/lib/pos/kitchen-spend-utils';
-import { Chips, Empty, GhostButton, IconButton, KHeader, Notice, Row, SearchBox, Segmented, QtyFigure, toneColor, toneSoft, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
+import { Chips, Empty, GhostButton, IconButton, KHeader, Notice, Row, SearchBox, Segmented, QtyFigure, useDesktopDensity, useEnterOnChange } from '@/components/kitchen/ui';
 import { ItemDetail } from '@/components/kitchen/ItemDetail';
 import { stockActions } from '@/components/kitchen/record-actions';
 
@@ -76,19 +76,24 @@ export function StockItems({ kind: routeKind }: { kind: KitchenItemKind }) {
   const mayAdd = can('setup.items');
   // Task 242: raw materials leave the store when they are given to the kitchen.
   const give = finished ? null : stockActions(can)[0] ?? null;
+  // Task 299: many items in one go, and the month's opening and closing stock.
+  const tiles: { label: string; icon: LucideIcon; href: string | { pathname: string; params: Record<string, string> } }[] = [
+    ...(give ? [{ label: give.label, icon: give.icon, href: give.href }] : []),
+    ...(finished && can('entries.batch') ? [{ label: 'Create batches', icon: PackagePlus, href: { pathname: '/central-kitchen/stock-entry', params: { mode: 'made' } } }] : []),
+    ...(can('entries.count') ? [{ label: 'Count stock', icon: ClipboardCheck, href: { pathname: '/central-kitchen/stock-entry', params: { mode: 'count', kind } } }] : []),
+    { label: 'Opening & closing', icon: CalendarRange, href: { pathname: '/central-kitchen/stock-report', params: { kind } } },
+  ];
   const header = <View className="pb-3">
     <KHeader title={title} subtitle={finished ? 'Create batches, then send goods to branches' : 'Purchased and stored as they are · no batches'} right={mayAdd ? <IconButton icon={Plus} label={finished ? 'Add a finished good' : 'Add a raw material'} onPress={addItem} /> : undefined} />
     {!isTablet ? <View className="mb-3"><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setPhoneKind} /></View> : null}
     {data.error ? <Notice text={data.error} /> : null}
-    {give ? <Pressable onPress={() => router.push(give.href as never)} accessibilityRole="button" accessibilityLabel={`${give.label}: ${give.caption}`}
-      className="mb-3 min-h-[56px] flex-row items-center gap-3 rounded-2xl border border-border-soft bg-surface-elevated px-3.5 py-2.5 hover:bg-surface-tint active:bg-surface-tint">
-      <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: toneSoft[give.tone] }}><give.icon size={18} color={toneColor[give.tone]} /></View>
-      <View className="min-w-0 flex-1">
-        <Text className="text-[15px] font-bold text-text-primary">{give.label}</Text>
-        <Text className="text-xs font-semibold text-text-secondary">{give.caption}</Text>
-      </View>
-      <ChevronRight size={18} color={colors.textSecondary} />
-    </Pressable> : null}
+    <View className="mb-3 flex-row" style={{ gap: 8 }}>
+      {tiles.map((t) => <Pressable key={t.label} onPress={() => router.push(t.href as never)} accessibilityRole="button" accessibilityLabel={t.label}
+        className="min-h-[68px] min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl border border-border-soft bg-surface-elevated px-1.5 py-2 hover:bg-surface-tint active:bg-surface-tint">
+        <t.icon size={18} color={colors.primary} />
+        <Text className="text-center text-xs font-bold leading-[15px] text-text-primary">{t.label}</Text>
+      </Pressable>)}
+    </View>
     <SearchBox value={query} onChange={setQuery} placeholder={`Search ${title.toLowerCase()}`} />
     {!isTablet ? <View className="mt-2"><Chips options={[{ value: 'all', label: 'All', hint: String(kindItems.length) }, { value: 'low', label: 'Low', hint: String(lowCount) }, { value: 'out', label: 'Out', hint: String(outCount) }]} value={levelFilter} onChange={setLevelFilter} /></View> : null}
   </View>;
