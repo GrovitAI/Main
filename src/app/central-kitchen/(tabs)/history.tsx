@@ -1,18 +1,20 @@
-import { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ViewToken } from 'react-native';
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, Check, ListChecks, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
+import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryHeadline, entryNames, entrySubline, formatMoney } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
-import { Empty, KHeader, KScreen, Notice, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, Notice, PrimaryButton, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
 import { HistoryCardRow, HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { HistoryFilterSheet } from '@/components/kitchen/HistoryFilterSheet';
+import { VoidManySheet } from '@/components/kitchen/VoidManySheet';
 
 const KINDS = [
   { id: 'sent', label: 'Sent' }, { id: 'bought', label: 'Bought' },
@@ -37,10 +39,19 @@ export default function HistoryScreen() {
   const data = useKitchenData();
   const desktop = useDesktopDensity();
   const phone = useWindowDimensions().width < 640;
-  const { showAmounts } = useKitchenAccess();
+  const access = useKitchenAccess();
+  const { showAmounts } = access;
   const [filters, setFilters] = useState<HistoryFilters>(DEFAULTS);
   const [showFilters, setShowFilters] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  // Task 298: pick several entries and void them together. Only what this login may change can be picked.
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const mayPick = (entry: KitchenEntry): boolean => entry.voided_at === null && (access.isOwner || (access.canFix(entry) && !access.isLocked(entry.entry_date)));
+  const stopPicking = () => { setPicking(false); setPicked(new Set()); setConfirming(false); };
+  const togglePick = (id: string) => setPicked((now) => { const next = new Set(now); if (!next.delete(id)) next.add(id); return next; });
+  const pickedEntries = data.entries.filter((entry) => picked.has(entry.id) && mayPick(entry));
   const update = <K extends keyof HistoryFilters>(key: K, value: HistoryFilters[K]) => setFilters(current => ({ ...current, [key]: value }));
   const staff = useMemo(() => [...new Set(data.entries.map(entry => entry.created_by))].sort((a, b) => a.localeCompare(b)).map(name => ({ id: name, label: name })), [data.entries]);
   const entriesById = useMemo(() => new Map(data.entries.map(entry => [entry.id, entry])), [data.entries]);
@@ -76,9 +87,14 @@ export default function HistoryScreen() {
   const reset = () => setFilters(current => ({ ...DEFAULTS, sort: current.sort }));
   const header = <View className="gap-2 pb-3" onLayout={event => { headerHeight.current = event.nativeEvent.layout.height; }}>
     <KHeader title="History" subtitle={phone ? `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} · edits and voids included` : 'Entries, corrections and voids'} right={
+      <View className="flex-row items-center">
+      <Pressable accessibilityRole="button" accessibilityLabel={picking ? 'Stop selecting' : 'Select entries'} aria-selected={picking} onPress={() => (picking ? stopPicking() : setPicking(true))} className={button + (picking ? ' bg-accent-soft' : '')}>
+        <ListChecks size={18} color={colors.primary} />
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Refresh history" accessibilityState={{ disabled: data.loading }} disabled={data.loading} onPress={data.refresh} className={button}>
         {data.loading ? <ActivityIndicator size="small" color={colors.primary} /> : <RefreshCw size={18} color={colors.primary} />}
       </Pressable>
+      </View>
     } />
     {data.error ? <Notice text={data.error} /> : null}
     <View testID="kitchen-history-toolbar" className={'gap-2 ' + (desktop || phone ? 'flex-row items-center' : '')}>
@@ -124,7 +140,12 @@ export default function HistoryScreen() {
     {!phone || data.entries.length >= 500 ? <Text className="text-xs leading-4 text-text-secondary">Recent history: up to 500 entries from the last 92 transaction days.{data.entries.length >= 500 ? ' The window is full; older entries may be outside this list.' : ''}</Text> : null}
   </View>;
 
-  return <KScreen scroll={false}>
+  const pickBar = picking ? <View className="flex-row items-center gap-3">
+    <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{pickedEntries.length ? `${pickedEntries.length} selected` : 'Select entries'}</Text>
+    <View className="flex-1"><PrimaryButton label={pickedEntries.length ? `Void ${pickedEntries.length}` : 'Void'} tone="out" disabled={pickedEntries.length === 0} reason={pickedEntries.length === 0 ? 'Select an entry' : undefined} onPress={() => setConfirming(true)} /></View>
+  </View> : undefined;
+
+  return <KScreen scroll={false} footer={pickBar}>
     <View className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-center' : 'max-w-[720px] self-center')}>
     <FlatList<HistoryListItem> testID="kitchen-history-list" className="flex-1"
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} data={data.loaded ? sections.items : []} keyExtractor={item => item.key}
@@ -133,8 +154,13 @@ export default function HistoryScreen() {
       initialNumToRender={12} maxToRenderPerBatch={12} windowSize={7}
       ListEmptyComponent={!data.loaded ? <SkeletonRows count={6} height={64} label="Loading history" /> :
         <Empty title={hasFilters ? 'Nothing matches' : data.error ? 'History unavailable' : 'Nothing recorded yet'} body={hasFilters ? 'Try another word, staff member, status or date range.' : data.error ? 'Use Refresh history to try again.' : 'Sends, payments, buys and counts will show here.'} action={hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-bold text-primary">Clear filters</Text></Pressable> : undefined} />}
+      extraData={`${picking}-${picked.size}`}
       renderItem={({ item, index }) => item.kind === 'day'
         ? phone ? <PhoneDayHeading label={item.label} count={item.count} net={showAmounts ? item.net : 0} /> : <DayHeading label={item.label} count={item.count} />
+        : picking ? <PickRow on={picked.has(item.entry.id)} allowed={mayPick(item.entry)} onToggle={() => togglePick(item.entry.id)}>
+          {phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => { if (mayPick(item.entry)) togglePick(item.entry.id); }} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
+          : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => { if (mayPick(item.entry)) togglePick(item.entry.id); }} />}
+        </PickRow>
         : phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
         : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} />} />
     {pinnedDay && data.loaded ? <View pointerEvents="none" testID="kitchen-history-pinned-day" style={{ position: 'absolute', top: 0, left: 16, right: 16 }}>{phone ? <PhoneDayHeading label={pinnedDay.label} count={pinnedDay.count} net={showAmounts ? pinnedDay.net : 0} pinned /> : <DayHeading label={pinnedDay.label} count={pinnedDay.count} />}</View> : null}
@@ -153,7 +179,18 @@ export default function HistoryScreen() {
         <Text className="text-xs leading-4 text-text-secondary">Transaction: happened · Entry: recorded · India time.</Text>
       </>} /> : null}
     <EntryActions entry={open} previousEntry={open?.replaces_id ? entriesById.get(open.replaces_id) ?? null : undefined} onClose={() => setOpenId(null)} itemsById={data.itemsById} partiesById={data.partiesById} />
+    <VoidManySheet visible={confirming} entries={pickedEntries} onClose={() => setConfirming(false)} onDone={stopPicking} onPartly={(left) => { setPicked(new Set(left)); }} />
   </KScreen>;
+}
+
+/** A row while picking: its tick beside it; an entry this login cannot change shows no tick. */
+function PickRow({ on, allowed, onToggle, children }: { on: boolean; allowed: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return <View className="flex-row items-center gap-1">
+    <Pressable disabled={!allowed} onPress={onToggle} accessibilityRole="checkbox" aria-checked={on} accessibilityState={{ checked: on, disabled: !allowed }} accessibilityLabel={on ? 'Selected' : 'Select'} className={'h-11 w-9 items-center justify-center rounded-lg ' + (on || !allowed ? '' : 'hover:bg-surface-tint')}>
+      {allowed ? <View className="h-[22px] w-[22px] items-center justify-center rounded-full border" style={{ borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated }}>{on ? <Check size={14} color={colors.textOnPrimary} /> : null}</View> : null}
+    </Pressable>
+    <View className="min-w-0 flex-1" style={{ opacity: allowed ? 1 : 0.5 }}>{children}</View>
+  </View>;
 }
 
 function DayHeading({ label, count }: { label: string; count: number }) {
