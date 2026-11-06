@@ -26,8 +26,8 @@ export function ItemMovements({ itemId, unit, entries, itemsById, partiesById, s
   return (
     <View>
       <View className="flex-row items-center gap-2 pt-3">
-        <View className="min-w-0 flex-1"><ReportDateRange outlined label="Movement dates" value={range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} triggerText={range ? undefined : 'Any dates'} onChange={setRange} /></View>
-        {range ? <LinkButton label="Clear" onPress={() => setRange(null)} /> : null}
+        <View className="min-w-0 flex-1"><ReportDateRange outlined label="Movement dates" value={range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} triggerText={range ? undefined : 'All dates'} onChange={setRange} /></View>
+        {range ? <LinkButton label="Clear dates" onPress={() => setRange(null)} /> : null}
       </View>
       {days.length === 0 ? <Empty title={range ? 'Nothing on these dates' : 'No movements yet'} /> : null}
       {days.map((day) => (

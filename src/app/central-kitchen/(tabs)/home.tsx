@@ -189,6 +189,13 @@ export default function KitchenHome() {
     </View>
   ) : null;
 
+  // Task 306, below the day's entries (task 307): the owner sees that entries were changed today, and can read what.
+  const changesRow = access.isOwner && data.loaded && changes > 0 ? (
+    <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12 }}>
+      <Row icon={History} iconTone="primary" title={changes === 1 ? '1 change today' : `${changes} changes today`} subtitle="Edits and deletes" onPress={() => router.push({ pathname: '/central-kitchen/team', params: { log: '1' } })} />
+    </Card>
+  ) : null;
+
   return (
     <KScreen wide refreshing={data.loading && data.loaded} onRefresh={data.refresh}>
       <KHeader
@@ -213,8 +220,6 @@ export default function KitchenHome() {
 
       {data.error ? <Notice text={data.error} action={<LinkButton label="Retry" onPress={() => void data.load()} />} /> : null}
       {lockLine}
-      {/* Task 306: the owner sees at a glance that entries were changed today, and can read what. */}
-      {access.isOwner && data.loaded && changes > 0 ? <Card padded={false} style={{ paddingHorizontal: 14, marginBottom: 12 }}><Row icon={History} iconTone="primary" title={changes === 1 ? '1 change today' : `${changes} changes today`} subtitle="Edits and deletes" onPress={() => router.push({ pathname: '/central-kitchen/team', params: { log: '1' } })} /></Card> : null}
 
       {!data.loaded ? (
         <View style={{ gap: 12 }}>
@@ -256,6 +261,7 @@ export default function KitchenHome() {
                 )}
               </Card>
               </RowInset.Provider>
+              {changesRow}
             </View>
           </View>
         </View>
@@ -280,6 +286,7 @@ export default function KitchenHome() {
               <EntryList entries={todays} itemsById={data.itemsById} partiesById={data.partiesById} grouped={false} />
             )}
           </Card>
+          {changesRow}
         </Section>
       ) : null}
     </KScreen>

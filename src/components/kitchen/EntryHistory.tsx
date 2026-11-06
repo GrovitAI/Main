@@ -78,8 +78,8 @@ export function EntryHistory({ type, top, emptyTitle }: { type: HistoryType; top
         </Pressable>
       </View>
       <View className="mt-2 flex-row items-center gap-2">
-        <View className="min-w-0 flex-1"><ReportDateRange outlined label="Dates" value={range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} triggerText={range ? undefined : 'Any dates'} onChange={setRange} /></View>
-        {range ? <LinkButton label="Clear" onPress={() => setRange(null)} /> : null}
+        <View className="min-w-0 flex-1"><ReportDateRange outlined label="Dates" value={range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} triggerText={range ? undefined : 'All dates'} onChange={setRange} /></View>
+        {range ? <LinkButton label="Clear dates" onPress={() => setRange(null)} /> : null}
       </View>
       {error ? <Notice text={error} /> : null}
       {entries === null && !error ? <ActivityIndicator accessibilityLabel="Loading entries" color={colors.primary} className="my-6" /> : null}
