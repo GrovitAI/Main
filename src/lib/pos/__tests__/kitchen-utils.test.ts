@@ -1,6 +1,7 @@
 import {
   allocateAcross,
   stockMovements,
+  entryBrief,
   statementLine,
   itemMoveDays,
   stockUnitValue,
@@ -502,5 +503,16 @@ describe('clean statements and item movements (task 301)', () => {
     ], 'a');
     expect(days.map((d) => [d.date, d.net])).toEqual([['2026-11-05', 7], ['2026-11-03', -2]]);
     expect(days[0]?.moves.map((m) => [m.change, m.value])).toEqual([[-3, 30], [10, null]]);
+  });
+});
+
+describe('entryBrief (task 303)', () => {
+  const items = new Map([['a', { id: 'a', name: 'Fazea base', unit: 'pcs' }], ['b', { id: 'b', name: 'Milk', unit: 'L' }]]) as unknown as ReadonlyMap<string, KitchenItem>;
+  const lineOf = (item_id: string, qty: number) => ({ id: item_id, item_id, qty, price: 10, line_total: qty * 10 });
+
+  it('says how many items, then their names; one item keeps its quantity', () => {
+    expect(entryBrief(entry({ type: 'sent', lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toBe('2 items · Fazea base, Milk');
+    expect(entryBrief(entry({ type: 'bought', paid: false, lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toBe('2 items · pay later · Fazea base, Milk');
+    expect(entryBrief(entry({ type: 'sent', lines: [lineOf('a', 5)] }), items)).toBe('Fazea base 5 pcs');
   });
 });

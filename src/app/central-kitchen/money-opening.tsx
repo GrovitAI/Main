@@ -93,7 +93,7 @@ export default function MoneyOpeningScreen() {
   return (
     <KeyboardAvoider>
       <KScreen footer={loaded ? footer : undefined}>
-        <KHeader title="Opening balances" subtitle="Counted at the start of the day" onBack={() => router.back()} />
+        <KHeader title="Opening balances" onBack={() => router.back()} />
         {!loaded ? <SkeletonRows count={3} label="Loading balances" /> : phone ? rows : (
           <View className="flex-row" style={{ gap: 20 }}>
             <View className="min-w-0 flex-1">{rows}</View>

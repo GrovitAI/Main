@@ -62,7 +62,7 @@ export default function StockReportScreen() {
 
   return (
     <KScreen wide>
-      <KHeader title="Opening & closing" subtitle={showAmounts ? 'Stock and its value' : 'Stock over these dates'} onBack={() => backToKitchen()} />
+      <KHeader title="Opening & closing" onBack={() => backToKitchen()} />
       <View className={desktop ? 'mb-3 flex-row items-center gap-3' : 'mb-3 gap-2'}>
         <View className={desktop ? 'w-[320px]' : undefined}><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setKind} /></View>
         <View className={desktop ? 'w-[300px]' : undefined}><ReportDateRange outlined label="Stock report dates" value={range} onChange={setRange} /></View>

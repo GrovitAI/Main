@@ -2,51 +2,52 @@ import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import type { KitchenEntry, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
-import { entryAmountText, entryHeadline, entryNames, entrySubline, isMoneyIn, isMoneyOut } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryBrief, entryHeadline, entryNames, isMoneyIn, isMoneyOut } from '@/lib/pos/kitchen-utils';
 import { historyAuditText, historyDateLabel, historyRecordedDay, historyStatus, historyTimeLabel, HISTORY_STATUS_LABELS } from '@/lib/pos/kitchen-history-utils';
 import { Row, toneColor, useDesktopDensity } from '@/components/kitchen/ui';
 import { ENTRY_ICONS, entryIconTone } from '@/components/kitchen/EntryList';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
-/** History keeps audit information visible without adding it to everyday Home rows. */
+/**
+ * Task 303: what it was and how much, then who entered it and when. The day heading above already
+ * says when it happened; `showDate` adds that only when the list is grouped by the day it was entered.
+ */
 // Task 265: memoised, and opened by id, so changing a filter redraws only the rows that changed.
-export const HistoryEntry = memo(function HistoryEntry({ entry, itemsById, partiesById, onPress: press, onOpen }: {
+export const HistoryEntry = memo(function HistoryEntry({ entry, itemsById, partiesById, onPress: press, onOpen, showDate = false }: {
   entry: KitchenEntry; itemsById: ReadonlyMap<string, KitchenItem>;
-  partiesById: ReadonlyMap<string, KitchenParty>; onPress?: () => void; onOpen?: (id: string) => void;
+  partiesById: ReadonlyMap<string, KitchenParty>; onPress?: () => void; onOpen?: (id: string) => void; showDate?: boolean;
 }) {
   const onPress = press ?? (() => onOpen?.(entry.id));
   const desktop = useDesktopDensity();
   const names = entryNames(entry, partiesById, itemsById);
   const title = entryHeadline(entry, names);
-  const subtitle = entrySubline(entry, itemsById);
+  const subtitle = entryBrief(entry, itemsById).replace(/ · voided$/, '');
   const status = historyStatus(entry);
   const audit = historyAuditText(entry);
   const removed = entry.voided_at !== null;
   const { showAmounts } = useKitchenAccess();
   const amount = showAmounts ? entryAmountText(entry) : '';
   const tone = removed ? 'neutral' : isMoneyIn(entry) ? 'in' : isMoneyOut(entry) ? 'out' : 'neutral';
+  const figure = <View className={`shrink-0 items-end gap-1 ${desktop ? 'w-[120px]' : 'max-w-[42%]'}`}>
+    {amount ? <Text className="text-right text-sm font-bold leading-5" style={{ color: toneColor[tone], fontVariant: ['tabular-nums'] }}>{amount}</Text> : null}
+    {status !== 'active' ? <Text className={'rounded px-1.5 py-0.5 text-xs font-semibold leading-4 ' + (status === 'edited' ? 'bg-accent-soft text-primary' : 'bg-surface-tint text-text-secondary')}>{HISTORY_STATUS_LABELS[status]}</Text> : null}
+  </View>;
   return <Pressable testID="kitchen-history-entry" accessibilityRole="button"
     accessibilityLabel={`${title}, ${amount}, ${HISTORY_STATUS_LABELS[status]}. Transaction ${historyDateLabel(entry.entry_date)}. Entered by ${entry.created_by}, ${historyTimeLabel(entry.created_at)}${audit ? '. ' + audit : ''}`}
-    onPress={onPress} className={`min-h-12 gap-2 border-b border-border-soft bg-surface-elevated px-3 py-3 hover:bg-surface-tint active:bg-accent-soft web:focus-visible:border-primary ${desktop ? 'flex-row gap-5' : ''}`}>
-    <View className={`min-w-0 flex-row items-start gap-3 ${desktop ? 'w-[58%]' : ''}`}>
-      <View className="min-w-0 flex-1 gap-1">
-        <Text className={'text-sm font-bold leading-5 ' + (removed ? 'text-text-secondary line-through' : 'text-text-primary')}>{title}</Text>
-        {subtitle ? <Text className="text-xs leading-4 text-text-secondary" numberOfLines={desktop ? 1 : 2}>{subtitle}</Text> : null}
-        {desktop ? <Text className="text-xs leading-4 text-text-secondary">Transaction <Text className="font-semibold text-text-primary">{historyDateLabel(entry.entry_date)}</Text></Text> : null}
+    onPress={onPress} className={`min-h-12 gap-2 border-b border-border-soft bg-surface-elevated px-3 py-2.5 hover:bg-surface-tint active:bg-accent-soft web:focus-visible:border-primary ${desktop ? 'flex-row items-center gap-5' : ''}`}>
+    <View className="min-w-0 flex-1 flex-row items-start gap-3">
+      <View className="min-w-0 flex-1">
+        <Text className={'text-sm font-bold leading-5 ' + (removed ? 'text-text-secondary line-through' : 'text-text-primary')} numberOfLines={1}>{title}</Text>
+        {subtitle ? <Text className="text-xs leading-4 text-text-secondary" numberOfLines={1}>{subtitle}</Text> : null}
+        {showDate ? <Text className="text-xs leading-4 text-text-secondary">Happened {historyDateLabel(entry.entry_date)}</Text> : null}
       </View>
-      <View className={`shrink-0 items-end gap-1 ${desktop ? 'w-[156px]' : 'max-w-[42%]'}`}>
-        {amount ? <Text className="text-right text-sm font-bold leading-5" style={{ color: toneColor[tone], fontVariant: ['tabular-nums'] }}>{amount}</Text> : null}
-        <Text className={'rounded px-1.5 py-0.5 text-xs font-semibold leading-4 ' + (status === 'edited' ? 'bg-accent-soft text-primary' : 'bg-surface-tint text-text-secondary')}>{HISTORY_STATUS_LABELS[status]}</Text>
-      </View>
+      {desktop ? null : figure}
     </View>
-    <View className={`min-w-0 gap-1 ${desktop ? 'flex-1 border-l border-border-soft pl-5' : 'border-t border-border-soft pt-2'}`}>
-      <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-        <Text className="text-xs leading-4 text-text-secondary">Entered by <Text className="font-semibold text-text-primary">{entry.created_by}</Text></Text>
-        {!desktop ? <Text className="text-xs leading-4 text-text-secondary">Transaction <Text className="font-semibold text-text-primary">{historyDateLabel(entry.entry_date)}</Text></Text> : null}
-      </View>
-      <Text className="text-xs leading-4 text-text-secondary">Entry {historyTimeLabel(entry.created_at)}</Text>
-    {audit && status !== 'edited' ? <Text className="text-xs leading-4 text-text-secondary">{audit}</Text> : null}
+    <View className={desktop ? 'w-[250px] shrink-0' : ''}>
+      <Text className="text-xs leading-4 text-text-secondary"><Text className="font-semibold text-text-primary">{entry.created_by}</Text> · {historyTimeLabel(entry.created_at).replace(' IST', '')}</Text>
+      {audit && status !== 'edited' ? <Text className="text-xs leading-4 text-text-secondary" numberOfLines={2}>{audit.replace(' IST', '')}</Text> : null}
     </View>
+    {desktop ? figure : null}
   </Pressable>;
 });
 
@@ -74,7 +75,7 @@ export const HistoryCardRow = memo(function HistoryCardRow({ entry, itemsById, p
   const status = historyStatus(entry);
   const removed = entry.voided_at !== null;
   // The status leads the line, so the subline's own "voided" at the end is dropped.
-  const detail = removed ? entrySubline(entry, itemsById).replace(/ · voided$/, '') : entrySubline(entry, itemsById);
+  const detail = entryBrief(entry, itemsById).replace(/ · voided$/, '');
   const amount = showAmounts ? entryAmountText(entry) : '';
   const note = status === 'voided' ? ['Voided', entry.void_reason].filter(Boolean).join(' · ') : status === 'active' ? '' : HISTORY_STATUS_LABELS[status];
   const subtitle = [note, detail].filter(Boolean).join(' · ');

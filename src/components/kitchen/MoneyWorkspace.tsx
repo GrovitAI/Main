@@ -37,13 +37,22 @@ const drawingSub = (d: DrawingMove): string => [historyDateLabel(d.draw_date), d
 /** Who saved it, when that is not the owner already named. */
 const savedByOther = (d: DrawingMove): boolean => !!d.created_by && d.created_by !== d.owner_name;
 
-/** One line of the since-opening breakdown: what came in, went out and moved for one account. */
-function Flow({ label, inPaise, outPaise, movedIn, movedOut, drawn }: { label: string; inPaise: number; outPaise: number; movedIn: number; movedOut: number; drawn: number }) {
-  return <View className="min-w-0 flex-1 gap-0.5">
-    <Text className="text-xs font-bold text-text-secondary">{label}</Text>
-    <Text className="text-xs leading-5 text-text-secondary" style={tabular}>Received {rupees(inPaise)} · Paid out {rupees(outPaise)}</Text>
-    <Text className="text-xs leading-5 text-text-secondary" style={tabular}>Moved in {rupees(movedIn)} · Moved out {rupees(movedOut)}</Text>
-    {drawn !== 0 ? <Text className="text-xs leading-5 text-text-secondary" style={tabular}>{drawn > 0 ? 'To drawings' : 'Back from drawings'} {rupees(Math.abs(drawn))}</Text> : null}
+/** Task 303: what came in, went out and moved since the opening, Cash beside Bank. A row of nothing is left out. */
+function FlowTable({ s }: { s: MoneySummary }) {
+  const rows: readonly [string, number, number][] = [
+    ['Received', s.cash_in_paise, s.bank_in_paise],
+    ['Paid out', s.cash_out_paise, s.bank_out_paise],
+    ['Moved in', s.moved_to_cash_paise, s.moved_to_bank_paise],
+    ['Moved out', s.moved_to_bank_paise, s.moved_to_cash_paise],
+    ['To drawings', s.to_drawings_cash_paise, s.to_drawings_bank_paise],
+  ];
+  const head = (t: string, wide = false) => <Text className={`text-xs font-bold text-text-secondary ${wide ? 'min-w-0 flex-1' : 'w-[92px] text-right'}`} numberOfLines={1}>{t}</Text>;
+  return <View className="mt-4 rounded-[18px] border border-border-soft bg-surface-elevated px-3.5 py-2.5">
+    <View className="flex-row items-center gap-2 pb-1.5">{head(s.has_opening && s.as_of ? `Since ${historyDateLabel(s.as_of)}` : 'All entries', true)}{head('Cash')}{head('Bank')}</View>
+    {rows.filter(([, cash, bank]) => cash !== 0 || bank !== 0).map(([label, cash, bank]) => <View key={label} className="min-h-[30px] flex-row items-center gap-2 border-t border-border-soft">
+      <Text className="min-w-0 flex-1 text-[13px] font-semibold text-text-primary" numberOfLines={1}>{label}</Text>
+      {[cash, bank].map((value, i) => <Text key={i} className={`w-[92px] text-right text-[13px] font-semibold ${value ? 'text-text-primary' : 'text-text-secondary'}`} style={tabular}>{value ? rupees(value) : '—'}</Text>)}
+    </View>)}
   </View>;
 }
 
@@ -151,10 +160,7 @@ export function MoneyWorkspace() {
       </View> : null}
     </View>;
   };
-  const phoneFlows = (s: MoneySummary) => <View className="mt-4 flex-row gap-3 rounded-[18px] border border-border-soft bg-surface-elevated p-3.5">
-    <Flow label={s.has_opening && s.as_of ? `Cash since ${historyDateLabel(s.as_of)}` : 'Cash'} inPaise={s.cash_in_paise} outPaise={s.cash_out_paise} movedIn={s.moved_to_cash_paise} movedOut={s.moved_to_bank_paise} drawn={s.to_drawings_cash_paise} />
-    <Flow label={s.has_opening && s.as_of ? `Bank since ${historyDateLabel(s.as_of)}` : 'Bank'} inPaise={s.bank_in_paise} outPaise={s.bank_out_paise} movedIn={s.moved_to_bank_paise} movedOut={s.moved_to_cash_paise} drawn={s.to_drawings_bank_paise} />
-  </View>;
+  const phoneFlows = (s: MoneySummary) => <FlowTable s={s} />;
 
   const header = <View className="pb-3">
     <KHeader title="Cash & bank" subtitle={phone && summary ? summary.has_opening && summary.as_of ? `Opening set on ${historyDateLabel(summary.as_of)}` : 'Opening balances not set' : undefined} onBack={busy ? undefined : backToKitchen} />
@@ -173,8 +179,8 @@ export function MoneyWorkspace() {
       <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: 8 }}>
         <Text className="shrink text-xs leading-5 text-text-secondary">
           {summary.has_opening && summary.as_of
-            ? `From the opening on ${historyDateLabel(summary.as_of)}: cash ${rupees(summary.opening_cash_paise)}, bank ${rupees(summary.opening_bank_paise)}${summary.opening_updated_by ? `, set by ${summary.opening_updated_by}` : ''}.`
-            : 'Opening balances are not set, so these count every money entry from zero. Set them to match the cash box and the bank.'}
+            ? `Opening ${historyDateLabel(summary.as_of)}: cash ${rupees(summary.opening_cash_paise)}, bank ${rupees(summary.opening_bank_paise)}`
+            : 'Opening balances not set.'}
         </Text>
         {mayOpening && !busy ? <LinkButton label={summary.has_opening ? 'Change' : 'Set opening balances'} onPress={openOpening} /> : null}
       </View>
@@ -182,10 +188,7 @@ export function MoneyWorkspace() {
       <View className="mt-3 flex-row flex-wrap gap-2">
         {mayMove ? <PrimaryButton label="Move money" icon={ArrowRightLeft} disabled={busy} onPress={openMove} /> : null}
       </View>
-      <View className="mt-4 flex-row gap-3 border-y border-border-soft py-3">
-        <Flow label={summary.has_opening && summary.as_of ? `Cash since ${historyDateLabel(summary.as_of)}` : 'Cash'} inPaise={summary.cash_in_paise} outPaise={summary.cash_out_paise} movedIn={summary.moved_to_cash_paise} movedOut={summary.moved_to_bank_paise} drawn={summary.to_drawings_cash_paise} />
-        <Flow label={summary.has_opening && summary.as_of ? `Bank since ${historyDateLabel(summary.as_of)}` : 'Bank'} inPaise={summary.bank_in_paise} outPaise={summary.bank_out_paise} movedIn={summary.moved_to_bank_paise} movedOut={summary.moved_to_cash_paise} drawn={summary.to_drawings_bank_paise} />
-      </View>
+      <FlowTable s={summary} />
       <Text className="mt-4 text-sm font-bold text-text-primary">Transfers</Text>
     </> : null}
   </View>;

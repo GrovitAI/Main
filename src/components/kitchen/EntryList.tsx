@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, PackageOpen, type LucideIcon } from 'lucide-react-native';
 import type { KitchenEntry, KitchenEntryType, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
-import { entryAmountText, entryHeadline, entryNames, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
+import { entryAmountText, entryBrief, entryHeadline, entryNames, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
 import { Row, type Tone } from './ui';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 
@@ -69,7 +69,7 @@ export function EntryList({ entries, itemsById, partiesById, grouped = true, onP
               icon={ENTRY_ICONS[e.type]}
               iconTone={e.voided_at ? 'neutral' : entryIconTone(e)}
               title={entryHeadline(e, names)}
-              subtitle={entrySubline(e, itemsById)}
+              subtitle={entryBrief(e, itemsById)}
               right={amountOf(e) || undefined}
               rightSub={formatEnteredAt(e.created_at)}
               tone={amountTone(e)}

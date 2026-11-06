@@ -86,7 +86,7 @@ export default function HistoryScreen() {
   const hasFilters = filterCount > 0 || filters.query.trim().length > 0;
   const reset = () => setFilters(current => ({ ...DEFAULTS, sort: current.sort }));
   const header = <View className="gap-2 pb-3" onLayout={event => { headerHeight.current = event.nativeEvent.layout.height; }}>
-    <KHeader title="History" subtitle={phone ? `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} · edits and voids included` : 'Entries, corrections and voids'} right={
+    <KHeader title="History" subtitle={`${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`} right={
       <View className="flex-row items-center">
       <Pressable accessibilityRole="button" accessibilityLabel={picking ? 'Stop selecting' : 'Select entries'} aria-selected={picking} onPress={() => (picking ? stopPicking() : setPicking(true))} className={button + (picking ? ' bg-accent-soft' : '')}>
         <ListChecks size={18} color={colors.primary} />
@@ -133,11 +133,11 @@ export default function HistoryScreen() {
         <Text className="text-xs leading-4 text-text-secondary">{phone ? 'Transaction: happened · Entry: recorded · India time.' : 'Transaction date: when it happened. Entry date: when it was recorded. India time.'}</Text>
       </View>
     </View></Reveal> : null}
-    {!phone || hasFilters ? <View className="flex-row items-center justify-between gap-2">
-      <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-xs leading-4 text-text-secondary">{rows.length} of {data.entries.length} loaded entries · includes edits and voids</Text>
+    {hasFilters ? <View className="flex-row items-center justify-between gap-2">
+      <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-xs leading-4 text-text-secondary">{rows.length} of {data.entries.length}</Text>
       {hasFilters ? <Pressable accessibilityRole="button" onPress={reset} className={button}><Text className="text-sm font-semibold text-primary">Clear filters</Text></Pressable> : null}
     </View> : null}
-    {!phone || data.entries.length >= 500 ? <Text className="text-xs leading-4 text-text-secondary">Recent history: up to 500 entries from the last 92 transaction days.{data.entries.length >= 500 ? ' The window is full; older entries may be outside this list.' : ''}</Text> : null}
+    {data.entries.length >= 500 ? <Text className="text-xs leading-4 text-text-secondary">Showing the latest 500 entries. Older ones are outside this list.</Text> : null}
   </View>;
 
   const pickBar = picking ? <View className="flex-row items-center gap-3">
@@ -159,10 +159,10 @@ export default function HistoryScreen() {
         ? phone ? <PhoneDayHeading label={item.label} count={item.count} net={showAmounts ? item.net : 0} /> : <DayHeading label={item.label} count={item.count} />
         : picking ? <PickRow on={picked.has(item.entry.id)} allowed={mayPick(item.entry)} onToggle={() => togglePick(item.entry.id)}>
           {phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => { if (mayPick(item.entry)) togglePick(item.entry.id); }} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
-          : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => { if (mayPick(item.entry)) togglePick(item.entry.id); }} />}
+          : <HistoryEntry showDate={filters.sort.startsWith('recorded')} entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onPress={() => { if (mayPick(item.entry)) togglePick(item.entry.id); }} />}
         </PickRow>
         : phone ? <HistoryCardRow entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} first={sections.items[index - 1]?.kind !== 'entry'} last={sections.items[index + 1]?.kind !== 'entry'} />
-        : <HistoryEntry entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} />} />
+        : <HistoryEntry showDate={filters.sort.startsWith('recorded')} entry={item.entry} itemsById={data.itemsById} partiesById={data.partiesById} onOpen={setOpenId} />} />
     {pinnedDay && data.loaded ? <View pointerEvents="none" testID="kitchen-history-pinned-day" style={{ position: 'absolute', top: 0, left: 16, right: 16 }}>{phone ? <PhoneDayHeading label={pinnedDay.label} count={pinnedDay.count} net={showAmounts ? pinnedDay.net : 0} pinned /> : <DayHeading label={pinnedDay.label} count={pinnedDay.count} />}</View> : null}
     </View>
     {phone ? <HistoryFilterSheet visible={showFilters} onClose={() => setShowFilters(false)} onReset={reset}

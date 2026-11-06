@@ -12,8 +12,8 @@ import { Avatar, Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice,
 import { PartyDetail } from './PartyDetail';
 
 const COPY = {
-  branch: { title: 'Branches', subtitle: 'Who the kitchen sends to, and what each still owes', total: 'Branches yet to pay', add: 'Add a branch', empty: 'No branches yet', emptyBody: 'Add the outlets the kitchen sends to. A name is all it takes.' },
-  vendor: { title: 'Vendors', subtitle: 'Who the kitchen buys from, and what it owes each', total: 'We owe vendors', add: 'Add a vendor', empty: 'No vendors yet', emptyBody: 'Add the people the kitchen buys from. A name is all it takes.' },
+  branch: { title: 'Branches', total: 'Branches yet to pay', add: 'Add a branch', empty: 'No branches yet', emptyBody: 'Add the outlets the kitchen sends to. A name is all it takes.' },
+  vendor: { title: 'Vendors', total: 'We owe vendors', add: 'Add a vendor', empty: 'No vendors yet', emptyBody: 'Add the people the kitchen buys from. A name is all it takes.' },
 } as const;
 
 /** Branches or vendors with their running figure; on a tablet the chosen one opens beside the list. */
@@ -44,7 +44,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
 
   const list = (
     <>
-      <KHeader title={copy.title} subtitle={copy.subtitle} right={mayAdd ? <IconButton icon={Plus} label={copy.add} onPress={addParty} /> : undefined} />
+      <KHeader title={copy.title} right={mayAdd ? <IconButton icon={Plus} label={copy.add} onPress={addParty} /> : undefined} />
       {data.error ? <Notice text={data.error} /> : null}
       {showAmounts ? <Card style={{ marginBottom: 12 }}>
         <View className="flex-row items-start justify-between gap-2">
@@ -56,10 +56,6 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
             </View>
           ) : null}
         </View>
-        {/* Day-one balances are not in the app yet; say so rather than show a settled ₹0 as fact. */}
-        <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 8 }}>
-          {isTablet ? 'Includes each name’s opening balance from before this app. Set or correct it by editing the name.' : 'Includes opening balances from before this app.'}
-        </Text>
       </Card> : null}
       <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />
       <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12, overflow: 'hidden' }}>
@@ -73,9 +69,10 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
               key={party.id}
               title={party.name}
               subtitle={last ? `Last entry ${formatDayLabel(last)}` : 'No entries yet'}
-              right={showAmounts ? formatMoney(Math.abs(balance)) : undefined}
-              rightSub={!showAmounts ? undefined : balance > 0 ? (kind === 'branch' ? 'yet to pay' : 'we owe') : balance < 0 ? (kind === 'branch' ? 'paid ahead' : 'overpaid') : 'settled'}
-              tone={balance > 0 ? (kind === 'branch' ? 'in' : 'out') : 'neutral'}
+              // Task 303: the card above says what the figures are; a row only says so when it differs.
+              right={showAmounts && balance !== 0 ? formatMoney(Math.abs(balance)) : undefined}
+              rightSub={!showAmounts || balance > 0 ? undefined : balance < 0 ? (kind === 'branch' ? 'paid ahead' : 'overpaid') : 'Settled'}
+              tone="neutral"
               muted={false}
               selected={isTablet && current === party.id}
               onPress={() => openParty(party.id)}

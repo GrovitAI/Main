@@ -260,7 +260,7 @@ export function AnalyticsWorkspace() {
   </Pressable>;
   const currentRange = kitchenMonthRange(today.slice(0, 7), today);
   const currentMonth = dateRange.startDate === currentRange.startDate && dateRange.endDate === currentRange.endDate;
-  const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Month to date · through ' + today : kitchenRangeLabel(dateRange)} · India time</Text>;
+  const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Up to ' + kitchenRangeLabel({ startDate: today, endDate: today }) : kitchenRangeLabel(dateRange)}</Text>;
   // Totals describe the report on screen, which may still be the previous one while a new one loads.
   const rowCountLabel = rowKind === 'profit' ? report?.total_rows === 1 ? 'finished good' : 'finished goods'
     : rowDetail || isMoney(rowKind) ? report?.total_rows === 1 ? 'row' : 'rows'
@@ -313,7 +313,7 @@ export function AnalyticsWorkspace() {
             </Pressable> : null}
           </View>
         </View>
-        {desktop && !toolbar ? <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Through ' + today + ' · India time' : 'Inclusive dates · India time'}</Text> : null}
+        {desktop && !toolbar ? <Text className="px-3 text-xs leading-4 text-text-secondary">{currentMonth ? 'Up to ' + kitchenRangeLabel({ startDate: today, endDate: today }) : 'Both dates included'}</Text> : null}
         <Reveal open={filtersOpen && hasFilters(kind)}><View className="gap-1">
         {filterSummary ? <Text className="text-xs leading-5 text-text-secondary">{filterSummary}</Text> : null}
         <View className={'mt-1 gap-2 ' + (inlineFilters ? 'flex-row' : '')}>
