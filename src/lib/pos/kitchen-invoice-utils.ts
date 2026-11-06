@@ -28,7 +28,7 @@ export function kitchenInvoiceHtml(invoice: KitchenInvoice, checkedAt: Date = ne
     </style></head><body><header><div class="brand"><img class="logo" src="${PRINT_LOGO_DATA_URI}" alt="Le Laban"><div><h2>${e(invoice.kitchen_name)}</h2><p>Branch supply invoice</p></div></div><div><h1>${e(invoiceNumber(invoice.invoice_no))}</h1><p>${e(invoiceStatus(invoice.status))}</p><p>Issued ${e(invoiceIssuedDate(invoice.created_at))}</p></div></header>
     <section><strong>Bill to ${e(invoice.party_name)}</strong><p>Delivery period: ${e(invoiceDate(invoice.start_date))} to ${e(invoiceDate(invoice.end_date))} (inclusive)</p></section>
     ${invoice.cancelled_at ? `<section><strong>Cancelled</strong><p>${e(invoice.cancel_reason ?? '')}</p></section>` : ''}
-    <table><thead><tr><th>Date</th><th>Finished goods</th><th class="number">Quantity</th><th class="number">Rate</th><th class="number">Amount</th></tr></thead><tbody>${body}</tbody></table>
+    <table><thead><tr><th>Date</th><th>Items</th><th class="number">Quantity</th><th class="number">Rate</th><th class="number">Amount</th></tr></thead><tbody>${body}</tbody></table>
     <section class="totals"><p><strong>Invoice total</strong><strong>${money(invoice.total_paise)}</strong></p><p><span>Payments matched</span><span>${money(invoice.covered_paise)}</span></p><p><strong>Balance to pay</strong><strong>${money(invoice.open_paise)}</strong></p></section>
     <footer><p>Prepared by ${e(invoice.created_by_name)}. Payment status checked ${e(historyTimeLabel(checkedAt.toISOString()))}.</p><p>Selected deliveries only. Unmatched branch receipts are not included. No additional tax has been calculated.</p></footer></body></html>`;
 }

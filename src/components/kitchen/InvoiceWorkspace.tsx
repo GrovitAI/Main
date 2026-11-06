@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { ActivityIndicator, FlatList, Image, Platform, Pressable, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
+import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -9,13 +10,13 @@ import { kitchenMonthRange, kitchenRangeLabel, kitchenToday, validKitchenDate } 
 import { cancelKitchenInvoice, createKitchenInvoice, fetchKitchenInvoice, fetchKitchenInvoices, receiveKitchenInvoicePayment } from '@/lib/pos/kitchen-invoice-service';
 import { printKitchenInvoice } from '@/lib/pos/kitchen-invoice-export';
 import { invoiceDate, invoiceIssuedDate, invoiceMoney, invoiceNumber, invoiceStatus } from '@/lib/pos/kitchen-invoice-utils';
-import { formatQty, parseAmount } from '@/lib/pos/kitchen-utils';
+import { formatDayLabel, formatQty, parseAmount } from '@/lib/pos/kitchen-utils';
 import { historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceStatus, type InvoiceWorkspace as WorkspaceData, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
-import { Avatar, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, Tick } from '@/components/kitchen/ui';
-import { AmountPad, AmountRow, WhenRow } from '@/components/kitchen/EntryRows';
+import { Avatar, KHeader, KScreen, Notice, PrimaryButton, ReceiptLine, SelectRow, SettingsGroup, TextField, Tick } from '@/components/kitchen/ui';
+import { AmountPad, AmountRow, TotalBar, WhenRow } from '@/components/kitchen/EntryRows';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { ReportMultiSelect, ReportSelect } from '@/components/kitchen/ReportSelect';
 import { useDateGuard } from '@/components/kitchen/forms';
@@ -55,6 +56,33 @@ function Status({ invoice, pill = false }: { invoice: KitchenInvoice; pill?: boo
   return <Text className="text-xs font-bold leading-5" style={{ color }}>{invoiceStatus(invoice.status)}</Text>;
 }
 
+/** Task 301: one delivery to pick: its day, how many items and what it comes to; its items open underneath. */
+function DeliveryRow({ delivery, first, last, on, full, busy, open, onToggle, onOpen }: { delivery: InvoiceDelivery; first: boolean; last: boolean; on: boolean; full: boolean; busy: boolean; open: boolean; onToggle: () => void; onOpen: () => void }) {
+  const day = formatDayLabel(delivery.entry_date, '');
+  const count = delivery.lines.length;
+  const blocked = busy || (!on && full);
+  const Chevron = open ? ChevronUp : ChevronDown;
+  return <View className={'overflow-hidden border-x border-border-soft ' + (on ? 'bg-surface-tint ' : 'bg-surface-elevated ') + (first ? 'rounded-t-[18px] border-t ' : '') + (last ? 'rounded-b-[18px] border-b' : 'border-b')}>
+    <View className="flex-row items-center">
+      <Pressable accessibilityRole="checkbox" accessibilityLabel={'Select delivery ' + day + ' ' + invoiceMoney(delivery.amount_paise)} aria-checked={on} accessibilityState={{ checked: on, disabled: blocked }} disabled={blocked} onPress={onToggle}
+        className={'min-h-[60px] min-w-0 flex-1 flex-row items-center gap-3 py-2.5 pl-3 ' + (on ? '' : 'hover:bg-accent-soft active:bg-accent-soft')}>
+        <Tick size={22} on={on} />
+        <View className="min-w-0 flex-1">
+          <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{day}</Text>
+          <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{count === 1 ? '1 item' : count + ' items'} · {delivery.lines.map(l => l.item_name).join(', ')}</Text>
+        </View>
+        <Text className="text-[15px] font-bold text-text-primary" style={tabular}>{invoiceMoney(delivery.amount_paise)}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={(open ? 'Hide items of ' : 'Show items of ') + day} aria-expanded={open} onPress={onOpen} className="h-[60px] w-11 items-center justify-center hover:bg-accent-soft active:bg-accent-soft">
+        <Chevron size={18} color={colors.textSecondary} />
+      </Pressable>
+    </View>
+    {open ? <View className="border-t border-border-soft px-3.5 py-1.5">
+      {delivery.lines.map(l => <ReceiptLine key={l.id} name={l.item_name} detail={formatQty(l.qty, l.unit) + ' × ' + invoiceMoney(l.price_paise)} amount={invoiceMoney(l.line_paise)} />)}
+    </View> : null}
+  </View>;
+}
+
 export function InvoiceWorkspace() {
   const params = useLocalSearchParams<RouteParams>();
   const today = kitchenToday(); const { width } = useWindowDimensions(); const desktop = width >= 700;
@@ -83,7 +111,15 @@ export function InvoiceWorkspace() {
   }, [params.start, params.end, params.party]);
   // Reload whenever the tab is shown again (payments may have been recorded on Received); the first focus is the initial load.
   const focusedOnce = useRef(false);
-  useFocusEffect(useCallback(() => { if (focusedOnce.current && !busyRef.current) setRefresh(v => v + 1); focusedOnce.current = true; }, []));
+  // Task 301: this tab stays mounted, so a range that ran up to today moves on with the day; otherwise today's sends would be outside it.
+  const lastToday = useRef(today);
+  const rollDay = useCallback((): void => {
+    const now = kitchenToday(); const was = lastToday.current;
+    if (now === was) return;
+    lastToday.current = now;
+    setFilter(f => f.endDate !== was ? f : { ...f, page: 0, ...(f.startDate === was.slice(0, 7) + '-01' ? kitchenMonthRange(now.slice(0, 7), now) : { endDate: now }) });
+  }, []);
+  useFocusEffect(useCallback(() => { if (focusedOnce.current && !busyRef.current) { rollDay(); setRefresh(v => v + 1); } focusedOnce.current = true; }, [rollDay]));
   useEffect(() => {
     if (detailId) return;
     const controller = new AbortController(); setError(null); setData(null);
@@ -147,7 +183,10 @@ export function InvoiceWorkspace() {
     const result = await printKitchenInvoice(preview.invoice, preview.checkedAt); endBusy(); if (result.error) setError(result.error);
   };
   const backToList = (): void => { setDetailId(null); setInvoice(null); setPreview(null); setEditor(null); setMessage(null); setError(null); resetFilter({ candidates: false }); };
-  const reload = (): void => { if (busyRef.current) return; setSelected(new Map()); setRefresh(v => v + 1); };
+  const reload = (): void => { if (busyRef.current) return; rollDay(); setSelected(new Map()); setRefresh(v => v + 1); };
+  // Task 301: a delivery is one line until its items are asked for.
+  const [openDeliveries, setOpenDeliveries] = useState<ReadonlySet<string>>(new Set());
+  const toggleOpen = (id: string): void => setOpenDeliveries(now => { const next = new Set(now); if (!next.delete(id)) next.add(id); return next; });
   const rows = useMemo<Row[]>(() => preview ? preview.invoice.deliveries.flatMap(d => d.lines.map(l => ({ kind: 'docline' as const, value: l, date: d.entry_date })))
     : detailId ? invoice?.deliveries.flatMap(d => d.lines.map(l => ({ kind: 'line' as const, value: l, date: d.entry_date }))) ?? []
     : filter.candidates ? (data?.deliveries ?? []).map(value => ({ kind: 'delivery', value })) : (data?.rows ?? []).map(value => ({ kind: 'invoice', value })), [data, filter.candidates, invoice, detailId, preview]);
@@ -190,7 +229,7 @@ export function InvoiceWorkspace() {
       <View className="gap-1 py-4"><Text className="text-sm font-bold leading-5 text-text-primary">Bill to {preview.invoice.party_name}</Text>
         <Text className="text-sm leading-5 text-text-secondary">Delivery period: {invoiceDate(preview.invoice.start_date)} to {invoiceDate(preview.invoice.end_date)} (inclusive)</Text>
         {preview.invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-primary">Cancelled: {preview.invoice.cancel_reason}</Text> : null}</View>
-      {desktop ? <View className="flex-row gap-3 bg-surface-tint px-2 py-2"><Text className="w-[18%] text-xs font-semibold text-text-secondary">Date</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Finished goods</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="w-[16%] text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
+      {desktop ? <View className="flex-row gap-3 bg-surface-tint px-2 py-2"><Text className="w-[18%] text-xs font-semibold text-text-secondary">Date</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Items</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="w-[16%] text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
     </View>
   </> : null;
   const docFooter = preview ? <View className={paper + ' mb-2 rounded-b-lg border-b pb-6 pt-4'}>
@@ -217,12 +256,13 @@ export function InvoiceWorkspace() {
             value={filter.statuses ?? INVOICE_STATUSES} onChange={statuses => resetFilter({ statuses })} /></View>}
         </View>
       </View>
-      <Text className="text-xs leading-5 text-text-secondary">{filter.candidates ? 'Select finished-goods deliveries. Each delivery includes all its items. Already invoiced deliveries are excluded.' : 'Invoices overlapping the selected delivery period. Paid status follows matched branch payments.'}</Text>
-      {filter.candidates && data?.deliveries.length ? <View className="flex-row flex-wrap items-center justify-between gap-2">
-        <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries on this page" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
-          className="min-h-[44px] flex-row items-center gap-2 rounded-lg border border-border px-3 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary">
-          <Tick size={20} on={allPage} /><Text className="text-sm font-semibold text-text-primary">Select page</Text>
-        </Pressable><Text className="text-xs text-text-secondary">{selected.size}/100 selected</Text>
+      {filter.candidates ? null : <Text className="text-xs leading-5 text-text-secondary">Invoices overlapping the selected delivery period. Paid status follows matched branch payments.</Text>}
+      {filter.candidates && data?.deliveries.length ? <View className="-mb-2 flex-row items-center justify-between gap-2">
+        <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
+          className="min-h-[44px] flex-row items-center gap-3 rounded-lg px-3 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary">
+          <Tick size={22} on={allPage} /><Text className="text-sm font-bold text-text-primary">Select all</Text>
+        </Pressable>
+        <Text className="px-3 text-[13px] font-semibold text-text-secondary">{selected.size >= 100 ? '100 is the most on one invoice' : data.total_rows === 1 ? '1 delivery' : data.total_rows + ' deliveries'}</Text>
       </View> : null}
     </> : invoice ? <>
       <View className="flex-row items-start justify-between gap-3"><View className="min-w-0 flex-1"><Text className="text-lg font-bold leading-6 text-text-primary">{invoice.party_name}</Text><Text className="text-xs leading-5 text-text-secondary">{kitchenRangeLabel({ startDate: invoice.start_date, endDate: invoice.end_date })}</Text></View><Status invoice={invoice} /></View>
@@ -236,14 +276,14 @@ export function InvoiceWorkspace() {
       {invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-secondary">Cancelled: {invoice.cancel_reason}</Text> : null}
       <Text className="text-xs leading-5 text-text-secondary">Prepared {invoiceIssuedDate(invoice.created_at)} by {invoice.created_by_name}. Unmatched branch receipts are not counted as invoice payments.</Text>
       {pane}
-      {desktop ? <View className="flex-row gap-3 bg-surface-tint px-3 py-2"><Text className="w-[34%] text-xs font-semibold text-text-secondary">Finished goods</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Delivery date</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
+      {desktop ? <View className="flex-row gap-3 bg-surface-tint px-3 py-2"><Text className="w-[34%] text-xs font-semibold text-text-secondary">Items</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Delivery date</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
     </> : null}
     {message && !preview ? <Text accessibilityRole="alert" className="text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
     {error && !editor ? <><Notice text={error} />{preview ? null : <Action label="Retry loading" disabled={loading || busy} onPress={reload} />}</> : null}
     {loading ? <ActivityIndicator accessibilityLabel="Loading invoices" color={colors.primary} /> : null}
     {docHeader}
   </View>;
-  return <KeyboardAvoider><KScreen scroll={false} footer={paymentFooter ?? (filter.candidates && !detailId ? <View className="flex-row flex-wrap items-center justify-between gap-2"><View><Text className="text-xs text-text-secondary">{selected.size} deliveries selected</Text><Text className="text-lg font-bold text-text-primary" style={tabular}>{invoiceMoney(total)}</Text></View><Action label={busy ? 'Creating…' : 'Create invoice'} primary disabled={loading || busy || !selected.size} onPress={() => void create()} /></View> : undefined)}>
+  return <KeyboardAvoider><KScreen scroll={false} footer={paymentFooter ?? (filter.candidates && !detailId ? <TotalBar caption={selected.size === 0 ? 'None selected' : selected.size === 1 ? '1 delivery' : selected.size + ' deliveries'} total={invoiceMoney(total)} showTotal={selected.size > 0}><PrimaryButton label="Create invoice" disabled={loading || !selected.size} loading={busy} reason={selected.size ? undefined : 'Select a delivery'} onPress={() => void create()} /></TotalBar> : undefined)}>
     <View className="mx-auto w-full max-w-[1120px] flex-1 px-4">
       <FlatList<Row> data={loading || (error && !preview) ? [] : rows} keyExtractor={r => r.kind + r.value.id} ListHeaderComponent={header} keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 24 }} refreshing={false} onRefresh={preview ? undefined : reload}
@@ -251,20 +291,16 @@ export function InvoiceWorkspace() {
           <Text className="text-sm font-semibold leading-5 text-text-primary">{narrowedTo ? narrowedTo.length === 0 ? 'No status is ticked. Tick one under Invoice status.' : 'No invoices ' + narrowedTo.map(s => statusNoun[s]).join(' or ') + ' for this period.' : 'No saved invoices for this period.'}</Text>
           {narrowedTo ? <Action label="Show all invoices" disabled={busy} onPress={() => resetFilter({ statuses: INVOICE_STATUSES })} /> : <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its finished-goods deliveries to create an invoice.</Text>}
           {access.can('invoices.create') && !narrowedTo ? <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} /> : null}
-        </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'No uninvoiced finished-goods deliveries for this period. Try another date range.' : 'Choose a branch to load its deliveries.'}</Text> : null}
+        </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'Everything sent in these dates is already on an invoice.' : 'Choose a branch to load its deliveries.'}</Text> : null}
         ListFooterComponent={preview ? docFooter : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
-        renderItem={({ item }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
+        renderItem={({ item, index }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
           className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary">
           {desktop ? null : <Avatar name={item.value.party_name} size={38} />}
           <View className="min-w-0 flex-1"><Text className="text-sm font-bold leading-5 text-text-primary">{invoiceNumber(item.value.invoice_no)} · {item.value.party_name}</Text><Text className="text-xs leading-5 text-text-secondary">{kitchenRangeLabel({ startDate: item.value.start_date, endDate: item.value.end_date })}</Text></View>
           <View className="items-end"><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.total_paise)}</Text><Status invoice={item.value} pill={!desktop} />
             {item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{invoiceMoney(item.value.open_paise)} left</Text> : null}</View>
-        </Pressable> : item.kind === 'delivery' ? <Pressable accessibilityRole="checkbox" accessibilityLabel={'Select delivery ' + invoiceDate(item.value.entry_date) + ' ' + invoiceMoney(item.value.amount_paise)} aria-checked={selected.has(item.value.id)} accessibilityState={{ checked: selected.has(item.value.id), disabled: busy || (!selected.has(item.value.id) && selected.size >= 100) }} disabled={busy || (!selected.has(item.value.id) && selected.size >= 100)} onPress={() => toggle(item.value)}
-          className={'min-h-16 flex-row items-start gap-3 border-b border-border-soft px-3 py-3 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary ' + (selected.has(item.value.id) ? 'bg-surface-tint' : 'bg-surface-elevated')}>
-          <Tick size={20} on={selected.has(item.value.id)} />
-          <View className="min-w-0 flex-1"><View className="flex-row justify-between gap-2"><Text className="text-sm font-bold text-text-primary">{invoiceDate(item.value.entry_date)}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.amount_paise)}</Text></View>
-            <Text className="text-xs leading-5 text-text-secondary">{item.value.lines.map(l => l.item_name + ' · ' + formatQty(l.qty, l.unit) + ' × ' + invoiceMoney(l.price_paise)).join('\n')}</Text></View>
-        </Pressable> : item.kind === 'docline' ? <View className={paper}><View className="border-b border-border-soft px-2 py-2">
+        </Pressable> : item.kind === 'delivery' ? <DeliveryRow delivery={item.value} first={index === 0} last={index === rows.length - 1} on={selected.has(item.value.id)} full={selected.size >= 100} busy={busy} open={openDeliveries.has(item.value.id)} onToggle={() => toggle(item.value)} onOpen={() => toggleOpen(item.value.id)} />
+          : item.kind === 'docline' ? <View className={paper}><View className="border-b border-border-soft px-2 py-2">
           {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[18%] text-sm text-text-secondary">{invoiceDate(item.date)}</Text><Text className="flex-1 text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="w-[14%] text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="w-[14%] text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="w-[16%] text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
             : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{invoiceDate(item.date)} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
         </View></View> : <View className="border-b border-border-soft bg-surface-elevated px-3 py-2">

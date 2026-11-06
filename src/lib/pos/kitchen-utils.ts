@@ -458,6 +458,64 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
   return parts.filter((p) => p.length > 0).join(' · ');
 }
 
+/**
+ * Task 301: a statement row in a few words. Many items say how many, then their names; one item is
+ * named with its quantity. The full list opens with the row.
+ */
+export function statementLine(e: KitchenEntry, itemsById: ReadonlyMap<string, KitchenItem>): { title: string; subtitle: string } {
+  const kind = typeLabel(e.type);
+  if (e.lines.length === 0) return { title: kind, subtitle: entrySubline(e, itemsById) };
+  const state = e.type === 'bought' ? (e.paid ? `paid${e.mode ? ` · ${modeLabel(e.mode)}` : ''}` : 'pay later') : '';
+  const first = e.lines[0];
+  if (e.lines.length === 1 && first) {
+    const it = itemsById.get(first.item_id);
+    return { title: `${kind} · ${it?.name ?? 'Removed item'}`, subtitle: [formatQty(first.qty, it?.unit ?? ''), state, e.note ?? ''].filter(Boolean).join(' · ') };
+  }
+  const names = e.lines.map((l) => itemsById.get(l.item_id)?.name ?? 'Removed item').join(', ');
+  return { title: `${kind} · ${e.lines.length} items`, subtitle: [state, names].filter(Boolean).join(' · ') };
+}
+
+export type ItemMove = { entry: KitchenEntry; change: number; value: number | null };
+export type ItemMoveDay = { date: string; net: number; moves: ItemMove[] };
+
+/**
+ * Task 301: what happened to one item's stock, day by day and newest first: only this item's
+ * quantity on each entry, never the rest of a send. Voided and replaced entries no longer count, so
+ * they stay in History and out of this list.
+ */
+export function itemMoveDays(entries: readonly KitchenEntry[], itemId: string): ItemMoveDay[] {
+  const days: ItemMoveDay[] = [];
+  for (const entry of newestFirst(entries)) {
+    if (!isPosted(entry)) continue;
+    const mine = entry.lines.filter((l) => l.item_id === itemId);
+    const qty = mine.reduce((sum, l) => sum + l.qty, 0);
+    let change: number;
+    if (entry.type === 'made' && entry.item_id === itemId) change = entry.qty ?? 0;
+    else if (entry.type === 'count' && entry.item_id === itemId) change = entry.qty === null || entry.from_qty === null ? 0 : entry.qty - entry.from_qty;
+    else if (entry.type === 'bought' && mine.length) change = qty;
+    else if ((entry.type === 'sent' || entry.type === 'issued') && mine.length) change = -qty;
+    else continue;
+    const value = (entry.type === 'sent' || entry.type === 'bought') ? Math.round(mine.reduce((sum, l) => sum + l.line_total, 0) * 100) / 100 : null;
+    const move: ItemMove = { entry, change: Math.round(change * 1000) / 1000, value };
+    const day = days[days.length - 1];
+    if (day && day.date === entry.entry_date) {
+      day.moves.push(move);
+      day.net = Math.round((day.net + move.change) * 1000) / 1000;
+    } else {
+      days.push({ date: entry.entry_date, net: move.change, moves: [move] });
+    }
+  }
+  return days;
+}
+
+/** When an entry was keyed in, short: the time on the day it happened, otherwise the day it was entered. */
+export function enteredNote(e: Pick<KitchenEntry, 'entry_date' | 'created_at'>): string {
+  const d = new Date(e.created_at);
+  if (Number.isNaN(d.getTime())) return '';
+  if (localDateKey(d) === e.entry_date) return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `Entered ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+}
+
 /** Signed money text for a list row; empty for a stock-only entry. */
 export function entryAmountText(e: KitchenEntry): string {
   if (e.type === 'made' || e.type === 'count' || e.type === 'issued') return '';

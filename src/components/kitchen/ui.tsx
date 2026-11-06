@@ -1505,6 +1505,39 @@ export function ScrollPills<T extends string>({ options, value: chosen, onChange
  * A quantity with its unit drawn smaller and grey (task 243), as in the approved mockup: "40 pcs"
  * reads as the number first. Small figures keep the unit close to the number's size.
  */
+/** Task 301: a big amount with its paise small, so the rupees read first. */
+export function MoneyFigure({ text, size, color = colors.textPrimary }: { text: string; size: number; color?: string }) {
+  const [rupees, paise] = text.split('.');
+  return (
+    <Text style={{ fontSize: size, fontWeight: '800', color, letterSpacing: size >= 24 ? -0.8 : 0, ...tabular }} numberOfLines={1}>
+      {rupees}{paise ? <Text style={{ fontSize: Math.round(size * 0.55), fontWeight: '700', color: colors.textSecondary, letterSpacing: 0 }}>.{paise}</Text> : null}
+    </Text>
+  );
+}
+
+/** Task 301: the date a row happened on, as a small calendar leaf at the start of the row. */
+export function DateTile({ date, tone = 'neutral' }: { date: string; tone?: Tone }) {
+  const d = new Date(`${date}T00:00:00`);
+  const valid = !Number.isNaN(d.getTime());
+  return (
+    <View style={{ width: 40, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: toneSoft[tone] }}>
+      <Text style={{ fontSize: 16, lineHeight: 19, fontWeight: '800', color: colors.textPrimary, ...tabular }}>{valid ? d.getDate() : '–'}</Text>
+      <Text style={{ fontSize: 11, lineHeight: 13, fontWeight: '700', color: colors.textSecondary }}>{valid ? d.toLocaleDateString('en-IN', { month: 'short' }) : ''}</Text>
+    </View>
+  );
+}
+
+/** Task 301: one line of a bill: the item, its quantity and rate, and what it comes to, in columns. */
+export function ReceiptLine({ name, detail, amount }: { name: string; detail: string; amount?: string }) {
+  return (
+    <View className="flex-row items-baseline" style={{ gap: 10, paddingVertical: 5 }}>
+      <Text className="min-w-0 flex-1 text-text-primary" style={{ fontSize: 14, fontWeight: '600' }}>{name}</Text>
+      <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600', ...tabular }}>{detail}</Text>
+      {amount !== undefined ? <Text className="text-text-primary" style={{ minWidth: 68, textAlign: 'right', fontSize: 14, fontWeight: '700', ...tabular }}>{amount}</Text> : null}
+    </View>
+  );
+}
+
 export function QtyFigure({ qty, unit, size, color = colors.textPrimary, className }: { qty: number; unit: string; size: number; color?: string; className?: string }) {
   const number = formatQty(qty, '').trim();
   const unitSize = size >= 24 ? Math.round(size * 0.5) : Math.max(12, Math.round(size * 0.8));

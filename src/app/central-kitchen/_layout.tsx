@@ -1,5 +1,7 @@
 import { Redirect, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import { Platform, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { isCentralKitchenSession } from '@/lib/pos/tab-config';
@@ -45,6 +47,7 @@ function useScreenName(): string {
 export default function KitchenLayout() {
   const session = useSessionStore((state) => state.session);
   const notice = useKitchenStore((state) => state.notice);
+  const insets = useSafeAreaInsets();
   useKitchenWebPolish();
   useKitchenTitle(useScreenName());
   if (!session) return <Redirect href="/(auth)/login" />;
@@ -61,6 +64,8 @@ export default function KitchenLayout() {
         screenLayout={Platform.OS === 'web' ? ({ children, route, navigation }) => <ScreenEnter navigation={navigation} enterOnMount={route.name !== '(tabs)'}>{children}</ScreenEnter> : undefined}>
         <Stack.Screen name="(tabs)" />
       </Stack>
+      {/* Task 301: the clock stays readable; the login's white status bar must not carry over, and pages scroll beneath this strip rather than through the clock. */}
+      {Platform.OS !== 'web' ? <><StatusBar style="dark" /><View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: colors.kitchenCanvas }} /></> : null}
       <Toast text={notice} />
     </View>
   );

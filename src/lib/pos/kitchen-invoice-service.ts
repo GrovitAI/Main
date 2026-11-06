@@ -48,7 +48,7 @@ function safeError(error: unknown, write = false): string {
   const access = describeAccessError(message);
   if (access) return access;
   if (message.includes('KITCHEN_INVOICE_CHANGED') || code === '23505') return 'The deliveries or payments changed. Refresh before trying again.';
-  if (message.includes('KITCHEN_INVOICE_INVALID')) return 'Check the branch, dates and finished-goods deliveries.';
+  if (message.includes('KITCHEN_INVOICE_INVALID')) return 'Check the branch, dates and deliveries.';
   if (!write && isOfflineError(message)) return OFFLINE_LOAD_TEXT;
   return write ? 'Unable to confirm the save. Refresh invoices before trying again.' : 'Unable to load invoices. Please retry.';
 }

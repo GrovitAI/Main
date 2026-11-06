@@ -1,6 +1,8 @@
 import {
   allocateAcross,
   stockMovements,
+  statementLine,
+  itemMoveDays,
   stockUnitValue,
   amountReadBack,
   cleanTypedNumber,
@@ -477,5 +479,28 @@ describe('stockMovements (task 300)', () => {
     expect(stockUnitValue({ id: 'x', item_kind: 'raw_material', cost_price: 30 }, last)).toBe(30);
     expect(stockUnitValue({ id: 'f', item_kind: 'finished_good', cost_price: 91.5, packing_price: 11 }, last)).toBe(102.5);
     expect(stockUnitValue({ id: 'g', item_kind: 'finished_good', cost_price: null }, last)).toBeNull();
+  });
+});
+
+describe('clean statements and item movements (task 301)', () => {
+  const lineOf = (item_id: string, qty: number, price = 10) => ({ id: item_id + qty, item_id, qty, price, line_total: qty * price });
+  const items = new Map([['a', { id: 'a', name: 'Fazea base', unit: 'pcs' }], ['b', { id: 'b', name: 'Milk', unit: 'L' }]]) as unknown as ReadonlyMap<string, KitchenItem>;
+
+  it('says how many items on a statement row, or names the one', () => {
+    expect(statementLine(entry({ type: 'sent', lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toEqual({ title: 'Sent · 2 items', subtitle: 'Fazea base, Milk' });
+    expect(statementLine(entry({ type: 'sent', lines: [lineOf('a', 5)] }), items)).toEqual({ title: 'Sent · Fazea base', subtitle: '5 pcs' });
+    expect(statementLine(entry({ type: 'bought', paid: false, lines: [lineOf('b', 2)] }), items).subtitle).toBe('2 L · pay later');
+  });
+
+  it('shows only this item on its movements, a day at a time, without voided entries', () => {
+    const days = itemMoveDays([
+      entry({ type: 'sent', entry_date: '2026-11-05', created_at: '2026-11-05T10:00:00Z', lines: [lineOf('a', 3), lineOf('b', 9)] }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T09:00:00Z', item_id: 'a', qty: 10 }),
+      entry({ type: 'sent', entry_date: '2026-11-05', created_at: '2026-11-05T08:00:00Z', lines: [lineOf('a', 50)], voided_at: '2026-11-05T09:30:00Z' }),
+      entry({ type: 'sent', entry_date: '2026-11-04', created_at: '2026-11-04T08:00:00Z', lines: [lineOf('b', 1)] }),
+      entry({ type: 'count', entry_date: '2026-11-03', created_at: '2026-11-03T08:00:00Z', item_id: 'a', qty: 4, from_qty: 6 }),
+    ], 'a');
+    expect(days.map((d) => [d.date, d.net])).toEqual([['2026-11-05', 7], ['2026-11-03', -2]]);
+    expect(days[0]?.moves.map((m) => [m.change, m.value])).toEqual([[-3, 30], [10, null]]);
   });
 });
