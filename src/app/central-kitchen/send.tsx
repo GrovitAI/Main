@@ -169,7 +169,7 @@ export default function SendScreen() {
     <KeyboardAvoider>
       <KScreen footer={footer}>
         <KHeader title={editing ? 'Edit send' : 'Send'} onBack={() => backToKitchen()} />
-        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a send." /> : null}
+        {missing ? <Notice text="That entry cannot be edited here: it is deleted, older than three months, or not a send." /> : null}
         {phone ? <>{who}{items}</> : (
           <View className="flex-row" style={{ gap: 20 }}>
             <View style={{ width: 340 }}>{who}</View>

@@ -21,7 +21,7 @@ type Props = {
   previousEntry?: KitchenEntry | null;
 };
 
-/** The form that corrects an entry of this kind; stock-only entries are redone from the item instead. */
+/** The form that corrects an entry of this kind. */
 function editHref(entry: KitchenEntry): { pathname: string; params: Record<string, string> } | null {
   switch (entry.type) {
     case 'sent': return { pathname: '/central-kitchen/send', params: { edit: entry.id } };
@@ -30,6 +30,8 @@ function editHref(entry: KitchenEntry): { pathname: string; params: Record<strin
     case 'paid': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'vendor' } };
     case 'spent': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'expense' } };
     case 'issued': return { pathname: '/central-kitchen/give', params: { edit: entry.id } };
+    case 'made':
+    case 'count': return { pathname: '/central-kitchen/batch-edit', params: { edit: entry.id } };
     default: return null;
   }
 }
@@ -58,9 +60,9 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
 
   const doVoid = () => {
     confirmAction(
-      'Void this entry?',
-      `${entryHeadline(entry, names)} of ${formatDayLabel(entry.entry_date)} stays in the history, marked void, and any stock it moved goes back.`,
-      'Void',
+      'Delete this entry?',
+      `${entryHeadline(entry, names)} of ${formatDayLabel(entry.entry_date)} stays in History, marked deleted, and any stock it moved goes back.`,
+      'Delete',
       () => {
         void (async () => {
           setBusy(true);
@@ -72,7 +74,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
             return;
           }
           await useKitchenStore.getState().load(true);
-          useKitchenStore.getState().setNotice('Entry voided');
+          useKitchenStore.getState().setNotice('Entry deleted');
           setReason('');
           setVoiding(false);
           onClose();
@@ -88,7 +90,7 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
     : entry.type === 'made' || entry.type === 'count' ? entrySubline({ ...entry, note: null, voided_at: null }, itemsById)
     : entry.type === 'spent' ? (entry.subcategory ? `${entry.category ?? ''} › ${entry.subcategory}` : entry.category ?? '') : '';
   const audit = historyAuditText(entry)?.replace(' IST', '') ?? null;
-  const status = voided ? `${audit ?? 'Voided'}. It no longer counts.` : audit;
+  const status = voided ? `${audit ?? 'Deleted'}. It no longer counts.` : audit;
   const payment = entry.type === 'bought' && !entry.paid ? 'Pay later' : entry.mode ? modeLabel(entry.mode) : null;
 
   return (
@@ -131,13 +133,13 @@ export function EntryActions({ entry, onClose, itemsById, partiesById, previousE
             {ownerLocked ? <Notice tone="neutral" text={`${formatDayLabel(entry.entry_date)} is locked. You can still change it; give a reason.`} /> : null}
             <View className="flex-row" style={{ gap: 10 }}>
               {href ? <View className="flex-1"><GhostButton label="Edit" icon={Pencil} tone="primary" onPress={edit} /></View> : null}
-              <View className="flex-1"><GhostButton label="Void…" tone="out" onPress={() => setVoiding((v) => !v)} /></View>
+              <View className="flex-1"><GhostButton label="Delete…" tone="out" onPress={() => setVoiding((v) => !v)} /></View>
             </View>
             {voiding ? (
               // The reason belongs to the void alone, so it opens with it.
               <View className="border-t border-border-soft" style={{ gap: 10, paddingTop: 12 }}>
-                <TextField value={reason} onChange={setReason} label="Reason for voiding" placeholder={ownerLocked ? 'Why it is being voided (needed for a locked day)' : 'Why it is being voided (optional)'} autoFocus />
-                <GhostButton label={busy ? 'Voiding…' : 'Void this entry'} tone="out" onPress={doVoid} disabled={ownerLocked && !reason.trim()} />
+                <TextField value={reason} onChange={setReason} label="Reason for deleting" placeholder={ownerLocked ? 'Why it is being deleted (needed for a locked day)' : 'Why it is being deleted (optional)'} autoFocus />
+                <GhostButton label={busy ? 'Deleting…' : 'Delete this entry'} tone="out" onPress={doVoid} disabled={ownerLocked && !reason.trim()} />
               </View>
             ) : null}
             {error ? <Notice text={error} /> : null}

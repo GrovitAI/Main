@@ -21,7 +21,7 @@ export const HistoryEntry = memo(function HistoryEntry({ entry, itemsById, parti
   const desktop = useDesktopDensity();
   const names = entryNames(entry, partiesById, itemsById);
   const title = entryHeadline(entry, names);
-  const subtitle = entryBrief(entry, itemsById).replace(/ · voided$/, '');
+  const subtitle = entryBrief(entry, itemsById).replace(/ · deleted$/, '');
   const status = historyStatus(entry);
   const audit = historyAuditText(entry);
   const removed = entry.voided_at !== null;
@@ -75,9 +75,9 @@ export const HistoryCardRow = memo(function HistoryCardRow({ entry, itemsById, p
   const status = historyStatus(entry);
   const removed = entry.voided_at !== null;
   // The status leads the line, so the subline's own "voided" at the end is dropped.
-  const detail = entryBrief(entry, itemsById).replace(/ · voided$/, '');
+  const detail = entryBrief(entry, itemsById).replace(/ · deleted$/, '');
   const amount = showAmounts ? entryAmountText(entry) : '';
-  const note = status === 'voided' ? ['Voided', entry.void_reason].filter(Boolean).join(' · ') : status === 'active' ? '' : HISTORY_STATUS_LABELS[status];
+  const note = status === 'voided' ? ['Deleted', entry.void_reason].filter(Boolean).join(' · ') : status === 'active' ? '' : HISTORY_STATUS_LABELS[status];
   const subtitle = [note, detail].filter(Boolean).join(' · ');
   return (
     <View testID="kitchen-history-entry" className={`overflow-hidden border-x border-border-soft bg-surface-elevated px-3.5 ${first ? 'rounded-t-[18px] border-t' : ''} ${last ? 'rounded-b-[18px] border-b' : ''}`}>

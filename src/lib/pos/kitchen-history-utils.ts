@@ -31,7 +31,7 @@ export function historyStatus(entry: KitchenEntry): HistoryStatus {
 }
 
 export const HISTORY_STATUS_LABELS: Readonly<Record<HistoryStatus, string>> = {
-  active: 'Active', edited: 'Edited', replaced: 'Replaced', voided: 'Voided',
+  active: 'Active', edited: 'Edited', replaced: 'Replaced', voided: 'Deleted',
 };
 
 /** Recorded dates and times are always India time, regardless of device timezone. */
@@ -59,7 +59,7 @@ export function historyAuditText(entry: KitchenEntry): string | null {
   if (entry.voided_at) {
     const replaced = historyStatus(entry) === 'replaced';
     const actor = entry.voided_by?.trim();
-    return `${replaced ? 'Replaced after edit' : 'Voided'}${actor ? ' by ' + actor : ' · staff not recorded'} · ${historyTimeLabel(entry.voided_at)}${!replaced && entry.void_reason ? ' · ' + entry.void_reason : ''}`;
+    return `${replaced ? 'Replaced after edit' : 'Deleted'}${actor ? ' by ' + actor : ' · staff not recorded'} · ${historyTimeLabel(entry.voided_at)}${!replaced && entry.void_reason ? ' · ' + entry.void_reason : ''}`;
   }
   if (entry.replaces_id) return `Edited by ${entry.created_by} · ${historyTimeLabel(entry.created_at)}`;
   return null;

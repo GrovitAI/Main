@@ -163,7 +163,7 @@ export default function BoughtScreen() {
     <KeyboardAvoider>
       <KScreen footer={footer}>
         <KHeader title={editing ? 'Edit buy' : 'Bought'} onBack={() => backToKitchen()} />
-        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a buy." /> : null}
+        {missing ? <Notice text="That entry cannot be edited here: it is deleted, older than three months, or not a buy." /> : null}
         {phone ? <>{who}{items}</> : (
           <View className="flex-row" style={{ gap: 20 }}>
             <View style={{ width: 340 }}>{who}</View>

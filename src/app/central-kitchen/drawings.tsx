@@ -131,7 +131,7 @@ export default function DrawingsScreen() {
   ) : null;
 
   function confirmVoid(r: DrawingRow): void {
-    confirmAction('Remove this entry?', `${rupees(r.amount_paise)} · ${historyDateLabel(r.draw_date)}`, 'Remove', () => {
+    confirmAction('Delete this entry?', `${rupees(r.amount_paise)} · ${historyDateLabel(r.draw_date)}`, 'Delete', () => {
       void voidDrawing(r.id).then((res) => {
         if (res.error) { setError(res.error); return; }
         useKitchenStore.getState().setNotice('Removed');

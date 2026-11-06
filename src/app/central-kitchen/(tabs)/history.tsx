@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ViewToken } from 'react-native';
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, Check, ListChecks, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, ListChecks, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
@@ -8,13 +8,14 @@ import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryHeadline, entryNames, entrySubline, formatMoney } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
-import { Empty, KHeader, KScreen, Notice, PrimaryButton, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, Notice, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
 import { HistoryCardRow, HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { HistoryFilterSheet } from '@/components/kitchen/HistoryFilterSheet';
 import { VoidManySheet } from '@/components/kitchen/VoidManySheet';
+import { PickBar, PickRow } from '@/components/kitchen/PickRow';
 
 const KINDS = [
   { id: 'sent', label: 'Sent' }, { id: 'bought', label: 'Bought' },
@@ -22,7 +23,7 @@ const KINDS = [
 ] as const;
 const STATUSES = [
   { id: 'current', label: 'Current · what counts now' }, { id: 'edited', label: 'Edited · with the earlier version' },
-  { id: 'voided', label: 'Voided · removed' },
+  { id: 'voided', label: 'Deleted · no longer counted' },
 ] as const;
 const SORTS: readonly { id: HistorySort; label: string }[] = [
   { id: 'transaction-newest', label: 'Transaction date · newest' }, { id: 'transaction-oldest', label: 'Transaction date · oldest' },
@@ -119,7 +120,7 @@ export default function HistoryScreen() {
         {!phone ? <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Entry details</Text> : null}
         <View className={phone ? 'gap-1.5' : 'gap-3 sm:flex-row'}>
           <ReportSelect outlined inlineLabel={phone ? 'Type' : undefined} label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />
-          <ReportSelect outlined inlineLabel={phone ? 'Status' : undefined} label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All entries" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />
+          <ReportSelect outlined inlineLabel={phone ? 'Status' : undefined} label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />
           <ReportSelect outlined inlineLabel={phone ? 'Entered by' : undefined} label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />
         </View>
       </View>
@@ -127,7 +128,7 @@ export default function HistoryScreen() {
         {!phone ? <Text accessibilityRole="header" className="text-base font-semibold text-text-primary">Dates</Text> : null}
         <View className={phone ? 'gap-1.5' : 'gap-3 sm:flex-row'}>
         <ReportSelect outlined inlineLabel={phone ? 'Date basis' : undefined} allowEmpty={false} label="Date filter uses" value={filters.dateBasis} options={DATE_BASES} onChange={value => update('dateBasis', DATE_BASES.find(option => option.id === value)?.id ?? 'transaction')} />
-        <View className="min-w-0 flex-1 gap-1">{!phone ? <Text className="text-xs font-bold text-text-secondary">Date range</Text> : null}<ReportDateRange outlined inlineLabel={phone ? 'Date range' : undefined} triggerText={phone && !filters.range ? 'Any dates' : undefined} label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} placeholder={filters.range ? undefined : 'Choose date range'} onChange={value => update('range', value)} /></View>
+        <View className="min-w-0 flex-1 gap-1">{!phone ? <Text className="text-xs font-bold text-text-secondary">Date range</Text> : null}<ReportDateRange outlined inlineLabel={phone ? 'Date range' : undefined} triggerText={!filters.range ? 'All dates' : undefined} label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} onChange={value => update('range', value)} /></View>
         </View>
         {filters.range ? <Pressable accessibilityRole="button" onPress={() => update('range', null)} className={button}><Text className="text-sm font-semibold text-primary">Clear dates</Text></Pressable> : null}
         <Text className="text-xs leading-4 text-text-secondary">{phone ? 'Transaction: happened · Entry: recorded · India time.' : 'Transaction date: when it happened. Entry date: when it was recorded. India time.'}</Text>
@@ -140,10 +141,7 @@ export default function HistoryScreen() {
     {data.entries.length >= 500 ? <Text className="text-xs leading-4 text-text-secondary">Showing the latest 500 entries. Older ones are outside this list.</Text> : null}
   </View>;
 
-  const pickBar = picking ? <View className="flex-row items-center gap-3">
-    <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{pickedEntries.length ? `${pickedEntries.length} selected` : 'Select entries'}</Text>
-    <View className="flex-1"><PrimaryButton label={pickedEntries.length ? `Void ${pickedEntries.length}` : 'Void'} tone="out" disabled={pickedEntries.length === 0} reason={pickedEntries.length === 0 ? 'Select an entry' : undefined} onPress={() => setConfirming(true)} /></View>
-  </View> : undefined;
+  const pickBar = picking ? <PickBar count={pickedEntries.length} onDelete={() => setConfirming(true)} /> : undefined;
 
   return <KScreen scroll={false} footer={pickBar}>
     <View className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-center' : 'max-w-[720px] self-center')}>
@@ -169,28 +167,18 @@ export default function HistoryScreen() {
       sort={<ReportSelect compact outlined allowEmpty={false} label="Sort by" value={filters.sort} options={SORTS} onChange={value => update('sort', SORTS.find(option => option.id === value)?.id ?? DEFAULTS.sort)} />}
       fields={[
         <ReportSelect key="kind" compact outlined label="Type" value={filters.kind} options={KINDS} emptyLabel="All types" onChange={value => update('kind', KINDS.find(option => option.id === value)?.id ?? null)} />,
-        <ReportSelect key="status" compact outlined label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All entries" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />,
+        <ReportSelect key="status" compact outlined label="Status" value={filters.status} options={STATUSES} triggerText={STATUSES.find(option => option.id === filters.status)?.label.split(' · ')[0]} emptyLabel="All statuses" onChange={value => update('status', STATUSES.find(option => option.id === value)?.id ?? null)} />,
         <ReportSelect key="staff" compact outlined label="Entered by" value={filters.enteredBy} options={staff} emptyLabel="All staff" onChange={value => update('enteredBy', value)} />,
         <ReportSelect key="basis" compact outlined allowEmpty={false} label="Date filter uses" triggerText={filters.dateBasis === 'transaction' ? 'Transaction' : 'Entry date'} value={filters.dateBasis} options={DATE_BASES} onChange={value => update('dateBasis', DATE_BASES.find(option => option.id === value)?.id ?? 'transaction')} />,
       ]}
       dates={<>
-        <ReportDateRange outlined inlineLabel="Date range" triggerText={!filters.range ? 'Any dates' : undefined} label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} placeholder={filters.range ? undefined : 'Choose date range'} onChange={value => update('range', value)} />
+        <ReportDateRange outlined inlineLabel="Date range" triggerText={!filters.range ? 'All dates' : undefined} label="History dates" value={filters.range ?? kitchenMonthRange(kitchenToday().slice(0, 7))} onChange={value => update('range', value)} />
         {filters.range ? <Pressable accessibilityRole="button" onPress={() => update('range', null)} className={button}><Text className="text-sm font-semibold text-primary">Clear dates</Text></Pressable> : null}
         <Text className="text-xs leading-4 text-text-secondary">Transaction: happened · Entry: recorded · India time.</Text>
       </>} /> : null}
     <EntryActions entry={open} previousEntry={open?.replaces_id ? entriesById.get(open.replaces_id) ?? null : undefined} onClose={() => setOpenId(null)} itemsById={data.itemsById} partiesById={data.partiesById} />
     <VoidManySheet visible={confirming} entries={pickedEntries} onClose={() => setConfirming(false)} onDone={stopPicking} onPartly={(left) => { setPicked(new Set(left)); }} />
   </KScreen>;
-}
-
-/** A row while picking: its tick beside it; an entry this login cannot change shows no tick. */
-function PickRow({ on, allowed, onToggle, children }: { on: boolean; allowed: boolean; onToggle: () => void; children: React.ReactNode }) {
-  return <View className="flex-row items-center gap-1">
-    <Pressable disabled={!allowed} onPress={onToggle} accessibilityRole="checkbox" aria-checked={on} accessibilityState={{ checked: on, disabled: !allowed }} accessibilityLabel={on ? 'Selected' : 'Select'} className={'h-11 w-9 items-center justify-center rounded-lg ' + (on || !allowed ? '' : 'hover:bg-surface-tint')}>
-      {allowed ? <View className="h-[22px] w-[22px] items-center justify-center rounded-full border" style={{ borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated }}>{on ? <Check size={14} color={colors.textOnPrimary} /> : null}</View> : null}
-    </Pressable>
-    <View className="min-w-0 flex-1" style={{ opacity: allowed ? 1 : 0.5 }}>{children}</View>
-  </View>;
 }
 
 function DayHeading({ label, count }: { label: string; count: number }) {

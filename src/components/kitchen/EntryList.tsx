@@ -75,7 +75,7 @@ export function EntryList({ entries, itemsById, partiesById, grouped = true, onP
               tone={amountTone(e)}
               muted={e.voided_at !== null}
               onPress={onPress ? () => onPress(e) : undefined}
-              accessibilityLabel={`${entryHeadline(e, names)}, ${amountOf(e) || entrySubline(e, itemsById)}${e.voided_at ? ', voided' : ''}`}
+              accessibilityLabel={`${entryHeadline(e, names)}, ${amountOf(e) || entrySubline(e, itemsById)}${e.voided_at ? ', deleted' : ''}`}
             />
           </React.Fragment>
         );

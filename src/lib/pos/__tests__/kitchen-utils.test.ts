@@ -1,6 +1,11 @@
 import {
   allocateAcross,
   stockMovements,
+  entryDays,
+  madeOnDay,
+  batchDayTotals,
+  changesToday,
+  stockMovedSince,
   entryBrief,
   statementLine,
   itemMoveDays,
@@ -514,5 +519,49 @@ describe('entryBrief (task 303)', () => {
     expect(entryBrief(entry({ type: 'sent', lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toBe('2 items · Fazea base, Milk');
     expect(entryBrief(entry({ type: 'bought', paid: false, lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toBe('2 items · pay later · Fazea base, Milk');
     expect(entryBrief(entry({ type: 'sent', lines: [lineOf('a', 5)] }), items)).toBe('Fazea base 5 pcs');
+  });
+});
+
+describe('entryDays (task 304)', () => {
+  it('groups the batches that still count by day, newest first', () => {
+    const days = entryDays([
+      entry({ type: 'made', entry_date: '2026-11-04', created_at: '2026-11-04T08:00:00Z', item_id: 'a', qty: 3 }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T08:00:00Z', item_id: 'a', qty: 5 }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T09:00:00Z', item_id: 'b', qty: 7 }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T10:00:00Z', item_id: 'b', qty: 9, voided_at: '2026-11-05T11:00:00Z' }),
+      entry({ type: 'count', entry_date: '2026-11-05', item_id: 'a', qty: 1 }),
+    ], ['made']);
+    expect(days.map((d) => [d.date, d.entries.map((e) => e.qty)])).toEqual([['2026-11-05', [7, 5]], ['2026-11-04', [3]]]);
+  });
+});
+
+describe('staff tools (task 306)', () => {
+  const items = new Map([['a', { id: 'a', name: 'Fazea base', unit: 'pcs' }], ['b', { id: 'b', name: 'Milk', unit: 'L' }]]) as unknown as ReadonlyMap<string, KitchenItem>;
+  const made = (item_id: string, qty: number, extra: Partial<KitchenEntry> = {}): KitchenEntry => entry({ type: 'made', entry_date: '2026-11-05', item_id, qty, ...extra });
+
+  it('adds up what was made on a day, leaving out deleted batches and other days', () => {
+    const list = [made('a', 29), made('a', 43), made('b', 2.5), made('a', 100, { voided_at: '2026-11-05T10:00:00Z' }), made('a', 7, { entry_date: '2026-11-04' })];
+    expect(madeOnDay(list, '2026-11-05').get('a')).toBe(72);
+    expect(batchDayTotals(list.slice(0, 3), items)).toBe('Fazea base +72 pcs · Milk +2.5 L');
+  });
+
+  it('counts an edit once and a delete once, only today', () => {
+    const dayOf = (iso: string): string => iso.slice(0, 10);
+    const list = [
+      entry({ type: 'sent', voided_at: '2026-11-05T10:00:00Z', void_reason: 'Edited', created_at: '2026-11-04T10:00:00Z' }),
+      entry({ type: 'sent', replaces_id: 'x', created_at: '2026-11-05T10:00:00Z' }),
+      entry({ type: 'made', voided_at: '2026-11-05T11:00:00Z', void_reason: null, created_at: '2026-11-05T09:00:00Z' }),
+      entry({ type: 'made', voided_at: '2026-11-04T11:00:00Z', void_reason: null, created_at: '2026-11-04T09:00:00Z' }),
+    ];
+    expect(changesToday(list, '2026-11-05', dayOf)).toBe(2);
+  });
+
+  it('notices stock that moved after a count', () => {
+    const count = entry({ id: 'c', type: 'count', item_id: 'a', qty: 4, from_qty: 2, created_at: '2026-11-05T08:00:00Z' });
+    const send = (at: string, item: string, voided: string | null = null): KitchenEntry => entry({ type: 'sent', created_at: at, voided_at: voided, lines: [{ id: at, item_id: item, qty: 1, price: 1, line_total: 1 }] });
+    expect(stockMovedSince([count, send('2026-11-05T07:00:00Z', 'a')], count)).toBe(false);
+    expect(stockMovedSince([count, send('2026-11-05T09:00:00Z', 'b')], count)).toBe(false);
+    expect(stockMovedSince([count, send('2026-11-05T09:00:00Z', 'a', '2026-11-05T09:30:00Z')], count)).toBe(false);
+    expect(stockMovedSince([count, send('2026-11-05T09:00:00Z', 'a')], count)).toBe(true);
   });
 });

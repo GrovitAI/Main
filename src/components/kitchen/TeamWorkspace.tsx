@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, ChevronUp, Lock, UserRound } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -52,6 +52,7 @@ const samePermissions = (a: readonly KitchenPermission[], b: readonly KitchenPer
 export function TeamWorkspace() {
   const { isOwner, access } = useKitchenAccess();
   const { loaded } = useKitchenData();
+  const params = useLocalSearchParams<{ log?: string }>();
   if (loaded && !isOwner) {
     return (
       <KScreen>
@@ -60,6 +61,7 @@ export function TeamWorkspace() {
       </KScreen>
     );
   }
+  if (params.log) return <KScreen><KHeader title="Change log" onBack={() => backToKitchen()} /><AuditSection /></KScreen>;
   return (
     <KeyboardAvoider>
       <KScreen wide={DESKTOP_LAYOUT === 'panes'}>
@@ -336,13 +338,13 @@ function AuditSection() {
   useFocusEffect(useCallback(() => { void load(0); }, [load]));
 
   return (
-    <SettingsSection title="Change log" description="Edits, voids, locked-day changes and permission changes, newest first.">
+    <SettingsSection title="Change log" description="Edits, deletes, locked-day changes and permission changes, newest first.">
       {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load(0)} />} /> : null}
       <Card padded={false} style={{ paddingHorizontal: 14 }}>
         {rows === null && !error ? (
           <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={40} /><Skeleton height={40} /></View>
         ) : rows && rows.length === 0 ? (
-          <Empty title="Nothing changed yet" body="Edits, voids, locked-day changes and permission changes will show here." />
+          <Empty title="Nothing changed yet" body="Edits, deletes, locked-day changes and permission changes will show here." />
         ) : (
           (rows ?? []).map((row) => {
             const text = auditText(row);

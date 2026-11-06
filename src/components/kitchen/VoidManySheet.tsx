@@ -37,21 +37,21 @@ export function VoidManySheet({ visible, entries, onClose, onDone, onPartly }: {
     setBusy(false);
     const voided = count - left.length;
     if (left.length > 0) {
-      setError(`${voided} voided. ${left.length} could not be: ${firstError ?? 'please try again.'}`);
+      setError(`${voided} deleted. ${left.length} could not be: ${firstError ?? 'please try again.'}`);
       onPartly(left);
       return;
     }
-    store.setNotice(`${voided} ${voided === 1 ? 'entry' : 'entries'} voided`);
+    store.setNotice(`${voided} ${voided === 1 ? 'entry' : 'entries'} deleted`);
     setReason('');
     onDone();
   };
   return (
-    <Sheet visible={visible} onClose={busy ? () => undefined : onClose} dirty={reason.trim().length > 0} title={`Void ${count} ${count === 1 ? 'entry' : 'entries'}?`}>
+    <Sheet visible={visible} onClose={busy ? () => undefined : onClose} dirty={reason.trim().length > 0} title={`Delete ${count} ${count === 1 ? 'entry' : 'entries'}?`}>
       <View style={{ gap: 12 }}>
-        <Notice tone="neutral" text="They stay in the history, marked void. Any stock they moved goes back." />
+        <Notice tone="neutral" text="They stay in History, marked deleted. Any stock they moved goes back." />
         <TextField value={reason} onChange={setReason} label="Reason" placeholder={anyLocked ? 'Needed for a locked day' : 'Optional'} />
         {error ? <Notice text={error} /> : null}
-        <PrimaryButton label={`Void ${count}`} tone="out" loading={busy} disabled={busy || count === 0 || (anyLocked && !reason.trim())} reason={anyLocked && !reason.trim() ? 'Give a reason' : undefined} onPress={() => void run()} />
+        <PrimaryButton label={`Delete ${count}`} tone="out" loading={busy} disabled={busy || count === 0 || (anyLocked && !reason.trim())} reason={anyLocked && !reason.trim() ? 'Give a reason' : undefined} onPress={() => void run()} />
       </View>
     </Sheet>
   );
