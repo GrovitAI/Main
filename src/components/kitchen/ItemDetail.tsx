@@ -13,7 +13,7 @@ import { useResponsive } from '@/lib/pos/useResponsive';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import type { KitchenCategory, KitchenEntry, KitchenItem } from '@/lib/pos/kitchen-types';
 import { AmountPanel, Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, QtyFigure, Section, Sheet, Skeleton, SPLIT_FROM, stickySide, TextField, useDesktopDensity } from './ui';
-import { EntryList } from './EntryList';
+import { ItemMovements } from './ItemMovements';
 import { EntryActions } from './EntryActions';
 
 type Props = {
@@ -149,7 +149,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
         ) : moves.length === 0 ? (
           <Empty title="No movements yet" body={item.item_kind === 'finished_good' ? 'Batches, sends and stock counts will show here.' : 'Purchases and stock counts will show here.'} />
         ) : (
-          <EntryList entries={moves} itemsById={data.itemsById} partiesById={data.partiesById} onPress={setOpen} />
+          <ItemMovements itemId={item.id} unit={item.unit} entries={moves} itemsById={data.itemsById} partiesById={data.partiesById} showAmounts={showAmounts} onPress={setOpen} />
         )}
       </Card>
     </Section>
@@ -188,7 +188,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
           <Card>
             <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
               <View className={desktop ? 'min-w-0 flex-1' : undefined}>
-                <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>In stock</Text>
+                <Text className="text-text-secondary" style={{ fontSize: 14, fontWeight: '700' }}>In stock</Text>
                 <View className="mt-0.5">{figure}</View>
               </View>
               <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>{actions}</View>

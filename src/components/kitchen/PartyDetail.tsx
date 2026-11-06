@@ -8,12 +8,11 @@ import { setKitchenPartyActive } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
-import { entrySubline, formatDayLabel, formatMoney, statementRows, typeLabel, whatsappUrl } from '@/lib/pos/kitchen-utils';
+import { formatMoney, statementLine, statementRows, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Avatar, Card, Empty, GhostButton, KHeader, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity } from './ui';
+import { Card, DateTile, Empty, GhostButton, KHeader, MoneyFigure, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity } from './ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { EntryActions } from './EntryActions';
-import { ENTRY_ICONS, entryIconTone } from './EntryList';
 
 type Props = {
   partyId: string;
@@ -46,7 +45,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
     );
   }
   const isBranch = party.kind === 'branch';
-  const tone = balance > 0 ? (isBranch ? semantic.success : semantic.danger) : colors.textSecondary;
+  const tone = balance === 0 ? colors.textSecondary : colors.textPrimary;
   const label = balance > 0 ? (isBranch ? 'Yet to pay' : 'We owe') : balance < 0 ? (isBranch ? 'Paid ahead' : 'Overpaid') : 'Settled';
 
   const remove = () => {
@@ -67,7 +66,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
 
   const figure = (
     <>
-      <Text className={`font-extrabold ${desktop ? 'text-[28px] leading-8' : 'text-[40px] leading-[46px]'}`} style={{ letterSpacing: desktop ? -0.4 : -0.8, color: tone, fontVariant: ['tabular-nums'] }}>{showAmounts ? formatMoney(Math.abs(balance)) : '—'}</Text>
+      <MoneyFigure text={showAmounts ? formatMoney(Math.abs(balance)) : '—'} size={desktop ? 28 : 38} color={tone} />
       {party.phone && !phone ? (
         <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
           <MessageCircle size={16} color={semantic.success} />
@@ -102,15 +101,15 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         ) : (
           rows.map(({ entry, balanceAfter }) => {
             const moneyBack = entry.type === 'received' || entry.type === 'paid';
+            const line = statementLine(entry, data.itemsById);
             return (
               <Row
                 key={entry.id}
-                icon={phone ? ENTRY_ICONS[entry.type] : undefined}
-                iconTone={entryIconTone(entry)}
-                title={`${typeLabel(entry.type)} · ${formatDayLabel(entry.entry_date)}`}
-                subtitle={entrySubline(entry, data.itemsById)}
+                lead={<DateTile date={entry.entry_date} tone={moneyBack ? 'in' : 'neutral'} />}
+                title={line.title}
+                subtitle={line.subtitle}
                 right={showAmounts ? `${moneyBack ? '−' : ''}${formatMoney(entry.amount)}` : undefined}
-                rightSub={showAmounts ? `then ${formatMoney(balanceAfter)}` : undefined}
+                rightSub={showAmounts ? `Bal ${formatMoney(balanceAfter)}` : undefined}
                 tone={moneyBack ? 'in' : 'neutral'}
                 onPress={() => setOpen(entry)}
               />
@@ -132,7 +131,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
       <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 8 }}>Shows the last three months; the balance counts everything.</Text>
     </Section>
   );
-  const balanceLabel = <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</Text>;
+  const balanceLabel = <Text className="text-text-secondary" style={{ fontSize: 14, fontWeight: '700' }}>{label}</Text>;
 
   return (
     <View onLayout={measure}>
@@ -165,12 +164,9 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         <>
           <Card>
             <View className={desktop ? 'flex-row items-center gap-4' : undefined}>
-              <View className={desktop ? 'min-w-0 flex-1' : 'flex-row items-start justify-between gap-3'}>
-                <View className="min-w-0 flex-1">
-                  {balanceLabel}
-                  <View className="mt-0.5">{figure}</View>
-                </View>
-                {phone ? <Avatar name={party.name} size={48} /> : null}
+              <View className={desktop ? 'min-w-0 flex-1' : undefined}>
+                {balanceLabel}
+                <View className="mt-0.5">{figure}</View>
               </View>
               <View className={desktop ? 'w-64 shrink-0 flex-row gap-2' : 'flex-row'} style={desktop ? undefined : { gap: 10, marginTop: 14 }}>{actions}</View>
             </View>
