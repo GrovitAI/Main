@@ -14,8 +14,8 @@ export const PERMISSION_GROUPS: readonly { title: string; items: readonly { key:
     { key: 'entries.backdate', label: 'Enter earlier dates', hint: 'Without this, entries are for today only' },
   ] },
   { title: 'Corrections', items: [
-    { key: 'fix.own', label: 'Edit or void own entries', hint: 'Only on the day they were made' },
-    { key: 'fix.any', label: 'Edit or void anyone’s entries' },
+    { key: 'fix.own', label: 'Edit or delete own entries', hint: 'Only on the day they were made' },
+    { key: 'fix.any', label: 'Edit or delete anyone’s entries' },
   ] },
   { title: 'Invoices', items: [
     { key: 'invoices.create', label: 'Create invoices' },
@@ -123,13 +123,13 @@ export function lockSummary(access: KitchenAccess): string {
 
 const ACTIONS: Record<string, string> = {
   locked_day_change: 'Changed a locked day',
-  entry_voided: 'Voided an entry',
+  entry_voided: 'Deleted an entry',
   entry_edited: 'Edited an entry',
   access_changed: 'Changed permissions',
   lock_changed: 'Changed the day lock',
   invoice_cancelled: 'Cancelled an invoice',
   money_moved: 'Moved money',
-  money_move_voided: 'Voided a money move',
+  money_move_voided: 'Deleted a money move',
   opening_set: 'Set opening balances',
 };
 

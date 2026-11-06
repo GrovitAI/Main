@@ -454,7 +454,7 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
   }
   // The particular is the headline already, so it is not repeated as a note.
   if (e.note && !(e.type === 'spent' && e.particular_id)) parts.push(e.note);
-  if (e.voided_at) parts.push('voided');
+  if (e.voided_at) parts.push('deleted');
   return parts.filter((p) => p.length > 0).join(' · ');
 }
 

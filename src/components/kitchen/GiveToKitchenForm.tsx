@@ -106,8 +106,8 @@ export function GiveToKitchenForm() {
   return (
     <KeyboardAvoider>
       <KScreen footer={phone && pad ? pad : saveButton}>
-        <KHeader title={editing ? 'Edit what was given' : 'Give to the kitchen'} subtitle={editing ? 'The earlier entry is voided; this one takes its place' : 'Out of the store; counted as used'} onBack={() => backToKitchen()} />
-        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a give to the kitchen." /> : null}
+        <KHeader title={editing ? 'Edit what was given' : 'Give to the kitchen'} subtitle={editing ? 'This takes the place of the earlier entry' : 'Out of the store; counted as used'} onBack={() => backToKitchen()} />
+        {missing ? <Notice text="That entry cannot be edited here: it is deleted, older than three months, or not a give to the kitchen." /> : null}
         {phone ? <>{rows}{items}</> : (
           <View className="flex-row" style={{ gap: 20 }}>
             <View style={{ width: 340 }}>{rows}</View>

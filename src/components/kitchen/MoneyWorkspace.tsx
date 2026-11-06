@@ -96,9 +96,9 @@ export function MoneyWorkspace() {
     setMessage(done); void load();
     return true;
   };
-  const voidMove = (m: MoneyMove): void => confirmAction('Void this transfer?',
-    `${rupees(m.amount_paise)} from ${ACCOUNT_LABEL[m.from_account]} to ${ACCOUNT_LABEL[m.to_account]} on ${historyDateLabel(m.move_date)}. It stays in the records as voided and no longer counts.`,
-    'Void transfer', () => void run(() => voidKitchenMoneyMove(m.id, voiding === m.id ? voidReason : null), 'Transfer voided'));
+  const voidMove = (m: MoneyMove): void => confirmAction('Delete this transfer?',
+    `${rupees(m.amount_paise)} from ${ACCOUNT_LABEL[m.from_account]} to ${ACCOUNT_LABEL[m.to_account]} on ${historyDateLabel(m.move_date)}. It stays in the records as deleted and no longer counts.`,
+    'Delete transfer', () => void run(() => voidKitchenMoneyMove(m.id, voiding === m.id ? voidReason : null), 'Transfer deleted'));
   const startVoid = (m: MoneyMove): void => {
     if (access.isLocked(m.move_date)) { setVoiding(m.id); setVoidReason(''); return; }
     voidMove(m);
@@ -149,12 +149,12 @@ export function MoneyWorkspace() {
         <Row icon={ArrowRightLeft} iconTone="primary" title={`${ACCOUNT_LABEL[item.from_account]} → ${ACCOUNT_LABEL[item.to_account]}`}
           subtitle={historyDateLabel(item.move_date) + (item.note ? ' · ' + item.note : '')} right={rupees(item.amount_paise)} rightSub={`by ${item.created_by}`}
           onPress={mayVoid && !busy ? () => startVoid(item) : undefined}
-          accessibilityLabel={`${rupees(item.amount_paise)} from ${ACCOUNT_LABEL[item.from_account]} to ${ACCOUNT_LABEL[item.to_account]}, ${historyDateLabel(item.move_date)}${mayVoid ? '. Opens void' : ''}`} />
+          accessibilityLabel={`${rupees(item.amount_paise)} from ${ACCOUNT_LABEL[item.from_account]} to ${ACCOUNT_LABEL[item.to_account]}, ${historyDateLabel(item.move_date)}${mayVoid ? '. Opens delete' : ''}`} />
       </View>
       {voiding === item.id ? <View className="gap-2 py-2.5">
-        <TextField label="Reason for changing a locked day" value={voidReason} onChange={setVoidReason} placeholder="Why this transfer is being voided" autoFocus />
+        <TextField label="Reason for changing a locked day" value={voidReason} onChange={setVoidReason} placeholder="Why this transfer is being deleted" autoFocus />
         <View className="flex-row gap-2">
-          <GhostButton small tone="out" label="Void transfer" disabled={busy || !voidReason.trim()} onPress={() => voidMove(item)} />
+          <GhostButton small tone="out" label="Delete transfer" disabled={busy || !voidReason.trim()} onPress={() => voidMove(item)} />
           <GhostButton small label="Cancel" onPress={() => setVoiding(null)} />
         </View>
       </View> : null}
@@ -212,11 +212,11 @@ export function MoneyWorkspace() {
           <Text className="text-xs leading-5 text-text-secondary" numberOfLines={2}>{historyDateLabel(item.move_date)}{item.note ? ' · ' + item.note : ''} · {item.created_by}</Text>
         </View>
         <Text className="text-sm font-bold text-text-primary" style={tabular}>{rupees(item.amount_paise)}</Text>
-        {mayMove && (!access.isLocked(item.move_date) || access.isOwner) ? <GhostButton small label="Void" disabled={busy} onPress={() => startVoid(item)} /> : null}
+        {mayMove && (!access.isLocked(item.move_date) || access.isOwner) ? <GhostButton small label="Delete" disabled={busy} onPress={() => startVoid(item)} /> : null}
         {voiding === item.id ? <View className="w-full gap-2 pb-2">
-          <TextField label="Reason for changing a locked day" value={voidReason} onChange={setVoidReason} placeholder="Why this transfer is being voided" autoFocus />
+          <TextField label="Reason for changing a locked day" value={voidReason} onChange={setVoidReason} placeholder="Why this transfer is being deleted" autoFocus />
           <View className="flex-row gap-2">
-            <GhostButton small tone="out" label="Void transfer" disabled={busy || !voidReason.trim()} onPress={() => voidMove(item)} />
+            <GhostButton small tone="out" label="Delete transfer" disabled={busy || !voidReason.trim()} onPress={() => voidMove(item)} />
             <GhostButton small label="Cancel" onPress={() => setVoiding(null)} />
           </View>
         </View> : null}

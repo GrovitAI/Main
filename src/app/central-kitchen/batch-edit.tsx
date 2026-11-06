@@ -70,7 +70,7 @@ export default function BatchEditScreen() {
     <KeyboardAvoider>
       <KScreen footer={<PrimaryButton label="Save changes" onPress={() => void save()} disabled={!!reason || !mayChange} loading={saving} done={done.saved} reason={reason} />}>
         <KHeader title="Edit batch" onBack={() => backToKitchen()} />
-        {missing ? <Notice text="This batch cannot be edited here: it is voided or older than three months." /> : null}
+        {missing ? <Notice text="This batch cannot be edited here: it is deleted or older than three months." /> : null}
         {editing && !mayChange ? <Notice tone="neutral" text="Your login cannot change this batch. Ask the owner or a kitchen manager." /> : null}
         {editing ? (
           <>

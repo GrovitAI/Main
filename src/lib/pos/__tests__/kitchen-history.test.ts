@@ -61,7 +61,7 @@ describe('Kitchen audit history', () => {
   it('reports the stored actor, time and reason without inventing an unknown actor', () => {
     expect(historyAuditText(old)).toContain('Replaced after edit by Priya');
     expect(historyAuditText(edited)).toContain('Edited by Priya');
-    expect(historyAuditText(voided)).toContain('Voided by Ravi');
+    expect(historyAuditText(voided)).toContain('Deleted by Ravi');
     expect(historyAuditText(voided)).toContain('Duplicate bill');
     expect(historyAuditText({ ...voided, voided_by: null })).toContain('staff not recorded');
     expect(historyAuditText(original)).toBeNull();

@@ -336,13 +336,13 @@ function AuditSection() {
   useFocusEffect(useCallback(() => { void load(0); }, [load]));
 
   return (
-    <SettingsSection title="Change log" description="Edits, voids, locked-day changes and permission changes, newest first.">
+    <SettingsSection title="Change log" description="Edits, deletes, locked-day changes and permission changes, newest first.">
       {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load(0)} />} /> : null}
       <Card padded={false} style={{ paddingHorizontal: 14 }}>
         {rows === null && !error ? (
           <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={40} /><Skeleton height={40} /></View>
         ) : rows && rows.length === 0 ? (
-          <Empty title="Nothing changed yet" body="Edits, voids, locked-day changes and permission changes will show here." />
+          <Empty title="Nothing changed yet" body="Edits, deletes, locked-day changes and permission changes will show here." />
         ) : (
           (rows ?? []).map((row) => {
             const text = auditText(row);

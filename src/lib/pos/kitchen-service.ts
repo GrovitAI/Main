@@ -594,10 +594,10 @@ export async function editKitchenEntry(id: string, input: PostEntryInput, lockRe
 export async function voidKitchenEntry(id: string, reason?: string | null): Promise<ServiceResult<KitchenEntry>> {
   try {
     const { data, error } = await supabase.rpc('kitchen_void_entry', { p_entry_id: id, p_reason: reason ?? null });
-    if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to void the entry.') };
+    if (error || !isRecord(data)) return { data: null, error: explain(error, 'Unable to delete the entry.') };
     return { data: mapEntry({ ...data, lines: [] }), error: null };
   } catch (err) {
-    return { data: null, error: explain(err, 'Unable to void the entry.') };
+    return { data: null, error: explain(err, 'Unable to delete the entry.') };
   }
 }
 

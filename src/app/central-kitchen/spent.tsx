@@ -286,7 +286,7 @@ export default function SpentScreen() {
     <KeyboardAvoider>
       <KScreen footer={footer}>
         <KHeader title={title} onBack={() => backToKitchen()} />
-        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a payment or expense." /> : null}
+        {missing ? <Notice text="That entry cannot be edited here: it is deleted, older than three months, or not a payment or expense." /> : null}
         {editing ? null : (
           <View style={{ marginTop: 4, marginBottom: 6 }}>
             <Segmented options={[{ value: 'expense', label: 'Expense' }, { value: 'vendor', label: 'Pay a vendor' }]} value={kind} onChange={setKind} />

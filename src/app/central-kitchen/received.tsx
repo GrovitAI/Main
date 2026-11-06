@@ -137,7 +137,7 @@ export default function ReceivedScreen() {
     <KeyboardAvoider>
       <KScreen footer={phone && padOpen && !!party ? <AmountPad value={amountText} onChange={onAmount} onDone={() => setPadOpen(false)} save={canSave ? saveButton : undefined} /> : saveButton}>
         <KHeader title={editing ? 'Edit receipt' : 'Received'} onBack={() => backToKitchen()} />
-        {missing ? <Notice text="That entry cannot be edited here: it is voided, older than three months, or not a receipt." /> : null}
+        {missing ? <Notice text="That entry cannot be edited here: it is deleted, older than three months, or not a receipt." /> : null}
         {phone ? rows : (
           <View className="flex-row" style={{ gap: 20 }}>
             <View className="min-w-0 flex-1">{rows}</View>

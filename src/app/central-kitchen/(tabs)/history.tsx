@@ -22,7 +22,7 @@ const KINDS = [
 ] as const;
 const STATUSES = [
   { id: 'current', label: 'Current · what counts now' }, { id: 'edited', label: 'Edited · with the earlier version' },
-  { id: 'voided', label: 'Voided · removed' },
+  { id: 'voided', label: 'Deleted · no longer counted' },
 ] as const;
 const SORTS: readonly { id: HistorySort; label: string }[] = [
   { id: 'transaction-newest', label: 'Transaction date · newest' }, { id: 'transaction-oldest', label: 'Transaction date · oldest' },
@@ -142,7 +142,7 @@ export default function HistoryScreen() {
 
   const pickBar = picking ? <View className="flex-row items-center gap-3">
     <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{pickedEntries.length ? `${pickedEntries.length} selected` : 'Select entries'}</Text>
-    <View className="flex-1"><PrimaryButton label={pickedEntries.length ? `Void ${pickedEntries.length}` : 'Void'} tone="out" disabled={pickedEntries.length === 0} reason={pickedEntries.length === 0 ? 'Select an entry' : undefined} onPress={() => setConfirming(true)} /></View>
+    <View className="flex-1"><PrimaryButton label={pickedEntries.length ? `Delete ${pickedEntries.length}` : 'Delete'} tone="out" disabled={pickedEntries.length === 0} reason={pickedEntries.length === 0 ? 'Select an entry' : undefined} onPress={() => setConfirming(true)} /></View>
   </View> : undefined;
 
   return <KScreen scroll={false} footer={pickBar}>
