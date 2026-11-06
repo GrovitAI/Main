@@ -21,7 +21,7 @@ type Props = {
   previousEntry?: KitchenEntry | null;
 };
 
-/** The form that corrects an entry of this kind; stock-only entries are redone from the item instead. */
+/** The form that corrects an entry of this kind; a stock count is redone from the item instead. */
 function editHref(entry: KitchenEntry): { pathname: string; params: Record<string, string> } | null {
   switch (entry.type) {
     case 'sent': return { pathname: '/central-kitchen/send', params: { edit: entry.id } };
@@ -30,6 +30,7 @@ function editHref(entry: KitchenEntry): { pathname: string; params: Record<strin
     case 'paid': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'vendor' } };
     case 'spent': return { pathname: '/central-kitchen/spent', params: { edit: entry.id, kind: 'expense' } };
     case 'issued': return { pathname: '/central-kitchen/give', params: { edit: entry.id } };
+    case 'made': return { pathname: '/central-kitchen/batch-edit', params: { edit: entry.id } };
     default: return null;
   }
 }

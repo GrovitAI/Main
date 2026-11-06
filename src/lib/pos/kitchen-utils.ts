@@ -508,6 +508,18 @@ export function itemMoveDays(entries: readonly KitchenEntry[], itemId: string): 
   return days;
 }
 
+/** Task 304: the batches that still count, a day at a time, newest first. */
+export function batchDays(entries: readonly KitchenEntry[]): { date: string; entries: KitchenEntry[] }[] {
+  const days: { date: string; entries: KitchenEntry[] }[] = [];
+  for (const entry of newestFirst(entries)) {
+    if (entry.type !== 'made' || !isPosted(entry)) continue;
+    const day = days[days.length - 1];
+    if (day && day.date === entry.entry_date) day.entries.push(entry);
+    else days.push({ date: entry.entry_date, entries: [entry] });
+  }
+  return days;
+}
+
 /** When an entry was keyed in, short: the time on the day it happened, otherwise the day it was entered. */
 export function enteredNote(e: Pick<KitchenEntry, 'entry_date' | 'created_at'>): string {
   const d = new Date(e.created_at);

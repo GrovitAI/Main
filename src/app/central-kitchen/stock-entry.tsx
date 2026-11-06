@@ -10,6 +10,7 @@ import { cleanTypedNumber, formatQty, matchesSearch } from '@/lib/pos/kitchen-ut
 import { byCategoryThenName, itemCategoryName } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenItem } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
+import { BatchHistory } from '@/components/kitchen/BatchHistory';
 import { Empty, KHeader, KScreen, Notice, PrimaryButton, SearchBox, Segmented, useSavedThen } from '@/components/kitchen/ui';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 
@@ -29,6 +30,9 @@ export default function StockEntryScreen() {
   const { can } = useKitchenAccess();
   const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
   const [query, setQuery] = useState('');
+  // Task 304: Create batches also shows the batches already made, to check or correct them.
+  const [tab, setTab] = useState<'new' | 'previous'>('new');
+  const previous = mode === 'made' && tab === 'previous';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const done = useSavedThen();
@@ -77,8 +81,10 @@ export default function StockEntryScreen() {
   const label = chosen.length === 0 ? 'Save' : `Save · ${chosen.length} ${chosen.length === 1 ? 'item' : 'items'}`;
   return (
     <KeyboardAvoider>
-      <KScreen footer={allowed ? <PrimaryButton label={label} onPress={() => void save()} disabled={chosen.length === 0} loading={saving} done={done.saved} reason={chosen.length === 0 ? 'Enter a quantity' : undefined} /> : undefined}>
-        <KHeader title={mode === 'made' ? 'Create batches' : 'Count stock'} subtitle={mode === 'made' ? 'How much was made today' : 'What is on the shelf now'} onBack={() => backToKitchen()} />
+      <KScreen footer={allowed && !previous ? <PrimaryButton label={label} onPress={() => void save()} disabled={chosen.length === 0} loading={saving} done={done.saved} reason={chosen.length === 0 ? 'Enter a quantity' : undefined} /> : undefined}>
+        <KHeader title={mode === 'made' ? 'Create batches' : 'Count stock'} subtitle={previous ? undefined : mode === 'made' ? 'How much was made today' : 'What is on the shelf now'} onBack={() => backToKitchen()} />
+        {mode === 'made' ? <View className="mb-3"><Segmented options={[{ value: 'new', label: 'New' }, { value: 'previous', label: 'Previous' }]} value={tab} onChange={setTab} /></View> : null}
+        {previous ? <BatchHistory /> : <>
         {!allowed ? <Notice text="Your login cannot record this. Ask the owner or a kitchen manager." /> : null}
         {mode === 'count' ? <View className="mb-3"><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setKind} /></View> : null}
         <SearchBox value={query} onChange={setQuery} placeholder="Search items" />
@@ -88,6 +94,7 @@ export default function StockEntryScreen() {
             {rows.map((it, i) => <QtyRow key={it.id} it={it} first={i === 0} text={typed[it.id] ?? ''} category={itemCategoryName(categories, it.category_id)} onChange={(t) => setTyped((all) => ({ ...all, [it.id]: t }))} />)}
           </View>
         )}
+        </>}
         <View style={{ height: 8 }} />
       </KScreen>
     </KeyboardAvoider>

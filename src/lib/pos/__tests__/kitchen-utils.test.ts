@@ -1,6 +1,7 @@
 import {
   allocateAcross,
   stockMovements,
+  batchDays,
   entryBrief,
   statementLine,
   itemMoveDays,
@@ -514,5 +515,18 @@ describe('entryBrief (task 303)', () => {
     expect(entryBrief(entry({ type: 'sent', lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toBe('2 items · Fazea base, Milk');
     expect(entryBrief(entry({ type: 'bought', paid: false, lines: [lineOf('a', 5), lineOf('b', 2)] }), items)).toBe('2 items · pay later · Fazea base, Milk');
     expect(entryBrief(entry({ type: 'sent', lines: [lineOf('a', 5)] }), items)).toBe('Fazea base 5 pcs');
+  });
+});
+
+describe('batchDays (task 304)', () => {
+  it('groups the batches that still count by day, newest first', () => {
+    const days = batchDays([
+      entry({ type: 'made', entry_date: '2026-11-04', created_at: '2026-11-04T08:00:00Z', item_id: 'a', qty: 3 }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T08:00:00Z', item_id: 'a', qty: 5 }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T09:00:00Z', item_id: 'b', qty: 7 }),
+      entry({ type: 'made', entry_date: '2026-11-05', created_at: '2026-11-05T10:00:00Z', item_id: 'b', qty: 9, voided_at: '2026-11-05T11:00:00Z' }),
+      entry({ type: 'count', entry_date: '2026-11-05', item_id: 'a', qty: 1 }),
+    ]);
+    expect(days.map((d) => [d.date, d.entries.map((e) => e.qty)])).toEqual([['2026-11-05', [7, 5]], ['2026-11-04', [3]]]);
   });
 });
