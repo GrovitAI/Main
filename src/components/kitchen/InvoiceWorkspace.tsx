@@ -42,9 +42,9 @@ const paper = 'w-full max-w-[794px] self-center border-x border-border-soft bg-s
 const tabular = { fontVariant: ['tabular-nums' as const] };
 const STATUS_OPTIONS: readonly { id: InvoiceStatus; label: string }[] = INVOICE_STATUSES.map(id => ({ id, label: invoiceStatus(id) }));
 const statusNoun: Record<InvoiceStatus, string> = { to_be_paid: 'to be paid', paid: 'paid', cancelled: 'cancelled' };
-function Action({ label, accessibilityLabel, onPress, primary = false, disabled = false }: { label: string; accessibilityLabel?: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
+function Action({ label, accessibilityLabel, onPress, primary = false, disabled = false, wide = false }: { label: string; accessibilityLabel?: string; onPress: () => void; primary?: boolean; disabled?: boolean; wide?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} disabled={disabled} accessibilityState={{ disabled }} onPress={onPress}
-    className={'min-h-[44px] min-w-[44px] max-w-full self-start items-center justify-center rounded-lg border px-3 py-1.5 ' +
+    className={'min-h-[44px] min-w-[44px] max-w-full items-center justify-center rounded-lg border px-3 py-1.5 ' + (wide ? 'w-full ' : 'self-start ') +
       (disabled ? 'border-border bg-surface-tint' : primary ? 'border-primary bg-primary hover:bg-primary-deep active:bg-primary-deep web:focus-visible:border-primary-deep' : 'border-border bg-surface-elevated hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary')}>
     <Text className={'text-sm font-semibold leading-5 ' + (primary && !disabled ? 'text-text-on-primary' : disabled ? 'text-text-secondary' : 'text-primary')}>{label}</Text>
   </Pressable>;
@@ -256,7 +256,6 @@ export function InvoiceWorkspace() {
             value={filter.statuses ?? INVOICE_STATUSES} onChange={statuses => resetFilter({ statuses })} /></View>}
         </View>
       </View>
-      {filter.candidates ? null : <Text className="text-xs leading-5 text-text-secondary">Invoices overlapping the selected delivery period. Paid status follows matched branch payments.</Text>}
       {filter.candidates && data?.deliveries.length ? <View className="-mb-2 flex-row items-center justify-between gap-2">
         <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
           className="min-h-[44px] flex-row items-center gap-3 rounded-lg px-3 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary">
@@ -269,12 +268,16 @@ export function InvoiceWorkspace() {
       <View className="flex-row flex-wrap gap-4 border-y border-border-soft py-3">
         {[['Total', invoice.total_paise], ['Matched payments', invoice.covered_paise], ['To pay', invoice.open_paise]].map(([label, value]) => <View key={String(label)} className="min-w-[80px] flex-1"><Text className="text-xs leading-4 text-text-secondary">{label}</Text><Text className="text-lg font-bold leading-6 text-text-primary" style={tabular}>{invoiceMoney(Number(value))}</Text></View>)}
       </View>
-      <View className="flex-row flex-wrap gap-2"><Action label="Preview invoice" disabled={busy} onPress={() => void openPreview()} />
-        {invoice.status === 'to_be_paid' && access.can('invoices.receive') ? <Action label="Record payment" primary disabled={busy || !!editor} onPress={() => { paymentKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); setAmount(''); setPadOpen(false); setPaymentDate(today); setEditor('receive'); }} /> : null}
-        {invoice.status !== 'cancelled' && access.can('invoices.cancel') ? <Action label="Cancel invoice" disabled={busy || !!editor} onPress={() => { setReason(''); setEditor('cancel'); }} /> : null}
+      {/* Task 303: the main action on its own line on a phone, the other two sharing one at the same size. */}
+      <View className={desktop ? 'flex-row gap-2' : 'gap-2'}>
+        {invoice.status === 'to_be_paid' && access.can('invoices.receive') ? <View className={desktop ? 'w-[180px]' : ''}><Action wide label="Record payment" primary disabled={busy || !!editor} onPress={() => { paymentKey.current = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2); setAmount(''); setPadOpen(false); setPaymentDate(today); setEditor('receive'); }} /></View> : null}
+        <View className="flex-row gap-2">
+          <View className={desktop ? 'w-[180px]' : 'min-w-0 flex-1'}><Action wide label="Preview invoice" disabled={busy} onPress={() => void openPreview()} /></View>
+          {invoice.status !== 'cancelled' && access.can('invoices.cancel') ? <View className={desktop ? 'w-[180px]' : 'min-w-0 flex-1'}><Action wide label="Cancel invoice" disabled={busy || !!editor} onPress={() => { setReason(''); setEditor('cancel'); }} /></View> : null}
+        </View>
       </View>
       {invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-secondary">Cancelled: {invoice.cancel_reason}</Text> : null}
-      <Text className="text-xs leading-5 text-text-secondary">Prepared {invoiceIssuedDate(invoice.created_at)} by {invoice.created_by_name}. Unmatched branch receipts are not counted as invoice payments.</Text>
+      <Text className="text-xs leading-5 text-text-secondary">Prepared {invoiceIssuedDate(invoice.created_at)} by {invoice.created_by_name}</Text>
       {pane}
       {desktop ? <View className="flex-row gap-3 bg-surface-tint px-3 py-2"><Text className="w-[34%] text-xs font-semibold text-text-secondary">Items</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Delivery date</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="flex-1 text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
     </> : null}
@@ -289,12 +292,12 @@ export function InvoiceWorkspace() {
         contentContainerStyle={{ paddingBottom: 24 }} refreshing={false} onRefresh={preview ? undefined : reload}
         ListEmptyComponent={!loading && !error ? !detailId && !filter.candidates ? <View className="items-start gap-2 py-5">
           <Text className="text-sm font-semibold leading-5 text-text-primary">{narrowedTo ? narrowedTo.length === 0 ? 'No status is ticked. Tick one under Invoice status.' : 'No invoices ' + narrowedTo.map(s => statusNoun[s]).join(' or ') + ' for this period.' : 'No saved invoices for this period.'}</Text>
-          {narrowedTo ? <Action label="Show all invoices" disabled={busy} onPress={() => resetFilter({ statuses: INVOICE_STATUSES })} /> : <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its finished-goods deliveries to create an invoice.</Text>}
+          {narrowedTo ? <Action label="Show all invoices" disabled={busy} onPress={() => resetFilter({ statuses: INVOICE_STATUSES })} /> : <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its deliveries.</Text>}
           {access.can('invoices.create') && !narrowedTo ? <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} /> : null}
         </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'Everything sent in these dates is already on an invoice.' : 'Choose a branch to load its deliveries.'}</Text> : null}
         ListFooterComponent={preview ? docFooter : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
         renderItem={({ item, index }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
-          className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary">
+          className={'min-h-16 flex-row items-center gap-3 border-x border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary ' + (index === 0 ? 'rounded-t-[18px] border-t ' : '') + (index === rows.length - 1 ? 'rounded-b-[18px]' : '')}>
           {desktop ? null : <Avatar name={item.value.party_name} size={38} />}
           <View className="min-w-0 flex-1"><Text className="text-sm font-bold leading-5 text-text-primary">{invoiceNumber(item.value.invoice_no)} · {item.value.party_name}</Text><Text className="text-xs leading-5 text-text-secondary">{kitchenRangeLabel({ startDate: item.value.start_date, endDate: item.value.end_date })}</Text></View>
           <View className="items-end"><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.total_paise)}</Text><Status invoice={item.value} pill={!desktop} />
@@ -303,7 +306,7 @@ export function InvoiceWorkspace() {
           : item.kind === 'docline' ? <View className={paper}><View className="border-b border-border-soft px-2 py-2">
           {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[18%] text-sm text-text-secondary">{invoiceDate(item.date)}</Text><Text className="flex-1 text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="w-[14%] text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="w-[14%] text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="w-[16%] text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
             : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{invoiceDate(item.date)} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
-        </View></View> : <View className="border-b border-border-soft bg-surface-elevated px-3 py-2">
+        </View></View> : <View className={'border-x border-b border-border-soft bg-surface-elevated px-3 py-2 ' + (index === 0 && !desktop ? 'rounded-t-[18px] border-t ' : '') + (index === rows.length - 1 ? 'rounded-b-[18px]' : '')}>
           {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[34%] text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="flex-1 text-xs text-text-secondary">{invoiceDate(item.date)}</Text><Text className="flex-1 text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="flex-1 text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="flex-1 text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
             : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{invoiceDate(item.date)} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
         </View>} />

@@ -93,7 +93,7 @@ export default function MoneyMoveScreen() {
   return (
     <KeyboardAvoider>
       <KScreen footer={footer}>
-        <KHeader title="Move money" subtitle="Sales and dues stay the same" onBack={() => router.back()} />
+        <KHeader title="Move money" onBack={() => router.back()} />
         <View style={{ marginTop: 4, marginBottom: 6 }}>
           <Segmented options={DIRECTIONS} value={from} onChange={setFrom} />
         </View>

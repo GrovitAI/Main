@@ -63,7 +63,7 @@ export function TeamWorkspace() {
   return (
     <KeyboardAvoider>
       <KScreen wide={DESKTOP_LAYOUT === 'panes'}>
-        <KHeader title="Team and day lock" subtitle="Who can do what in the kitchen, and when days lock" onBack={() => backToKitchen()} />
+        <KHeader title="Team and day lock" onBack={() => backToKitchen()} />
         <LockCard key={`${access.autoLock}-${access.openUntilHour}-${access.lockThrough ?? ''}`} />
         <TeamSection />
         <AuditSection />
@@ -112,14 +112,14 @@ function LockCard() {
           <Text className="flex-1 text-[13px] font-semibold text-text-primary">{lockSummary(access)}</Text>
         </View>
         <Toggle label="Lock each day automatically" on={autoLock} onChange={setAutoLock}
-          hint={autoLock ? `Staff can fix yesterday until ${hourText(hour)} today. After that only you can, with a reason.` : 'Staff can change any day their permissions allow.'} />
+          hint={autoLock ? `Staff can fix yesterday until ${hourText(hour)} today. After that only you can, with a reason.` : undefined} />
         <Reveal open={autoLock}>
           <SelectRow label="Yesterday stays open until" value={String(hour)} onChange={(v) => setHour(Number(v))}
             options={HOURS.map((h) => ({ value: String(h), label: hourText(h) }))} />
         </Reveal>
         <SelectRow<ThroughChoice> label="Lock everything up to" value={choice} onChange={chooseThrough}
           valueLabel={choice === 'other' ? dayText(through) : undefined}
-          hint={through ? `Nothing dated ${dayText(through)} or earlier changes without your reason.` : 'For example, once the month’s accounts are done.'}
+          hint={through ? `Nothing dated ${dayText(through)} or earlier changes without your reason.` : undefined}
           options={[
             { value: 'none', label: 'No date' },
             { value: 'yesterday', label: 'Yesterday', detail: dayText(yesterday) },
@@ -174,8 +174,8 @@ function TeamSection() {
 
   return (
     // The list and its permission grid keep the full width on a desktop (task 220).
-    <SettingsSection title="Kitchen logins" side={!panes} description="Add a login under Settings › Staff with the role Kitchen. You always have every permission.">
-      {desktop ? null : <Text className="mb-2 text-[13px] leading-5 text-text-secondary">Add a login under Settings › Staff with the role Kitchen. You always have every permission.</Text>}
+    <SettingsSection title="Kitchen logins" side={!panes} description="Add a login under Settings › Staff with the role Kitchen.">
+      {desktop ? null : <Text className="mb-2 text-[13px] leading-5 text-text-secondary">Add a login under Settings › Staff with the role Kitchen.</Text>}
       {error ? <Notice text={error} action={<LinkButton label="Retry" onPress={() => void load()} />} /> : null}
       {team === null && !error ? (
         <View style={{ gap: 8 }}><Skeleton height={64} /><Skeleton height={64} /></View>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { useLocalSearchParams } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
@@ -94,18 +95,18 @@ export default function PartyFormScreen() {
   return (
     <KeyboardAvoider>
       <KScreen footer={<PrimaryButton label={existing ? 'Save changes' : `Add ${noun}`} onPress={() => void save()} disabled={!mayEdit || !name.trim()} loading={saving} done={done.saved} reason={mayEdit && !name.trim() ? 'Enter a name' : undefined} />}>
-        <KHeader title={existing ? `Edit ${noun}` : `Add a ${noun}`} subtitle={existing ? undefined : isBranch ? 'An outlet the kitchen sends to' : 'Someone the kitchen buys from'} onBack={() => backToKitchen()} />
+        <KHeader title={existing ? `Edit ${noun}` : `Add a ${noun}`} onBack={() => backToKitchen()} />
         {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change branches and vendors. Ask the owner." /> : null}
         <Field label="Name">
           <TextField value={name} onChange={setName} label={`${noun} name`} placeholder={isBranch ? 'e.g. Kolathur' : 'e.g. Aavin dairy'} autoFocus={!existing} />
         </Field>
-        <Field label="WhatsApp number" optional hint={isBranch ? 'The slip after a send opens straight to their chat.' : 'Handy for sending a payment note.'}>
+        <Field label="WhatsApp number" optional>
           <TextField value={phone} onChange={setPhone} label="WhatsApp number (optional)" placeholder="98765 43210" keyboardType="phone-pad" />
         </Field>
         {!isBranch ? (
-          <Field label="Default purchase category" hint="Fills in on new buys; past buys keep theirs.">
+          <View style={{ marginTop: 10 }}>
             <PurchaseCategoryPicker categories={data.purchaseCategories.filter((c) => !c.asks || c.id === categoryId)} value={categoryId} onChange={setCategoryId} />
-          </Field>
+          </View>
         ) : null}
         {!isBranch ? (
           <Field label="Usual items" optional>
@@ -117,7 +118,6 @@ export default function PartyFormScreen() {
         <Field
           label="Opening balance"
           optional
-          hint="What stood between you on the day this app started, shown as the first line of the give-and-take."
         >
           <TextField value={openingText} onChange={setOpeningText} label="Opening balance (optional)" placeholder="0" keyboardType="decimal-pad" prefix="₹" />
           {openingAbs > 0 ? (

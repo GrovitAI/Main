@@ -21,19 +21,22 @@ type LevelFilter = 'all' | 'low' | 'out';
  */
 function StockRow({ item, level, subtitle, onPress, first, last }: { item: KitchenItem; level: StockLevel | undefined; subtitle: string; onPress: () => void; first: boolean; last: boolean }) {
   const state = level?.state ?? 'unknown';
-  const tone = state === 'out' ? semantic.danger : state === 'low' ? semantic.warning : colors.textPrimary;
-  const side = state === 'out' ? 'Out' : state === 'low' ? 'Low' : level?.ref ? `of ${formatQty(level.ref, item.unit)}` : 'in stock';
+  // Task 303: red only where something is wrong; an empty shelf says Out, with its 0 quiet.
+  const tone = item.stock < 0 ? semantic.danger : state === 'out' ? colors.textSecondary : state === 'low' ? semantic.warning : colors.textPrimary;
+  const side = state === 'out' ? 'Out' : state === 'low' ? 'Low' : level?.ref ? `of ${formatQty(level.ref, item.unit)}` : null;
+  const sideTone = state === 'out' ? semantic.danger : state === 'low' ? semantic.warning : colors.textSecondary;
+  const line = [subtitle, level?.countedOn ? `counted ${formatDayLabel(level.countedOn)}` : ''].filter(Boolean).join(' · ');
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${item.name}, ${formatQty(item.stock, item.unit)} in stock${state === 'low' ? ', low' : state === 'out' ? ', out' : ''}`}
       className={`border-x border-b border-border-soft bg-surface-elevated px-3.5 py-3 active:opacity-70 ${first ? 'rounded-t-[20px] border-t' : ''} ${last ? 'rounded-b-[20px]' : ''}`}>
       <View className="flex-row items-center gap-3">
         <View className="min-w-0 flex-1">
           <Text className="text-[15px] font-bold text-text-primary" numberOfLines={2}>{item.name}</Text>
-          <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{subtitle}{level?.countedOn ? ` · counted ${formatDayLabel(level.countedOn)}` : ' · not counted yet'}</Text>
+          {line ? <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{line}</Text> : null}
         </View>
         <View className="items-end">
           <QtyFigure qty={item.stock} unit={item.unit} size={16} color={tone} />
-          <Text className="text-xs font-bold" style={{ color: state === 'ok' || state === 'unknown' ? colors.textSecondary : tone }}>{side}</Text>
+          {side ? <Text className="text-xs font-bold" style={{ color: sideTone }}>{side}</Text> : null}
         </View>
       </View>
       {level?.ref ? (
@@ -84,7 +87,7 @@ export function StockItems({ kind: routeKind }: { kind: KitchenItemKind }) {
     { label: 'Opening & closing', icon: CalendarRange, href: { pathname: '/central-kitchen/stock-report', params: { kind } } },
   ];
   const header = <View className="pb-3">
-    <KHeader title={title} subtitle={finished ? 'Create batches, then send goods to branches' : 'Purchased and stored as they are · no batches'} right={mayAdd ? <IconButton icon={Plus} label={finished ? 'Add a finished good' : 'Add a raw material'} onPress={addItem} /> : undefined} />
+    <KHeader title={title} right={mayAdd ? <IconButton icon={Plus} label={finished ? 'Add a finished good' : 'Add a raw material'} onPress={addItem} /> : undefined} />
     {!isTablet ? <View className="mb-3"><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setPhoneKind} /></View> : null}
     {data.error ? <Notice text={data.error} /> : null}
     <View className="mb-3 flex-row" style={{ gap: 8 }}>
@@ -107,7 +110,7 @@ export function StockItems({ kind: routeKind }: { kind: KitchenItemKind }) {
       refreshing={data.loading && data.loaded} onRefresh={data.refresh}
       ListEmptyComponent={!data.loaded ? <ActivityIndicator accessibilityLabel="Loading stock" color={colors.primary} className="my-6" /> : data.error ? <Empty title="Stock unavailable" body="Retry to load the stock list. Existing items have not been removed." /> : <Empty title={query ? 'No item matches that' : `No ${title.toLowerCase()} yet`} body={query ? undefined : finished ? 'Add a finished good and record the quantity produced in each batch.' : 'Add a raw material with opening stock. Purchases add to its stock.'} action={query || mayAdd ? <GhostButton small tone="primary" label={query ? 'Clear search' : finished ? 'Add a finished good' : 'Add a raw material'} onPress={query ? () => setQuery('') : addItem} /> : undefined} />}
       ListFooterComponent={data.error ? <GhostButton icon={RefreshCw} label="Retry stock" onPress={data.refresh} /> : null}
-      renderItem={({ item, index }) => <Animated.View style={listEnter}>{!isTablet ? <StockRow first={index === 0} last={index === rows.length - 1} item={item} level={levels.get(item.id)} subtitle={[categoryOf(item), finished && showAmounts ? (item.sell_price === null ? 'Price on each send' : `${formatMoney(item.sell_price)} per ${item.unit}`) : `Stored in ${item.unit}`].filter(Boolean).join(' · ')} onPress={() => router.push({ pathname: '/central-kitchen/item/[id]', params: { id: item.id } })} /> : <View className="bg-surface-elevated px-3.5"><Row title={item.name} titleLines={2} subtitle={[categoryOf(item), finished && showAmounts ? `${item.sell_price === null ? 'Selling price entered on each send' : `${formatMoney(item.sell_price)} per ${item.unit}`}${item.cost_price === null ? ' · no cost set' : ` · costs ${formatMoney(item.cost_price + (item.packing_price ?? 0))}`}` : `Stored in ${item.unit}`].filter(Boolean).join(' · ')} right={formatQty(item.stock, item.unit)} rightSub="in stock" tone={item.stock < 0 ? 'out' : 'neutral'} selected={current === item.id} onPress={() => isTablet ? setSelected(item.id) : router.push({ pathname: '/central-kitchen/item/[id]', params: { id: item.id } })} accessibilityLabel={`${item.name}, ${formatQty(item.stock, item.unit)} in stock`} /></View>}</Animated.View>}
+      renderItem={({ item, index }) => <Animated.View style={listEnter}>{!isTablet ? <StockRow first={index === 0} last={index === rows.length - 1} item={item} level={levels.get(item.id)} subtitle={[categoryOf(item), finished && showAmounts ? (item.sell_price === null ? 'Price on each send' : `${formatMoney(item.sell_price)} per ${item.unit}`) : null].filter(Boolean).join(' · ')} onPress={() => router.push({ pathname: '/central-kitchen/item/[id]', params: { id: item.id } })} /> : <View className="bg-surface-elevated px-3.5"><Row title={item.name} titleLines={2} subtitle={[categoryOf(item), finished && showAmounts ? `${item.sell_price === null ? 'Price on each send' : `${formatMoney(item.sell_price)} per ${item.unit}`}${item.cost_price === null ? ' · no cost set' : ` · costs ${formatMoney(item.cost_price + (item.packing_price ?? 0))}`}` : null].filter(Boolean).join(' · ')} right={formatQty(item.stock, item.unit)} tone={item.stock < 0 ? 'out' : 'neutral'} selected={current === item.id} onPress={() => isTablet ? setSelected(item.id) : router.push({ pathname: '/central-kitchen/item/[id]', params: { id: item.id } })} accessibilityLabel={`${item.name}, ${formatQty(item.stock, item.unit)} in stock`} /></View>}</Animated.View>}
     />
     {isTablet ? <ScrollView className="flex-1 border-l border-border-soft" contentContainerStyle={{ paddingHorizontal: desktop ? 16 : 20, paddingBottom: 24 }}>{current ? <ItemDetail key={current} itemId={current} onRemoved={() => setSelected(null)} /> : <Empty title="Pick an item" body="Its stock and movements open here." />}</ScrollView> : null}
   </View>;

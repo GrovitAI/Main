@@ -223,7 +223,7 @@ export function ItemDetail({ itemId, standalone = false, onRemoved }: Props) {
 function itemSubtitle(item: KitchenItem, categories: readonly KitchenCategory[], showAmounts: boolean): string {
   const category = itemCategoryName(categories, item.category_id);
   if (item.item_kind === 'raw_material') {
-    return [category ?? 'Raw material', 'stored as purchased', showAmounts && item.sell_price !== null ? `branches pay ${formatMoney(item.sell_price)} per ${item.unit}` : null].filter(Boolean).join(' · ');
+    return [category ?? 'Raw material', showAmounts && item.sell_price !== null ? `branches pay ${formatMoney(item.sell_price)} per ${item.unit}` : null].filter(Boolean).join(' · ');
   }
   if (!showAmounts) return category ?? 'Finished good';
   const price = item.sell_price !== null ? `Sells at ${formatMoney(item.sell_price)} per ${item.unit}` : 'price entered on each send';

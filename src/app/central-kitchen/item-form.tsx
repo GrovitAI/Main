@@ -9,7 +9,7 @@ import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use
 import { KITCHEN_UNITS, type KitchenCategory, type KitchenUnit, type KitchenItemKind } from '@/lib/pos/kitchen-types';
 import { formatMoney, parseAmount } from '@/lib/pos/kitchen-utils';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Chips, Field, KHeader, KScreen, Notice, PrimaryButton, SettingsGroup, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SettingsGroup, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
 import { CategorySheet } from '@/components/kitchen/SpendFields';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 
@@ -123,7 +123,7 @@ export default function ItemFormScreen() {
         <KHeader title={existing ? 'Edit item' : kind === 'finished_good' ? 'Add a finished good' : 'Add a raw material'} onBack={() => backToKitchen()} />
         {!mayEdit ? <Notice tone="neutral" text="Your login cannot add or change items. Ask the owner." /> : null}
         <Field label="Item type" hint={existing ? 'Decides which stock list shows it; past entries stay as they are.' : undefined}>
-          <Chips options={[{ value: 'raw_material', label: 'Raw material' }, { value: 'finished_good', label: 'Finished good' }]} value={kind} onChange={changeKind} />
+          <Segmented options={[{ value: 'raw_material', label: 'Raw material' }, { value: 'finished_good', label: 'Finished good' }]} value={kind} onChange={changeKind} />
         </Field>
         <Field label="Name">
           <TextField value={name} onChange={setName} label="Item name" placeholder="e.g. Nutella sauce" autoFocus={!existing} />
@@ -134,9 +134,9 @@ export default function ItemFormScreen() {
           </SettingsGroup>
         </Field>
         <Field label="Counted in" hint={existing ? 'The stock figure is not converted, so count it again after a change.' : undefined}>
-          <Chips options={KITCHEN_UNITS.map((u) => ({ value: u, label: UNIT_LABELS[u], hint: u }))} value={unit} onChange={setUnit} />
+          <Segmented options={KITCHEN_UNITS.map((u) => ({ value: u, label: UNIT_LABELS[u] }))} value={unit} onChange={setUnit} />
         </Field>
-        <Field label={finished ? `Sells at, ₹ per ${unit}` : `Branch price, ₹ per ${unit}`} optional hint={finished ? 'Fills in on each send.' : 'Only if it is also sent to branches.'}>
+        <Field label={finished ? `Sells at, ₹ per ${unit}` : `Branch price, ₹ per ${unit}`} optional>
           <TextField value={price} onChange={setPrice} label="Selling price (optional)" keyboardType="decimal-pad" prefix="₹" />
         </Field>
         {finished && access.showAmounts ? <Field label={`Rate, ₹ per ${unit}`} optional>
@@ -147,7 +147,7 @@ export default function ItemFormScreen() {
           <TextField value={packing} onChange={setPacking} label="Packing per unit (optional)" keyboardType="decimal-pad" prefix="₹" />
         </Field> : null}
         {!existing ? (
-          <Field label={`In stock today, ${unit}`} hint={kind === 'finished_good' ? 'What is on the shelf now; batches add to it and sends take from it.' : 'What is on the shelf now; purchases add to it.'}>
+          <Field label={`In stock today, ${unit}`}>
             <TextField value={opening} onChange={setOpening} label="Opening stock" placeholder="0" keyboardType="decimal-pad" />
           </Field>
         ) : null}

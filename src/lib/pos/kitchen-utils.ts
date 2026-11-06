@@ -516,6 +516,14 @@ export function enteredNote(e: Pick<KitchenEntry, 'entry_date' | 'created_at'>):
   return `Entered ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
 }
 
+/** Task 303: an entry's line in a list: many items say how many, then their names; the rest as before. */
+export function entryBrief(e: KitchenEntry, itemsById: ReadonlyMap<string, KitchenItem>): string {
+  if (e.lines.length < 2) return entrySubline(e, itemsById);
+  const state = e.type === 'bought' ? (e.paid ? `paid${e.mode ? ` · ${modeLabel(e.mode)}` : ''}` : 'pay later') : '';
+  const names = e.lines.map((l) => itemsById.get(l.item_id)?.name ?? 'Removed item').join(', ');
+  return [`${e.lines.length} items`, state, names].filter(Boolean).join(' · ');
+}
+
 /** Signed money text for a list row; empty for a stock-only entry. */
 export function entryAmountText(e: KitchenEntry): string {
   if (e.type === 'made' || e.type === 'count' || e.type === 'issued') return '';

@@ -60,7 +60,7 @@ function StaffIdentity({ person }: { person: KitchenStaffMember }) {
       </View> : null}
       <View className="min-w-0 flex-1">
         <Text className="text-base font-semibold text-text-primary">{person.name}</Text>
-        <Text className="text-xs text-text-secondary">{person.job_title || 'Kitchen staff'}{person.is_active ? '' : ' · Archived'}</Text>
+        {person.job_title || !person.is_active ? <Text className="text-xs text-text-secondary">{[person.job_title, person.is_active ? '' : 'Archived'].filter(Boolean).join(' · ')}</Text> : null}
       </View>
     </View>
   );
@@ -313,8 +313,8 @@ function StatusTiles({ counts, total, value, disabled, onChange }: {
       const label = FILTERS.find(f => f.value === option)?.label ?? option;
       return <Pressable key={option} disabled={disabled} onPress={() => onChange(option)} accessibilityRole="button" aria-selected={on}
         accessibilityState={{ selected: on, disabled }} accessibilityLabel={`Show ${label}: ${count}`}
-        className={`min-h-[60px] items-center justify-center rounded-2xl border ${on ? 'border-primary bg-surface-tint' : 'border-border-soft bg-surface-elevated'}`} style={{ flexBasis: '30%', flexGrow: 1 }}>
-        <Text className="text-xl font-bold" style={{ color: option === 'all' ? colors.textPrimary : count === 0 ? colors.textSecondary : STATUS_TONE[option].fg, fontVariant: ['tabular-nums'] }}>{count}</Text>
+        className={`min-h-[44px] flex-row items-center justify-center gap-1.5 rounded-xl border ${on ? 'border-primary bg-surface-tint' : 'border-border-soft bg-surface-elevated hover:bg-surface-tint'}`} style={{ flexBasis: '30%', flexGrow: 1 }}>
+        <Text className="text-base font-bold" style={{ color: option === 'all' ? colors.textPrimary : count === 0 ? colors.textSecondary : STATUS_TONE[option].fg, fontVariant: ['tabular-nums'] }}>{count}</Text>
         <Text className={`text-xs font-semibold ${on ? 'text-primary' : 'text-text-secondary'}`}>{label}</Text>
       </Pressable>;
     })}
