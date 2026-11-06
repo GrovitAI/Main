@@ -8,13 +8,14 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { localDateKey, oftenGiven } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, SettingsGroup, Sheet, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SettingsGroup, Sheet, useSavedThen } from '@/components/kitchen/ui';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { isValidDateKey, typedLines, useDateGuard } from '@/components/kitchen/forms';
 import { ItemLines, ItemSearch, LinePad, useDraftLines } from '@/components/kitchen/EntryLines';
 import { NoteRow, WhenRow } from '@/components/kitchen/EntryRows';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { useEditEntry } from '@/components/kitchen/use-edit-entry';
+import { EntryHistory } from '@/components/kitchen/EntryHistory';
 
 const EDITABLE: readonly KitchenEntryType[] = ['issued'];
 
@@ -37,6 +38,8 @@ export function GiveToKitchenForm() {
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState<string | null>(null);
   const done = useSavedThen();
+  // Task 306: what was already given, to check or correct it.
+  const [tab, setTab] = useState<'new' | 'previous'>('new');
 
   useEffect(() => {
     if (!editing || prefilled === editing.id) return;
@@ -103,10 +106,17 @@ export function GiveToKitchenForm() {
     </Field>
   );
 
+  const top = (
+    <>
+      <KHeader title={editing ? 'Edit what was given' : 'Give to the kitchen'} subtitle={editing ? 'This takes the place of the earlier entry' : tab === 'new' ? 'Out of the store; counted as used' : undefined} onBack={() => backToKitchen()} />
+      {editing ? null : <View className="mb-3"><Segmented options={[{ value: 'new', label: 'New' }, { value: 'previous', label: 'Previous' }]} value={tab} onChange={setTab} /></View>}
+    </>
+  );
+  if (tab === 'previous' && !editing) return <KeyboardAvoider><EntryHistory type="issued" top={top} emptyTitle="Nothing given yet" /></KeyboardAvoider>;
   return (
     <KeyboardAvoider>
       <KScreen footer={phone && pad ? pad : saveButton}>
-        <KHeader title={editing ? 'Edit what was given' : 'Give to the kitchen'} subtitle={editing ? 'This takes the place of the earlier entry' : 'Out of the store; counted as used'} onBack={() => backToKitchen()} />
+        {top}
         {missing ? <Notice text="That entry cannot be edited here: it is deleted, older than three months, or not a give to the kitchen." /> : null}
         {phone ? <>{rows}{items}</> : (
           <View className="flex-row" style={{ gap: 20 }}>

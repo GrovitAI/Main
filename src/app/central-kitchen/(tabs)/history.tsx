@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ViewToken } from 'react-native';
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, Check, ListChecks, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, ListChecks, SlidersHorizontal, RefreshCw } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
@@ -8,13 +8,14 @@ import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryHeadline, entryNames, entrySubline, formatMoney } from '@/lib/pos/kitchen-utils';
 import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
 import { filterKitchenHistory, historySections, type HistoryFilters, type HistoryListItem, type HistorySort } from '@/lib/pos/kitchen-history-utils';
-import { Empty, KHeader, KScreen, Notice, PrimaryButton, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, Notice, Reveal, ScrollPills, SearchBox, SkeletonRows, useDesktopDensity } from '@/components/kitchen/ui';
 import { HistoryCardRow, HistoryEntry } from '@/components/kitchen/HistoryEntry';
 import { EntryActions } from '@/components/kitchen/EntryActions';
 import { ReportSelect } from '@/components/kitchen/ReportSelect';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
 import { HistoryFilterSheet } from '@/components/kitchen/HistoryFilterSheet';
 import { VoidManySheet } from '@/components/kitchen/VoidManySheet';
+import { PickBar, PickRow } from '@/components/kitchen/PickRow';
 
 const KINDS = [
   { id: 'sent', label: 'Sent' }, { id: 'bought', label: 'Bought' },
@@ -140,10 +141,7 @@ export default function HistoryScreen() {
     {data.entries.length >= 500 ? <Text className="text-xs leading-4 text-text-secondary">Showing the latest 500 entries. Older ones are outside this list.</Text> : null}
   </View>;
 
-  const pickBar = picking ? <View className="flex-row items-center gap-3">
-    <Text accessibilityLiveRegion="polite" className="min-w-0 flex-1 text-sm font-bold text-text-primary">{pickedEntries.length ? `${pickedEntries.length} selected` : 'Select entries'}</Text>
-    <View className="flex-1"><PrimaryButton label={pickedEntries.length ? `Delete ${pickedEntries.length}` : 'Delete'} tone="out" disabled={pickedEntries.length === 0} reason={pickedEntries.length === 0 ? 'Select an entry' : undefined} onPress={() => setConfirming(true)} /></View>
-  </View> : undefined;
+  const pickBar = picking ? <PickBar count={pickedEntries.length} onDelete={() => setConfirming(true)} /> : undefined;
 
   return <KScreen scroll={false} footer={pickBar}>
     <View className={'w-full flex-1 ' + (desktop ? 'max-w-[1120px] self-center' : 'max-w-[720px] self-center')}>
@@ -181,16 +179,6 @@ export default function HistoryScreen() {
     <EntryActions entry={open} previousEntry={open?.replaces_id ? entriesById.get(open.replaces_id) ?? null : undefined} onClose={() => setOpenId(null)} itemsById={data.itemsById} partiesById={data.partiesById} />
     <VoidManySheet visible={confirming} entries={pickedEntries} onClose={() => setConfirming(false)} onDone={stopPicking} onPartly={(left) => { setPicked(new Set(left)); }} />
   </KScreen>;
-}
-
-/** A row while picking: its tick beside it; an entry this login cannot change shows no tick. */
-function PickRow({ on, allowed, onToggle, children }: { on: boolean; allowed: boolean; onToggle: () => void; children: React.ReactNode }) {
-  return <View className="flex-row items-center gap-1">
-    <Pressable disabled={!allowed} onPress={onToggle} accessibilityRole="checkbox" aria-checked={on} accessibilityState={{ checked: on, disabled: !allowed }} accessibilityLabel={on ? 'Selected' : 'Select'} className={'h-11 w-9 items-center justify-center rounded-lg ' + (on || !allowed ? '' : 'hover:bg-surface-tint')}>
-      {allowed ? <View className="h-[22px] w-[22px] items-center justify-center rounded-full border" style={{ borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : colors.surfaceElevated }}>{on ? <Check size={14} color={colors.textOnPrimary} /> : null}</View> : null}
-    </Pressable>
-    <View className="min-w-0 flex-1" style={{ opacity: allowed ? 1 : 0.5 }}>{children}</View>
-  </View>;
 }
 
 function DayHeading({ label, count }: { label: string; count: number }) {

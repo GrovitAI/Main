@@ -6,12 +6,14 @@ import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { useLeaveGuard } from '@/lib/pos/use-leave-guard';
 import { postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { cleanTypedNumber, formatQty, matchesSearch } from '@/lib/pos/kitchen-utils';
+import { cleanTypedNumber, formatDayLabel, formatQty, localDateKey, madeOnDay, matchesSearch } from '@/lib/pos/kitchen-utils';
 import { byCategoryThenName, itemCategoryName } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenItem } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { BatchHistory } from '@/components/kitchen/BatchHistory';
-import { Empty, KHeader, KScreen, Notice, PrimaryButton, SearchBox, Segmented, useSavedThen } from '@/components/kitchen/ui';
+import { EntryHistory } from '@/components/kitchen/EntryHistory';
+import { WhenRow } from '@/components/kitchen/EntryRows';
+import { isValidDateKey, useDateGuard } from '@/components/kitchen/forms';
+import { Empty, KHeader, KScreen, Notice, PrimaryButton, SearchBox, Segmented, SettingsGroup, useSavedThen } from '@/components/kitchen/ui';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 
 type Mode = 'made' | 'count';
@@ -30,9 +32,14 @@ export default function StockEntryScreen() {
   const { can } = useKitchenAccess();
   const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
   const [query, setQuery] = useState('');
-  // Task 304: Create batches also shows the batches already made, to check or correct them.
+  // Tasks 304 and 306: what was already recorded, to check or correct it.
   const [tab, setTab] = useState<'new' | 'previous'>('new');
-  const previous = mode === 'made' && tab === 'previous';
+  const previous = tab === 'previous';
+  // Task 306: a batch can be for an earlier day, for a login allowed to enter one. A count is what is on the shelf now.
+  const [date, setDate] = useState(localDateKey());
+  const [lockReason, setLockReason] = useState('');
+  const dateOk = useDateGuard(date, lockReason);
+  const mayBackdate = mode === 'made' && can('entries.backdate');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const done = useSavedThen();
@@ -47,15 +54,17 @@ export default function StockEntryScreen() {
     .filter((l): l is { item: KitchenItem; qty: number; text: string } => !!l.item && l.text.trim() !== '' && Number.isFinite(l.qty) && (mode === 'made' ? l.qty > 0 : l.qty >= 0)), [typed, data.itemsById, mode]);
 
   useLeaveGuard(chosen.length > 0 && !done.saved, 'The figures you typed');
+  const madeThatDay = useMemo(() => (mode === 'made' ? madeOnDay(data.entries, date) : new Map<string, number>()), [mode, data.entries, date]);
+  const dayName = formatDayLabel(date);
 
   const save = async (): Promise<void> => {
-    if (chosen.length === 0 || saving || !allowed) return;
+    if (chosen.length === 0 || saving || !allowed || (mode === 'made' && (!isValidDateKey(date) || !dateOk))) return;
     setSaving(true);
     setError(null);
     const failed: string[] = [];
     let firstError: string | null = null;
     for (const line of chosen) {
-      const res = await postKitchenEntry({ type: mode, item_id: line.item.id, qty: line.qty });
+      const res = await postKitchenEntry({ type: mode, item_id: line.item.id, qty: line.qty, ...(mode === 'made' ? { entry_date: date } : {}) }, mode === 'made' ? lockReason : null);
       if (res.error) {
         failed.push(line.item.id);
         firstError = firstError ?? res.error;
@@ -79,22 +88,28 @@ export default function StockEntryScreen() {
   };
 
   const label = chosen.length === 0 ? 'Save' : `Save · ${chosen.length} ${chosen.length === 1 ? 'item' : 'items'}`;
+  const whyNot = chosen.length === 0 ? 'Enter a quantity' : mode === 'made' && (!isValidDateKey(date) || !dateOk) ? 'Check the date' : undefined;
+  const top = (
+    <>
+      <KHeader title={mode === 'made' ? 'Create batches' : 'Count stock'} subtitle={previous || mode === 'made' ? undefined : 'What is on the shelf now'} onBack={() => backToKitchen()} />
+      <View className="mb-3"><Segmented options={[{ value: 'new', label: 'New' }, { value: 'previous', label: 'Previous' }]} value={tab} onChange={setTab} /></View>
+    </>
+  );
+  if (previous) return <KeyboardAvoider><EntryHistory type={mode} top={top} emptyTitle={mode === 'made' ? 'No batches yet' : 'No counts yet'} /></KeyboardAvoider>;
   return (
     <KeyboardAvoider>
-      <KScreen footer={allowed && !previous ? <PrimaryButton label={label} onPress={() => void save()} disabled={chosen.length === 0} loading={saving} done={done.saved} reason={chosen.length === 0 ? 'Enter a quantity' : undefined} /> : undefined}>
-        <KHeader title={mode === 'made' ? 'Create batches' : 'Count stock'} subtitle={previous ? undefined : mode === 'made' ? 'How much was made today' : 'What is on the shelf now'} onBack={() => backToKitchen()} />
-        {mode === 'made' ? <View className="mb-3"><Segmented options={[{ value: 'new', label: 'New' }, { value: 'previous', label: 'Previous' }]} value={tab} onChange={setTab} /></View> : null}
-        {previous ? <BatchHistory /> : <>
+      <KScreen footer={allowed ? <PrimaryButton label={label} onPress={() => void save()} disabled={!!whyNot} loading={saving} done={done.saved} reason={whyNot} /> : undefined}>
+        {top}
         {!allowed ? <Notice text="Your login cannot record this. Ask the owner or a kitchen manager." /> : null}
         {mode === 'count' ? <View className="mb-3"><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setKind} /></View> : null}
+        {mayBackdate ? <View className="mb-3"><SettingsGroup><WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} /></SettingsGroup></View> : null}
         <SearchBox value={query} onChange={setQuery} placeholder="Search items" />
         {error ? <View className="mt-3"><Notice text={error} /></View> : null}
         {rows.length === 0 ? <Empty title={query ? 'No item matches that' : 'No items yet'} /> : (
           <View className="mt-3 overflow-hidden rounded-[18px] border border-border-soft bg-surface-elevated">
-            {rows.map((it, i) => <QtyRow key={it.id} it={it} first={i === 0} text={typed[it.id] ?? ''} category={itemCategoryName(categories, it.category_id)} onChange={(t) => setTyped((all) => ({ ...all, [it.id]: t }))} />)}
+            {rows.map((it, i) => <QtyRow key={it.id} it={it} first={i === 0} text={typed[it.id] ?? ''} category={itemCategoryName(categories, it.category_id)} already={madeThatDay.get(it.id) ? `${dayName} +${formatQty(madeThatDay.get(it.id) ?? 0, it.unit).trim()}` : null} onChange={(t) => setTyped((all) => ({ ...all, [it.id]: t }))} />)}
           </View>
         )}
-        </>}
         <View style={{ height: 8 }} />
       </KScreen>
     </KeyboardAvoider>
@@ -102,14 +117,14 @@ export default function StockEntryScreen() {
 }
 
 /** One item and its figure; a tap anywhere on the row puts the cursor in the box. */
-function QtyRow({ it, first, text, category, onChange }: { it: KitchenItem; first: boolean; text: string; category: string | null; onChange: (t: string) => void }) {
+function QtyRow({ it, first, text, category, already, onChange }: { it: KitchenItem; first: boolean; text: string; category: string | null; already: string | null; onChange: (t: string) => void }) {
   const input = useRef<NativeTextInput>(null);
   return (
     <Pressable onPress={() => input.current?.focus()} accessibilityLabel={it.name}
       className={`min-h-[60px] flex-row items-center gap-3 px-3.5 py-2 hover:bg-surface-tint ${first ? '' : 'border-t border-border-soft'}`}>
       <View className="min-w-0 flex-1">
         <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{it.name}</Text>
-        <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{[`${formatQty(it.stock, it.unit)} in stock`, category].filter(Boolean).join(' · ')}</Text>
+        <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{already ? <Text className="text-xs font-bold text-primary">{already} · </Text> : null}{[`${formatQty(it.stock, it.unit)} in stock`, category].filter(Boolean).join(' · ')}</Text>
       </View>
       <View className="h-11 flex-row items-center rounded-xl border border-border bg-surface-elevated px-2.5" style={{ width: 112 }}>
         <TextInput ref={input} value={text} onChangeText={(t) => onChange(cleanTypedNumber(t, it.unit === 'pcs' ? 0 : 3))}

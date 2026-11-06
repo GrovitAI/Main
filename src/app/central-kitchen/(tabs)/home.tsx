@@ -12,7 +12,7 @@ import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
 import { fetchKitchenMoney, type MoneySummary } from '@/lib/pos/kitchen-money-service';
-import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues } from '@/lib/pos/kitchen-utils';
+import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues, changesToday } from '@/lib/pos/kitchen-utils';
 import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Row, RowInset, Section, Skeleton, StatTile, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
@@ -37,6 +37,7 @@ export default function KitchenHome() {
   const monthName = new Date().toLocaleDateString('en-IN', { month: 'long' });
   const isKitchenLogin = session?.role === 'kitchen';
   const branchName = kitchenBranch().name;
+  const changes = useMemo(() => changesToday(data.entries, today, (iso) => localDateKey(new Date(iso))), [data.entries, today]);
   const nothingSetUp = data.loaded && data.items.length === 0 && data.parties.length === 0;
   // Cash and bank come from the database (opening plus every entry since), so they refresh when Home
   // is shown and after each save changes the entries.
@@ -212,6 +213,8 @@ export default function KitchenHome() {
 
       {data.error ? <Notice text={data.error} action={<LinkButton label="Retry" onPress={() => void data.load()} />} /> : null}
       {lockLine}
+      {/* Task 306: the owner sees at a glance that entries were changed today, and can read what. */}
+      {access.isOwner && data.loaded && changes > 0 ? <Card padded={false} style={{ paddingHorizontal: 14, marginBottom: 12 }}><Row icon={History} iconTone="primary" title={changes === 1 ? '1 change today' : `${changes} changes today`} subtitle="Edits and deletes" onPress={() => router.push({ pathname: '/central-kitchen/team', params: { log: '1' } })} /></Card> : null}
 
       {!data.loaded ? (
         <View style={{ gap: 12 }}>

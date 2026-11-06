@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, ChevronUp, Lock, UserRound } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -52,6 +52,7 @@ const samePermissions = (a: readonly KitchenPermission[], b: readonly KitchenPer
 export function TeamWorkspace() {
   const { isOwner, access } = useKitchenAccess();
   const { loaded } = useKitchenData();
+  const params = useLocalSearchParams<{ log?: string }>();
   if (loaded && !isOwner) {
     return (
       <KScreen>
@@ -60,6 +61,7 @@ export function TeamWorkspace() {
       </KScreen>
     );
   }
+  if (params.log) return <KScreen><KHeader title="Change log" onBack={() => backToKitchen()} /><AuditSection /></KScreen>;
   return (
     <KeyboardAvoider>
       <KScreen wide={DESKTOP_LAYOUT === 'panes'}>

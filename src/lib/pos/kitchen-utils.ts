@@ -508,16 +508,55 @@ export function itemMoveDays(entries: readonly KitchenEntry[], itemId: string): 
   return days;
 }
 
-/** Task 304: the batches that still count, a day at a time, newest first. */
-export function batchDays(entries: readonly KitchenEntry[]): { date: string; entries: KitchenEntry[] }[] {
+/** Tasks 304 and 306: the entries of these kinds that still count, a day at a time, newest first. */
+export function entryDays(entries: readonly KitchenEntry[], types: readonly KitchenEntry['type'][]): { date: string; entries: KitchenEntry[] }[] {
   const days: { date: string; entries: KitchenEntry[] }[] = [];
   for (const entry of newestFirst(entries)) {
-    if (entry.type !== 'made' || !isPosted(entry)) continue;
+    if (!types.includes(entry.type) || !isPosted(entry)) continue;
     const day = days[days.length - 1];
     if (day && day.date === entry.entry_date) day.entries.push(entry);
     else days.push({ date: entry.entry_date, entries: [entry] });
   }
   return days;
+}
+
+/** Task 306: how much of each item was made on a day, so nobody enters the same batch twice. */
+export function madeOnDay(entries: readonly KitchenEntry[], date: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of entries) {
+    if (e.type !== 'made' || !isPosted(e) || e.entry_date !== date || !e.item_id) continue;
+    out.set(e.item_id, Math.round(((out.get(e.item_id) ?? 0) + (e.qty ?? 0)) * 1000) / 1000);
+  }
+  return out;
+}
+
+/** Task 306: a day's batches added up by item, as one line. */
+export function batchDayTotals(entries: readonly KitchenEntry[], itemsById: ReadonlyMap<string, KitchenItem>): string {
+  const date = entries[0]?.entry_date;
+  if (!date) return '';
+  return [...madeOnDay(entries, date)].map(([id, qty]) => {
+    const it = itemsById.get(id);
+    return `${it?.name ?? 'Removed item'} +${formatQty(qty, it?.unit ?? '').trim()}`;
+  }).join(' · ');
+}
+
+/** Task 306: edits and deletes made today. An edit is counted once, by its new entry. */
+export function changesToday(entries: readonly KitchenEntry[], today: string, dayOf: (iso: string) => string): number {
+  let count = 0;
+  for (const e of entries) {
+    if (e.voided_at && e.void_reason !== 'Edited' && dayOf(e.voided_at) === today) count += 1;
+    if (e.replaces_id && dayOf(e.created_at) === today) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Task 306: whether an item's stock has moved since this count. Correcting a count sets the stock
+ * again, so it would wipe out anything that happened after it.
+ */
+export function stockMovedSince(entries: readonly KitchenEntry[], count: KitchenEntry): boolean {
+  return entries.some((e) => isPosted(e) && e.id !== count.id && e.created_at > count.created_at
+    && (e.item_id === count.item_id || e.lines.some((l) => l.item_id === count.item_id)));
 }
 
 /** When an entry was keyed in, short: the time on the day it happened, otherwise the day it was entered. */
