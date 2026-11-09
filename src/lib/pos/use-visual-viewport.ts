@@ -25,6 +25,9 @@ function readWebViewport(fallbackHeight: number): VisualViewport {
   };
 }
 
+const sameViewport = (a: VisualViewport, b: VisualViewport): boolean =>
+  a.height === b.height && a.offsetTop === b.offsetTop && a.keyboardOpen === b.keyboardOpen;
+
 /**
  * The part of the page the user can see. On a phone browser the on-screen
  * keyboard covers the lower part of the page without changing the page's
@@ -32,25 +35,32 @@ function readWebViewport(fallbackHeight: number): VisualViewport {
  * it. This follows the browser's visual viewport instead, which shrinks with
  * the keyboard. On native the keyboard is handled elsewhere, so this is
  * simply the window height.
+ *
+ * Task 309: the browser is asked only once the page has been laid out (asking
+ * while it is being drawn made it lay the whole page out an extra time), and
+ * an unchanged answer draws nothing again.
  */
 export function useVisualViewport(): VisualViewport {
   const { height: windowHeight } = useWindowDimensions();
-  const [viewport, setViewport] = useState<VisualViewport>(() =>
-    Platform.OS === 'web' ? readWebViewport(windowHeight) : { height: windowHeight, offsetTop: 0, keyboardOpen: false },
-  );
+  const [viewport, setViewport] = useState<VisualViewport>(() => ({ height: windowHeight, offsetTop: 0, keyboardOpen: false }));
 
   useEffect(() => {
+    const keep = (next: VisualViewport): void => setViewport((prev) => (sameViewport(prev, next) ? prev : next));
     if (Platform.OS !== 'web') {
-      setViewport({ height: windowHeight, offsetTop: 0, keyboardOpen: false });
+      keep({ height: windowHeight, offsetTop: 0, keyboardOpen: false });
       return;
     }
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    if (!vv) return;
-    const update = () => setViewport(readWebViewport(windowHeight));
-    update();
+    if (!vv) {
+      keep({ height: windowHeight, offsetTop: 0, keyboardOpen: false });
+      return;
+    }
+    const update = (): void => keep(readWebViewport(windowHeight));
+    const frame = requestAnimationFrame(update);
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
     return () => {
+      cancelAnimationFrame(frame);
       vv.removeEventListener('resize', update);
       vv.removeEventListener('scroll', update);
     };
