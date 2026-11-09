@@ -17,7 +17,7 @@ import { avatar as avatarTones, colors, semantic } from '@/lib/pos/brand';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { figureSize, amountReadBack, formatMoney, formatQty, matchesSearch, padDisplay, padKeyFor, padPress, type PadKey } from '@/lib/pos/kitchen-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
-import { playEntrance, webMotionNode } from '@/lib/pos/web-motion';
+import { playEntrance, webMotionNode, type WebAnimation } from '@/lib/pos/web-motion';
 import { hoverFace, hoverFaceMark, hoverLink } from '@/lib/pos/web-hover';
 import { useOnline } from '@/lib/pos/use-online';
 
@@ -1248,17 +1248,19 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
   const { isTablet } = useResponsive();
   const [held, setHeld] = useState(false);
   useEffect(() => { if (!visible || !dirty) setHeld(false); }, [visible, dirty]);
+  // Task 308: the pop-up stays up while the sheet plays its way out.
+  const [wasVisible, setWasVisible] = useState(visible);
+  const [closing, setClosing] = useState(false);
+  if (wasVisible !== visible) { setWasVisible(visible); setClosing(!visible); }
   return (
     // On a phone the sheet rises from the bottom edge; centred on a tablet, it fades in.
-    <Modal visible={visible} transparent animationType={isTablet ? 'fade' : 'slide'} onRequestClose={onClose}>
+    <Modal visible={visible || closing} transparent animationType="none" onRequestClose={onClose}>
       {/* Task 259: the sheet rises above the keyboard, so a search box never covers the list under it. */}
       <KeyboardAvoider>
-      <Pressable onPress={() => (dirty ? setHeld(true) : onClose())} accessibilityLabel="Close" style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: isTablet ? 'center' : 'flex-end', alignItems: 'center' }}>
-        <Pressable
-          onPress={() => undefined}
+      <SheetMotion leaving={!visible} onLeft={() => setClosing(false)} centred={isTablet} onBackdrop={() => (dirty ? setHeld(true) : onClose())}>
+        <View
           style={{
-            width: '100%',
-            maxWidth: isTablet ? 520 : undefined,
+            flexShrink: 1,
             backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
@@ -1266,7 +1268,6 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
             borderBottomRightRadius: isTablet ? 24 : 0,
             padding: 18,
             paddingBottom: Math.max(insets.bottom, 12) + 8,
-            maxHeight: '88%',
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1277,10 +1278,108 @@ export function Sheet({ visible, onClose, title, children, dirty = false }: { vi
           </View>
           {held ? <Text accessibilityLiveRegion="polite" style={{ color: colors.primary, fontSize: 12, fontWeight: '700', marginTop: -6, marginBottom: 8 }}>What you typed is kept. Finish, or close with ✕.</Text> : null}
           <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </SheetMotion>
       </KeyboardAvoider>
     </Modal>
+  );
+}
+
+const SHEET_IN_MS = 240;
+const SHEET_OUT_MS = 180;
+const FADE_IN_MS = 200;
+const SHEET_EASE_IN = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const SHEET_EASE_OUT = 'cubic-bezier(0.4, 0, 1, 1)';
+const fullLayer = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 } as const;
+
+/**
+ * Task 308: how a sheet comes and goes. The system's slide carried the dark backdrop up with the
+ * panel, so the whole screen seemed to crawl in; now the backdrop fades where it is while the
+ * panel rises (a phone) or fades in place (a tablet). Played natively on a phone and by the
+ * browser on the web, so nothing in the sheet is drawn again per frame.
+ */
+function SheetMotion({ leaving, onLeft, centred, onBackdrop, children }: {
+  leaving: boolean; onLeft: () => void; centred: boolean; onBackdrop: () => void; children: React.ReactNode;
+}) {
+  const reduce = useReducedMotion();
+  const { height: screen } = useWindowDimensions();
+  const web = Platform.OS === 'web';
+  const backdrop = useRef<View>(null);
+  const panel = useRef<View>(null);
+  // A phone starts with the panel below the screen until its height is known.
+  const fade = useRef(new Animated.Value(0)).current;
+  const rise = useRef(new Animated.Value(centred ? 16 : screen)).current;
+  const travel = useRef(centred ? 16 : screen);
+  const shown = useRef(false);
+  const running = useRef<WebAnimation[]>([]);
+  const left = useRef(onLeft);
+  left.current = onLeft;
+
+  const play = useCallback((out: boolean): void => {
+    if (web) {
+      const back = webMotionNode(backdrop.current);
+      const front = webMotionNode(panel.current);
+      if (!back || !front) return;
+      running.current.forEach((a) => a.cancel());
+      const from = centred ? { opacity: '0', transform: 'translateY(16px)' } : { opacity: '1', transform: 'translateY(100%)' };
+      const to = { opacity: '1', transform: 'translateY(0px)' };
+      const ease = out ? SHEET_EASE_OUT : SHEET_EASE_IN;
+      running.current = [
+        back.animate(out ? [{ opacity: '1' }, { opacity: '0' }] : [{ opacity: '0' }, { opacity: '1' }], { duration: out ? SHEET_OUT_MS : FADE_IN_MS, easing: 'ease-out', fill: 'forwards' }),
+        front.animate(out ? [to, from] : [from, to], { duration: out ? SHEET_OUT_MS : SHEET_IN_MS, easing: ease, fill: 'forwards' }),
+      ];
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(fade, { toValue: out ? 0 : 1, duration: out ? SHEET_OUT_MS : FADE_IN_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(rise, { toValue: out ? travel.current : 0, duration: out ? SHEET_OUT_MS : SHEET_IN_MS, easing: out ? Easing.bezier(0.4, 0, 1, 1) : Easing.bezier(0.32, 0.72, 0, 1), useNativeDriver: true }),
+    ]).start();
+  }, [web, centred, fade, rise]);
+
+  // The browser plays the way in before the first frame is painted.
+  useLayoutEffect(() => {
+    if (!web) return;
+    shown.current = true;
+    if (!reduce) play(false);
+  }, [web, reduce, play]);
+
+  const wasLeaving = useRef(leaving);
+  useEffect(() => {
+    const reopened = wasLeaving.current && !leaving;
+    wasLeaving.current = leaving;
+    if (!leaving) {
+      // Reopened while on its way out: back in from where it is.
+      if (reopened && shown.current && !reduce) play(false);
+      return;
+    }
+    if (reduce || !shown.current) { left.current(); return; }
+    play(true);
+    const timer = setTimeout(() => left.current(), SHEET_OUT_MS);
+    return () => clearTimeout(timer);
+  }, [leaving, reduce, web, play]);
+
+  useEffect(() => () => running.current.forEach((a) => a.cancel()), []);
+
+  // A phone measures the panel, then raises it by exactly its own height.
+  const onPanelLayout = (e: LayoutChangeEvent): void => {
+    if (!centred) travel.current = e.nativeEvent.layout.height;
+    if (shown.current) return;
+    shown.current = true;
+    if (reduce) { fade.setValue(1); rise.setValue(0); return; }
+    rise.setValue(travel.current);
+    play(false);
+  };
+
+  const panelStyle: ViewStyle = { width: '100%', maxWidth: centred ? 520 : undefined, maxHeight: '88%' };
+  const tap = <Pressable onPress={onBackdrop} accessibilityLabel="Close" style={{ flex: 1 }} />;
+  return (
+    // On its way out the sheet takes no taps, so a quick second tap never lands on a row as it goes.
+    <View style={{ flex: 1, justifyContent: centred ? 'center' : 'flex-end', alignItems: 'center', pointerEvents: leaving ? 'none' : 'auto' }}>
+      {web ? <View ref={backdrop} style={[fullLayer, { backgroundColor: colors.overlay }]}>{tap}</View>
+        : <Animated.View style={[fullLayer, { backgroundColor: colors.overlay, opacity: fade }]}>{tap}</Animated.View>}
+      {web ? <View ref={panel} style={panelStyle}>{children}</View>
+        : <Animated.View onLayout={onPanelLayout} style={[panelStyle, { opacity: centred ? fade : 1, transform: [{ translateY: rise }] }]}>{children}</Animated.View>}
+    </View>
   );
 }
 
