@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, useWindowDimensions, View } from 'react-native';
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Building2, Calendar, Check, ChevronDown, Clock, Download, Minus, Plus, RotateCcw, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Building2, Calendar, Check, ChevronDown, Clock, Download, Minus, Plus, RotateCcw, RotateCw, type LucideIcon } from 'lucide-react-native';
+import { hoverLink } from '@/lib/pos/web-hover';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { formatINR } from '@/lib/pos/finance-utils';
@@ -33,6 +34,10 @@ export type AnalyticsStatementProps = {
   loading: boolean;
   errorMsg: string | null;
   onRetry: () => void;
+  /** Task 310: loads the period again, rolling Today and the other presets on to the current day. */
+  onRefresh: () => void;
+  /** When the figures on screen were loaded (ms), for "Updated 2:41 pm". */
+  updatedAt: number | null;
   /** The filters the shown data was loaded with. */
   loadedFilters: AnalyticsFilters | null;
   preset: AnalyticsPreset;
@@ -52,6 +57,14 @@ export type AnalyticsStatementProps = {
   hours: { enabled: boolean; start: string; end: string; onToggle: () => void; onStart: (v: string) => void; onEnd: (v: string) => void };
   franchise: { enabled: boolean; rate: number; onToggle: (on: boolean) => void; onDecrease: () => void; onIncrease: () => void };
 };
+
+/** "Updated 2:41 pm" for when the figures were loaded (task 310), or null before the first load. */
+export function updatedLabel(at: number | null): string | null {
+  if (at === null) return null;
+  const d = new Date(at);
+  const h = d.getHours();
+  return `Updated ${h % 12 === 0 ? 12 : h % 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`;
+}
 
 /** Readable date such as "5 Oct 2026", from a YYYY-MM-DD key. */
 export function dayLabel(key: string, withYear = true): string {
@@ -324,7 +337,14 @@ export function AnalyticsStatement(props: AnalyticsStatementProps) {
       <View className="flex-row flex-wrap items-end gap-3">
         <View className="min-w-0 flex-1">
           <Text className="text-2xl font-bold leading-8 text-text-primary" accessibilityRole="header">Analytics</Text>
-          <Text className="text-[13px] leading-5 text-text-secondary">{branchName} · {shownPeriod}{loading ? ' · updating…' : stale ? ' · last successful load' : ''}</Text>
+          <View className="flex-row flex-wrap items-center">
+            <Text className="text-[13px] leading-5 text-text-secondary">{branchName} · {shownPeriod}{loading ? ' · updating…' : stale ? ' · last successful load' : updatedLabel(props.updatedAt) ? ` · ${updatedLabel(props.updatedAt)}` : ''}</Text>
+            {/* Task 310: the latest figures without reloading the whole page. */}
+            <Pressable {...hoverLink} onPress={props.onRefresh} disabled={loading} accessibilityRole="button" accessibilityLabel="Refresh analytics" hitSlop={8} className={`ml-2 min-h-[28px] flex-row items-center gap-1 ${loading ? 'opacity-50' : 'active:opacity-60'}`}>
+              <RotateCw size={13} color={colors.primary} />
+              <Text className="text-[13px] font-semibold text-primary">Refresh</Text>
+            </Pressable>
+          </View>
         </View>
         <View className="flex-row flex-wrap items-center justify-end gap-2">
           <MenuButton label={`${presetName} · ${periodShort}`} icon={Calendar} accessibilityLabel={`Period: ${presetName}, ${periodLabel}`}
