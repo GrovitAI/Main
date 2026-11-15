@@ -8,7 +8,7 @@ import { figureSize } from '@/lib/pos/kitchen-utils';
 import { IconButton, ScrollPills, Sheet, Toggle } from '@/components/kitchen/ui';
 import { ColumnChart, FlowBar, LegendKey } from '@/components/analytics/StatementCharts';
 import {
-  Change, Delta, PRESETS, alignedDays, count, dayLabel, hourPointsOf, money, moneyTick, paymentSegments, previousFilters, rushLineOf, shortRange, tabular, usePreviousPeriod,
+  Change, Delta, PRESETS, alignedDays, count, dayLabel, hourPointsOf, money, moneyTick, paymentSegments, previousFilters, rushLineOf, shortRange, tabular, updatedLabel, usePreviousPeriod,
   type AnalyticsPreset, type AnalyticsStatementProps,
 } from '@/components/analytics/AnalyticsStatement';
 import type { ProductInsight } from '@/lib/analytics/analytics-service';
@@ -116,7 +116,12 @@ export function PhoneStatement(props: AnalyticsStatementProps) {
       <View className="flex-row items-start justify-between gap-3 pt-2">
         <View className="min-w-0 flex-1">
           <Text className="text-[27px] font-bold leading-8 text-text-primary" style={{ letterSpacing: -0.5 }} accessibilityRole="header">Analytics</Text>
-          <Text className="mt-0.5 text-sm font-semibold text-text-secondary" numberOfLines={1}>{branchName} · {shownPeriod}{loading ? ' · updating…' : stale ? ' · last good load' : ''}</Text>
+          <Text className="mt-0.5 text-sm font-semibold text-text-secondary" numberOfLines={1}>{branchName} · {shownPeriod}</Text>
+          {/* Task 310: when these figures loaded, and the latest without reloading the page. */}
+          <View className="flex-row items-center gap-1">
+            <Text className="text-[13px] text-text-secondary" numberOfLines={1}>{loading ? 'Updating…' : stale ? 'Last good load' : updatedLabel(props.updatedAt) ?? ''}</Text>
+            <TextLink label="Refresh" onPress={props.onRefresh} disabled={loading} />
+          </View>
         </View>
         <IconButton icon={SlidersHorizontal} label="Filters: branch, hours and royalty" onPress={() => setFilters(true)} />
       </View>
@@ -274,7 +279,7 @@ export function PhoneStatement(props: AnalyticsStatementProps) {
           <View className="border-x border-border-soft bg-surface-elevated px-4"><ItemRow item={item} rank={index + 1} top={topRevenue} /></View>
         )}
         contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 140 }}
-        refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={props.onRetry} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={props.onRefresh} tintColor={colors.primary} />}
       />
       <Sheet visible={filters} onClose={() => setFilters(false)} title="Filters">
         <View style={{ gap: 6 }}>

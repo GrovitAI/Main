@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Pressable, FlatList, ActivityIndicator, Switch, Platform } from 'react-native';
 import { Text, TextInput } from '@/components/ui/Typography';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { storage, STORAGE_KEYS } from '@/lib/pos/storage';
 import { PhoneStatement } from '@/components/analytics/PhoneStatement';
-import { AnalyticsStatement } from '@/components/analytics/AnalyticsStatement';
+import { AnalyticsStatement, updatedLabel } from '@/components/analytics/AnalyticsStatement';
+import { hoverLink } from '@/lib/pos/web-hover';
 import Svg, {
   Path,
   Rect,
@@ -50,6 +51,9 @@ import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { fetchAnalyticsTransactions } from '@/lib/pos/analytics-export-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 
+/** Task 310: coming back to Analytics after this long loads the figures again. */
+const ANALYTICS_STALE_MS = 60_000;
+
 export default function AnalyticsScreen() {
 
   const { session } = useSessionStore();
@@ -92,6 +96,7 @@ export default function AnalyticsScreen() {
   const [dashboardData, setDashboardData] = useState<AnalyticsDashboard | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loadedFilters, setLoadedFilters] = useState<AnalyticsFilters | null>(null);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const exportPendingRef = useRef(false);
@@ -139,6 +144,14 @@ export default function AnalyticsScreen() {
       setIsDatePickerOpen(true);
       return;
     }
+    const range = presetRange(presetType);
+    if (!range) return;
+    setStartDate(range.start);
+    setEndDate(range.end);
+  };
+
+  /** The dates a preset covers as of now; null for custom dates. */
+  const presetRange = (presetType: typeof preset): { start: string; end: string } | null => {
     const now = new Date();
     let start = new Date();
     let end = new Date();
@@ -164,7 +177,7 @@ export default function AnalyticsScreen() {
       end = now;
     } else {
       // Custom: let the user type manually
-      return;
+      return null;
     }
 
     const formatLocalISO = (d: Date) => {
@@ -174,8 +187,7 @@ export default function AnalyticsScreen() {
       return `${year}-${month}-${day}`;
     };
 
-    setStartDate(formatLocalISO(start));
-    setEndDate(formatLocalISO(end));
+    return { start: formatLocalISO(start), end: formatLocalISO(end) };
   };
 
   // Initialize
@@ -217,6 +229,7 @@ export default function AnalyticsScreen() {
       } else {
         setDashboardData(res.data);
         setLoadedFilters(filters);
+        setLoadedAt(Date.now());
       }
     } catch (err) {
       if (!isMountedRef.current || currentRequestId !== latestRequestIdRef.current) {
@@ -355,6 +368,34 @@ export default function AnalyticsScreen() {
   useEffect(() => {
     loadDashboard();
   }, [startDate, endDate, startTime, endTime, advancedTime, selectedBranchId]);
+
+  /**
+   * Task 310: the latest figures without reloading the page. A preset first moves on to the
+   * current day (Today opened before midnight stays on that day otherwise); when its dates are
+   * unchanged the same period loads again.
+   */
+  const refresh = (): void => {
+    const range = preset === 'custom' ? null : presetRange(preset);
+    if (range && (range.start !== startDate || range.end !== endDate)) {
+      setStartDate(range.start);
+      setEndDate(range.end);
+      return;
+    }
+    void loadDashboard();
+  };
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const loadedAtRef = useRef<number | null>(null);
+  loadedAtRef.current = loadedAt;
+
+  // Task 310: the tab stays open in the background, so coming back to it after a minute or more
+  // loads the figures again instead of showing the ones from the first visit.
+  useFocusEffect(
+    React.useCallback(() => {
+      const at = loadedAtRef.current;
+      if (at !== null && Date.now() - at > ANALYTICS_STALE_MS) refreshRef.current();
+    }, []),
+  );
 
   const kpis = dashboardData?.kpis;
 
@@ -1233,6 +1274,8 @@ export default function AnalyticsScreen() {
           loading={loading}
           errorMsg={errorMsg}
           onRetry={() => void loadDashboard()}
+          onRefresh={refresh}
+          updatedAt={loadedAt}
           loadedFilters={loadedFilters}
           preset={preset}
           onPreset={applyPreset}
@@ -1281,6 +1324,8 @@ export default function AnalyticsScreen() {
           loading={loading}
           errorMsg={errorMsg}
           onRetry={() => void loadDashboard()}
+          onRefresh={refresh}
+          updatedAt={loadedAt}
           loadedFilters={loadedFilters}
           preset={preset}
           onPreset={applyPreset}
@@ -1335,7 +1380,13 @@ export default function AnalyticsScreen() {
           </Pressable>
           <View>
             <Text className="text-lg font-black text-textPrimary">Analytics Command Center</Text>
-            <Text className="text-xs text-textSecondary">Restaurant operations & revenue overview</Text>
+            <View className="flex-row items-center">
+              <Text className="text-xs text-textSecondary">{loading ? 'Updating…' : updatedLabel(loadedAt) ?? 'Restaurant operations & revenue overview'}</Text>
+              {/* Task 310: the latest figures without reloading the page. */}
+              <Pressable {...hoverLink} onPress={refresh} disabled={loading} accessibilityRole="button" accessibilityLabel="Refresh analytics" hitSlop={10} className={`ml-2 min-h-[28px] justify-center ${loading ? 'opacity-50' : 'active:opacity-60'}`}>
+                <Text className="text-xs font-bold text-primary" style={{ textDecorationLine: 'underline' }}>Refresh</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
