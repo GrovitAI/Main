@@ -121,6 +121,30 @@ function TabButton({ tab, focused, onPress, rail, expanded = true }: { tab: Kitc
 type BarProps = Pick<BottomTabBarProps, 'state' | 'navigation'>;
 
 /**
+ * Task 309: Stock is drawn in the background once the kitchen has settled, so the first tap on it
+ * shows it at once instead of building the whole list then. It reads the kitchen data that is
+ * already loaded, so nothing more is fetched.
+ */
+function usePreloadTab(name: string, { state, navigation }: BarProps): void {
+  const hasRoute = state.routes.some(route => route.name === name);
+  const activeName = useRef(state.routes[state.index]?.name);
+  activeName.current = state.routes[state.index]?.name;
+  useEffect(() => {
+    if (!hasRoute) return;
+    let idle: number | null = null;
+    const timer = setTimeout(() => {
+      const run = (): void => { if (activeName.current !== name) navigation.preload(name); };
+      if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(run, { timeout: 2000 });
+      else run();
+    }, 1500);
+    return () => {
+      clearTimeout(timer);
+      if (idle !== null && typeof cancelIdleCallback === 'function') cancelIdleCallback(idle);
+    };
+  }, [hasRoute, name, navigation]);
+}
+
+/**
  * The phone's bar (task 228): a rounded bar floating on the canvas, with a raised + in the middle
  * that opens the four entries from any tab, and More for the sections that do not fit. The bar
  * sits in its own band of canvas, tall enough to hold the raised +, so every part of the + is
@@ -128,6 +152,7 @@ type BarProps = Pick<BottomTabBarProps, 'state' | 'navigation'>;
  */
 function BottomBar({ state, navigation }: BarProps) {
   const insets = useSafeAreaInsets();
+  usePreloadTab('items', { state, navigation });
   const [sheet, setSheet] = useState<'record' | 'more' | null>(null);
   const access = useKitchenAccess();
   const allowed = useTabAllowed();
@@ -197,6 +222,7 @@ function BottomBar({ state, navigation }: BarProps) {
 
 function Rail({ state, navigation }: BarProps) {
   const insets = useSafeAreaInsets();
+  usePreloadTab('items', { state, navigation });
   const { isDesktop } = useResponsive();
   const compact = Platform.OS === 'web' && isDesktop;
   const [pinned, setPinned] = useState(false);

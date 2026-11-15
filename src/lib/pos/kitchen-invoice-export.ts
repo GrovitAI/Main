@@ -30,7 +30,9 @@ async function printInPage(html: string): Promise<ServiceResult<boolean>> {
 /** Print / Save PDF on web; Share PDF on a phone (needs a build with expo-print and expo-sharing). */
 export async function printKitchenInvoice(invoice: KitchenInvoice, checkedAt: Date): Promise<ServiceResult<boolean>> {
   try {
-    const html = kitchenInvoiceHtml(invoice, checkedAt);
+    // Task 309: the badge is loaded here, not with the app.
+    const { PRINT_LOGO_DATA_URI } = await import('@/lib/pos/kitchen-print-logo');
+    const html = kitchenInvoiceHtml(invoice, checkedAt, PRINT_LOGO_DATA_URI);
     if (Platform.OS === 'web') return printInPage(html);
     const Print = await import('expo-print'); const Sharing = await import('expo-sharing');
     if (!await Sharing.isAvailableAsync()) return { data: null, error: 'PDF sharing is unavailable on this device.' };

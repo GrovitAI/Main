@@ -15,6 +15,8 @@ module.exports = function (api) {
           },
         },
       ],
+      // Task 309: only the icons in use ship, not the whole icon set.
+      './babel/lucide-icon-imports',
       'react-native-reanimated/plugin',
     ],
   };

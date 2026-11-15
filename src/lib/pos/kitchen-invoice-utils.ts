@@ -2,7 +2,6 @@ import { colors } from '@/lib/pos/brand';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
 import { historyDateLabel, historyRecordedDay, historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
 import type { KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
-import { PRINT_LOGO_DATA_URI } from '@/lib/pos/kitchen-print-logo';
 
 /** The kitchen's own gap-free sequence, shown as five digits: 01000, 01001 ... */
 export const invoiceNumber = (invoiceNo: number): string => String(invoiceNo).padStart(5, '0');
@@ -14,8 +13,11 @@ export const invoiceDate = (day: string): string => historyDateLabel(day);
 export const invoiceIssuedDate = (iso: string): string => { const day = historyRecordedDay(iso); return day ? historyDateLabel(day) : iso.slice(0, 10); };
 const escape = (v: string): string => v.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
 
-/** HTML is an exported print document, never rendered as app UI. No remote assets or scripts. */
-export function kitchenInvoiceHtml(invoice: KitchenInvoice, checkedAt: Date = new Date()): string {
+/**
+ * HTML is an exported print document, never rendered as app UI. No remote assets or scripts.
+ * Task 309: `logo` is the badge as a data URI, loaded only when printing (it is 160 KB).
+ */
+export function kitchenInvoiceHtml(invoice: KitchenInvoice, checkedAt: Date = new Date(), logo = ''): string {
   const e = escape; const money = (n: number): string => e(invoiceMoney(n));
   const body = invoice.deliveries.flatMap(d => d.lines.map(l => `<tr><td>${e(invoiceDate(d.entry_date))}</td><td>${e(l.item_name)}</td><td class="number">${e(formatQty(l.qty, l.unit))}</td><td class="number">${money(l.price_paise)}</td><td class="number">${money(l.line_paise)}</td></tr>`)).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${e(invoiceNumber(invoice.invoice_no))}</title><style>
@@ -25,7 +27,7 @@ export function kitchenInvoiceHtml(invoice: KitchenInvoice, checkedAt: Date = ne
     td,th{padding:8px;border-bottom:1px solid ${colors.borderSoft};overflow-wrap:anywhere}tr{break-inside:avoid}.number{text-align:right;font-variant-numeric:tabular-nums}.totals{margin-left:auto;width:260px}.totals p{display:flex;justify-content:space-between;gap:16px}
     footer{border-top:1px solid ${colors.borderSoft};padding-top:12px;color:${colors.textSecondary};font-size:11px}@media print{body{padding:0}}
     .brand{display:flex;align-items:center;gap:14px}.logo{width:112px;height:auto;display:block}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    </style></head><body><header><div class="brand"><img class="logo" src="${PRINT_LOGO_DATA_URI}" alt="Le Laban"><div><h2>${e(invoice.kitchen_name)}</h2><p>Branch supply invoice</p></div></div><div><h1>${e(invoiceNumber(invoice.invoice_no))}</h1><p>${e(invoiceStatus(invoice.status))}</p><p>Issued ${e(invoiceIssuedDate(invoice.created_at))}</p></div></header>
+    </style></head><body><header><div class="brand">${logo ? `<img class="logo" src="${logo}" alt="Le Laban">` : ''}<div><h2>${e(invoice.kitchen_name)}</h2><p>Branch supply invoice</p></div></div><div><h1>${e(invoiceNumber(invoice.invoice_no))}</h1><p>${e(invoiceStatus(invoice.status))}</p><p>Issued ${e(invoiceIssuedDate(invoice.created_at))}</p></div></header>
     <section><strong>Bill to ${e(invoice.party_name)}</strong><p>Delivery period: ${e(invoiceDate(invoice.start_date))} to ${e(invoiceDate(invoice.end_date))} (inclusive)</p></section>
     ${invoice.cancelled_at ? `<section><strong>Cancelled</strong><p>${e(invoice.cancel_reason ?? '')}</p></section>` : ''}
     <table><thead><tr><th>Date</th><th>Items</th><th class="number">Quantity</th><th class="number">Rate</th><th class="number">Amount</th></tr></thead><tbody>${body}</tbody></table>
