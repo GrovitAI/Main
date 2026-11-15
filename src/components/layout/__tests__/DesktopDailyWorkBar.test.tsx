@@ -14,6 +14,10 @@ jest.mock('lucide-react-native', () => {
   return new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => React.createElement(View) });
 });
 
+// The first test also pays for loading the bar's components, which ran past Jest's 5 s default
+// on a busy CI machine (failing on and off since 2026-11-02). The checks are unchanged.
+jest.setTimeout(20000);
+
 const mediaListeners = new Set<() => void>();
 const inputListeners = new Map<string, Set<() => void>>();
 let reduced = false;
