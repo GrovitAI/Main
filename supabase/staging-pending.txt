@@ -29,4 +29,4 @@
 # 2026-11-02 and checked: 38 items all with a category, 9 vendors with 26 usual items, Kolathur and
 # Velachery LeLaban, the goods categories and Food's 8 groups, and no test entries left. Nothing is pending.
 # Task 301 (20261106100000_kitchen_invoice_all_items.sql) was applied to production by the owner on 2026-11-06 and checked: both functions no longer limit invoices to finished goods, and grants are unchanged. Nothing is pending.
-20261106110000_kitchen_delete_count_keeps_moves.sql
+# Task 307 (20261106110000_kitchen_delete_count_keeps_moves.sql) was applied to production by the owner on 2026-11-06 and checked read-only. Nothing is pending.

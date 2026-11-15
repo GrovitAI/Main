@@ -1,8 +1,11 @@
 import { Platform } from 'react-native';
 
+/** A running browser animation, as far as the app stops it. */
+export type WebAnimation = { cancel: () => void };
+
 /** The parts of a browser element that a screen's entrance uses. */
 export type WebMotionNode = {
-  animate: (frames: Record<string, string>[], options: { duration: number; easing: string }) => unknown;
+  animate: (frames: Record<string, string>[], options: { duration: number; easing: string; fill?: 'forwards' }) => WebAnimation;
   style: { opacity: string };
 };
 
