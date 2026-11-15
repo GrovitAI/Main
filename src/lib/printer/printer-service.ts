@@ -6,7 +6,7 @@ import { roundUpToWholeRupee } from '../pos/order-utils';
 import { sendPrintJob, checkAgentHealth } from './print-agent-service';
 import { supabase } from '../pos/supabase';
 import { apiFetch } from '../pos/api-client';
-import { BILL_LOGO } from './bill-logo';
+import { billLogoForPrint } from './bill-logo';
 
 export type PrintNodePrinter = {
   id: number;
@@ -95,9 +95,11 @@ let logoBytes: string | null = null;
 /** The badge as an ESC/POS raster picture (GS v 0), as a binary string. */
 function logoRaster(): string {
   if (logoBytes === null) {
-    const bytesPerRow = BILL_LOGO.widthDots / 8;
-    const header = String.fromCharCode(0x1d, 0x76, 0x30, 0x00, bytesPerRow & 0xff, bytesPerRow >> 8, BILL_LOGO.heightDots & 0xff, BILL_LOGO.heightDots >> 8);
-    logoBytes = header + atob(BILL_LOGO.base64);
+    // Task 311: the badge at three quarters, for a shorter bill.
+    const logo = billLogoForPrint();
+    const bytesPerRow = logo.widthDots / 8;
+    const header = String.fromCharCode(0x1d, 0x76, 0x30, 0x00, bytesPerRow & 0xff, bytesPerRow >> 8, logo.heightDots & 0xff, logo.heightDots >> 8);
+    logoBytes = header + Array.from(logo.bytes, (b) => String.fromCharCode(b)).join('');
   }
   return logoBytes;
 }
@@ -227,147 +229,136 @@ function wrapText(text: string, limit: number): string[] {
   return lines;
 }
 
-function formatItemRow(name: string, qty: number, rate: number, amount: number, totalWidth = 42): string {
-  // Name gets full paper width — wraps cleanly if long
-  const nameLines = wrapText(name, totalWidth);
-
-  // Detail line: "  2 x 349.00" left  →  "698.00" right
-  const detail  = `  ${qty} x ${rate.toFixed(2)}`;
-  const amtStr  = amount.toFixed(2);
-  const detailLine = padLine(detail, amtStr, totalWidth);
-
-  let result = '';
-  for (const line of nameLines) {
-    result += line + '\n';
-  }
-  result += detailLine + '\n';
-  result += '\n'; // breathing room between items
-  return result;
-}
-
 // ─── Receipt configuration ───────────────────────────────────────────────────
 
-/**
- * Set to true once GST registration is obtained.
- * When false: GSTIN, FSSAI, CGST, SGST lines are suppressed.
- */
 // GST is per branch: the rate comes from pos_settings.tax_percentage, read
 // through getBranchTaxPercentage(). 0 means the branch charges no GST.
 
-function buildHeader(width = 48, branch?: ReceiptBranchInfo | null): string[] {
-  // ESC/POS bold only — do NOT use double-width here.
-  const boldOn  = '\x1B\x45\x01';
-  const boldOff = '\x1B\x45\x00';
-  
-  // Task 287: the badge goes with every bill. It used to ask for a logo pre-loaded into the
-  // printer's own memory, which prints nothing on a printer that has none.
+/** Everything a customer bill prints. */
+export type BillLayoutInput = {
+  width: number;
+  branch?: ReceiptBranchInfo | null;
+  orderName: string;
+  invoiceNumber: string | null | undefined;
+  items: PrintableBillItem[];
+  totalAmount: number;
+  kots?: { kot_number: number }[];
+  discountAmount?: number;
+  discountType?: 'percent' | 'fixed' | null;
+  discountValue?: number;
+  taxPercentage?: number;
+  customer?: BillCustomer;
+  /** When the bill is printed; now unless a preview or test sets it. */
+  printedAt?: Date;
+};
 
-  const title = 'LE LABAN';
+const BOLD_ON = '\x1B\x45\x01';
+const BOLD_OFF = '\x1B\x45\x00';
+const ALIGN_LEFT = '\x1Ba\x00';
+const ALIGN_CENTER = '\x1Ba\x01';
+const money = (n: number): string => n.toFixed(2);
+
+/** One item: name, qty, rate and amount on one line when the name fits, else the name wraps above. */
+function itemRows(name: string, qty: number, rate: number, width: number): string[] {
+  const amount = money(qty * rate);
+  if (width < 40) {
+    // 58 mm paper: the name, then "  2 x 349.00 ... 698.00".
+    return [...wrapText(name, width), padLine(`  ${qty} x ${money(rate)}`, amount, width)];
+  }
+  const nameCol = width - 23;
+  const figures = String(qty).padStart(4) + money(rate).padStart(9) + amount.padStart(10);
+  const names = wrapText(name, nameCol);
+  const last = names.pop() ?? '';
+  return [...names, last.padEnd(nameCol) + figures];
+}
+
+/**
+ * Task 311 (the client asked for less roll paper): the customer bill, compact. The address runs on
+ * two lines, the bill details share lines, an item takes one line on 80 mm paper, Sub Total shows
+ * only when a discount, GST or round-off makes it differ from the Grand Total, the badge prints at
+ * three quarters, and there are no blank lines or doubled dividers. About half the paper of before.
+ */
+export function buildBillLines(input: BillLayoutInput): string[] {
+  const { width, branch, customer } = input;
+  const discountAmount = input.discountAmount ?? 0;
+  const taxPercentage = input.taxPercentage ?? 0;
+  const at = input.printedAt ?? new Date();
+  const line = (text: string): string => text + '\n';
+  const divider = line(separator(width));
+
   const phone = branch?.phone || '90309 13610';
-  const gstin = branch?.gstin;
-
-  // Split address by commas or newlines to center each part cleanly on its own line
   const addressRaw: string = branch?.address || 'No. 13, Balaji Nagar Main Road, Kolathur, Chennai - 600099';
-  const addressParts = addressRaw.split(/[,\n]/).map((p) => p.trim()).filter(Boolean);
-
-  const lines: string[] = [
-    '\x1Ba\x01',   // center alignment
+  const address = addressRaw.split(/[,\n]/).map((p) => p.trim()).filter(Boolean).join(', ');
+  const contact = branch?.gstin && `PH: ${phone}   GSTIN: ${branch.gstin}`.length <= width
+    ? [`PH: ${phone}   GSTIN: ${branch.gstin}`]
+    : [`PH: ${phone}`, ...(branch?.gstin ? [`GSTIN: ${branch.gstin}`] : [])];
+  const header = [
+    ALIGN_CENTER,
     LOGO_MARK + '\n',
-    boldOn + title + boldOff + '\n',
-    '\n',
-    ...addressParts.map((part) => center(part, width) + '\n'),
-    '\n',
-    center(`PH: ${phone}`, width) + '\n',
+    line(BOLD_ON + 'LE LABAN' + BOLD_OFF),
+    ...wrapText(address, width).map((part) => line(center(part, width).trimEnd())),
+    ...contact.map((part) => line(center(part, width).trimEnd())),
+    ALIGN_LEFT,
   ];
 
-  if (gstin) {
-    lines.push(center(`GSTIN: ${gstin}`, width) + '\n');
+  const date = at.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const time = at.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  // Internal status labels are not a token.
+  const rawToken = (input.orderName || '').trim();
+  const token = !rawToken || ['draft order', 'draft', 'order'].includes(rawToken.toLowerCase()) ? '--' : rawToken;
+  const kot = input.kots && input.kots.length > 0 ? `KOT: ${input.kots.map((k) => k.kot_number).join(', ')}` : '';
+  const tokenLine = `Token: ${token}`;
+  const details = [
+    divider,
+    line(padLine(`Bill No: ${input.invoiceNumber || 'PENDING'}`, `${date} ${time}`, width)),
+    ...(kot && tokenLine.length + kot.length + 2 <= width ? [line(padLine(tokenLine, kot, width))] : [line(tokenLine), ...(kot ? wrapText(kot, width).map(line) : [])]),
+  ];
+  // Task 288: the customer, only when one was entered.
+  const who = customer?.name ? `Customer: ${customer.name}` : '';
+  const ph = customer?.phone ? `Ph: ${customer.phone}` : '';
+  if (who && ph && who.length + ph.length + 2 <= width) details.push(line(padLine(who, ph, width)));
+  else details.push(...(who ? wrapText(who, width).map(line) : []), ...(ph ? [line(ph)] : []));
+
+  // Repeated items print once with their quantities added.
+  const merged = new Map<string, { qty: number; price: number }>();
+  let totalQty = 0;
+  for (const item of input.items) {
+    const name = item.product_name || item.item_name || 'Item';
+    const seen = merged.get(name);
+    if (seen) seen.qty += item.qty; else merged.set(name, { qty: item.qty, price: item.price });
+    totalQty += item.qty;
   }
+  const columns = width < 40 ? padLine('Item', 'Amount', width) : 'Item'.padEnd(width - 23) + 'Qty'.padStart(4) + 'Rate'.padStart(9) + 'Amount'.padStart(10);
+  const items = [divider, line(columns), divider, ...[...merged].flatMap(([name, d]) => itemRows(name, d.qty, d.price, width).map(line))];
 
-  lines.push('\n'); // blank line before divider
-  lines.push('\x1Ba\x00'); // back to left
-  return lines;
-}
-
-function buildBillInfo(
-  orderName: string,
-  invoiceNumber: string | null | undefined,
-  width = 42,
-  customer?: BillCustomer
-): string[] {
-  const formattedDate = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit', month: '2-digit', year: '2-digit',
-  });
-  const formattedTime = new Date().toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  });
-
-  const billNo = invoiceNumber || 'PENDING';
-
-  // Resolve token display — avoid printing internal status labels
-  const internalLabels = ['draft order', 'draft', 'order'];
-  const rawToken = (orderName || '').trim();
-  const tokenDisplay = (!rawToken || internalLabels.includes(rawToken.toLowerCase()))
-    ? '--'
-    : rawToken;
-
-  return [
-    separator(width) + '\n',
-    separator(width) + '\n',
-    padLine(`Date: ${formattedDate}`, 'Pick Up', width) + '\n',
-    '\n',
-    formattedTime + '\n',
-    'Cashier: Biller' + '\n',
-    `Bill No: ${billNo}` + '\n',
-    `Token No: ${tokenDisplay}` + '\n',
-    // Task 288: the customer, only when one was entered.
-    ...(customer?.name ? wrapText(`Customer: ${customer.name}`, width).map((line) => line + '\n') : []),
-    ...(customer?.phone ? [`Phone: ${customer.phone}` + '\n'] : []),
-    separator(width) + '\n',
-  ];
-}
-
-function buildItemsHeader(width = 42): string[] {
-  // Header mirrors detail line layout: label left, "Amount" right
-  const colHeader = padLine('Item', 'Amount', width);
-  return [
-    separator(width) + '\n',
-    colHeader + '\n',
-    separator(width) + '\n',
-  ];
-}
-
-function buildTotals(
-  totalQty: number,
-  subtotal: number,
-  width = 42,
-  discountAmount = 0,
-  discountType: 'percent' | 'fixed' | null = null,
-  discountValue = 0,
-  /** Branch GST percentage; 0 prints no GST lines. */
-  taxPercentage = 0
-): string[] {
-  const lines: string[] = [
-    separator(width) + '\n',
-    padLine('Total Qty:', String(totalQty), width) + '\n',
-    padLine('Sub Total', 'Rs. ' + subtotal.toFixed(2), width) + '\n',
-  ];
-
+  const discountedSubtotal = Math.max(0, input.totalAmount - discountAmount);
+  const exactTotal = discountedSubtotal * (1 + taxPercentage / 100);
+  const grandTotal = taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal;
+  const roundOff = grandTotal - exactTotal;
+  const adjustments: string[] = [];
   if (discountAmount > 0) {
-    const label = discountType === 'percent' ? `Discount (${discountValue}%)` : 'Discount';
-    lines.push(padLine(label, '-Rs. ' + discountAmount.toFixed(2), width) + '\n');
+    const label = input.discountType === 'percent' ? `Discount (${input.discountValue ?? 0}%)` : 'Discount';
+    adjustments.push(line(padLine(label, '-Rs. ' + money(discountAmount), width)));
   }
-
   if (taxPercentage > 0) {
-    const discountedSubtotal = Math.max(0, subtotal - discountAmount);
     const halfRate = taxPercentage / 2;
-    const cgst = discountedSubtotal * (halfRate / 100);
-    const sgst = cgst;
-    lines.push(padLine(`CGST (${halfRate}%)`, 'Rs. ' + cgst.toFixed(2), width) + '\n');
-    lines.push(padLine(`SGST (${halfRate}%)`, 'Rs. ' + sgst.toFixed(2), width) + '\n');
+    const half = discountedSubtotal * (halfRate / 100);
+    adjustments.push(line(padLine(`CGST (${halfRate}%)`, 'Rs. ' + money(half), width)));
+    adjustments.push(line(padLine(`SGST (${halfRate}%)`, 'Rs. ' + money(half), width)));
   }
+  if (roundOff > 0.001) adjustments.push(line(padLine('Round Off', 'Rs. ' + money(roundOff), width)));
+  // Grand Total in bold with "Rs." (the rupee sign is missing on some Epson code pages).
+  const totals = [
+    divider,
+    ...(adjustments.length > 0 ? [line(padLine(`Total Qty: ${totalQty}`, 'Sub Total Rs. ' + money(input.totalAmount), width)), ...adjustments, divider] : []),
+    line(BOLD_ON + padLine(adjustments.length > 0 ? 'Grand Total' : `Grand Total (Qty ${totalQty})`, 'Rs. ' + money(grandTotal), width) + BOLD_OFF),
+    divider,
+    ALIGN_CENTER,
+    line(center('Thank You..!! & Visit Again..!!', width).trimEnd()),
+    ALIGN_LEFT,
+  ];
 
-  return lines;
+  return [ALIGN_LEFT, ...header, ...details, ...items, ...totals];
 }
 
 /**
@@ -691,79 +682,11 @@ export const printerService = {
 
       const width = getLineWidth(printer.paper_width);
 
-      const mergedMap: Record<string, { qty: number; price: number }> = {};
-      let totalQty = 0;
-      for (const item of items) {
-        const name = item.product_name || item.item_name || 'Item';
-        if (mergedMap[name]) {
-          mergedMap[name].qty += item.qty;
-        } else {
-          mergedMap[name] = { qty: item.qty, price: item.price };
-        }
-        totalQty += item.qty;
-      }
-
-      // 1. Build Header (branch details and the GST rate were read above; 0 GST prints no GST lines)
-      const headerLines = buildHeader(width, branch);
-
-
-
-      // 3. Bill Information
-      const billInfoLines = buildBillInfo(orderName, invoiceNumber, width, customer);
-
-      // 3b. KOT reference line — e.g. "KOT: 1, 2, 3"
-      const kotSectionLines: string[] = [];
-      if (kots && kots.length > 0) {
-        const kotNumbers = kots.map(k => String(k.kot_number)).join(', ');
-        kotSectionLines.push(`KOT: ${kotNumbers}` + '\n');
-        kotSectionLines.push(separator(width) + '\n');
-      }
-
-      // 4. Items Table Header
-      const itemsHeaderLines = buildItemsHeader(width);
-
-      // 5. Items Rows
-      const itemLines: string[] = [];
-      for (const [name, detail] of Object.entries(mergedMap)) {
-        itemLines.push(formatItemRow(name, detail.qty, detail.price, detail.qty * detail.price, width));
-      }
-
-      // 6. Totals Section
-      const totalsLines = buildTotals(totalQty, totalAmount, width, discountAmount, discountType, discountValue, taxPercentage);
-
-      // 7. Grand Total — bold, right-aligned, Rs. prefix (no Unicode ₹ — not supported on all Epson code pages)
-      const boldOn  = '\x1B\x45\x01';
-      const boldOff = '\x1B\x45\x00';
-      const discountedSubtotal = Math.max(0, totalAmount - discountAmount);
-      const taxAmount = discountedSubtotal * (taxPercentage / 100);
-      const exactTotal = discountedSubtotal + taxAmount;
-      const grandTotal = taxPercentage > 0 ? roundUpToWholeRupee(exactTotal) : exactTotal;
-      const roundOff = grandTotal - exactTotal;
-
-      const grandTotalLines = [
-        ...(roundOff > 0.001 ? [padLine('Round Off', 'Rs. ' + roundOff.toFixed(2), width) + '\n'] : []),
-        separator(width) + '\n',
-        boldOn + padLine('Grand Total', 'Rs. ' + grandTotal.toFixed(2), width) + boldOff + '\n',
-        separator(width) + '\n',
-      ];
-
-      // 8. Footer
-      const footerLines = [
-        center('Thank You..!! & Visit Again..!!', width) + '\n',
-        '\n\n\n\n',  // 4 feed lines before cut
-      ];
-
-      const lines: string[] = [
-        '\x1Ba\x00', // Left alignment default
-        ...headerLines,
-        ...billInfoLines,
-        ...kotSectionLines,
-        ...itemsHeaderLines,
-        ...itemLines,
-        ...totalsLines,
-        ...grandTotalLines,
-        ...footerLines,
-      ];
+      // Task 311: the compact bill (branch details and the GST rate were read above).
+      const lines = buildBillLines({
+        width, branch, orderName, invoiceNumber, items, totalAmount, kots,
+        discountAmount, discountType, discountValue, taxPercentage, customer,
+      });
 
       await printWithFreshRetry(pickBill, printer, res.cached, lines);
     } catch (err) {
