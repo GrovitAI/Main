@@ -181,13 +181,13 @@ friendly errors.
 
 | Task | What | Database |
 |---|---|---|
-| 312 | Migration: `carried` type, Spent Pay later, balances, cash rules, reports | staging, then owner on production |
-| 313 | Pending from earlier form + Record entry + History filter | — |
-| 314 | Spent Pay later (payee, balances, cash) | — |
-| 315 | `kitchen_party_statement` + statement header, ageing, DueTag, Open only | function in 312's migration or its own |
-| 316 | `FifoPreview` on Pay a vendor and Received | — |
-| 317 | `kitchen_month_close` + Month close screen, tab, export | function |
-| 318 | Branches/Vendors oldest-due, sort; QA on phone and desktop; finish review | — |
+| 313 | Migration: `carried` type, Spent Pay later, balances, cash rules, reports | staging, then owner on production |
+| 314 | Pending from earlier form + Record entry + History filter | — |
+| 315 | Spent Pay later (payee, balances, cash) | — |
+| 316 | `kitchen_party_statement` + statement header, ageing, DueTag, Open only | function in 313's migration or its own |
+| 317 | `FifoPreview` on Pay a vendor and Received | — |
+| 318 | `kitchen_month_close` + Month close screen, tab, export | function |
+| 319 | Branches/Vendors oldest-due, sort; QA on phone and desktop; finish review | — |
 
 **Checks per task:**
 - local tsc, lint and unit tests (`fifoClear`, the forms);

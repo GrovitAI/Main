@@ -307,7 +307,7 @@ Will be replaced by auth session after Task 7.
 ✅ Task 309 merged 2026-11-15 (PR #18), re-timed on the production web build at phone speed: first load 3.1 s to 2.4 s (longest freeze 0.81 s to 0.22 s), Stock tab 0.32 s to 0.14 s.
 ✅ Task 310 (2026-11-15, PR #16, merged): Analytics shows "Updated 2:41 pm" with Refresh beside it on desktop, phone (pull down too) and tablet; Refresh moves Today and the other presets on to the current day; coming back to the tab after a minute reloads it (the client saw old figures until switching period). The flaky DesktopDailyWorkBar test got a 20 s limit (PR #15).
 ⏳ Task 311 (2026-11-15, PR #17, waiting for the owner's OK on the layout): compact customer bill (buildBillLines in src/lib/printer/printer-service.ts): address on two lines, shared detail lines, one line per item on 80 mm, Sub Total only when adjusted, badge at three quarters; 37 to 16 lines. Reprint still uses the old layout (src/services/printService.ts).
-📋 Plans (2026-11-16): docs/plans/2026-11-kitchen-dues-and-month-close.md (the client's pending dues and month close, tasks 312-318) and docs/plans/2026-11-improvement-plan.md (till harness, React Compiler, async routes, FlashList, Inventory split, crash reporting, database safety and speed).
+📋 Plans (2026-11-16): docs/plans/2026-11-kitchen-dues-and-month-close.md (the client's pending dues and month close, tasks 313-319) and docs/plans/2026-11-improvement-plan.md (till harness, React Compiler, async routes, FlashList, Inventory split, crash reporting, database safety and speed).
 
 ⬜ Task 10: Auth (Supabase email + Google login)
 ⬜ Task 11: Settings screen (role-based content)
