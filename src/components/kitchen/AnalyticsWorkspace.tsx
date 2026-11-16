@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2, Package, ShoppingBasket, Receipt, MoreHorizontal, X } from 'lucide-react-native';
+import { CalendarCheck, ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2, Package, ShoppingBasket, Receipt, MoreHorizontal, X } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -244,7 +244,12 @@ export function AnalyticsWorkspace() {
   const infoButton = <Pressable accessibilityRole="button" accessibilityLabel="About these reports" accessibilityState={{ expanded: notesOpen }} onPress={() => setNotesOpen(value => !value)} className={controls}>
           <Info size={18} color={colors.primary} />
         </Pressable>;
+  // Task 318: the month close for the dates on screen.
+  const openMonthClose = () => router.push({ pathname: '/central-kitchen/month-close', params: { from: dateRange.startDate, to: dateRange.endDate } } as never);
   const headerActions = <View className="flex-row gap-1">
+        {desktop ? <Pressable accessibilityRole="button" accessibilityLabel="Month close" onPress={openMonthClose} className={controls}>
+          <CalendarCheck size={18} color={colors.primary} /><Text className="text-sm font-bold text-primary">Month close</Text>
+        </Pressable> : null}
         {desktop && kind === 'sales' && mayInvoices ? <Pressable accessibilityRole="button" accessibilityLabel="Branch invoices" onPress={() => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never)} className={controls}>
           <Receipt size={18} color={colors.primary} /><Text className="text-sm font-bold text-primary">Invoices</Text>
         </Pressable> : null}
@@ -271,6 +276,7 @@ export function AnalyticsWorkspace() {
     : rowKind === 'profit' ? 'Sales ' + money(report.filtered_paise) + ' · cost ' + money(report.summary.cost_paise)
     : (desktop || activeFilters || rowDetail ? 'Filtered total ' : 'Report total ') + money(report.filtered_paise) : null;
   const reportActions = [
+    { id: 'close', label: 'Month close', Icon: CalendarCheck, disabled: false, action: openMonthClose },
     ...(kind === 'sales' && mayInvoices ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
     ...(mayExport ? [{ id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportCsv() }] : []),
     { id: 'refresh', label: 'Refresh reports', Icon: RefreshCw, disabled: loading, action: () => setRefresh(value => value + 1) },

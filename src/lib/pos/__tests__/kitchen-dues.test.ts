@@ -1,4 +1,4 @@
-import { ageBucket, ageingOf, daysBetween, dueState, fifoClear, monthCloseRows, monthCloseSums, oldestOpen, sinceLabel, withCovers } from '../kitchen-dues-utils';
+import { ageBucket, ageingOf, daysBetween, dueState, fifoClear, monthCloseCsv, monthCloseRows, monthCloseSums, oldestOpen, sinceLabel, withCovers } from '../kitchen-dues-utils';
 import { parseKitchenDues, parseKitchenMonthClose } from '../kitchen-dues-service';
 import type { KitchenDue, KitchenMonthCloseParty } from '../kitchen-dues-types';
 
@@ -93,5 +93,12 @@ describe('reading the database answers', () => {
     expect(out.totals.startCash).toBeNull();
     expect(out.parties[0]?.oldestDue).toBe('2026-10-12');
     expect(out.check.difference).toBe(0);
+    const first = out.carried[0];
+    if (!first) throw new Error('no brought forward row');
+    const csv = monthCloseCsv({ ...out, carried: [{ ...first, note: 'Bills, October "late"' }] });
+    expect(csv.split(String.fromCharCode(10))[0]).toBe('Month close,2026-10-01 to 2026-10-31');
+    expect(csv).toContain('Tezz,Vendor,0.00,50.00,0.00,50.00,2026-10-12');
+    expect(csv).toContain('Tezz,2026-10-31,Vendor,50.00,"Bills, October ""late"""');
+    expect(csv).toContain('Cash at start,' + String.fromCharCode(10));
   });
 });

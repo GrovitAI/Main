@@ -4,7 +4,7 @@
  * bills); these helpers age them, find the oldest, and preview what a new payment would clear by the
  * same oldest-first rule. Nothing here touches the database.
  */
-import type { KitchenAgeBucket, KitchenAgeing, KitchenDue, KitchenFifoClear, KitchenMonthCloseParty } from './kitchen-dues-types';
+import type { KitchenAgeBucket, KitchenAgeing, KitchenDue, KitchenFifoClear, KitchenMonthClose, KitchenMonthCloseParty } from './kitchen-dues-types';
 
 const toPaise = (rupees: number): number => Math.round(rupees * 100);
 const fromPaise = (paise: number): number => paise / 100;
@@ -124,4 +124,39 @@ export function withCovers(dues: readonly KitchenDue[] | null, covers: readonly 
     const t = d.entry_id ? taken.get(d.entry_id) : undefined;
     return t ? { ...d, open: fromPaise(Math.max(0, toPaise(d.open) - t)) } : d;
   });
+}
+
+const csvCell = (v: string | number | null): string => {
+  const s = v === null ? '' : typeof v === 'number' ? v.toFixed(2) : v;
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const csvLine = (cells: (string | number | null)[]): string => cells.map(csvCell).join(',');
+
+/** Task 318: the month close as a spreadsheet: the figures, each branch's and vendor's pending, and what was brought forward. */
+export function monthCloseCsv(close: KitchenMonthClose): string {
+  const t = close.totals;
+  const lines: string[] = [
+    csvLine(['Month close', `${close.from} to ${close.to}`]),
+    '',
+    csvLine(['Figure', 'Amount']),
+    csvLine(['Sales to branches', t.sales]),
+    csvLine(['  of which brought forward', t.carriedSales]),
+    csvLine(['Purchases', t.purchases]),
+    csvLine(['  of which pending from earlier', t.carriedPurchases]),
+    csvLine(['Expenses', t.expenses]),
+    csvLine(['  of which to pay later', t.expensesLater]),
+    csvLine(['Received from branches', t.received]),
+    csvLine(['Paid to vendors', t.paidVendors]),
+    csvLine(['Cash in', t.cashIn]), csvLine(['Cash out', t.cashOut]),
+    csvLine(['Bank in', t.bankIn]), csvLine(['Bank out', t.bankOut]),
+    csvLine(['Cash at start', t.startCash]), csvLine(['Bank at start', t.startBank]),
+    csvLine(['Cash at end', t.endCash]), csvLine(['Bank at end', t.endBank]),
+    '',
+    csvLine(['Name', 'Side', 'At start', 'Bills', 'Paid', 'At end', 'Oldest due']),
+    ...close.parties.map((p) => csvLine([p.name, p.kind === 'branch' ? 'Branch' : 'Vendor', p.atStart, p.bills, p.paid, p.atEnd, p.openingDue ? 'Before the app' : p.oldestDue])),
+    '',
+    csvLine(['Brought forward', 'Date', 'Side', 'Amount', 'Note']),
+    ...close.carried.map((c) => csvLine([c.party, c.entry_date, c.kind === 'branch' ? 'Branch' : 'Vendor', c.amount, c.note])),
+  ];
+  return lines.join('\n');
 }
