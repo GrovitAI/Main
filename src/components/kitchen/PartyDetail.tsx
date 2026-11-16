@@ -3,14 +3,14 @@ import { Linking, Pressable, View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
-import { ArrowDownLeft, ArrowUp, ArrowUpRight, Flag, MessageCircle, Pencil, ShoppingBag, Trash2 } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUp, ArrowUpRight, Flag, History, MessageCircle, Pencil, ShoppingBag, Trash2 } from 'lucide-react-native';
 import { setKitchenPartyActive } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
 import { formatMoney, statementLine, statementRows, whatsappUrl } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, DateTile, Empty, GhostButton, KHeader, MoneyFigure, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity } from './ui';
+import { Card, DateTile, Empty, GhostButton, KHeader, MoneyFigure, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity, type MenuItem } from './ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { EntryActions } from './EntryActions';
 
@@ -131,6 +131,14 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
       <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 8 }}>Shows the last three months; the balance counts everything.</Text>
     </Section>
   );
+  // Task 314: Pending from earlier for this name, beside editing and removing it.
+  const menu: MenuItem[] = [
+    ...((isBranch ? can('entries.receive') : can('entries.buy')) ? [{ label: 'Pending from earlier', icon: History, onPress: () => router.push({ pathname: '/central-kitchen/carried', params: { party: party.id } } as never) }] : []),
+    ...(can('setup.parties') ? [
+      { label: `Edit ${isBranch ? 'branch' : 'vendor'}`, icon: Pencil, onPress: () => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } }) },
+      { label: `Remove ${isBranch ? 'branch' : 'vendor'}`, icon: Trash2, tone: 'out' as const, onPress: remove },
+    ] : []),
+  ];
   const balanceLabel = <Text className="text-text-secondary" style={{ fontSize: 14, fontWeight: '700' }}>{label}</Text>;
 
   return (
@@ -140,10 +148,7 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
         subtitle={(isBranch ? 'Branch' : 'Vendor') + (phone && party.phone ? ` · ${party.phone}` : '')}
         onBack={standalone ? () => backToKitchen() : undefined}
         large={!standalone}
-        right={can('setup.parties') ? <MoreMenu label={`More for ${party.name}`} items={[
-          { label: `Edit ${isBranch ? 'branch' : 'vendor'}`, icon: Pencil, onPress: () => router.push({ pathname: '/central-kitchen/party-form', params: { id: party.id, kind: party.kind } }) },
-          { label: `Remove ${isBranch ? 'branch' : 'vendor'}`, icon: Trash2, tone: 'out', onPress: remove },
-        ]} /> : undefined}
+        right={menu.length > 0 ? <MoreMenu label={`More for ${party.name}`} items={menu} /> : undefined}
       />
       {split ? (
         // Task 222 (Polaris details layout): the give-and-take takes the wide column; the figure,

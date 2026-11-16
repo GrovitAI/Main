@@ -32,6 +32,12 @@ describe('Kitchen audit history', () => {
     expect(rows({ kind: 'stock' })).toEqual([]);
     expect(rows({ kind: 'spent' }, [entry('paid', { type: 'paid' })])).toHaveLength(1);
   });
+  it('finds Pay later buys and expenses, and Pending from earlier (task 314)', () => {
+    const set = [entry('rent', { paid: false, party_id: 'v1', mode: null }), entry('buy', { type: 'bought', paid: false }), entry('cash-buy', { type: 'bought' }),
+      entry('carried', { type: 'carried', paid: false, mode: null, party_id: 'b1' }), original];
+    expect(rows({ kind: 'unpaid' }, set).map(item => item.id).sort()).toEqual(['buy', 'rent']);
+    expect(rows({ kind: 'carried' }, set).map(item => item.id)).toEqual(['carried']);
+  });
   it('searches removal actors and reasons as well as recorded staff names', () => {
     expect(rows({ query: 'Ravi' }).map(item => item.id)).toEqual(['voided']);
     expect(rows({ query: 'duplicate bill' }).map(item => item.id)).toEqual(['voided']);

@@ -20,6 +20,7 @@ import { PickBar, PickRow } from '@/components/kitchen/PickRow';
 const KINDS = [
   { id: 'sent', label: 'Sent' }, { id: 'bought', label: 'Bought' },
   { id: 'received', label: 'Received' }, { id: 'spent', label: 'Spent / vendor payments' }, { id: 'stock', label: 'Stock' },
+  { id: 'unpaid', label: 'Pay later' }, { id: 'carried', label: 'Pending from earlier' },
 ] as const;
 const STATUSES = [
   { id: 'current', label: 'Current · what counts now' }, { id: 'edited', label: 'Edited · with the earlier version' },

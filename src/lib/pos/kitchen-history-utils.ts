@@ -12,7 +12,8 @@ export type HistoryStatusFilter = 'current' | 'edited' | 'voided';
 const STATUS_FILTER_MATCHES: Readonly<Record<HistoryStatusFilter, readonly HistoryStatus[]>> = {
   current: ['active', 'edited'], edited: ['edited', 'replaced'], voided: ['voided'],
 };
-export type HistoryKind = 'sent' | 'received' | 'bought' | 'spent' | 'stock';
+/** Task 314: 'carried' is Pending from earlier; 'unpaid' is the Pay later buys and expenses. */
+export type HistoryKind = 'sent' | 'received' | 'bought' | 'spent' | 'stock' | 'carried' | 'unpaid';
 export type HistoryDateBasis = 'transaction' | 'recorded';
 export type HistorySort = 'transaction-newest' | 'transaction-oldest' | 'recorded-newest' | 'recorded-oldest';
 export type HistoryFilters = {
@@ -75,7 +76,8 @@ export function filterKitchenHistory(
     if (filters.enteredBy !== null && entry.created_by !== filters.enteredBy) return false;
     if (filters.kind === 'stock' && entry.type !== 'made' && entry.type !== 'count' && entry.type !== 'issued') return false;
     if (filters.kind === 'spent' && entry.type !== 'spent' && entry.type !== 'paid') return false;
-    if (filters.kind && filters.kind !== 'stock' && filters.kind !== 'spent' && entry.type !== filters.kind) return false;
+    if (filters.kind === 'unpaid' && !((entry.type === 'bought' || entry.type === 'spent') && !entry.paid)) return false;
+    if (filters.kind && filters.kind !== 'stock' && filters.kind !== 'spent' && filters.kind !== 'unpaid' && entry.type !== filters.kind) return false;
     if (filters.range) {
       const day = filters.dateBasis === 'transaction' ? entry.entry_date : historyRecordedDay(entry.created_at);
       if (!day || day < filters.range.startDate || day > filters.range.endDate) return false;

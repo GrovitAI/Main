@@ -13,7 +13,7 @@ import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { SidebarSurface } from '@/components/ui/SidebarSurface';
 import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
 import { Sheet, SheetRow, toneColor } from '@/components/kitchen/ui';
-import { recordActions, stockActions } from '@/components/kitchen/record-actions';
+import { duesActions, recordActions, stockActions } from '@/components/kitchen/record-actions';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
 import { TabScene } from '@/components/ui/TabScene';
 
@@ -157,7 +157,7 @@ function BottomBar({ state, navigation }: BarProps) {
   const access = useKitchenAccess();
   const allowed = useTabAllowed();
   const records = recordActions(access.can);
-  const moves = stockActions(access.can);
+  const moves = [...stockActions(access.can), ...duesActions(access.can)];
   const phone = phoneTabs.filter((tab) => allowed(tab.name));
   const more = moreTabs.filter((tab) => allowed(tab.name));
   const activeName = state.routes[state.index]?.name;
