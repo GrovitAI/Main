@@ -322,7 +322,7 @@ type RowProps = {
   titleLines?: number;
   /** Drawn before the text in place of an icon, such as a name's circle (task 233). */
   lead?: React.ReactNode;
-  /** Task 316: a small tag after the title, such as a bill's Cleared / ₹x left / Open. */
+  /** Task 316: a small tag at the start of the second line, such as a bill's Cleared / ₹x left / Open. */
   tag?: React.ReactNode;
 };
 
@@ -347,15 +347,14 @@ export function Row({ title, subtitle, right, rightSub, tone = 'neutral', icon: 
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
+        <Text className={`font-bold ${compact ? 'text-sm' : 'text-[15px]'}`} style={[{ color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={titleLines}>{title}</Text>
         {tag ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text className={`shrink font-bold ${compact ? 'text-sm' : 'text-[15px]'}`} style={[{ color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={titleLines}>{title}</Text>
+          // Task 316: the tag leads the second line, so a long title keeps its room.
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
             {tag}
+            {subtitle ? <Text className="shrink" style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary }} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
-        ) : (
-          <Text className={`font-bold ${compact ? 'text-sm' : 'text-[15px]'}`} style={[{ color: colors.textPrimary }, selected ? { color: colors.primary } : null, muted ? { textDecorationLine: 'line-through', color: colors.textSecondary } : null]} numberOfLines={titleLines}>{title}</Text>
-        )}
-        {subtitle ? <Text style={{ fontSize: 12, fontWeight: '600', marginTop: 2, color: colors.textSecondary }} numberOfLines={1}>{subtitle}</Text> : null}
+        ) : subtitle ? <Text style={{ fontSize: 12, fontWeight: '600', marginTop: 2, color: colors.textSecondary }} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       {right || rightSub ? (
         <View style={{ alignItems: 'flex-end' }}>

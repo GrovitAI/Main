@@ -16,7 +16,8 @@ import { toneColor, toneSoft, type Tone } from './ui';
 /** A bill's state as a small tag: Cleared, ₹x left, or Open. */
 export function DueTag({ due, showAmounts = true }: { due: Pick<KitchenDue, 'amount' | 'open'>; showAmounts?: boolean }) {
   const state = dueState(due);
-  const tone: Tone = state.kind === 'cleared' ? 'in' : state.kind === 'part' ? 'buy' : 'out';
+  // Open is the usual state of a recent bill, so it stays quiet; age is what the strip colours.
+  const tone: Tone = state.kind === 'cleared' ? 'in' : state.kind === 'part' ? 'buy' : 'neutral';
   const label = state.kind === 'cleared' ? 'Cleared' : state.kind === 'part' ? (showAmounts ? `${formatMoney(state.left)} left` : 'Part paid') : 'Open';
   return (
     <View className="rounded-full px-2 py-0.5" style={{ backgroundColor: toneSoft[tone] }}>
@@ -80,10 +81,9 @@ export function FifoPreview({ dues, amount, kind, loading = false }: { dues: rea
   if (dues === null) {
     return loading ? <Text className="mt-1.5 text-xs font-semibold text-text-secondary">Working out what this clears…</Text> : null;
   }
-  const { cleared, ahead } = fifoClear(dues, amount);
-  if (cleared.length === 0) {
-    return <Text className="mt-1.5 text-xs font-semibold text-text-secondary">Nothing is open; all of it is {kind === 'branch' ? 'in credit' : 'paid ahead'}.</Text>;
-  }
+  // What is left over is said once, by the line under the amount.
+  const { cleared } = fifoClear(dues, amount);
+  if (cleared.length === 0) return null;
   const shown = cleared.slice(0, 3);
   return (
     <View className="mt-2 rounded-2xl bg-surface-tint px-3 py-2.5" accessibilityLabel="What this clears, oldest first">
@@ -99,7 +99,6 @@ export function FifoPreview({ dues, amount, kind, loading = false }: { dues: rea
         </View>
       ))}
       {cleared.length > shown.length ? <Text className="mt-1 text-xs font-semibold text-text-secondary">and {cleared.length - shown.length} more</Text> : null}
-      {ahead > 0 ? <Text className="mt-1 text-xs font-bold text-text-secondary">{formatMoney(ahead)} {kind === 'branch' ? 'in credit' : 'paid ahead'}</Text> : null}
     </View>
   );
 }

@@ -49,13 +49,17 @@ export function parseKitchenDues(value: unknown): KitchenDue[] {
   });
 }
 
-/** Every bill of one branch or vendor (or of all of them) with what is still open on it, as of a day (today when left out). */
-export async function fetchKitchenDues(partyId: string | null, asOf: string | null = null): Promise<ServiceResult<KitchenDue[]>> {
+/**
+ * Every bill of one branch or vendor (or of all of them) with what is still open on it, as of a day
+ * (today when left out). `openOnly` asks the database for the bills with something open only.
+ */
+export async function fetchKitchenDues(partyId: string | null, asOf: string | null = null, openOnly = false): Promise<ServiceResult<KitchenDue[]>> {
   try {
     const { tenant_id } = getTenantContext();
-    const { data, error } = await supabase.rpc('kitchen_party_dues', {
+    const request = supabase.rpc('kitchen_party_dues', {
       p_tenant_id: tenant_id, p_branch_id: kitchenBranch().id, p_party_id: partyId, p_as_of: asOf,
     });
+    const { data, error } = await (openOnly ? request.gt('open_paise', 0) : request);
     if (error) return { data: null, error: explain(error, 'Unable to load what is still open.') };
     return { data: parseKitchenDues(data), error: null };
   } catch (err) {

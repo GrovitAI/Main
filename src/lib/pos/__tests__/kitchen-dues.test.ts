@@ -1,4 +1,4 @@
-import { ageBucket, ageingOf, daysBetween, dueState, fifoClear, monthCloseCsv, monthCloseRows, monthCloseSums, oldestOpen, sinceLabel, withCovers } from '../kitchen-dues-utils';
+import { ageBucket, ageingOf, daysBetween, dueState, fifoClear, monthCloseCsv, monthCloseRows, monthCloseSums, oldestByParty, oldestOpen, sinceLabel, sortParties, withCovers } from '../kitchen-dues-utils';
 import { parseKitchenDues, parseKitchenMonthClose } from '../kitchen-dues-service';
 import type { KitchenDue, KitchenMonthCloseParty } from '../kitchen-dues-types';
 
@@ -74,6 +74,21 @@ describe('month close rows (task 318)', () => {
   });
   it('adds the rows up', () => {
     expect(monthCloseSums(all)).toEqual({ atStart: 1200, bills: 500, paid: 500, atEnd: 1200 });
+  });
+});
+
+describe('branches and vendors lists (task 319)', () => {
+  const open = (party_id: string, entry_date: string | null, o: number): KitchenDue => ({ party_id, entry_id: entry_date, type: entry_date ? 'sent' : 'opening', entry_date, amount: 100, open: o });
+  const oldest = oldestByParty([open('a', '2026-10-20', 10), open('a', '2026-10-05', 0), open('a', '2026-10-12', 5), open('b', null, 3), open('b', '2026-09-01', 3), open('c', '2026-11-01', 9)]);
+  it('finds each name’s oldest open bill', () => {
+    expect([...oldest.entries()]).toEqual([['a', '2026-10-12'], ['b', null], ['c', '2026-11-01']]);
+  });
+  it('orders by most pending, oldest due or name', () => {
+    const row = (id: string, balance: number) => ({ party: { id, name: id.toUpperCase() }, balance });
+    const rows = [row('c', 900), row('a', 15), row('d', 0), row('b', 6)];
+    expect(sortParties(rows, 'pending', oldest).map((r) => r.party.id)).toEqual(['c', 'a', 'b', 'd']);
+    expect(sortParties(rows, 'oldest', oldest).map((r) => r.party.id)).toEqual(['b', 'a', 'c', 'd']);
+    expect(sortParties(rows, 'name', oldest).map((r) => r.party.id)).toEqual(['a', 'b', 'c', 'd']);
   });
 });
 

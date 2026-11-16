@@ -36,7 +36,7 @@ function Figure({ label, value, sub, tone }: { label: string; value: string; sub
     <View className="min-w-0 flex-1 rounded-2xl border border-border-soft bg-surface-elevated px-3.5 py-3" style={{ minHeight: 86 }}>
       <Text className="text-xs font-bold text-text-secondary" numberOfLines={1}>{label}</Text>
       <Text style={{ marginTop: 2, fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: tone ?? colors.textPrimary, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{value}</Text>
-      {sub ? <Text className="mt-0.5 text-xs font-semibold text-text-secondary" numberOfLines={1}>{sub}</Text> : null}
+      {sub ? <Text className="mt-0.5 text-xs font-semibold leading-4 text-text-secondary" numberOfLines={2}>{sub}</Text> : null}
     </View>
   );
 }
@@ -146,13 +146,13 @@ export function MonthCloseWorkspace() {
   const t = data?.totals;
   const cashAndBank = t && t.endCash !== null && t.endBank !== null ? t.endCash + t.endBank : null;
   const figures = t ? [
-    <Figure key="sales" label="Sales to branches" value={money(t.sales)} sub={t.carriedSales > 0 ? `incl. ${money(t.carriedSales)} brought forward` : null} />,
-    <Figure key="purchases" label="Purchases" value={money(t.purchases)} sub={t.carriedPurchases > 0 ? `incl. ${money(t.carriedPurchases)} from earlier` : null} />,
+    <Figure key="sales" label="Sales to branches" value={money(t.sales)} sub={t.carriedSales > 0 ? `${money(t.carriedSales)} brought forward` : null} />,
+    <Figure key="purchases" label="Purchases" value={money(t.purchases)} sub={t.carriedPurchases > 0 ? `${money(t.carriedPurchases)} from earlier` : null} />,
     <Figure key="expenses" label="Expenses" value={money(t.expenses)} sub={t.expensesLater > 0 ? `${money(t.expensesLater)} to pay later` : null} />,
     <Figure key="in" label="Money in" value={money(t.cashIn + t.bankIn)} sub={showAmounts ? `Cash ${formatMoney(t.cashIn)} · Bank ${formatMoney(t.bankIn)}` : null} tone={semantic.success} />,
     <Figure key="out" label="Money out" value={money(t.cashOut + t.bankOut)} sub={showAmounts ? `Cash ${formatMoney(t.cashOut)} · Bank ${formatMoney(t.bankOut)}` : null} tone={semantic.danger} />,
-    <Figure key="end" label={fullMonth ? 'Cash and bank at month end' : 'Cash and bank at the end'} value={money(cashAndBank)}
-      sub={cashAndBank === null ? 'Opening balances not set for these dates' : showAmounts && t.endCash !== null && t.endBank !== null ? `Cash ${formatMoney(t.endCash)} · Bank ${formatMoney(t.endBank)}` : null} />,
+    <Figure key="end" label={fullMonth ? 'At month end' : 'At the end'} value={money(cashAndBank)}
+      sub={cashAndBank === null ? 'Set the opening cash and bank' : showAmounts && t.endCash !== null && t.endBank !== null ? `Cash ${formatMoney(t.endCash)} · Bank ${formatMoney(t.endBank)}` : null} />,
   ] : [];
   const perRow = desktop ? 3 : 2;
   const figureRows: React.ReactNode[][] = [];

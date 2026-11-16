@@ -160,3 +160,34 @@ export function monthCloseCsv(close: KitchenMonthClose): string {
   ];
   return lines.join('\n');
 }
+
+/** Task 319: each branch's or vendor's oldest open bill (null: the opening balance is still open). */
+export function oldestByParty(dues: readonly KitchenDue[]): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  for (const d of dues) {
+    if (d.open <= 0) continue;
+    const now = out.get(d.party_id);
+    if (d.entry_date === null) out.set(d.party_id, null);
+    else if (now === undefined || (now !== null && d.entry_date < now)) out.set(d.party_id, d.entry_date);
+  }
+  return out;
+}
+
+export type PartySort = 'pending' | 'oldest' | 'name';
+
+/** Task 319: the Branches and Vendors lists in the chosen order: most pending, oldest due first, or by name. */
+export function sortParties<T extends { party: { name: string; id: string }; balance: number }>(rows: readonly T[], sort: PartySort, oldest: ReadonlyMap<string, string | null>): T[] {
+  const byName = (a: T, b: T) => a.party.name.localeCompare(b.party.name);
+  return [...rows].sort((a, b) => {
+    if (sort === 'name') return byName(a, b);
+    if (sort === 'oldest') {
+      const x = oldest.has(a.party.id) ? oldest.get(a.party.id) ?? '' : undefined;
+      const y = oldest.has(b.party.id) ? oldest.get(b.party.id) ?? '' : undefined;
+      if (x !== undefined && y !== undefined && x !== y) return x < y ? -1 : 1;
+      if (x !== undefined && y === undefined) return -1;
+      if (x === undefined && y !== undefined) return 1;
+      return b.balance - a.balance || byName(a, b);
+    }
+    return b.balance - a.balance || byName(a, b);
+  });
+}

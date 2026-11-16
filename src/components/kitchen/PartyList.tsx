@@ -1,13 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
-import { Plus } from 'lucide-react-native';
+import { ArrowDownWideNarrow, Plus } from 'lucide-react-native';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { colors, semantic } from '@/lib/pos/brand';
 import { formatDayLabel, formatMoney, matchesSearch, sumDues } from '@/lib/pos/kitchen-utils';
 import type { KitchenPartyKind } from '@/lib/pos/kitchen-types';
+import { fetchKitchenDues } from '@/lib/pos/kitchen-dues-service';
+import { oldestByParty, sinceLabel, sortParties, type PartySort } from '@/lib/pos/kitchen-dues-utils';
+import { ReportSelect } from './ReportSelect';
 import { Avatar, Card, Empty, GhostButton, IconButton, KHeader, KScreen, Notice, Row, SearchBox, Skeleton, StatTile, useDesktopDensity } from './ui';
 import { PartyDetail } from './PartyDetail';
 
@@ -23,16 +26,24 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
   const desktop = useDesktopDensity();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  // Task 319: how long each name has had something open, and the list's order.
+  const [sort, setSort] = useState<PartySort>('pending');
+  const [oldest, setOldest] = useState<ReadonlyMap<string, string | null>>(new Map());
+  useEffect(() => {
+    let live = true;
+    void fetchKitchenDues(null, null, true).then((res) => { if (live && res.data) setOldest(oldestByParty(res.data)); });
+    return () => { live = false; };
+  }, [data.balances]);
   const copy = COPY[kind];
   const balanceOf = useMemo(() => new Map(data.balances.map((b) => [b.party_id, b])), [data.balances]);
   const rows = useMemo(
     () =>
       data.parties
         .filter((p) => p.kind === kind && matchesSearch(query, p.name, p.phone))
-        .map((p) => ({ party: p, balance: balanceOf.get(p.id)?.balance ?? 0, last: balanceOf.get(p.id)?.last_entry_date ?? null }))
-        .sort((a, b) => b.balance - a.balance || a.party.name.localeCompare(b.party.name)),
+        .map((p) => ({ party: p, balance: balanceOf.get(p.id)?.balance ?? 0, last: balanceOf.get(p.id)?.last_entry_date ?? null })),
     [data.parties, kind, query, balanceOf],
   );
+  const sorted = useMemo(() => sortParties(rows, sort, oldest), [rows, sort, oldest]);
   const total = sumDues(data.balances, kind);
   const ofKind = data.parties.filter((p) => p.kind === kind);
   const owing = ofKind.filter((p) => (balanceOf.get(p.id)?.balance ?? 0) > 0).length;
@@ -40,7 +51,7 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
   const addParty = () => router.push({ pathname: '/central-kitchen/party-form', params: { kind } });
   const { can, showAmounts } = useKitchenAccess();
   const mayAdd = can('setup.parties');
-  const current = isTablet ? (selected && data.partiesById.has(selected) ? selected : rows[0]?.party.id ?? null) : null;
+  const current = isTablet ? (selected && data.partiesById.has(selected) ? selected : sorted[0]?.party.id ?? null) : null;
 
   const list = (
     <>
@@ -57,18 +68,26 @@ export function PartyList({ kind }: { kind: KitchenPartyKind }) {
           ) : null}
         </View>
       </Card> : null}
-      <SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} />
+      <View className="flex-row items-center gap-2">
+        <View className="min-w-0 flex-1"><SearchBox value={query} onChange={setQuery} placeholder={kind === 'branch' ? 'Search branches' : 'Search vendors'} /></View>
+        <View className="w-[136px]">
+          <ReportSelect label="Order" toolbar allowEmpty={false} triggerIcon={ArrowDownWideNarrow} value={sort}
+            options={[{ id: 'pending', label: 'Most pending' }, { id: 'oldest', label: 'Oldest due' }, { id: 'name', label: 'Name' }]}
+            triggerText={sort === 'pending' ? 'Pending' : sort === 'oldest' ? 'Oldest due' : 'Name'}
+            onChange={(v) => { if (v === 'pending' || v === 'oldest' || v === 'name') setSort(v); }} />
+        </View>
+      </View>
       <Card padded={false} style={{ paddingHorizontal: 14, marginTop: 12, overflow: 'hidden' }}>
         {!data.loaded ? (
           <View style={{ paddingVertical: 14, gap: 8 }}><Skeleton height={44} /><Skeleton height={44} /><Skeleton height={44} /></View>
         ) : rows.length === 0 ? (
           <Empty title={query ? 'No name matches that' : copy.empty} body={query ? undefined : copy.emptyBody} action={query || !mayAdd ? undefined : <GhostButton small icon={Plus} tone="primary" label={copy.add} onPress={addParty} />} />
         ) : (
-          rows.map(({ party, balance, last }) => (
+          sorted.map(({ party, balance, last }) => (
             <Row
               key={party.id}
               title={party.name}
-              subtitle={last ? `Last entry ${formatDayLabel(last)}` : 'No entries yet'}
+              subtitle={balance > 0 && oldest.has(party.id) ? `Due ${sinceLabel(oldest.get(party.id)) ?? ''}` : last ? `Last entry ${formatDayLabel(last)}` : 'No entries yet'}
               // Task 303: the card above says what the figures are; a row only says so when it differs.
               right={showAmounts && balance !== 0 ? formatMoney(Math.abs(balance)) : undefined}
               rightSub={!showAmounts || balance > 0 ? undefined : balance < 0 ? (kind === 'branch' ? 'paid ahead' : 'overpaid') : 'Settled'}
