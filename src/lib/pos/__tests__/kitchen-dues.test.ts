@@ -1,4 +1,4 @@
-import { ageBucket, ageingOf, daysBetween, dueState, fifoClear, monthCloseRows, monthCloseSums, oldestOpen, sinceLabel } from '../kitchen-dues-utils';
+import { ageBucket, ageingOf, daysBetween, dueState, fifoClear, monthCloseRows, monthCloseSums, oldestOpen, sinceLabel, withCovers } from '../kitchen-dues-utils';
 import { parseKitchenDues, parseKitchenMonthClose } from '../kitchen-dues-service';
 import type { KitchenDue, KitchenMonthCloseParty } from '../kitchen-dues-types';
 
@@ -48,6 +48,12 @@ describe('what a payment clears, oldest first (task 317)', () => {
     const out = fifoClear(dues, 33000.25);
     expect(out.cleared).toHaveLength(3);
     expect(out.ahead).toBe(1250.25);
+  });
+  it('lets bills picked by hand take their part before the rest clears oldest first', () => {
+    const picked = withCovers(dues, [{ entry_id: 'e-2026-11-02-4000', amount: 4000 }]);
+    expect(picked?.find((d) => d.entry_date === '2026-11-02')?.open).toBe(0);
+    expect(fifoClear(picked ?? [], 20000).cleared.map((c) => c.due.entry_date)).toEqual(['2026-10-12', '2026-10-20']);
+    expect(withCovers(null, [])).toBeNull();
   });
   it('puts the opening balance first', () => {
     expect(fifoClear([due('2026-10-01', 100, 100), due(null, 50, 50)], 60).cleared[0]?.due.entry_id).toBeNull();

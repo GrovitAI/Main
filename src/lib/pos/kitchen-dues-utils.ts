@@ -113,3 +113,15 @@ export function monthCloseSums(parties: readonly KitchenMonthCloseParty[]): { at
   }
   return { atStart: fromPaise(t.atStart), bills: fromPaise(t.bills), paid: fromPaise(t.paid), atEnd: fromPaise(t.atEnd) };
 }
+
+/** Task 317: the open amounts once the bills picked by hand take their part of a payment. */
+export function withCovers(dues: readonly KitchenDue[] | null, covers: readonly { entry_id: string; amount: number }[]): KitchenDue[] | null {
+  if (dues === null) return null;
+  if (covers.length === 0) return [...dues];
+  const taken = new Map<string, number>();
+  for (const c of covers) taken.set(c.entry_id, (taken.get(c.entry_id) ?? 0) + toPaise(c.amount));
+  return dues.map((d) => {
+    const t = d.entry_id ? taken.get(d.entry_id) : undefined;
+    return t ? { ...d, open: fromPaise(Math.max(0, toPaise(d.open) - t)) } : d;
+  });
+}

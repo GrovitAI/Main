@@ -3,12 +3,13 @@
  * (cleared, part left, open); a strip of how old the open amounts are, each part a filter; and a
  * preview of which bills an amount being paid will clear, oldest first.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { colors } from '@/lib/pos/brand';
 import { formatMoney, formatDayLabel, typeLabel } from '@/lib/pos/kitchen-utils';
 import { dueState, fifoClear } from '@/lib/pos/kitchen-dues-utils';
+import { fetchKitchenDues } from '@/lib/pos/kitchen-dues-service';
 import type { KitchenAgeBucket, KitchenAgeing, KitchenDue } from '@/lib/pos/kitchen-dues-types';
 import { toneColor, toneSoft, type Tone } from './ui';
 
@@ -55,6 +56,19 @@ export function AgeingStrip({ ageing, value, onChange, showAmounts = true }: { a
       })}
     </View>
   );
+}
+
+/** Task 317: a branch's or vendor's open bills for a payment form; nothing is loaded without a party. */
+export function usePartyDues(partyId: string | null): { dues: KitchenDue[] | null; loading: boolean } {
+  const [state, setState] = useState<{ party: string; dues: KitchenDue[] | null } | null>(null);
+  useEffect(() => {
+    if (!partyId) return;
+    let live = true;
+    void fetchKitchenDues(partyId).then((res) => { if (live) setState({ party: partyId, dues: res.data }); });
+    return () => { live = false; };
+  }, [partyId]);
+  const mine = partyId !== null && state?.party === partyId;
+  return { dues: mine ? state.dues : null, loading: partyId !== null && !mine };
 }
 
 /**

@@ -14,7 +14,9 @@ import { placeOf, sameParticular } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenCategory, KitchenEntryType, KitchenMode, KitchenOpenDocument, KitchenRouteDir, KitchenUnit, PostEntryInput } from '@/lib/pos/kitchen-types';
 import type { KitchenStaffMember } from '@/lib/pos/kitchen-attendance-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Avatar, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { Avatar, Field, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { FifoPreview, usePartyDues } from '@/components/kitchen/Dues';
+import { withCovers } from '@/lib/pos/kitchen-dues-utils';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { colors } from '@/lib/pos/brand';
 import { buzz } from '@/lib/pos/kitchen-haptics';
@@ -119,6 +121,11 @@ export default function SpentScreen() {
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
   const dateOk = useDateGuard(date, lockReason);
   const isVendor = kind === 'vendor';
+  // Task 317: what the money not matched by hand clears, oldest first; choosing bills is a link away.
+  const [docsOpen, setDocsOpen] = useState(false);
+  const vendorDues = usePartyDues(isVendor && !editing ? partyId : null);
+  const coveredSum = covers.reduce((sum, c) => sum + c.amount, 0);
+  const fifo = !editing && isVendor && partyId ? <FifoPreview dues={withCovers(vendorDues.dues, covers)} amount={Math.round((amount - coveredSum) * 100) / 100} kind="vendor" loading={vendorDues.loading} /> : null;
   const qty = qtyText ? Number(qtyText) : null;
   const routeBranch = routeParty ? data.partiesById.get(routeParty) ?? null : null;
   const person = rosterId ? roster?.find((r) => r.id === rosterId) ?? null : null;
@@ -286,10 +293,12 @@ export default function SpentScreen() {
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
       </SettingsGroup>
-      {phone ? afterLine : null}
-      <Field label="Against which bills" optional>
-        <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
-      </Field>
+      {phone ? <>{afterLine}{fifo}</> : null}
+      {docsOpen || editing ? (
+        <Field label="Against which bills" optional>
+          <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
+        </Field>
+      ) : <View className="mt-1 items-start"><LinkButton label="Choose bills" onPress={() => setDocsOpen(true)} /></View>}
     </>
   ) : (
     <Field label="Vendor">
@@ -316,7 +325,7 @@ export default function SpentScreen() {
             <View className="min-w-0 flex-1">
               <Field label="Amount">
                 <TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big />
-                {isVendor ? afterLine : null}
+                {isVendor ? <>{afterLine}{fifo}</> : null}
               </Field>
             </View>
           </View>
