@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { Text } from '@/components/ui/Typography';
-import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, PackageOpen, type LucideIcon } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, ShoppingBag, ArrowUp, Receipt, CookingPot, ClipboardList, PackageOpen, History, type LucideIcon } from 'lucide-react-native';
 import type { KitchenEntry, KitchenEntryType, KitchenItem, KitchenParty } from '@/lib/pos/kitchen-types';
 import { entryAmountText, entryBrief, entryHeadline, entryNames, entrySubline, formatDayLabel, formatEnteredAt, isMoneyIn, isMoneyOut, newestFirst } from '@/lib/pos/kitchen-utils';
 import { Row, type Tone } from './ui';
@@ -17,6 +17,7 @@ export const ENTRY_ICONS: Record<KitchenEntryType, LucideIcon> = {
   made: CookingPot,
   count: ClipboardList,
   issued: PackageOpen,
+  carried: History,
 };
 
 export function entryIconTone(e: KitchenEntry): Tone {

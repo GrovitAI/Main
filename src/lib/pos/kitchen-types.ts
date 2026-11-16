@@ -13,8 +13,11 @@ export type KitchenItemKind = 'raw_material' | 'finished_good';
 
 export type KitchenPartyKind = 'branch' | 'vendor';
 export type KitchenMode = 'cash' | 'upi' | 'bank';
-/** 'issued' (task 242): raw materials given to the kitchen from the store, which counts as used. */
-export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent' | 'made' | 'count' | 'issued';
+/**
+ * 'issued' (task 242): raw materials given to the kitchen from the store, which counts as used.
+ * 'carried' (task 313): Pending from earlier, an amount a branch owed or the kitchen owed a vendor as of a date.
+ */
+export type KitchenEntryType = 'sent' | 'received' | 'bought' | 'paid' | 'spent' | 'made' | 'count' | 'issued' | 'carried';
 
 export type KitchenItem = {
   id: string;
@@ -119,7 +122,7 @@ export type KitchenEntry = {
   qty: number | null;
   from_qty: number | null;
   amount: number;
-  /** A buy paid on the spot. Always true for every other type. */
+  /** A buy or an expense paid on the spot (false: pay later, task 313). False for Pending from earlier; true for every other type. */
   paid: boolean;
   mode: KitchenMode | null;
   category: string | null;
@@ -164,11 +167,11 @@ export type KitchenPartyBalance = {
   last_entry_date: string | null;
 };
 
-/** A pay-later buy or a send that money can still be matched against. */
+/** A pay-later buy or expense, a send, or Pending from earlier (task 313) that money can still be matched against. */
 export type KitchenOpenDocument = {
   entry_id: string;
   party_id: string;
-  type: 'bought' | 'sent';
+  type: 'bought' | 'sent' | 'spent' | 'carried';
   entry_date: string;
   amount: number;
   covered: number;
@@ -184,7 +187,10 @@ export type PostEntryInput =
   | { type: 'sent'; party_id: string; entry_date?: string; lines: PostLineInput[]; note?: string | null }
   | { type: 'bought'; party_id: string; entry_date?: string; lines: PostLineInput[]; paid: boolean; mode?: KitchenMode | null; note?: string | null; purchase_category_id?: string | null }
   | { type: 'received' | 'paid'; party_id: string; entry_date?: string; amount: number; mode: KitchenMode; note?: string | null; covers?: CoverInput[] }
-  | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode; category: string; note?: string | null; spend?: SpendDetails }
+  /** Task 313: paid false is Pay later, with the vendor in party_id and no mode. */
+  | { type: 'spent'; entry_date?: string; amount: number; mode: KitchenMode | null; category: string; note?: string | null; spend?: SpendDetails; paid?: boolean; party_id?: string | null }
+  /** Task 313: Pending from earlier: what a branch or vendor stood at as of a date. */
+  | { type: 'carried'; party_id: string; entry_date: string; amount: number; note?: string | null }
   | { type: 'made' | 'count'; item_id: string; entry_date?: string; qty: number; note?: string | null }
   | { type: 'issued'; entry_date?: string; lines: { item_id: string; qty: number }[]; note?: string | null };
 

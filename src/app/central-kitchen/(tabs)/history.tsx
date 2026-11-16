@@ -59,7 +59,7 @@ export default function HistoryScreen() {
   const open = openId ? entriesById.get(openId) ?? null : null;
   const rows = useMemo(() => filterKitchenHistory(data.entries, filters, entry => {
     const names = entryNames(entry, data.partiesById, data.itemsById);
-    return [entryHeadline(entry, names), entrySubline(entry, data.itemsById), entryAmountText(entry), entry.purchase_category_name, entry.category, entry.note];
+    return [entryHeadline(entry, names), entrySubline(entry, data.itemsById, names), entryAmountText(entry), entry.purchase_category_name, entry.category, entry.note];
   }), [data.entries, data.partiesById, data.itemsById, filters]);
   // Task 216: a heading for each day, pinned at the top while its entries scroll.
   const sections = useMemo(() => historySections(rows, filters.sort), [rows, filters.sort]);
