@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, View, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
@@ -8,9 +8,13 @@ import { setKitchenPartyActive } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { confirmAction } from '@/lib/pos/dialogs';
 import { colors, semantic } from '@/lib/pos/brand';
-import { formatMoney, statementLine, statementRows, whatsappUrl } from '@/lib/pos/kitchen-utils';
+import { formatDayLabel, formatMoney, localDateKey, matchesSearch, statementLine, statementRows, whatsappUrl } from '@/lib/pos/kitchen-utils';
+import { fetchKitchenDues } from '@/lib/pos/kitchen-dues-service';
+import { ageBucket, ageingOf, oldestOpen } from '@/lib/pos/kitchen-dues-utils';
 import type { KitchenEntry } from '@/lib/pos/kitchen-types';
-import { Card, DateTile, Empty, GhostButton, KHeader, MoneyFigure, MoreMenu, Notice, PrimaryButton, Row, Section, SPLIT_FROM, stickySide, useDesktopDensity, type MenuItem } from './ui';
+import type { KitchenAgeBucket, KitchenDue } from '@/lib/pos/kitchen-dues-types';
+import { AgeingStrip, DueTag } from './Dues';
+import { Card, DateTile, Empty, GhostButton, KHeader, MoneyFigure, MoreMenu, Notice, PrimaryButton, Row, SearchBox, Section, SPLIT_FROM, stickySide, Toggle, useDesktopDensity, type MenuItem } from './ui';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { EntryActions } from './EntryActions';
 
@@ -35,6 +39,40 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const phone = !useResponsive().isTablet;
   // Both the empty and the loaded view measure, so the width is known from the first render.
   const measure = (e: LayoutChangeEvent): void => setWidth(e.nativeEvent.layout.width);
+
+  // Task 316: what is still open on each bill (matches by hand first, then oldest first), loaded
+  // again whenever the balance moves; the statement can show only what is open, by age, or a search.
+  const [loadedDues, setLoadedDues] = useState<{ party: string; list: KitchenDue[] } | null>(null);
+  const [duesError, setDuesError] = useState<string | null>(null);
+  const [openOnly, setOpenOnly] = useState(false);
+  const [bucket, setBucket] = useState<KitchenAgeBucket | null>(null);
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    let live = true;
+    void fetchKitchenDues(partyId).then((res) => {
+      if (!live) return;
+      setDuesError(res.error);
+      if (res.data) setLoadedDues({ party: partyId, list: res.data });
+    });
+    return () => { live = false; };
+  }, [partyId, balance]);
+  useEffect(() => { setBucket(null); setOpenOnly(false); setQuery(''); }, [partyId]);
+  const dues = loadedDues?.party === partyId ? loadedDues.list : null;
+  const today = localDateKey();
+  const dueById = useMemo(() => new Map((dues ?? []).filter((d) => d.entry_id !== null).map((d) => [d.entry_id as string, d])), [dues]);
+  const openingDue = dues?.find((d) => d.entry_id === null) ?? null;
+  const ageing = useMemo(() => ageingOf(dues ?? [], today), [dues, today]);
+  const oldest = dues ? oldestOpen(dues) : undefined;
+  const shownRows = useMemo(() => rows.filter(({ entry }) => {
+    const due = dueById.get(entry.id);
+    if ((openOnly || bucket) && (!due || due.open <= 0)) return false;
+    if (bucket && due && ageBucket(due.entry_date, today) !== bucket) return false;
+    if (!query.trim()) return true;
+    const line = statementLine(entry, data.itemsById);
+    return matchesSearch(query, line.title, line.subtitle, entry.note, String(entry.amount), formatMoney(entry.amount), formatDayLabel(entry.entry_date));
+  }), [rows, dueById, openOnly, bucket, query, today, data.itemsById]);
+  const showOpening = party !== null && party.opening !== 0 && !query.trim()
+    && (!(openOnly || bucket) || ((openingDue?.open ?? 0) > 0 && (bucket === null || bucket === 'over60')));
 
   if (!party) {
     return (
@@ -67,6 +105,9 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   const figure = (
     <>
       <MoneyFigure text={showAmounts ? formatMoney(Math.abs(balance)) : '—'} size={desktop ? 28 : 38} color={tone} />
+      {balance > 0 && oldest !== undefined ? (
+        <Text className="mt-1 text-xs font-bold text-text-secondary">Oldest due {oldest === null ? 'from before the app' : formatDayLabel(oldest)}</Text>
+      ) : null}
       {party.phone && !phone ? (
         <Pressable onPress={() => void Linking.openURL(whatsappUrl('', party.phone)).catch(() => undefined)} accessibilityRole="link" accessibilityLabel={`WhatsApp ${party.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 32, opacity: pressed ? 0.6 : 1 })}>
           <MessageCircle size={16} color={semantic.success} />
@@ -95,13 +136,18 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
   );
   const history = (
     <Section title="Give and take">
+      {balance > 0 && dues && showAmounts ? <View className="mb-2.5"><AgeingStrip ageing={ageing} value={bucket} onChange={setBucket} /></View> : null}
+      {rows.length > 0 ? <View className="mb-2.5"><SearchBox value={query} onChange={setQuery} placeholder="Search this statement" /></View> : null}
       <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
+        {rows.length > 0 && dues ? <View style={{ marginHorizontal: -14, marginTop: -1 }}><Toggle label="Open only" on={openOnly} onChange={setOpenOnly} /></View> : null}
+        {rows.length > 0 && shownRows.length === 0 && !showOpening ? <Empty title={query.trim() ? 'No match' : 'Nothing open here'} /> : null}
         {rows.length === 0 && party.opening === 0 ? (
           <Empty title="Nothing yet" body={isBranch ? 'Sends and payments from this branch will show here, with the figure after each.' : 'Buys and payments to this vendor will show here, with the figure after each.'} />
         ) : (
-          rows.map(({ entry, balanceAfter }) => {
+          shownRows.map(({ entry, balanceAfter }) => {
             const moneyBack = entry.type === 'received' || entry.type === 'paid';
             const line = statementLine(entry, data.itemsById);
+            const due = dueById.get(entry.id);
             return (
               <Row
                 key={entry.id}
@@ -111,12 +157,13 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
                 right={showAmounts ? `${moneyBack ? '−' : ''}${formatMoney(entry.amount)}` : undefined}
                 rightSub={showAmounts ? `Bal ${formatMoney(balanceAfter)}` : undefined}
                 tone={moneyBack ? 'in' : 'neutral'}
+                tag={due ? <DueTag due={due} showAmounts={showAmounts} /> : undefined}
                 onPress={() => setOpen(entry)}
               />
             );
           })
         )}
-        {party.opening !== 0 ? (
+        {showOpening ? (
           // The oldest line: what stood between us before the app, set on the name's edit page.
           <Row
             icon={phone ? Flag : undefined}
@@ -125,9 +172,11 @@ export function PartyDetail({ partyId, standalone = false, onRemoved }: Props) {
             right={showAmounts ? formatMoney(Math.abs(party.opening)) : undefined}
             rightSub={!showAmounts ? undefined : party.opening > 0 ? (isBranch ? 'yet to pay' : 'we owed') : isBranch ? 'paid ahead' : 'overpaid'}
             tone="neutral"
+            tag={openingDue ? <DueTag due={openingDue} showAmounts={showAmounts} /> : undefined}
           />
         ) : null}
       </Card>
+      {duesError ? <Notice text={duesError} /> : null}
       <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 8 }}>Shows the last three months; the balance counts everything.</Text>
     </Section>
   );
