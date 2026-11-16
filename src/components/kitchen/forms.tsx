@@ -13,7 +13,7 @@ import { colors } from '@/lib/pos/brand';
 import { fetchKitchenOpenDocuments, saveKitchenParty } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { kitchenCalendarDays, kitchenMonthLabel, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
-import { KITCHEN_MODES, formatDayLabel, formatLongDate, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor } from '@/lib/pos/kitchen-utils';
+import { KITCHEN_MODES, formatDayLabel, formatLongDate, formatMoney, formatQty, lineTotal, linesTotal, localDateKey, matchesSearch, stepFor, typeLabel } from '@/lib/pos/kitchen-utils';
 import type { KitchenItem, KitchenMode, KitchenOpenDocument, KitchenParty, KitchenPartyBalance, KitchenPartyKind } from '@/lib/pos/kitchen-types';
 import { AddChip, Avatar, ChoiceButtons, Chips, Field, Notice, PrimaryButton, QtyStepper, SearchBox, Segmented, TextField, Tick, type ChipOption } from './ui';
 
@@ -443,7 +443,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
   }, [partyId, reopenPaymentId]);
 
   if (!partyId) return null;
-  const noun = kind === 'vendor' ? 'buys' : 'sends';
+  const noun = kind === 'vendor' ? 'bills' : 'sends';
   if (!loading && docs.length === 0) {
     return <Text className="text-text-secondary" style={{ fontSize: 13, fontWeight: '600' }}>No open {noun}.</Text>;
   }
@@ -453,7 +453,8 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
       {docs.map((d) => {
         const on = ticked.has(d.entry_id);
         const e = entryById.get(d.entry_id);
-        const what = e ? e.lines.map((l) => itemsById.get(l.item_id)?.name ?? 'item').join(', ') : '';
+        // Task 315: a Pay later expense and Pending from earlier have no items; their particular or note says what they were.
+        const what = !e ? '' : e.lines.length > 0 ? e.lines.map((l) => itemsById.get(l.item_id)?.name ?? 'item').join(', ') : e.note ?? '';
         return (
           <Pressable
             key={d.entry_id}
@@ -465,7 +466,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
             }}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: on }}
-            accessibilityLabel={`${d.type === 'bought' ? 'Buy' : 'Send'} of ${formatDayLabel(d.entry_date)}, ${formatMoney(d.open)} open`}
+            accessibilityLabel={`${typeLabel(d.type)} of ${formatDayLabel(d.entry_date)}, ${formatMoney(d.open)} open`}
             // Task 226: the row reaches the card edges so its hover does; the divider stays inset.
             style={({ pressed }) => ({ marginHorizontal: -14, paddingHorizontal: 14, opacity: pressed ? 0.6 : 1 })}
           >
@@ -473,7 +474,7 @@ export function OpenDocsPicker({ partyId, kind, itemsById, ticked, onChange, reo
             <Tick on={on} />
             <View className="flex-1" style={{ minWidth: 0 }}>
               <Text className="text-text-primary" style={{ fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
-                {d.type === 'bought' ? 'Bought' : 'Sent'} · {formatDayLabel(d.entry_date)}
+                {typeLabel(d.type)} · {formatDayLabel(d.entry_date)}
               </Text>
               {what ? <Text className="text-text-secondary" style={{ fontSize: 12, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{what}</Text> : null}
             </View>
