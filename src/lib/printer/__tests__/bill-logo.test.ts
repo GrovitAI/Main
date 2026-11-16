@@ -1,5 +1,5 @@
 import { printerService } from '@/lib/printer/printer-service';
-import { BILL_LOGO } from '@/lib/printer/bill-logo';
+import { billLogoForPrint } from '@/lib/printer/bill-logo';
 import { apiFetch } from '@/lib/pos/api-client';
 
 jest.mock('@/lib/pos/tenant-context', () => ({ getTenantContext: () => ({ tenant_id: 'tenant', branch_id: 'branch' }) }));
@@ -19,17 +19,21 @@ test('a bill carries the logo as an ESC/POS raster picture, byte for byte', asyn
   const call = (apiFetch as jest.Mock).mock.calls.find(([path]) => path === '/api/printjobs');
   expect(call).toBeDefined();
   const bytes = Buffer.from(call?.[1].body.base64Content as string, 'base64');
-  const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, BILL_LOGO.widthDots / 8, 0, BILL_LOGO.heightDots, 0]);
+  // Task 311: the badge prints at three quarters (192 x 120 dots).
+  const logo = billLogoForPrint();
+  expect([logo.widthDots, logo.heightDots]).toEqual([192, 120]);
+  const header = Buffer.from([0x1d, 0x76, 0x30, 0x00, logo.widthDots / 8, 0, logo.heightDots, 0]);
   const at = bytes.indexOf(header);
   expect(at).toBeGreaterThan(0);
-  const picture = Buffer.from(BILL_LOGO.base64, 'base64');
+  const picture = Buffer.from(logo.bytes);
   expect(bytes.subarray(at + header.length, at + header.length + picture.length).equals(picture)).toBe(true);
   // The old request for a logo kept in the printer's memory is gone, and the text still reads.
   expect(bytes.includes(Buffer.from([0x1c, 0x70, 0x01, 0x00]))).toBe(false);
   expect(bytes.includes(Buffer.from('Mousse café', 'utf8'))).toBe(true);
 });
 
-// Task 288: the optional customer prints under the bill details, and nothing when left out.
+// Task 288: the optional customer prints under the bill details, and nothing when left out
+// (task 311: name and number share a line when they fit).
 test('a bill prints the customer name and number only when given', async () => {
   const bill = async (customer?: { name: string | null; phone: string | null }): Promise<string> => {
     (apiFetch as jest.Mock).mockClear();
@@ -38,11 +42,10 @@ test('a bill prints the customer name and number only when given', async () => {
     return Buffer.from(call?.[1].body.base64Content as string, 'base64').toString('latin1');
   };
   const withCustomer = await bill({ name: 'Ravi Kumar', phone: '9876543210' });
-  expect(withCustomer).toContain('Customer: Ravi Kumar\n');
-  expect(withCustomer).toContain('Phone: 9876543210\n');
+  expect(withCustomer).toMatch(/Customer: Ravi Kumar +Ph: 9876543210\n/);
   const nameOnly = await bill({ name: 'Ravi', phone: null });
   expect(nameOnly).toContain('Customer: Ravi\n');
-  expect(nameOnly).not.toContain('Phone:');
+  expect(nameOnly).not.toContain('Ph:');
   const none = await bill();
   expect(none).not.toContain('Customer:');
 });
