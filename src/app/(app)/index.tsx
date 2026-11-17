@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Line, Path, Defs, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
-import { printReceipt, buildReceiptText, isPrintAgentRunning } from '@/services/printService';
+import { isPrintAgentRunning } from '@/services/printService';
 import { getBranchTaxPercentage } from '@/lib/pos/pos-settings-service';
 import { useActiveInterval } from '@/lib/pos/use-active-interval';
 
@@ -261,6 +261,7 @@ export default function PosBillingScreen() {
   const holdOrder = useOrdersStore((s) => s.holdOrder);
   const saveKot = useOrdersStore((s) => s.saveKot);
   const saveAndPrint = useOrdersStore((s) => s.saveAndPrint);
+  const reprintActiveBill = useOrdersStore((s) => s.reprintActiveBill);
   const settleBill = useOrdersStore((s) => s.settleBill);
   const cancelOrder = useOrdersStore((s) => s.cancelOrder);
   const enterEditMode = useOrdersStore((s) => s.enterEditMode);
@@ -269,9 +270,6 @@ export default function PosBillingScreen() {
 
   const session = useSessionStore((s) => s.session);
   const { requestApproval } = useApprovalFlow();
-  const currentBranch = useMemo(() => {
-    return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
-  }, [session]);
 
   // GST rate for this branch, 0 when the branch charges none. Read once per
   // branch: the cart, the printed bill and the settlement must all use it.
@@ -715,27 +713,8 @@ export default function PosBillingScreen() {
   const doReprintActiveBill = useCallback(async () => {
     if (!activeOrder) return;
     try {
-      // printReceipt uses the branch's default bill printer from Settings → Printers;
-      // the old browser-only printer name is no longer required.
-      const printerName = 'default';
-
-      const totalAmount = activeOrderItems.reduce((sum, item) => sum + item.qty * item.price, 0);
-      const items = activeOrderItems.map((item) => ({
-        name: item.product_name || item.item_name || 'Item',
-        qty: item.qty,
-        price: item.price,
-      }));
-
-      const receiptText = buildReceiptText(
-        activeOrder.order_name,
-        activeOrder.invoice_number,
-        items,
-        totalAmount,
-        activeOrder.payment_method,
-        currentBranch,
-        taxPercentage
-      );
-      const printResult = await printReceipt(printerName, receiptText);
+      // Task 320: the same compact bill Save & Print sends, on the branch's default bill printer.
+      const printResult = await reprintActiveBill();
       if (printResult.success) {
         showToast('Bill reprinted successfully.');
       } else {
@@ -745,7 +724,7 @@ export default function PosBillingScreen() {
       console.warn('[Reprint] Failed to reprint:', err);
       showToast('Failed to reprint bill.');
     }
-  }, [activeOrder, activeOrderItems, currentBranch, showToast]);
+  }, [activeOrder, reprintActiveBill, showToast]);
 
   const handleReprintActiveBill = useCallback(() => {
     if (!activeOrder) return;

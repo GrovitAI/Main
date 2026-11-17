@@ -18,7 +18,7 @@ import {
 } from '@/components/orders/OrderCard';
 import { formatPaymentMode } from '@/lib/pos/format-utils';
 import { colors } from '@/lib/pos/brand';
-import type { OrderStatus } from '@/lib/pos/order-types';
+import type { OpenOrder, OrderStatus } from '@/lib/pos/order-types';
 import type { OrderStatus as PhoneOrderStatus } from '@/components/phone/PhoneOrdersScreen';
 import { fetchOpenOrderById, getAllOrders, getOrders, settleOrderById, type OpenOrderSummary } from '@/lib/pos/open-orders-service';
 import { useApprovalFlow } from '@/lib/approval/use-approval-flow';
@@ -29,8 +29,7 @@ import { PhoneOrdersScreen } from '@/components/phone/PhoneOrdersScreen';
 import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { logSupabaseError } from '@/lib/pos/supabase-debug';
-import { printReceipt, buildReceiptText } from '@/services/printService';
-import { getBranchTaxPercentage } from '@/lib/pos/pos-settings-service';
+import { printerService } from '@/lib/pos/printer-service';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { webTextStyle } from '@/lib/pos/web-style';
 
@@ -191,18 +190,6 @@ export default function OrdersScreen() {
   const currentBranch = useMemo(() => {
     return session?.accessibleBranches?.find((b) => b.id === session.branchId) || null;
   }, [session]);
-
-  // GST rate for this branch, so a reprint matches the original bill.
-  const [taxPercentage, setTaxPercentage] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    void getBranchTaxPercentage().then((rate) => {
-      if (!cancelled) setTaxPercentage(rate);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.branchId]);
   const error = storeError;
 
   // ── UI state ────────────────────────────────────────────────────────────────
@@ -232,6 +219,8 @@ export default function OrdersScreen() {
   // ── Detail modal state ───────────────────────────────────────────────────────
   const [viewingOrderId, setViewingOrderId] = useState<string | null>(null);
   const [viewingItems, setViewingItems] = useState<{ name: string; qty: number; price?: number }[]>([]);
+  // Task 320: the order behind the bill, for the token, discount and customer a reprint prints.
+  const [viewingOrder, setViewingOrder] = useState<OpenOrder | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [modalFooterIndex, setModalFooterIndex] = useState(0);
 
@@ -499,6 +488,7 @@ export default function OrdersScreen() {
     setViewingOrderId(summary.order.id);
     setViewLoading(true);
     setViewingItems([]);
+    setViewingOrder(null);
 
     const result = await fetchOpenOrderById(summary.order.id);
     setViewLoading(false);
@@ -507,6 +497,7 @@ export default function OrdersScreen() {
       setViewingItems(summary.previewItems.map((item) => ({ name: item.name, qty: item.quantity })));
       return;
     }
+    setViewingOrder(result.data);
 
     const productNameById = useOrdersStore.getState().productNameById;
     const mergedMap: Record<string, { qty: number; price: number }> = {};
@@ -542,24 +533,23 @@ export default function OrdersScreen() {
   const doReprintPreviousBill = useCallback(async () => {
     if (!viewingSummary) return;
     try {
-      const orderName = viewingSummary.order.order_name || `Order #${viewingSummary.order.id}`;
-      const invoiceNumber = viewingSummary.order.invoice_number;
-      const totalAmount = viewingSummary.totalAmount;
-      const paymentMethod = viewingSummary.order.payment_method;
-
-      // printReceipt uses the branch's default bill printer from Settings → Printers;
-      // the old browser-only printer name is no longer required.
-      const printerName = 'default';
-
-      // Format items for print
-      const printItems = viewingItems.map((item) => ({
-        name: item.name,
-        qty: item.qty,
-        price: item.price ?? 0,
-      }));
-
-      const receiptText = buildReceiptText(orderName, invoiceNumber, printItems, totalAmount, paymentMethod, currentBranch, taxPercentage);
-      const printResult = await printReceipt(printerName, receiptText);
+      // Task 320: the same compact bill as the first print. The bill row gives the number, total,
+      // discount and payment; the order behind it gives the token, the discount's kind and the customer.
+      const bill = viewingSummary.order;
+      const order = viewingOrder?.id === bill.id ? viewingOrder : null;
+      const discountAmount = bill.discount_amount ?? order?.discount_amount ?? 0;
+      const itemsTotal = viewingItems.reduce((sum, item) => sum + item.qty * (item.price ?? 0), 0);
+      const printResult = await printerService.reprintBill({
+        orderName: order?.order_name ?? '',
+        invoiceNumber: bill.invoice_number,
+        items: viewingItems.map((item) => ({ item_name: item.name, qty: item.qty, price: item.price ?? 0 })),
+        totalAmount: viewingSummary.totalAmount > 0 ? viewingSummary.totalAmount : itemsTotal,
+        discountAmount,
+        discountType: discountAmount > 0 ? (order?.discount_type ?? 'fixed') : null,
+        discountValue: order?.discount_value ?? discountAmount,
+        customer: { name: order?.customer_name ?? null, phone: order?.customer_phone ?? null },
+        paymentMethod: bill.payment_method ?? null,
+      });
       if (printResult.success) {
         showToast('Bill reprinted successfully.');
       } else {
@@ -569,7 +559,7 @@ export default function OrdersScreen() {
       console.warn('[Reprint] Failed to reprint bill:', err);
       showToast('Failed to reprint bill.');
     }
-  }, [viewingSummary, viewingItems, currentBranch, taxPercentage, showToast]);
+  }, [viewingSummary, viewingItems, viewingOrder, showToast]);
 
   const handleReprintPreviousBill = useCallback(() => {
     if (!viewingSummary) return;
