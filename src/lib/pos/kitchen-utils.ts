@@ -558,12 +558,31 @@ export function changesToday(entries: readonly KitchenEntry[], today: string, da
 }
 
 /**
- * Task 306: whether an item's stock has moved since this count. Correcting a count sets the stock
- * again, so it would wipe out anything that happened after it.
+ * Task 321: what each item's stock stood at by the end of a day: the stock now less everything dated
+ * after it, as the database works it out when a count for that day is saved (kitchen_stock_on).
  */
-export function stockMovedSince(entries: readonly KitchenEntry[], count: KitchenEntry): boolean {
-  return entries.some((e) => isPosted(e) && e.id !== count.id && e.created_at > count.created_at
-    && (e.item_id === count.item_id || e.lines.some((l) => l.item_id === count.item_id)));
+export function stockOnDay(entries: readonly KitchenEntry[], items: readonly { id: string; stock: number }[], date: string): Map<string, number> {
+  const after = new Map<string, number>();
+  const add = (itemId: string | null, change: number): void => { if (itemId) after.set(itemId, (after.get(itemId) ?? 0) + change); };
+  for (const e of entries) {
+    if (e.voided_at !== null || e.entry_date <= date) continue;
+    if (e.type === 'made') add(e.item_id, e.qty ?? 0);
+    else if (e.type === 'count') add(e.item_id, e.qty === null || e.from_qty === null ? 0 : e.qty - e.from_qty);
+    else if (e.type === 'bought') for (const l of e.lines) add(l.item_id, l.qty);
+    else if (e.type === 'sent' || e.type === 'issued') for (const l of e.lines) add(l.item_id, -l.qty);
+  }
+  return new Map(items.map((i) => [i.id, round3(i.stock - (after.get(i.id) ?? 0))]));
+}
+
+/** Task 321: the latest count of each item on a day, so a forgotten day is easy to spot and nobody counts it twice. */
+export function countedOnDay(entries: readonly KitchenEntry[], date: string): Map<string, number> {
+  const out = new Map<string, { qty: number; at: string }>();
+  for (const e of entries) {
+    if (e.type !== 'count' || !isPosted(e) || e.entry_date !== date || !e.item_id || e.qty === null) continue;
+    const seen = out.get(e.item_id);
+    if (!seen || e.created_at > seen.at) out.set(e.item_id, { qty: e.qty, at: e.created_at });
+  }
+  return new Map([...out].map(([id, c]) => [id, c.qty]));
 }
 
 /** When an entry was keyed in, short: the time on the day it happened, otherwise the day it was entered. */
