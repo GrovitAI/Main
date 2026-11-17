@@ -82,6 +82,8 @@ type OrdersState = {
   holdOrder: () => Promise<void>;
   saveKot: () => Promise<boolean>;
   saveAndPrint: () => Promise<boolean>;
+  /** Task 320: the active bill again, exactly as Save & Print laid it out. */
+  reprintActiveBill: () => Promise<{ success: boolean; error?: string }>;
   settleBill: (paymentType?: string) => Promise<{ data: OpenOrder | null; error: string | null }>;
   cancelOrder: () => Promise<void>;
   enterEditMode: () => void;
@@ -1315,6 +1317,31 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     }
 
     return true;
+  },
+
+  reprintActiveBill: async () => {
+    const snapshot = get();
+    const activeOrder = snapshot.orders.find((o) => o.id === snapshot.activeOrderId);
+    if (!activeOrder || snapshot.activeOrderItems.length === 0) return { success: false, error: 'There is no bill to reprint.' };
+    // The same figures Save & Print sends: items at their prices, the cart's discount, the order's KOTs and customer.
+    const discountType = snapshot.discountType;
+    const discountValue = discountType === 'percent' ? snapshot.discountPercent : snapshot.discountAmount;
+    const totals = computeBillTotals(
+      snapshot.activeOrderItems.map((item) => ({ id: item.id, qty: item.qty, price: item.price ?? 0 })),
+      { discountType, discountValue },
+    );
+    return printerService.reprintBill({
+      orderName: activeOrder.order_name,
+      invoiceNumber: activeOrder.invoice_number,
+      items: snapshot.activeOrderItems,
+      totalAmount: totals.subtotal,
+      kots: snapshot.kotsByOrderId[activeOrder.id] ?? [],
+      discountAmount: totals.discountAmount,
+      discountType,
+      discountValue,
+      customer: { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null },
+      paymentMethod: activeOrder.payment_method ?? null,
+    });
   },
 
   saveAndPrint: async () => {

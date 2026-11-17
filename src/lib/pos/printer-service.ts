@@ -1,4 +1,4 @@
-import { printerService as newPrinterService, type BillCustomer } from '../printer/printer-service';
+import { printerService as newPrinterService, type BillCustomer, type BillJob } from '../printer/printer-service';
 import type { PosOrderItem, KotTicket } from './order-types';
 
 /**
@@ -56,5 +56,21 @@ export const printerService = {
       discountValue,
       customer ? { ...customer } : undefined
     ));
-  }
+  },
+
+  /**
+   * Task 320: a reprint in the same compact layout as the first print. It waits its turn behind
+   * tickets already queued and resolves with whether the printer took it.
+   */
+  reprintBill: (bill: BillJob): Promise<{ success: boolean; error?: string }> =>
+    new Promise((resolve) => {
+      const snapshot: BillJob = { ...bill, items: bill.items.map((item) => ({ ...item })) };
+      void enqueuePrint(async () => {
+        try {
+          resolve(await newPrinterService.reprintBill(snapshot));
+        } catch (err: unknown) {
+          resolve({ success: false, error: err instanceof Error ? err.message : 'Reprint failed.' });
+        }
+      });
+    }),
 };

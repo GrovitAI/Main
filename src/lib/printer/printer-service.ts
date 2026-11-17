@@ -248,6 +248,8 @@ export type BillLayoutInput = {
   discountValue?: number;
   taxPercentage?: number;
   customer?: BillCustomer;
+  /** Task 320: how a settled bill was paid, printed under the total on a reprint. */
+  paymentMethod?: string | null;
   /** When the bill is printed; now unless a preview or test sets it. */
   printedAt?: Date;
 };
@@ -352,6 +354,7 @@ export function buildBillLines(input: BillLayoutInput): string[] {
     divider,
     ...(adjustments.length > 0 ? [line(padLine(`Total Qty: ${totalQty}`, 'Sub Total Rs. ' + money(input.totalAmount), width)), ...adjustments, divider] : []),
     line(BOLD_ON + padLine(adjustments.length > 0 ? 'Grand Total' : `Grand Total (Qty ${totalQty})`, 'Rs. ' + money(grandTotal), width) + BOLD_OFF),
+    ...(input.paymentMethod ? [line(padLine('Payment', input.paymentMethod.toUpperCase(), width))] : []),
     divider,
     ALIGN_CENTER,
     line(center('Thank You..!! & Visit Again..!!', width).trimEnd()),
@@ -464,13 +467,53 @@ async function printWithFreshRetry(
   printer: Printer,
   cached: boolean,
   lines: string[],
-): Promise<void> {
-  if (await printRawToPrinter(printer, lines, !cached)) return;
-  if (!cached) return;
+  alerts = true,
+): Promise<boolean> {
+  if (await printRawToPrinter(printer, lines, alerts && !cached)) return true;
+  if (!cached) return false;
   const fresh = await fetchPrintersCached(true);
   const retry = fresh.data ? pick(fresh.data) : null;
-  if (retry) await printRawToPrinter(retry, lines);
-  else Alert.alert('Printing Failed', 'Unable to submit the print job to PrintNode. Please try again.');
+  if (retry) return printRawToPrinter(retry, lines, alerts);
+  if (alerts) Alert.alert('Printing Failed', 'Unable to submit the print job to PrintNode. Please try again.');
+  return false;
+}
+
+/** A customer bill to print: the layout's input without what the printer and branch supply. */
+export type BillJob = Omit<BillLayoutInput, 'width' | 'branch' | 'taxPercentage' | 'printedAt'>;
+
+/**
+ * Prints one customer bill on the branch's default bill printer in the compact layout (task 311).
+ * The first print and every reprint come through here, so they always look the same (task 320).
+ * With alerts off the caller reports the outcome itself.
+ */
+async function sendBill(bill: BillJob, alerts: boolean): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Printers, receipt header and GST rate are independent; read them together.
+    const [res, branch, taxPercentage] = await Promise.all([fetchPrintersCached(), loadReceiptBranch(), getBranchTaxPercentage()]);
+    if (res.error || !res.data) {
+      console.warn('[Printer] Unable to load printers for bill:', res.error);
+      return { success: false, error: 'Unable to load the printers.' };
+    }
+
+    const pickBill = (printers: Printer[]): Printer | null => {
+      const active = printers.filter(p => p.is_active && p.printer_role === 'bill');
+      return active.find(p => p.is_default) || active[0] || null;
+    };
+    const printer = pickBill(res.data);
+    if (!printer) {
+      const errorMsg = 'No active billing printer configured.\nGo to Settings -> Printer Configuration.';
+      console.log('[Printer]', errorMsg);
+      if (alerts) Alert.alert('Printer Error', errorMsg);
+      return { success: false, error: 'No active bill printer.' };
+    }
+
+    const lines = buildBillLines({ ...bill, width: getLineWidth(printer.paper_width), branch, taxPercentage });
+    const sent = await printWithFreshRetry(pickBill, printer, res.cached, lines, alerts);
+    return sent ? { success: true } : { success: false, error: 'The printer did not take the job.' };
+  } catch (err) {
+    console.warn('[Printer] Bill print failed:', err);
+    return { success: false, error: getErrorMessage(err) };
+  }
 }
 
 /** Receipt header details change rarely, so they are reused for five minutes like the printer list. */
@@ -657,42 +700,15 @@ export const printerService = {
     discountValue = 0,
     customer?: BillCustomer
   ): Promise<void> => {
-    try {
-      // Printers, receipt header and GST rate are independent; read them together.
-      const [res, branch, taxPercentage] = await Promise.all([fetchPrintersCached(), loadReceiptBranch(), getBranchTaxPercentage()]);
-      if (res.error || !res.data) {
-        console.warn('[Printer] Unable to load printers for bill:', res.error);
-        return;
-      }
-
-      const pickBill = (printers: Printer[]): Printer | null => {
-        const active = printers.filter(p => p.is_active && p.printer_role === 'bill');
-        return active.find(p => p.is_default) || active[0] || null;
-      };
-      const activeBillingPrinters = res.data.filter(p => p.is_active && p.printer_role === 'bill');
-      if (activeBillingPrinters.length === 0) {
-        const errorMsg = 'No active billing printer configured.\nGo to Settings -> Printer Configuration.';
-        console.log('[Printer]', errorMsg);
-        Alert.alert('Printer Error', errorMsg);
-        return;
-      }
-
-      // Find default billing printer, fallback to first active one
-      const printer = activeBillingPrinters.find(p => p.is_default) || activeBillingPrinters[0];
-
-      const width = getLineWidth(printer.paper_width);
-
-      // Task 311: the compact bill (branch details and the GST rate were read above).
-      const lines = buildBillLines({
-        width, branch, orderName, invoiceNumber, items, totalAmount, kots,
-        discountAmount, discountType, discountValue, taxPercentage, customer,
-      });
-
-      await printWithFreshRetry(pickBill, printer, res.cached, lines);
-    } catch (err) {
-      console.warn('[Printer] printBill caught error (ignored to avoid blocking POS):', err);
-    }
+    // Failures alert the cashier and never block the POS.
+    await sendBill({ orderName, invoiceNumber, items, totalAmount, kots, discountAmount, discountType, discountValue, customer }, true);
   },
+
+  /**
+   * Task 320: prints a bill again in the same compact layout as its first print, and says whether
+   * the printer took it so the screen can show the outcome.
+   */
+  reprintBill: (bill: BillJob): Promise<{ success: boolean; error?: string }> => sendBill(bill, false),
 
   /**
    * Prints final settled bill to all active bill printers.
