@@ -97,7 +97,7 @@ const ENTRY_COLUMNS =
   'id, type, entry_date, party_id, item_id, qty, from_qty, amount_paise, paid, mode, category, purchase_category_id, purchase_category_name, note, created_by, created_by_id, created_at, voided_at, voided_by, void_reason, replaces_id, particular_id, category_id, subcategory, qty_unit, route_party_id, route_dir, roster_id, lines:kitchen_entry_lines(id, item_id, qty, price_paise, line_paise)';
 
 const UNITS: readonly KitchenUnit[] = ['kg', 'L', 'pcs'];
-const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count', 'issued'];
+const TYPES: readonly KitchenEntryType[] = ['sent', 'received', 'bought', 'paid', 'spent', 'made', 'count', 'issued', 'carried'];
 const MODES: readonly KitchenMode[] = ['cash', 'upi', 'bank'];
 
 function mapItem(row: Record<string, unknown>): KitchenItem {
@@ -382,7 +382,7 @@ export async function fetchKitchenOpenDocuments(partyId: string, reopenPaymentId
         return {
           entry_id: id,
           party_id: String(row.party_id),
-          type: row.type === 'sent' ? 'sent' : 'bought',
+          type: row.type === 'sent' || row.type === 'spent' || row.type === 'carried' ? row.type : 'bought',
           entry_date: String(row.entry_date ?? ''),
           amount: fromPaise(toNumber(row.amount_paise)),
           covered: Math.max(0, fromPaise(toNumber(row.covered_paise)) - reopened),
@@ -540,6 +540,12 @@ function entryPayload(input: PostEntryInput): Record<string, unknown> {
       payload.amount_paise = toPaise(input.amount);
       payload.mode = input.mode;
       payload.category = input.category;
+      // Task 313: Pay later names the vendor; the database keeps no mode for it.
+      if (input.paid === false) {
+        payload.paid = false;
+        payload.party_id = input.party_id ?? null;
+        payload.mode = null;
+      }
       if (input.spend) {
         // Task 279: the database files it under the category; the particular is the entry's note.
         const d = input.spend;
@@ -550,6 +556,10 @@ function entryPayload(input: PostEntryInput): Record<string, unknown> {
         if (d.route_party_id && d.route_dir) { payload.route_party_id = d.route_party_id; payload.route_dir = d.route_dir; }
         if (d.roster_id) payload.roster_id = d.roster_id;
       }
+      break;
+    case 'carried':
+      payload.party_id = input.party_id;
+      payload.amount_paise = toPaise(input.amount);
       break;
     case 'made':
     case 'count':

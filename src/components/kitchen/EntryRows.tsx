@@ -19,13 +19,16 @@ export function WhoRow({ name, sub, onChange }: { name: string; sub?: string; on
   );
 }
 
-/** When it happened: Today, Yesterday or a day on the calendar, in a sheet. */
-export function WhenRow({ date, onChange, lockReason, onLockReason, guard = true, label = 'When' }: { date: string; onChange: (d: string) => void; lockReason: string; onLockReason: (r: string) => void; guard?: boolean; label?: string }) {
+/**
+ * When it happened: Today, Yesterday or a day on the calendar, in a sheet. Task 314: with
+ * `required`, an empty date reads as Choose until one is picked.
+ */
+export function WhenRow({ date, onChange, lockReason, onLockReason, guard = true, label = 'When', required = false }: { date: string; onChange: (d: string) => void; lockReason: string; onLockReason: (r: string) => void; guard?: boolean; label?: string; required?: boolean }) {
   const [open, setOpen] = useState(false);
   const ok = useDateGuard(date, lockReason, guard);
   return (
     <>
-      <ValueRow label={label} value={date === localDateKey() ? 'Today' : formatDayLabel(date)} onPress={() => setOpen(true)} />
+      <ValueRow label={label} value={!date ? null : date === localDateKey() ? 'Today' : formatDayLabel(date)} required={required && !date} onPress={() => setOpen(true)} />
       <Sheet visible={open} onClose={() => setOpen(false)} title={label}>
         <DateField value={date} onChange={onChange} lockReason={lockReason} onLockReason={onLockReason} guard={guard} />
         <View className="mt-4"><PrimaryButton label="Done" onPress={() => setOpen(false)} disabled={!isValidDateKey(date) || !ok} reason="Check the date" /></View>

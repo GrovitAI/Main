@@ -14,7 +14,9 @@ import { placeOf, sameParticular } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenCategory, KitchenEntryType, KitchenMode, KitchenOpenDocument, KitchenRouteDir, KitchenUnit, PostEntryInput } from '@/lib/pos/kitchen-types';
 import type { KitchenStaffMember } from '@/lib/pos/kitchen-attendance-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Avatar, Field, KHeader, KScreen, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { Avatar, Field, KHeader, KScreen, LinkButton, Notice, PrimaryButton, Segmented, SelectRow, SettingsGroup, Sheet, TextField, ValueRow, useSavedThen } from '@/components/kitchen/ui';
+import { FifoPreview, usePartyDues } from '@/components/kitchen/Dues';
+import { withCovers } from '@/lib/pos/kitchen-dues-utils';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { colors } from '@/lib/pos/brand';
 import { buzz } from '@/lib/pos/kitchen-haptics';
@@ -24,13 +26,16 @@ import { useEditEntry } from '@/components/kitchen/use-edit-entry';
 import { AmountPad, AmountRow, NoteRow, WhenRow, WhoRow } from '@/components/kitchen/EntryRows';
 
 type Kind = 'vendor' | 'expense';
-type Picker = 'category' | 'route' | 'who' | 'qty' | null;
+/** Task 315: an expense is paid from the kitchen's cash, UPI or bank, or put on a vendor's tab. */
+type PaidBy = 'later' | KitchenMode;
+type Picker = 'category' | 'route' | 'who' | 'qty' | 'payee' | null;
 const EDITABLE: readonly KitchenEntryType[] = ['paid', 'spent'];
 const PAID_BY: readonly { value: KitchenMode; label: string }[] = [
   { value: 'cash', label: 'Kitchen · Cash' },
   { value: 'upi', label: 'Kitchen · UPI' },
   { value: 'bank', label: 'Kitchen · Bank' },
 ];
+const EXPENSE_PAID_BY: readonly { value: PaidBy; label: string }[] = [...PAID_BY, { value: 'later', label: 'Pay later' }];
 
 /**
  * Money out. An expense starts from its particular (task 279, owner's pick): a particular used
@@ -61,6 +66,9 @@ export default function SpentScreen() {
   const [routeDir, setRouteDir] = useState<KitchenRouteDir | null>(null);
   const [routeParty, setRouteParty] = useState<string | null>(null);
   const [rosterId, setRosterId] = useState<string | null>(null);
+  // Task 315: Pay later puts the expense on this vendor's tab.
+  const [later, setLater] = useState(false);
+  const [payeeId, setPayeeId] = useState<string | null>(null);
   const [roster, setRoster] = useState<KitchenStaffMember[] | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   // Task 283: the number pad comes up only when the amount row is tapped.
@@ -93,6 +101,8 @@ export default function SpentScreen() {
       setRouteDir(editing.route_dir ?? null);
       setRouteParty(editing.route_party_id ?? null);
       setRosterId(editing.roster_id ?? null);
+      setLater(!editing.paid);
+      setPayeeId(editing.paid ? null : editing.party_id);
     }
     setPrefilled(editing.id);
   }, [editing, prefilled, data.purchaseCategories]);
@@ -111,14 +121,21 @@ export default function SpentScreen() {
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
   const dateOk = useDateGuard(date, lockReason);
   const isVendor = kind === 'vendor';
+  // Task 317: what the money not matched by hand clears, oldest first; choosing bills is a link away.
+  const [docsOpen, setDocsOpen] = useState(false);
+  const vendorDues = usePartyDues(isVendor && !editing ? partyId : null);
+  const coveredSum = covers.reduce((sum, c) => sum + c.amount, 0);
+  const fifo = !editing && isVendor && partyId ? <FifoPreview dues={withCovers(vendorDues.dues, covers)} amount={Math.round((amount - coveredSum) * 100) / 100} kind="vendor" loading={vendorDues.loading} /> : null;
   const qty = qtyText ? Number(qtyText) : null;
   const routeBranch = routeParty ? data.partiesById.get(routeParty) ?? null : null;
   const person = rosterId ? roster?.find((r) => r.id === rosterId) ?? null : null;
+  const payee = payeeId ? data.partiesById.get(payeeId) ?? null : null;
 
   const expenseReason = !picked ? 'Type the particular'
     : !place ? 'Choose the category'
     : asks === 'route' && (!routeDir || !routeParty) ? 'Choose the route'
     : asks === 'person' && !rosterId ? 'Choose who'
+    : later && !payeeId ? 'Choose who to pay'
     : undefined;
   const vendorReason = !partyId ? 'Choose a vendor' : undefined;
   const reason = (isVendor ? vendorReason : expenseReason) ?? (amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined);
@@ -168,7 +185,8 @@ export default function SpentScreen() {
       isVendor && partyId
         ? { type: 'paid', party_id: partyId, entry_date: date, amount, mode, note: note.trim() || null, covers }
         : {
-          type: 'spent', entry_date: date, amount, mode, category: place?.top.name ?? 'Other', note: null,
+          type: 'spent', entry_date: date, amount, mode: later ? null : mode, category: place?.top.name ?? 'Other', note: null,
+          ...(later ? { paid: false, party_id: payeeId } : {}),
           spend: {
             particular_id: picked?.id ?? null, particular_name: picked?.name ?? '', category_id: categoryId ?? '',
             qty, qty_unit: qty !== null ? unit : null,
@@ -191,7 +209,8 @@ export default function SpentScreen() {
       const after = balanceFromEntries(useKitchenStore.getState().entries, partyId, 'vendor', party?.opening ?? 0);
       useKitchenStore.getState().setNotice(`Paid ${party?.name ?? 'the vendor'} ${formatMoney(amount)} · ${after > 0 ? `still owe ${formatMoney(after)}` : 'settled up'}`);
     } else {
-      useKitchenStore.getState().setNotice(`${picked?.name ?? 'Expense'} · ${formatMoney(amount)}`);
+      const payee = later && payeeId ? data.partiesById.get(payeeId)?.name : null;
+      useKitchenStore.getState().setNotice(`${picked?.name ?? 'Expense'} · ${formatMoney(amount)}${payee ? ` · on ${payee}’s tab` : ''}`);
     }
     done.finish(backToKitchen);
   };
@@ -211,7 +230,9 @@ export default function SpentScreen() {
       {asks === 'route' ? <ValueRow label="Route" value={routeBranch && routeDir ? `${routeDir === 'from' ? 'From' : 'To'} ${routeBranch.name}` : null} required onPress={() => setPicker('route')} /> : null}
       {asks === 'person' ? <ValueRow label="Who" value={person?.name} required onPress={() => setPicker('who')} /> : null}
       <ValueRow label="Qty" value={qty !== null && unit ? formatQty(qty, unit) : null} placeholder="Add" action="plus" onPress={() => setPicker('qty')} />
-      <SelectRow label="Paid by" value={mode} options={PAID_BY} onChange={setMode} />
+      <SelectRow label="Paid by" value={later ? 'later' : mode} options={EXPENSE_PAID_BY}
+        onChange={(v) => { if (v === 'later') { setLater(true); if (!payeeId) setPicker('payee'); } else { setLater(false); setMode(v); } }} />
+      {later ? <ValueRow label="Pay to" value={payee?.name} required onPress={() => setPicker('payee')} /> : null}
       <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
     </SettingsGroup>
   ) : (
@@ -250,6 +271,10 @@ export default function SpentScreen() {
         </View>
         {roster !== null && roster.length === 0 ? <Notice text="Add the staff under Attendance first." /> : null}
       </Sheet>
+      {/* Task 315: who a Pay later expense is owed to: any vendor, the landlord or the electricity board included. */}
+      <Sheet visible={picker === 'payee'} onClose={() => setPicker(null)} title="Pay to">
+        <PartyPicker kind="vendor" parties={data.parties} balances={data.balances} value={payeeId} onChange={(id) => { setPayeeId(id); setPicker(null); }} />
+      </Sheet>
     </>
   );
 
@@ -268,10 +293,12 @@ export default function SpentScreen() {
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
       </SettingsGroup>
-      {phone ? afterLine : null}
-      <Field label="Against which buys" optional>
-        <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
-      </Field>
+      {phone ? <>{afterLine}{fifo}</> : null}
+      {docsOpen || editing ? (
+        <Field label="Against which bills" optional>
+          <OpenDocsPicker partyId={partyId} kind="vendor" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.type === 'paid' ? editing.id : undefined} />
+        </Field>
+      ) : <View className="mt-1 items-start"><LinkButton label="Choose bills" onPress={() => setDocsOpen(true)} /></View>}
     </>
   ) : (
     <Field label="Vendor">
@@ -298,7 +325,7 @@ export default function SpentScreen() {
             <View className="min-w-0 flex-1">
               <Field label="Amount">
                 <TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big />
-                {isVendor ? afterLine : null}
+                {isVendor ? <>{afterLine}{fifo}</> : null}
               </Field>
             </View>
           </View>

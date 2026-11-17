@@ -9,7 +9,9 @@ import { useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
 import { allocateAcross, balanceFromEntries, formatMoney, localDateKey, parseAmount } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType, KitchenMode, KitchenOpenDocument, PostEntryInput } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
-import { Field, KHeader, KScreen, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { Field, KHeader, KScreen, LinkButton, Notice, PrimaryButton, SelectRow, SettingsGroup, TextField, useSavedThen } from '@/components/kitchen/ui';
+import { FifoPreview, usePartyDues } from '@/components/kitchen/Dues';
+import { withCovers } from '@/lib/pos/kitchen-dues-utils';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 import { useDateGuard, OpenDocsPicker, PartyPicker, isValidDateKey } from '@/components/kitchen/forms';
@@ -66,6 +68,11 @@ export default function ReceivedScreen() {
   const balanceNow = partyId ? balanceFromEntries(data.entries, partyId, 'branch', party?.opening ?? 0) : 0;
   const tickedDocs = useMemo(() => docs.filter((d) => ticked.has(d.entry_id)), [docs, ticked]);
   const covers = useMemo(() => allocateAcross(tickedDocs, amount), [tickedDocs, amount]);
+  // Task 317: what the money not matched by hand clears, oldest first; choosing sends is a link away.
+  const [docsOpen, setDocsOpen] = useState(false);
+  const branchDues = usePartyDues(editing ? null : partyId);
+  const coveredSum = covers.reduce((sum, c) => sum + c.amount, 0);
+  const fifo = !editing && partyId ? <FifoPreview dues={withCovers(branchDues.dues, covers)} amount={Math.round((amount - coveredSum) * 100) / 100} kind="branch" loading={branchDues.loading} /> : null;
   const dateOk = useDateGuard(date, lockReason);
   const reason = !partyId ? 'Choose a branch' : amount <= 0 ? 'Enter the amount' : !isValidDateKey(date) || !dateOk ? 'Check the date' : undefined;
   const canSave = !missing && !reason;
@@ -122,10 +129,12 @@ export default function ReceivedScreen() {
         <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
         <NoteRow value={note} onChange={setNote} />
       </SettingsGroup>
-      {phone ? afterLine : null}
-      <Field label="Against which sends" optional>
-        <OpenDocsPicker partyId={partyId} kind="branch" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.id} />
-      </Field>
+      {phone ? <>{afterLine}{fifo}</> : null}
+      {docsOpen || editing ? (
+        <Field label="Against which sends" optional>
+          <OpenDocsPicker partyId={partyId} kind="branch" itemsById={data.itemsById} ticked={ticked} onChange={onTick} reopenPaymentId={editing?.id} />
+        </Field>
+      ) : <View className="mt-1 items-start"><LinkButton label="Choose sends" onPress={() => setDocsOpen(true)} /></View>}
     </>
   ) : (
     <Field label="From">
@@ -144,7 +153,7 @@ export default function ReceivedScreen() {
             <View className="min-w-0 flex-1">
               <Field label="Amount">
                 <TextField value={amountText} onChange={onAmount} label="Amount" placeholder="0" keyboardType="decimal-pad" prefix="₹" big autoFocus={!!params.party} />
-                {afterLine}
+                {afterLine}{fifo}
               </Field>
             </View>
           </View>

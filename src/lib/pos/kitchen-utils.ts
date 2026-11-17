@@ -109,9 +109,9 @@ export function isMoneyIn(e: Pick<KitchenEntry, 'type'>): boolean {
   return e.type === 'received';
 }
 
-/** Money went out: a vendor paid, a bill paid, or a buy paid on the spot. */
+/** Money went out: a vendor paid, or a buy or an expense paid on the spot. A Pay later expense moves no money yet (task 313). */
 export function isMoneyOut(e: Pick<KitchenEntry, 'type' | 'paid'>): boolean {
-  return e.type === 'paid' || e.type === 'spent' || (e.type === 'bought' && e.paid);
+  return e.type === 'paid' || ((e.type === 'spent' || e.type === 'bought') && e.paid);
 }
 
 export type KitchenMonthTotals = { moneyIn: number; moneyOut: number; sent: number; bought: number };
@@ -131,16 +131,18 @@ export function monthTotals(entries: readonly KitchenEntry[], monthKey: string):
 
 /**
  * What an entry does to a party's give-and-take. For a branch: a send adds,
- * money received takes away. For a vendor: a pay-later buy adds, a payment
- * takes away. A buy paid on the spot never touches the vendor's figure.
+ * money received takes away. For a vendor: a pay-later buy or expense adds, a
+ * payment takes away. A buy paid on the spot never touches the vendor's figure.
+ * Pending from earlier (task 313) adds on either side.
  */
 export function partyEffect(e: Pick<KitchenEntry, 'type' | 'paid' | 'amount'>, kind: KitchenPartyKind): number {
+  if (e.type === 'carried') return e.amount;
   if (kind === 'branch') {
     if (e.type === 'sent') return e.amount;
     if (e.type === 'received') return -e.amount;
     return 0;
   }
-  if (e.type === 'bought' && !e.paid) return e.amount;
+  if ((e.type === 'bought' || e.type === 'spent') && !e.paid) return e.amount;
   if (e.type === 'paid') return -e.amount;
   return 0;
 }
@@ -405,12 +407,13 @@ export function typeLabel(type: KitchenEntryType): string {
     case 'made': return 'Made';
     case 'count': return 'Counted';
     case 'issued': return 'Given to kitchen';
+    case 'carried': return 'Pending from earlier';
   }
 }
 
 export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
   // Task 268: the lists hold active names only, so a removed branch, vendor or item says so.
-  const party = names.party ?? (e.type === 'sent' || e.type === 'received' ? 'a removed branch' : 'a removed vendor');
+  const party = names.party ?? (e.type === 'sent' || e.type === 'received' ? 'a removed branch' : e.type === 'carried' ? 'a removed name' : 'a removed vendor');
   const item = names.item ?? 'a removed item';
   switch (e.type) {
     case 'sent': return `Sent to ${party}`;
@@ -424,6 +427,7 @@ export function entryHeadline(e: KitchenEntry, names: KitchenNames): string {
     case 'made': return `Made ${item}`;
     case 'count': return `Counted ${item}`;
     case 'issued': return 'Given to the kitchen';
+    case 'carried': return `Pending from earlier · ${party}`;
   }
 }
 
@@ -437,7 +441,8 @@ export function linesSummary(e: Pick<KitchenEntry, 'lines'>, itemsById: Readonly
     .join(', ');
 }
 
-export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, KitchenItem>): string {
+/** Task 313: pass the names to have a Pay later expense say whose tab it is on. */
+export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, KitchenItem>, names?: KitchenNames): string {
   const parts: string[] = [];
   if (e.type === 'sent' || e.type === 'bought' || e.type === 'issued') parts.push(linesSummary(e, itemsById));
   if (e.type === 'bought') parts.push(e.paid ? `paid${e.mode ? ` · ${modeLabel(e.mode)}` : ''}` : 'pay later');
@@ -445,7 +450,9 @@ export function entrySubline(e: KitchenEntry, itemsById: ReadonlyMap<string, Kit
     parts.push(e.subcategory ? `${e.category ?? ''} › ${e.subcategory}` : e.category ?? '');
     if (e.qty !== null && e.qty_unit) parts.push(formatQty(e.qty, e.qty_unit));
   }
-  if (e.type === 'received' || e.type === 'paid' || e.type === 'spent') parts.push(modeLabel(e.mode));
+  // Task 313: a Pay later expense names its vendor instead of how it was paid.
+  if (e.type === 'spent' && !e.paid) parts.push(names?.party ? `pay later · ${names.party}` : 'pay later');
+  else if (e.type === 'received' || e.type === 'paid' || e.type === 'spent') parts.push(modeLabel(e.mode));
   if (e.type === 'made' || e.type === 'count') {
     const it = e.item_id ? itemsById.get(e.item_id) : undefined;
     const unit = it?.unit ?? '';

@@ -1,8 +1,8 @@
-import { ArrowDownLeft, ArrowUp, ArrowUpRight, PackageOpen, ShoppingBag, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUp, ArrowUpRight, History, PackageOpen, ShoppingBag, type LucideIcon } from 'lucide-react-native';
 import type { KitchenPermission } from '@/lib/pos/kitchen-access-types';
 import type { Tone } from './ui';
 
-export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent' | 'give'; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string };
+export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent' | 'give' | 'carried'; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string };
 
 /**
  * The four things the kitchen records, each offered only to logins allowed to
@@ -26,4 +26,12 @@ export function recordActions(can: (permission: KitchenPermission) => boolean): 
  */
 export function stockActions(can: (permission: KitchenPermission) => boolean): RecordAction[] {
   return can('entries.issue') ? [{ key: 'give', icon: PackageOpen, label: 'Give to kitchen', caption: 'Out of the store, counted as used', tone: 'primary', href: '/central-kitchen/give' }] : [];
+}
+
+/**
+ * Task 314: Pending from earlier, what a branch or vendor stood at as of a day. It sits on the
+ * phone's + menu after the stock moves; branch and vendor pages offer it too.
+ */
+export function duesActions(can: (permission: KitchenPermission) => boolean): RecordAction[] {
+  return can('entries.receive') || can('entries.buy') ? [{ key: 'carried', icon: History, label: 'Pending from earlier', caption: 'What was owed before', tone: 'neutral', href: '/central-kitchen/carried' }] : [];
 }

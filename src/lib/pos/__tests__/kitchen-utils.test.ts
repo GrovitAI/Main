@@ -25,6 +25,7 @@ import {
   formatQty,
   orderCategories,
   shownCategories,
+  isMoneyIn,
   isMoneyOut,
   linesTotal,
   matchesSearch,
@@ -39,6 +40,7 @@ import {
   padPress,
   stockLevels,
   sumDues,
+  typeLabel,
   whatsappUrl,
 } from '../kitchen-utils';
 import type { PadKey } from '../kitchen-utils';
@@ -150,6 +152,32 @@ describe('give and take', () => {
     ];
     expect(sumDues(balances, 'branch')).toBe(1400);
     expect(sumDues(balances, 'vendor')).toBe(1220);
+  });
+});
+
+describe('pending from earlier and pay later expenses (task 313)', () => {
+  const carriedBranch = entry({ type: 'carried', party_id: 'b9', entry_date: '2026-10-31', amount: 56000, paid: false, note: 'October bills' });
+  const carriedVendor = entry({ type: 'carried', party_id: 'v9', entry_date: '2026-10-31', amount: 18750, paid: false });
+  const rentLater = entry({ type: 'spent', category: 'Rent', party_id: 'v9', entry_date: '2026-11-01', amount: 25000, paid: false });
+  const payVendor = entry({ type: 'paid', party_id: 'v9', entry_date: '2026-11-05', amount: 20000, mode: 'bank' });
+  const set = [carriedBranch, carriedVendor, rentLater, payVendor];
+
+  it('moves no money for Pending from earlier or a Pay later expense', () => {
+    expect(isMoneyOut(carriedVendor)).toBe(false);
+    expect(isMoneyIn(carriedBranch)).toBe(false);
+    expect(isMoneyOut(rentLater)).toBe(false);
+    expect(monthTotals(set, '2026-11').moneyOut).toBe(20000);
+  });
+
+  it('adds Pending from earlier on either side, and a Pay later expense to its vendor', () => {
+    expect(balanceFromEntries(set, 'b9', 'branch')).toBe(56000);
+    expect(balanceFromEntries(set, 'v9', 'vendor')).toBe(18750 + 25000 - 20000);
+  });
+
+  it('labels Pending from earlier with whose it is', () => {
+    expect(typeLabel('carried')).toBe('Pending from earlier');
+    expect(entryHeadline(carriedBranch, { party: 'Egmore' })).toBe('Pending from earlier · Egmore');
+    expect(entrySubline(rentLater, items, { party: 'Landlord' })).toBe('pay later · Landlord');
   });
 });
 

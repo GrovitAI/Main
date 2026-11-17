@@ -21,6 +21,7 @@ const rupees = (paise: number): string => formatMoney(paise / 100);
 const openMove = (): void => { router.push('/central-kitchen/money-move' as never); };
 const openOpening = (): void => { router.push('/central-kitchen/money-opening' as never); };
 const openDrawings = (): void => { router.push('/central-kitchen/drawings' as never); };
+const openMonthClose = (): void => { router.push('/central-kitchen/month-close' as never); };
 
 /** Task 289: a transfer or a move into (or back from) the owners' drawings, newest first. */
 type MoneyLine = { key: string; move: MoneyMove; drawing?: undefined } | { key: string; drawing: DrawingMove; move?: undefined };
@@ -74,6 +75,8 @@ export function MoneyWorkspace() {
   const mayView = access.can('money.view');
   const mayMove = access.can('money.move');
   const mayOpening = access.can('money.opening');
+  // Task 318: the month close sits with the reports, so it needs reports.view.
+  const mayClose = access.can('reports.view');
   // Voiding a transfer on a locked day: the owner gives a reason in the row.
   const [voiding, setVoiding] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState('');
@@ -138,7 +141,10 @@ export function MoneyWorkspace() {
     <DrawingsTile paise={s.drawings_paise} />
     {mayMove ? <MoveTile /> : null}
     {!s.has_opening ? <Text className="mt-2 px-1 text-xs leading-5 text-text-secondary">Opening balances are not set, so these count every money entry from zero.</Text> : null}
-    {mayOpening && !busy ? <View className="mt-1 flex-row"><LinkButton label={s.has_opening ? 'Change opening balances' : 'Set opening balances'} onPress={openOpening} /></View> : null}
+    {(mayOpening && !busy) || mayClose ? <View className="mt-1 flex-row" style={{ gap: 18 }}>
+      {mayOpening && !busy ? <LinkButton label={s.has_opening ? 'Change opening balances' : 'Set opening balances'} onPress={openOpening} /> : null}
+      {mayClose ? <LinkButton label="Month close" onPress={openMonthClose} /> : null}
+    </View> : null}
     {message ? <Text accessibilityRole="alert" className="mt-1 px-1 text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
     <Text className="mb-2 mt-4 px-1 text-xs font-extrabold uppercase tracking-wide text-text-secondary">Moves</Text>
   </>;
@@ -183,6 +189,7 @@ export function MoneyWorkspace() {
             : 'Opening balances not set.'}
         </Text>
         {mayOpening && !busy ? <LinkButton label={summary.has_opening ? 'Change' : 'Set opening balances'} onPress={openOpening} /> : null}
+        {mayClose ? <LinkButton label="Month close" onPress={openMonthClose} /> : null}
       </View>
       {message ? <Text accessibilityRole="alert" className="mt-2 text-sm leading-5" style={{ color: semantic.success }}>{message}</Text> : null}
       <View className="mt-3 flex-row flex-wrap gap-2">
