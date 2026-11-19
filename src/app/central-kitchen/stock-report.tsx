@@ -6,8 +6,8 @@ import { colors } from '@/lib/pos/brand';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { fetchKitchenStockEntries } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
-import { kitchenMonthRange, kitchenToday } from '@/lib/pos/kitchen-analytics-utils';
-import { formatMoney, formatQty, lastCostByItem, stockMovements, stockUnitValue, type StockMovement } from '@/lib/pos/kitchen-utils';
+import { kitchenMonthRange, kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
+import { formatMoney, formatQty, lastCostByItem, stockMovements, stockUnitValue, stockWorth, type StockMovement } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntry, KitchenItem } from '@/lib/pos/kitchen-types';
 import { Empty, KHeader, KScreen, Notice, Segmented, useDesktopDensity } from '@/components/kitchen/ui';
 import { ReportDateRange } from '@/components/kitchen/ReportDateRange';
@@ -21,12 +21,17 @@ const tabular = { fontVariant: ['tabular-nums' as const] };
  * entries, so a month closes on the figure the next one opens with.
  */
 export default function StockReportScreen() {
-  const params = useLocalSearchParams<{ kind?: string }>();
+  const params = useLocalSearchParams<{ kind?: string; from?: string; to?: string }>();
   const data = useKitchenData();
   const { showAmounts } = useKitchenAccess();
   const desktop = useDesktopDensity();
   const [kind, setKind] = useState<Kind>(params.kind === 'finished_good' ? 'finished_good' : 'raw_material');
-  const [range, setRange] = useState(() => kitchenMonthRange(kitchenToday().slice(0, 7), kitchenToday()));
+  // Task 324: Month close opens this on its own dates.
+  const [range, setRange] = useState(() => {
+    const today = kitchenToday();
+    return params.from && params.to && validKitchenDate(params.from) && validKitchenDate(params.to) && params.from <= params.to && params.to <= today
+      ? { startDate: params.from, endDate: params.to } : kitchenMonthRange(today.slice(0, 7), today);
+  });
   const [entries, setEntries] = useState<KitchenEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,20 +50,7 @@ export default function StockReportScreen() {
   const moves = useMemo(() => (entries && !error ? stockMovements(entries, data.items, range.startDate, range.endDate) : null), [entries, error, data.items, range]);
   const lastCost = useMemo(() => lastCostByItem(data.entries), [data.entries]);
   const rows = useMemo(() => data.items.filter((i) => i.is_active && i.item_kind === kind).sort((a, b) => a.name.localeCompare(b.name)), [data.items, kind]);
-  const totals = useMemo(() => {
-    let opening = 0;
-    let closing = 0;
-    let unpriced = 0;
-    for (const it of rows) {
-      const m = moves?.get(it.id);
-      const unit = stockUnitValue(it, lastCost);
-      if (!m) continue;
-      if (unit === null) { if (m.closing !== 0 || m.opening !== 0) unpriced += 1; continue; }
-      opening += Math.max(0, m.opening) * unit;
-      closing += Math.max(0, m.closing) * unit;
-    }
-    return { opening, closing, unpriced };
-  }, [rows, moves, lastCost]);
+  const totals = useMemo(() => (moves ? stockWorth(data.items, moves, lastCost, kind) : { opening: 0, closing: 0, unpriced: 0 }), [data.items, moves, lastCost, kind]);
 
   return (
     <KScreen wide>

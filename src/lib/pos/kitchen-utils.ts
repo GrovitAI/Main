@@ -227,6 +227,28 @@ export function stockUnitValue(item: { id: string; item_kind: string; cost_price
   return lastCost.get(item.id) ?? item.cost_price;
 }
 
+/**
+ * Task 324: what one kind of stock was worth at the start and end of a range (Opening & closing and
+ * Month close share it). An item with no price yet is left out and counted in `unpriced`.
+ */
+export function stockWorth(
+  items: readonly KitchenItem[], moves: ReadonlyMap<string, StockMovement>, lastCost: ReadonlyMap<string, number>, kind: KitchenItem['item_kind'],
+): { opening: number; closing: number; unpriced: number } {
+  let opening = 0;
+  let closing = 0;
+  let unpriced = 0;
+  for (const it of items) {
+    if (!it.is_active || it.item_kind !== kind) continue;
+    const m = moves.get(it.id);
+    if (!m) continue;
+    const unit = stockUnitValue(it, lastCost);
+    if (unit === null) { if (m.closing !== 0 || m.opening !== 0) unpriced += 1; continue; }
+    opening += Math.max(0, m.opening) * unit;
+    closing += Math.max(0, m.closing) * unit;
+  }
+  return { opening, closing, unpriced };
+}
+
 export type StatementRow = { entry: KitchenEntry; balanceAfter: number };
 
 /** A party's give-and-take, newest first, with the figure after each line. */
