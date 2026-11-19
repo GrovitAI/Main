@@ -134,6 +134,7 @@ const ACTIONS: Record<string, string> = {
   money_moved: 'Moved money',
   money_move_voided: 'Deleted a money move',
   opening_set: 'Set opening balances',
+  salary_changed: 'Changed a salary',
 };
 
 /** A change-log row as a headline and a detail line. */
@@ -149,6 +150,9 @@ export function auditText(row: KitchenAuditRow): { title: string; detail: string
     const after = typeof d.after === 'object' && d.after !== null ? (d.after as Record<string, unknown>) : {};
     const auto = after.auto_lock === true && typeof after.open_until_hour === 'number' ? `auto-lock at ${hourText(after.open_until_hour)}` : 'auto-lock off';
     bits.push(typeof after.lock_through === 'string' ? `${auto}, locked up to ${dayText(after.lock_through)}` : auto);
+  } else if (row.action === 'salary_changed') {
+    // Task 327: whose salary; the amount stays out of the change log.
+    bits.push(typeof d.name === 'string' ? d.name : 'A staff member');
   } else if (typeof d.type === 'string' && typeof d.created_by === 'string') {
     bits.push(`${d.type} by ${d.created_by}`);
   }

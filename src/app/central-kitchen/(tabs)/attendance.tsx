@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/Typography';
 import { AttendanceDate } from '@/components/kitchen/AttendanceDate';
 import { AttendanceAction } from '@/components/kitchen/AttendanceAction';
 import { MonthlyAttendance } from '@/components/kitchen/MonthlyAttendance';
+import { SalaryMonth } from '@/components/kitchen/SalaryMonth';
 import { Avatar, Empty, GhostButton, IconButton, KScreen, LinkButton, MeasureLabels, Notice, PrimaryButton, Reveal, SearchBox, Segmented, SkeletonRows, TextField, Tick, useDesktopDensity, useEnterOnChange, useEqualChoices, useSlidingRect } from '@/components/kitchen/ui';
 import { colors, semantic } from '@/lib/pos/brand';
 import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
@@ -40,7 +41,9 @@ const FILTERS: readonly FilterOption[] = [
  * The status filters scroll sideways in a FlatList, so each cell reports its own
  * place in the row; the white highlight then slides to the chosen one (task 215).
  */
-const PANES = [{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }] as const;
+// Task 327: Salary, for logins that see money.
+const PANES = [{ value: 'daily', label: 'Daily register' }, { value: 'monthly', label: 'Month overview' }, { value: 'staff', label: 'Staff' }, { value: 'salary', label: 'Salary' }] as const;
+type Pane = (typeof PANES)[number]['value'];
 
 const FilterPlace = createContext<((i: number) => (e: LayoutChangeEvent) => void) | null>(null);
 function FilterCell({ index, onLayout, style, children }: ComponentProps<NonNullable<FlatListProps<FilterOption>['CellRendererComponent']>>) {
@@ -114,14 +117,17 @@ export default function KitchenAttendanceScreen() {
   const desktop = useDesktopDensity();
   const insets = useSafeAreaInsets();
   const [date, setDate] = useState(kitchenToday);
-  const [pane, setPane] = useState<'daily' | 'monthly' | 'staff'>('daily');
-  // The pane underline slides between Daily register, Month overview and Staff (task 214).
-  const paneSlide = useSlidingRect((['daily', 'monthly', 'staff'] as const).indexOf(pane));
+  const [pane, setPane] = useState<Pane>('daily');
+  const salaryAccess = useKitchenAccess();
+  const maySalary = salaryAccess.can('money.view');
+  const panes = PANES.filter(option => option.value !== 'salary' || maySalary);
+  // The pane underline slides between Daily register, Month overview, Staff and Salary (task 214).
+  const paneSlide = useSlidingRect(panes.findIndex(option => option.value === pane));
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const statusSlide = useSlidingRect(FILTERS.findIndex(option => option.value === statusFilter));
   // Same-size choices (task 223): the three panes and the status filters each take the width of
   // their widest label, so the underline and the white highlight keep one size as they move.
-  const paneSizes = useEqualChoices(PANES.length, { gap: 12, pad: 8, tightPad: 0, fallback: 'natural' });
+  const paneSizes = useEqualChoices(panes.length, { gap: 12, pad: 8, tightPad: 0, fallback: 'natural' });
   const filterSizes = useEqualChoices(FILTERS.length, { gap: 4, pad: 26 });
   const [monthlyLocked, setMonthlyLocked] = useState(false);
   const monthly = pane === 'monthly';
@@ -225,16 +231,16 @@ export default function KitchenAttendanceScreen() {
     setBusy(false);
     busyRef.current = false;
   };
-  const startEditor = (person?: KitchenStaffMember): void => { if (busyRef.current || monthlyLocked) return; clearSelection(); if (monthly) setPane('staff'); setFormError(null); setEditor(person ? { ...person } : { name: '', job_title: '', is_active: true }); };
+  const startEditor = (person?: KitchenStaffMember): void => { if (busyRef.current || monthlyLocked) return; clearSelection(); if (monthly || pane === 'salary') setPane('staff'); setFormError(null); setEditor(person ? { ...person } : { name: '', job_title: '', is_active: true }); };
   const navigationHeader = <View className="gap-2" style={{ paddingTop: Platform.OS === 'web' ? 12 : insets.top + 12 }}>
     <View className="min-h-12 flex-row items-center gap-1">
       <Text accessibilityRole="header" className="flex-1 text-2xl font-bold text-text-primary">Attendance</Text>
-      {!monthly ? <Pressable className={control} accessibilityRole="button" accessibilityLabel="Refresh attendance" disabled={busy || loading} onPress={() => void load()}><RefreshCw size={18} color={colors.primary} /></Pressable> : null}
+      {!monthly && pane !== 'salary' ? <Pressable className={control} accessibilityRole="button" accessibilityLabel="Refresh attendance" disabled={busy || loading} onPress={() => void load()}><RefreshCw size={18} color={colors.primary} /></Pressable> : null}
       {mayRoster ? <Pressable accessibilityRole="button" accessibilityLabel="Add kitchen staff" disabled={busy || monthlyLocked} onPress={() => startEditor()} className="min-h-12 flex-row items-center gap-1 rounded-xl bg-primary px-3 hover:bg-primary-deep web:focus-visible:border-border active:bg-primary-deep"><Plus size={16} color={colors.textOnPrimary} /><Text className="text-sm font-semibold text-text-on-primary">Add staff</Text></Pressable> : null}
     </View>
     <View accessibilityRole="tablist" className="flex-row gap-3 border-b border-border" onLayout={paneSizes.onLine}>
-      <MeasureLabels>{PANES.map((option, i) => <Text key={option.value} onLayout={paneSizes.measure(i)} className="text-sm font-semibold">{option.label}</Text>)}</MeasureLabels>
-      {PANES.map((option, i) => <Pressable key={option.value} onLayout={paneSlide.measure(i)} style={paneSizes.width ? { width: paneSizes.width } : undefined} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} aria-selected={pane === option.value} onPress={() => { if (busyRef.current || monthlyLocked) return; clearSelection(); setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className={`min-h-12 items-center justify-center px-1 web:focus-visible:bg-accent-soft ${pane === option.value ? '' : 'hover:bg-surface-tint'}`}><Text numberOfLines={1} className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
+      <MeasureLabels>{panes.map((option, i) => <Text key={option.value} onLayout={paneSizes.measure(i)} className="text-sm font-semibold">{option.label}</Text>)}</MeasureLabels>
+      {panes.map((option, i) => <Pressable key={option.value} onLayout={paneSlide.measure(i)} style={paneSizes.width ? { width: paneSizes.width } : undefined} disabled={busy || monthlyLocked} accessibilityRole="tab" accessibilityState={{ selected: pane === option.value, disabled: busy || monthlyLocked }} aria-selected={pane === option.value} onPress={() => { if (busyRef.current || monthlyLocked) return; clearSelection(); setPane(option.value); setQuery(''); setStatusFilter('all'); setSearchOpen(false); setEditor(null); setFormError(null); setSaved(null); }} className={`min-h-12 items-center justify-center px-1 web:focus-visible:bg-accent-soft ${pane === option.value ? '' : 'hover:bg-surface-tint'}`}><Text numberOfLines={1} className={`text-sm font-semibold ${pane === option.value ? 'text-primary' : 'text-text-secondary'}`}>{option.label}</Text></Pressable>)}
       {/* Drawn over the tabs so a focused tab's fill never hides it; it takes no taps. */}
       <Animated.View pointerEvents="none" style={{ position: 'absolute', bottom: 0, height: 2, backgroundColor: colors.primary, ...paneSlide.style }} />
     </View>
@@ -295,6 +301,7 @@ export default function KitchenAttendanceScreen() {
     {desktop && !selecting && pane === 'daily' && data && rows.length ? <View className="flex-row items-center gap-3 border-y border-border-soft bg-surface-tint px-3 py-2"><Text className="flex-1 text-xs font-semibold text-text-secondary">Staff member</Text><Text className="w-[320px] text-xs font-semibold text-text-secondary">Attendance</Text><Text className="w-[168px] text-xs font-semibold text-text-secondary">Last updated</Text><Text className="w-12 text-xs font-semibold text-text-secondary">Edit</Text></View> : null}
   </View>;
   if (monthly) return <KScreen scroll={false} wide><MonthlyAttendance header={navigationHeader} onLockChange={setMonthlyLocked} /></KScreen>;
+  if (pane === 'salary') return <KScreen scroll={false} wide><SalaryMonth header={navigationHeader} mayEdit={mayRoster && maySalary} /></KScreen>;
   return <KScreen scroll={false} wide><FlatList className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, width: '100%', maxWidth: 1120, alignSelf: 'center' }} keyboardShouldPersistTaps="handled" data={loading || loadedDate !== date ? [] : rows} keyExtractor={person => person.id} extraData={{ data, busy, selecting, selectedIds }} ListHeaderComponent={header} refreshing={loading} onRefresh={() => { if (!busyRef.current) void load(); }} ListEmptyComponent={loading ? <SkeletonRows count={5} height={56} label="Loading attendance" /> : error && !data ? <Empty title="Attendance unavailable" body="Retry to load the register. No attendance has been changed." action={<GhostButton label="Retry attendance" onPress={() => void load()} />} /> : <Empty title={query || (pane === 'daily' && statusFilter !== 'all') ? 'No matching staff' : pane === 'staff' && showArchived ? 'No archived staff' : 'No staff for this view'} body={query || (pane === 'daily' && statusFilter !== 'all') ? 'Try another name or attendance status.' : pane === 'staff' && showArchived ? 'Archived staff appear here. Past attendance stays saved.' : 'Add kitchen staff to begin marking attendance.'} action={query || (pane === 'daily' && statusFilter !== 'all') ? <GhostButton label="Reset filters" onPress={() => { setQuery(''); setStatusFilter('all'); }} /> : pane === 'staff' && showArchived ? undefined : <GhostButton label="Add kitchen staff" onPress={() => startEditor()} />} />} renderItem={({ item }) => <Animated.View style={paneEnter}>{pane === 'daily' ? <AttendanceRow key={`${item.id}:${date}`} person={item} record={byStaff.get(item.id)} busy={busy || loading || !mayMark} selecting={selecting} selected={selectedIds.has(item.id)} onSelect={selectPerson} onMark={mark} /> : <View className="min-h-16 flex-row items-center gap-3 border-b border-border-soft bg-surface-elevated px-3 py-2"><StaffIdentity person={item} />{mayRoster ? <IconButton icon={Pencil} label={`Edit staff ${item.name}`} onPress={() => startEditor(item)} /> : null}</View>}</Animated.View>} /></KScreen>;
 }
 
