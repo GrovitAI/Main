@@ -51,6 +51,9 @@ export const PRESETS: readonly { id: Exclude<KitchenPreset, 'custom'>; label: st
     permissions: ['entries.send', 'entries.buy', 'entries.batch', 'entries.count', 'entries.issue', 'fix.own', 'attendance.mark', 'amounts.view'] },
   { id: 'storekeeper', label: 'Store keeper', summary: 'Quantities only: batches, counts and sends, no money',
     permissions: ['entries.send', 'entries.batch', 'entries.count', 'entries.issue', 'fix.own', 'attendance.mark'] },
+  // Task 326: usage and stock alone; their entries are corrected by a manager, and the day lock applies.
+  { id: 'stock', label: 'Stock staff', summary: 'Give to kitchen, batches and counts only; a manager corrects them',
+    permissions: ['entries.issue', 'entries.batch', 'entries.count'] },
   { id: 'accounts', label: 'Accounts', summary: 'Money, payments, invoices and reports; no stock entries',
     permissions: ['entries.receive', 'entries.pay', 'entries.spend', 'entries.backdate', 'fix.own', 'invoices.create', 'invoices.receive', 'invoices.cancel',
       'money.view', 'money.move', 'money.opening', 'reports.view', 'reports.export', 'amounts.view', 'audit.view'] },
@@ -140,7 +143,7 @@ export function auditText(row: KitchenAuditRow): { title: string; detail: string
   const d = row.details;
   if (row.action === 'access_changed') {
     const name = typeof d.name === 'string' ? d.name : 'A login';
-    const preset = typeof d.preset === 'string' && ['manager', 'clerk', 'storekeeper', 'accounts', 'custom'].includes(d.preset) ? presetLabel(d.preset as KitchenPreset) : 'Custom';
+    const preset = typeof d.preset === 'string' && ['manager', 'clerk', 'storekeeper', 'accounts', 'stock', 'custom'].includes(d.preset) ? presetLabel(d.preset as KitchenPreset) : 'Custom';
     bits.push(`${name} → ${preset}`);
   } else if (row.action === 'lock_changed') {
     const after = typeof d.after === 'object' && d.after !== null ? (d.after as Record<string, unknown>) : {};

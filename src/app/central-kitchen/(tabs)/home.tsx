@@ -5,7 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { LogOut, Plus, ArrowLeft, ShieldCheck, Lock, History, ChevronRight } from 'lucide-react-native';
 import { chart, colors, semantic } from '@/lib/pos/brand';
 import { hoverFace, hoverFaceMark } from '@/lib/pos/web-hover';
-import { recordActions } from '@/components/kitchen/record-actions';
+import { recordActions, stockOnlyActions } from '@/components/kitchen/record-actions';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
@@ -112,7 +112,9 @@ export default function KitchenHome() {
   );
 
   // The four things the kitchen records, each shown only to logins allowed to record it.
-  const tiles = recordActions(access.can);
+  // Task 326: a stock-only login gets its own actions here instead.
+  const records = recordActions(access.can);
+  const tiles = records.length > 0 ? records : stockOnlyActions(access.can);
   const tileRows = [tiles.slice(0, 2), tiles.slice(2, 4)].filter((row) => row.length > 0);
   const actions = tiles.length === 0 ? null : (
     <View className={desktop ? 'flex-row gap-3' : undefined} style={desktop ? undefined : { gap: 10 }}>
