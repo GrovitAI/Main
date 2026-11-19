@@ -11,12 +11,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
-import { useKitchenAccess } from '@/lib/pos/use-kitchen-store';
+import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { useResponsive } from '@/lib/pos/useResponsive';
 import { fetchKitchenMonthClose } from '@/lib/pos/kitchen-dues-service';
 import { monthCloseCsv, monthCloseRows, monthCloseSums, sinceLabel } from '@/lib/pos/kitchen-dues-utils';
 import { kitchenMonthRange, kitchenRangeLabel, kitchenToday, shiftKitchenMonth, validKitchenDate, type KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
-import { formatDayLabel, formatMoney, matchesSearch } from '@/lib/pos/kitchen-utils';
+import { formatDayLabel, formatMoney, lastCostByItem, matchesSearch, stockMovements, stockWorth } from '@/lib/pos/kitchen-utils';
+import { fetchKitchenStockEntries } from '@/lib/pos/kitchen-service';
+import type { KitchenEntry } from '@/lib/pos/kitchen-types';
 import type { KitchenMonthClose, KitchenMonthCloseParty } from '@/lib/pos/kitchen-dues-types';
 import { Card, Empty, KHeader, KScreen, LinkButton, Notice, Row, SearchBox, Section, Segmented, SettingsGroup, SkeletonRows, Toggle, useDesktopDensity } from './ui';
 import { ReportDateRange } from './ReportDateRange';
@@ -31,13 +33,15 @@ function startRange(from?: string, to?: string): KitchenDateRange {
 }
 
 /** One figure of the month: a label, the amount, and a short line under it. */
-function Figure({ label, value, sub, tone }: { label: string; value: string; sub?: string | null; tone?: string }) {
+function Figure({ label, value, sub, tone, onPress }: { label: string; value: string; sub?: string | null; tone?: string; onPress?: () => void }) {
+  const Box = onPress ? Pressable : View;
   return (
-    <View className="min-w-0 flex-1 rounded-2xl border border-border-soft bg-surface-elevated px-3.5 py-3" style={{ minHeight: 86 }}>
+    <Box onPress={onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={onPress ? `${label}, ${value}. Opens the stock report` : undefined}
+      className={`min-w-0 flex-1 rounded-2xl border border-border-soft bg-surface-elevated px-3.5 py-3 ${onPress ? 'hover:bg-surface-tint active:bg-surface-tint' : ''}`} style={{ minHeight: 86 }}>
       <Text className="text-xs font-bold text-text-secondary" numberOfLines={1}>{label}</Text>
       <Text style={{ marginTop: 2, fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: tone ?? colors.textPrimary, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{value}</Text>
       {sub ? <Text className="mt-0.5 text-xs font-semibold leading-4 text-text-secondary" numberOfLines={2}>{sub}</Text> : null}
-    </View>
+    </Box>
   );
 }
 
@@ -64,6 +68,30 @@ export function MonthCloseWorkspace() {
   const mayExport = access.can('reports.export');
   const showAmounts = access.showAmounts;
   const money = (n: number | null): string => (n === null ? '—' : showAmounts ? formatMoney(n) : '—');
+
+  // Task 324: the closing stock, worked out from the stock entries as Opening & closing does.
+  const kitchen = useKitchenData();
+  const [stockEntries, setStockEntries] = useState<KitchenEntry[] | null>(null);
+  const [stockError, setStockError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mayView) return;
+    let live = true;
+    setStockEntries(null);
+    setStockError(null);
+    void fetchKitchenStockEntries(range.startDate).then((res) => {
+      if (!live) return;
+      setStockEntries(res.data);
+      setStockError(res.error);
+    });
+    return () => { live = false; };
+  }, [range.startDate, refresh, mayView, kitchen.loadedAt]);
+  const stock = useMemo(() => {
+    if (!stockEntries) return null;
+    const moves = stockMovements(stockEntries, kitchen.items, range.startDate, range.endDate);
+    const lastCost = lastCostByItem(kitchen.entries);
+    return { raw: stockWorth(kitchen.items, moves, lastCost, 'raw_material'), goods: stockWorth(kitchen.items, moves, lastCost, 'finished_good') };
+  }, [stockEntries, kitchen.items, kitchen.entries, range.startDate, range.endDate]);
+  const openStock = (kind: 'raw_material' | 'finished_good') => router.push({ pathname: '/central-kitchen/stock-report', params: { kind, from: range.startDate, to: range.endDate } } as never);
 
   useEffect(() => {
     if (!mayView) return;
@@ -256,6 +284,16 @@ export function MonthCloseWorkspace() {
             <View style={{ gap: 10 }}>
               {figureRows.map((row, i) => <View key={i} className="flex-row" style={{ gap: 10 }}>{row}</View>)}
             </View>
+          </Section>
+          <Section title={fullMonth ? 'Closing stock' : 'Stock at the end'}>
+            {stockError ? <Notice text={stockError} /> : null}
+            {!stock && !stockError ? <SkeletonRows count={1} height={86} label="Loading the closing stock" /> : null}
+            {stock ? (
+              <View className="flex-row" style={{ gap: 10 }}>
+                <Figure label="Raw materials" value={money(stock.raw.closing)} sub={showAmounts ? `Opening ${formatMoney(stock.raw.opening)}` : null} onPress={() => openStock('raw_material')} />
+                <Figure label="Finished goods" value={money(stock.goods.closing)} sub={showAmounts ? `Opening ${formatMoney(stock.goods.opening)}` : null} onPress={() => openStock('finished_good')} />
+              </View>
+            ) : null}
           </Section>
           <Section title="Pending at the end">
             {filters}

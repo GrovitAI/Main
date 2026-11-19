@@ -10,7 +10,7 @@ export const KITCHEN_PERMISSIONS = [
 ] as const;
 
 export type KitchenPermission = (typeof KITCHEN_PERMISSIONS)[number];
-export type KitchenPreset = 'manager' | 'clerk' | 'storekeeper' | 'accounts' | 'custom';
+export type KitchenPreset = 'manager' | 'clerk' | 'storekeeper' | 'accounts' | 'stock' | 'custom';
 
 /** What the signed-in person may do in this kitchen, and how its days are locked. */
 export type KitchenAccess = {

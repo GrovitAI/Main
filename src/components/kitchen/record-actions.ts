@@ -1,8 +1,8 @@
-import { ArrowDownLeft, ArrowUp, ArrowUpRight, History, PackageOpen, ShoppingBag, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUp, ArrowUpRight, ClipboardCheck, History, PackageOpen, PackagePlus, ShoppingBag, type LucideIcon } from 'lucide-react-native';
 import type { KitchenPermission } from '@/lib/pos/kitchen-access-types';
 import type { Tone } from './ui';
 
-export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent' | 'give' | 'carried'; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string };
+export type RecordAction = { key: 'send' | 'received' | 'bought' | 'spent' | 'give' | 'carried' | 'made' | 'count'; icon: LucideIcon; label: string; caption: string; tone: Tone; href: string };
 
 /**
  * The four things the kitchen records, each offered only to logins allowed to
@@ -26,6 +26,18 @@ export function recordActions(can: (permission: KitchenPermission) => boolean): 
  */
 export function stockActions(can: (permission: KitchenPermission) => boolean): RecordAction[] {
   return can('entries.issue') ? [{ key: 'give', icon: PackageOpen, label: 'Give to kitchen', caption: 'Out of the store, counted as used', tone: 'primary', href: '/central-kitchen/give' }] : [];
+}
+
+/**
+ * Task 326: what a stock-only login records, for its Home when none of the four apply: usage,
+ * batches and the finished-goods count.
+ */
+export function stockOnlyActions(can: (permission: KitchenPermission) => boolean): RecordAction[] {
+  return [
+    ...stockActions(can),
+    ...(can('entries.batch') ? [{ key: 'made' as const, icon: PackagePlus, label: 'Batches', caption: 'What was made', tone: 'primary' as const, href: '/central-kitchen/stock-entry?mode=made' }] : []),
+    ...(can('entries.count') ? [{ key: 'count' as const, icon: ClipboardCheck, label: 'Count', caption: 'Stock on the shelf', tone: 'primary' as const, href: '/central-kitchen/stock-entry?mode=count&kind=finished_good' }] : []),
+  ];
 }
 
 /**

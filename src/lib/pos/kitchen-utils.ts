@@ -227,6 +227,28 @@ export function stockUnitValue(item: { id: string; item_kind: string; cost_price
   return lastCost.get(item.id) ?? item.cost_price;
 }
 
+/**
+ * Task 324: what one kind of stock was worth at the start and end of a range (Opening & closing and
+ * Month close share it). An item with no price yet is left out and counted in `unpriced`.
+ */
+export function stockWorth(
+  items: readonly KitchenItem[], moves: ReadonlyMap<string, StockMovement>, lastCost: ReadonlyMap<string, number>, kind: KitchenItem['item_kind'],
+): { opening: number; closing: number; unpriced: number } {
+  let opening = 0;
+  let closing = 0;
+  let unpriced = 0;
+  for (const it of items) {
+    if (!it.is_active || it.item_kind !== kind) continue;
+    const m = moves.get(it.id);
+    if (!m) continue;
+    const unit = stockUnitValue(it, lastCost);
+    if (unit === null) { if (m.closing !== 0 || m.opening !== 0) unpriced += 1; continue; }
+    opening += Math.max(0, m.opening) * unit;
+    closing += Math.max(0, m.closing) * unit;
+  }
+  return { opening, closing, unpriced };
+}
+
 export type StatementRow = { entry: KitchenEntry; balanceAfter: number };
 
 /** A party's give-and-take, newest first, with the figure after each line. */
@@ -572,6 +594,13 @@ export function stockOnDay(entries: readonly KitchenEntry[], items: readonly { i
     else if (e.type === 'sent' || e.type === 'issued') for (const l of e.lines) add(l.item_id, -l.qty);
   }
   return new Map(items.map((i) => [i.id, round3(i.stock - (after.get(i.id) ?? 0))]));
+}
+
+/** Task 325: whether a day has no finished-goods count although the kitchen has finished goods to count. */
+export function finishedCountMissing(entries: readonly KitchenEntry[], items: readonly Pick<KitchenItem, 'id' | 'item_kind' | 'is_active'>[], day: string): boolean {
+  const goods = new Set(items.filter((i) => i.is_active && i.item_kind === 'finished_good').map((i) => i.id));
+  if (goods.size === 0) return false;
+  return !entries.some((e) => e.type === 'count' && isPosted(e) && e.entry_date === day && e.item_id !== null && goods.has(e.item_id));
 }
 
 /** Task 321: the latest count of each item on a day, so a forgotten day is easy to spot and nobody counts it twice. */

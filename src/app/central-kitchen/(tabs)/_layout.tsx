@@ -43,6 +43,11 @@ function useTabAllowed(): (name: string) => boolean {
     if (name === 'analytics') return can('reports.view');
     if (name === 'invoices') return can('invoices.create') || can('invoices.receive') || can('invoices.cancel');
     if (name === 'attendance') return can('attendance.mark') || can('setup.roster');
+    // Task 326: a login that only records usage and stock has no use for the branch and vendor pages.
+    if (name === 'branches' || name === 'vendors') {
+      return can('entries.send') || can('entries.receive') || can('entries.buy') || can('entries.pay') || can('entries.spend')
+        || can('setup.parties') || can('reports.view') || can('money.view');
+    }
     return true;
   };
 }

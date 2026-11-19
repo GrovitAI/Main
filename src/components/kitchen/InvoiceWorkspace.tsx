@@ -9,10 +9,10 @@ import { colors, semantic } from '@/lib/pos/brand';
 import { kitchenMonthRange, kitchenRangeLabel, kitchenToday, validKitchenDate } from '@/lib/pos/kitchen-analytics-utils';
 import { cancelKitchenInvoice, createKitchenInvoice, fetchKitchenInvoice, fetchKitchenInvoices, receiveKitchenInvoicePayment } from '@/lib/pos/kitchen-invoice-service';
 import { printKitchenInvoice } from '@/lib/pos/kitchen-invoice-export';
-import { invoiceDate, invoiceIssuedDate, invoiceMoney, invoiceNumber, invoiceStatus } from '@/lib/pos/kitchen-invoice-utils';
+import { invoiceDate, invoiceIssuedDate, invoiceItems, invoiceMoney, invoiceNumber, invoiceStatus, type InvoiceItem } from '@/lib/pos/kitchen-invoice-utils';
 import { formatDayLabel, formatQty, parseAmount } from '@/lib/pos/kitchen-utils';
 import { historyTimeLabel } from '@/lib/pos/kitchen-history-utils';
-import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceLine, type InvoiceStatus, type InvoiceWorkspace as WorkspaceData, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
+import { INVOICE_STATUSES, type InvoiceDelivery, type InvoiceFilter, type InvoiceStatus, type InvoiceWorkspace as WorkspaceData, type KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 import type { KitchenMode } from '@/lib/pos/kitchen-types';
 import type { ReportOption } from '@/lib/pos/kitchen-analytics-types';
 import { Avatar, KHeader, KScreen, Notice, PrimaryButton, ReceiptLine, SelectRow, SettingsGroup, TextField, Tick } from '@/components/kitchen/ui';
@@ -28,7 +28,8 @@ const PAID_IN: readonly { value: KitchenMode; label: string }[] = [
 ];
 // Task 287: the badge the printed invoice carries, shown on the preview too.
 const badge: ImageSourcePropType = require('@/../assets/images/le-laban-badge.png');
-type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; value: InvoiceDelivery } | { kind: 'line' | 'docline'; value: InvoiceLine; date: string };
+// Task 322: an invoice's rows are its items, each once with the total quantity.
+type Row = { kind: 'invoice'; value: KitchenInvoice } | { kind: 'delivery'; value: InvoiceDelivery } | { kind: 'line' | 'docline'; value: InvoiceItem };
 type Preview = { invoice: KitchenInvoice; checkedAt: Date };
 type RouteParams = { start?: string; end?: string; party?: string };
 /** Analytics links carry a branch and an inclusive range; invalid or future dates fall back to this month. */
@@ -147,14 +148,30 @@ export function InvoiceWorkspace() {
   const narrowedTo = filter.statuses && filter.statuses.length < INVOICE_STATUSES.length ? INVOICE_STATUSES.filter(s => filter.statuses?.includes(s)) : null;
   const resetFilter = (change: Partial<InvoiceFilter>): void => { if (busy) return; setSelected(new Map()); setMessage(null); setFilter(f => ({ ...f, ...change, page: 0 })); };
   const chosen = [...selected.values()]; const total = chosen.reduce((n, d) => n + d.amount_paise, 0);
-  const allPage = !!data?.deliveries.length && data.deliveries.every(d => selected.has(d.id));
+  // Task 323: Select all takes every delivery in the dates (a whole month for a monthly invoice), not only this page.
+  const allPage = !!data?.deliveries.length && data.deliveries.every(d => selected.has(d.id)) && selected.size >= Math.min(data.total_rows, 100);
   const toggle = (delivery: InvoiceDelivery): void => {
     if (busy) return;
     setSelected(current => { const next = new Map(current); if (next.has(delivery.id)) next.delete(delivery.id); else if (next.size < 100) next.set(delivery.id, delivery); return next; });
   };
-  const selectPage = (): void => setSelected(current => {
-    const next = new Map(current); for (const d of data?.deliveries ?? []) { if (allPage) next.delete(d.id); else if (next.size < 100) next.set(d.id, d); } return next;
-  });
+  const selectPage = async (): Promise<void> => {
+    if (!data || busyRef.current) return;
+    if (allPage) { setSelected(new Map()); return; }
+    let all = data.deliveries;
+    if (data.total_rows > data.deliveries.length) {
+      if (!startBusy()) return;
+      const pages = Math.ceil(Math.min(data.total_rows, 100) / 50);
+      const read: InvoiceDelivery[] = [];
+      for (let page = 0; page < pages; page += 1) {
+        const result = page === filter.page ? { data: { deliveries: data.deliveries }, error: null } : await fetchKitchenInvoices({ ...filter, page });
+        if (result.error || !result.data) { endBusy(); setError(result.error ?? 'Unable to load every delivery. Please try again.'); return; }
+        read.push(...result.data.deliveries);
+      }
+      endBusy();
+      all = read;
+    }
+    setSelected(new Map(all.slice(0, 100).map(d => [d.id, d])));
+  };
   const startBusy = (): boolean => { if (busyRef.current) return false; busyRef.current = true; setBusy(true); setError(null); setMessage(null); return true; };
   const endBusy = (): void => { busyRef.current = false; setBusy(false); };
   const create = async (): Promise<void> => {
@@ -187,8 +204,8 @@ export function InvoiceWorkspace() {
   // Task 301: a delivery is one line until its items are asked for.
   const [openDeliveries, setOpenDeliveries] = useState<ReadonlySet<string>>(new Set());
   const toggleOpen = (id: string): void => setOpenDeliveries(now => { const next = new Set(now); if (!next.delete(id)) next.add(id); return next; });
-  const rows = useMemo<Row[]>(() => preview ? preview.invoice.deliveries.flatMap(d => d.lines.map(l => ({ kind: 'docline' as const, value: l, date: d.entry_date })))
-    : detailId ? invoice?.deliveries.flatMap(d => d.lines.map(l => ({ kind: 'line' as const, value: l, date: d.entry_date }))) ?? []
+  const rows = useMemo<Row[]>(() => preview ? invoiceItems(preview.invoice.deliveries).map(value => ({ kind: 'docline' as const, value }))
+    : detailId ? (invoice ? invoiceItems(invoice.deliveries).map(value => ({ kind: 'line' as const, value })) : [])
     : filter.candidates ? (data?.deliveries ?? []).map(value => ({ kind: 'delivery', value })) : (data?.rows ?? []).map(value => ({ kind: 'invoice', value })), [data, filter.candidates, invoice, detailId, preview]);
   const pane = invoice && editor ? <View className="gap-3 border-y border-border-soft bg-surface-elevated py-3">
     <Text className="text-base font-bold text-text-primary">{editor === 'receive' ? 'Record received payment' : 'Cancel this invoice'}</Text>
@@ -229,13 +246,19 @@ export function InvoiceWorkspace() {
       <View className="gap-1 py-4"><Text className="text-sm font-bold leading-5 text-text-primary">Bill to {preview.invoice.party_name}</Text>
         <Text className="text-sm leading-5 text-text-secondary">Delivery period: {invoiceDate(preview.invoice.start_date)} to {invoiceDate(preview.invoice.end_date)} (inclusive)</Text>
         {preview.invoice.cancelled_at ? <Text className="text-sm leading-5 text-text-primary">Cancelled: {preview.invoice.cancel_reason}</Text> : null}</View>
-      {desktop ? <View className="flex-row gap-3 bg-surface-tint px-2 py-2"><Text className="w-[18%] text-xs font-semibold text-text-secondary">Date</Text><Text className="flex-1 text-xs font-semibold text-text-secondary">Items</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="w-[16%] text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
+      {desktop ? <View className="flex-row gap-3 bg-surface-tint px-2 py-2"><Text className="flex-1 text-xs font-semibold text-text-secondary">Items</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Quantity</Text><Text className="w-[14%] text-right text-xs font-semibold text-text-secondary">Rate</Text><Text className="w-[16%] text-right text-xs font-semibold text-text-secondary">Amount</Text></View> : null}
     </View>
   </> : null;
   const docFooter = preview ? <View className={paper + ' mb-2 rounded-b-lg border-b pb-6 pt-4'}>
     <View className={'gap-1 ' + (desktop ? 'ml-auto w-[280px]' : '')}>
       {([['Invoice total', preview.invoice.total_paise, true], ['Payments matched', preview.invoice.covered_paise, false], ['Balance to pay', preview.invoice.open_paise, true]] as const).map(([label, value, strong]) => <View key={label} className="flex-row justify-between gap-4">
         <Text className={'text-sm leading-6 text-text-primary ' + (strong ? 'font-bold' : '')}>{label}</Text><Text className={'text-sm leading-6 text-text-primary ' + (strong ? 'font-bold' : '')} style={tabular}>{invoiceMoney(value)}</Text></View>)}
+    </View>
+    {/* Task 322: the deliveries the items came in, by date. */}
+    <View className={'mt-5 ' + (desktop ? 'w-[320px]' : '')}>
+      <View className="flex-row justify-between gap-4 bg-surface-tint px-2 py-1.5"><Text className="text-xs font-semibold text-text-secondary">Deliveries ({preview.invoice.deliveries.length})</Text><Text className="text-xs font-semibold text-text-secondary">Amount</Text></View>
+      {[...preview.invoice.deliveries].sort((a, b) => a.entry_date.localeCompare(b.entry_date)).map(d => <View key={d.id} className="flex-row justify-between gap-4 border-b border-border-soft px-2 py-1">
+        <Text className="text-xs leading-5 text-text-primary">{invoiceDate(d.entry_date)}</Text><Text className="text-xs leading-5 text-text-primary" style={tabular}>{invoiceMoney(d.amount_paise)}</Text></View>)}
     </View>
     <View className="mt-5 gap-1 border-t border-border-soft pt-3"><Text className="text-xs leading-5 text-text-secondary">Prepared by {preview.invoice.created_by_name}. Payment status checked {historyTimeLabel(preview.checkedAt.toISOString())}.</Text>
       <Text className="text-xs leading-5 text-text-secondary">Selected deliveries only. Unmatched branch receipts are not included. No additional tax has been calculated.</Text></View>
@@ -257,7 +280,7 @@ export function InvoiceWorkspace() {
         </View>
       </View>
       {filter.candidates && data?.deliveries.length ? <View className="-mb-2 flex-row items-center justify-between gap-2">
-        <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={selectPage}
+        <Pressable accessibilityRole="checkbox" accessibilityLabel="Select all deliveries" aria-checked={allPage} accessibilityState={{ checked: allPage, disabled: busy }} disabled={busy} onPress={() => void selectPage()}
           className="min-h-[44px] flex-row items-center gap-3 rounded-lg px-3 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary">
           <Tick size={22} on={allPage} /><Text className="text-sm font-bold text-text-primary">Select all</Text>
         </Pressable>
@@ -295,7 +318,11 @@ export function InvoiceWorkspace() {
           {narrowedTo ? <Action label="Show all invoices" disabled={busy} onPress={() => resetFilter({ statuses: INVOICE_STATUSES })} /> : <Text className="text-sm leading-5 text-text-secondary">Choose a branch and select its deliveries.</Text>}
           {access.can('invoices.create') && !narrowedTo ? <Action label="Select deliveries" primary disabled={busy} onPress={() => resetFilter({ candidates: true })} /> : null}
         </View> : <Text className="py-5 text-sm leading-5 text-text-secondary">{detailId ? 'Invoice unavailable.' : filter.partyId ? 'Everything sent in these dates is already on an invoice.' : 'Choose a branch to load its deliveries.'}</Text> : null}
-        ListFooterComponent={preview ? docFooter : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
+        ListFooterComponent={preview ? docFooter : detailId && invoice ? <View className="mt-3 overflow-hidden rounded-[18px] border border-border-soft bg-surface-elevated">
+          <View className="flex-row justify-between gap-4 border-b border-border-soft bg-surface-tint px-3 py-2"><Text className="text-xs font-bold text-text-secondary">Deliveries ({invoice.deliveries.length})</Text><Text className="text-xs font-bold text-text-secondary">Amount</Text></View>
+          {[...invoice.deliveries].sort((a, b) => a.entry_date.localeCompare(b.entry_date)).map((d, i) => <View key={d.id} className={'min-h-[40px] flex-row items-center justify-between gap-4 px-3 ' + (i === 0 ? '' : 'border-t border-border-soft')}>
+            <Text className="text-sm text-text-primary">{invoiceDate(d.entry_date)}</Text><Text className="text-sm font-semibold text-text-primary" style={tabular}>{invoiceMoney(d.amount_paise)}</Text></View>)}
+        </View> : !detailId && data && data.total_rows > 50 ? <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2"><Action label="Previous page" disabled={loading || busy || filter.page === 0} onPress={() => setFilter(f => ({ ...f, page: f.page - 1 }))} /><Text className="text-xs text-text-secondary">Page {filter.page + 1} of {Math.ceil(data.total_rows / 50)}</Text><Action label="Next page" disabled={loading || busy || (filter.page + 1) * 50 >= data.total_rows} onPress={() => setFilter(f => ({ ...f, page: f.page + 1 }))} /></View> : null}
         renderItem={({ item, index }) => item.kind === 'invoice' ? <Pressable accessibilityRole="button" accessibilityLabel={'Open ' + invoiceNumber(item.value.invoice_no) + ', ' + item.value.party_name + ', ' + invoiceMoney(item.value.total_paise) + ', ' + invoiceStatus(item.value.status) + (item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? ', ' + invoiceMoney(item.value.open_paise) + ' left' : '')} disabled={busy} onPress={() => { setMessage(null); setDetailId(item.value.id); }}
           className={'min-h-16 flex-row items-center gap-3 border-x border-b border-border-soft bg-surface-elevated px-3 py-2 hover:bg-accent-soft active:bg-accent-soft web:focus-visible:border-primary ' + (index === 0 ? 'rounded-t-[18px] border-t ' : '') + (index === rows.length - 1 ? 'rounded-b-[18px]' : '')}>
           {desktop ? null : <Avatar name={item.value.party_name} size={38} />}
@@ -304,11 +331,11 @@ export function InvoiceWorkspace() {
             {item.value.status === 'to_be_paid' && item.value.covered_paise > 0 ? <Text className="text-xs leading-4 text-text-secondary" style={tabular}>{invoiceMoney(item.value.open_paise)} left</Text> : null}</View>
         </Pressable> : item.kind === 'delivery' ? <DeliveryRow delivery={item.value} first={index === 0} last={index === rows.length - 1} on={selected.has(item.value.id)} full={selected.size >= 100} busy={busy} open={openDeliveries.has(item.value.id)} onToggle={() => toggle(item.value)} onOpen={() => toggleOpen(item.value.id)} />
           : item.kind === 'docline' ? <View className={paper}><View className="border-b border-border-soft px-2 py-2">
-          {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[18%] text-sm text-text-secondary">{invoiceDate(item.date)}</Text><Text className="flex-1 text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="w-[14%] text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="w-[14%] text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="w-[16%] text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
-            : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{invoiceDate(item.date)} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
+          {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="flex-1 text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="w-[14%] text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="w-[14%] text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="w-[16%] text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
+            : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
         </View></View> : <View className={'border-x border-b border-border-soft bg-surface-elevated px-3 py-2 ' + (index === 0 && !desktop ? 'rounded-t-[18px] border-t ' : '') + (index === rows.length - 1 ? 'rounded-b-[18px]' : '')}>
-          {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[34%] text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="flex-1 text-xs text-text-secondary">{invoiceDate(item.date)}</Text><Text className="flex-1 text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="flex-1 text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="flex-1 text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
-            : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{invoiceDate(item.date)} · {formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
+          {desktop ? <View className="min-h-11 flex-row items-center gap-3"><Text className="w-[40%] text-sm font-semibold text-text-primary">{item.value.item_name}</Text><Text className="flex-1 text-right text-sm text-text-secondary">{formatQty(item.value.qty, item.value.unit)}</Text><Text className="flex-1 text-right text-sm text-text-secondary" style={tabular}>{invoiceMoney(item.value.price_paise)}</Text><Text className="flex-1 text-right text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View>
+            : <><View className="flex-row justify-between gap-3"><Text className="min-w-0 flex-1 text-sm font-semibold leading-5 text-text-primary">{item.value.item_name}</Text><Text className="text-sm font-bold text-text-primary" style={tabular}>{invoiceMoney(item.value.line_paise)}</Text></View><Text className="text-xs leading-5 text-text-secondary">{formatQty(item.value.qty, item.value.unit)} × {invoiceMoney(item.value.price_paise)}</Text></>}
         </View>} />
     </View>
   </KScreen></KeyboardAvoider>;

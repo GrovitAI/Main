@@ -14,7 +14,7 @@ import type { ServiceResult } from './kitchen-types';
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
-const PRESETS: readonly KitchenPreset[] = ['manager', 'clerk', 'storekeeper', 'accounts', 'custom'];
+const PRESETS: readonly KitchenPreset[] = ['manager', 'clerk', 'storekeeper', 'accounts', 'stock', 'custom'];
 const toPreset = (v: unknown): KitchenPreset => (typeof v === 'string' && (PRESETS as readonly string[]).includes(v) ? (v as KitchenPreset) : 'custom');
 const toPermissions = (v: unknown): KitchenPermission[] => (Array.isArray(v) ? v.filter(isKitchenPermission) : []);
 

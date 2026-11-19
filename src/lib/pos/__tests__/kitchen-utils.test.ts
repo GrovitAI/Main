@@ -6,6 +6,8 @@ import {
   batchDayTotals,
   changesToday,
   stockOnDay,
+  stockWorth,
+  finishedCountMissing,
   countedOnDay,
   entryBrief,
   statementLine,
@@ -611,5 +613,35 @@ describe('counting an earlier day', () => {
   it('shows the latest count of the day', () => {
     expect(countedOnDay(list, '2026-11-13').get('a')).toBe(36);
     expect(countedOnDay(list, '2026-11-12').size).toBe(0);
+  });
+});
+
+// Task 324: what each kind of stock was worth at the start and end, for Month close.
+describe('closing stock worth', () => {
+  const item = (id: string, kind: 'raw_material' | 'finished_good', cost: number | null, active = true) =>
+    ({ id, name: id, item_kind: kind, unit: 'kg', sell_price: null, cost_price: cost, packing_price: kind === 'finished_good' ? 5 : null, category_id: null, stock: 0, is_active: active, updated_at: '' }) as unknown as KitchenItem;
+  const items = [item('r1', 'raw_material', 100), item('r2', 'raw_material', null), item('g1', 'finished_good', 20), item('old', 'raw_material', 9, false)];
+  const moves = new Map([
+    ['r1', { opening: 2, in: 1, out: 0, counted: 0, closing: 3 }], ['r2', { opening: 0, in: 4, out: 0, counted: 0, closing: 4 }],
+    ['g1', { opening: -1, in: 10, out: 1, counted: 0, closing: 8 }], ['old', { opening: 5, in: 0, out: 0, counted: 0, closing: 5 }],
+  ]);
+  it('values raw materials at the last price paid and leaves out what has no price', () => {
+    expect(stockWorth(items, moves, new Map([['r1', 120]]), 'raw_material')).toEqual({ opening: 240, closing: 360, unpriced: 1 });
+  });
+  it('values finished goods at rate plus packing and never below zero', () => {
+    expect(stockWorth(items, moves, new Map(), 'finished_good')).toEqual({ opening: 0, closing: 200, unpriced: 0 });
+  });
+});
+
+// Task 325: Home warns the next morning when the finished goods were not counted.
+describe('missed finished-goods count', () => {
+  const goods = [{ id: 'g', item_kind: 'finished_good' as const, is_active: true }, { id: 'r', item_kind: 'raw_material' as const, is_active: true }];
+  const count = (item_id: string, entry_date: string, extra: Partial<KitchenEntry> = {}) => entry({ type: 'count', item_id, qty: 1, from_qty: 1, entry_date, ...extra });
+  it('warns only when no finished good was counted that day', () => {
+    expect(finishedCountMissing([], goods, '2026-11-18')).toBe(true);
+    expect(finishedCountMissing([count('r', '2026-11-18')], goods, '2026-11-18')).toBe(true);
+    expect(finishedCountMissing([count('g', '2026-11-18', { voided_at: '2026-11-18T10:00:00Z' })], goods, '2026-11-18')).toBe(true);
+    expect(finishedCountMissing([count('g', '2026-11-18')], goods, '2026-11-18')).toBe(false);
+    expect(finishedCountMissing([], goods.slice(1), '2026-11-18')).toBe(false);
   });
 });
