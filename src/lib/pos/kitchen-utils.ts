@@ -596,6 +596,13 @@ export function stockOnDay(entries: readonly KitchenEntry[], items: readonly { i
   return new Map(items.map((i) => [i.id, round3(i.stock - (after.get(i.id) ?? 0))]));
 }
 
+/** Task 325: whether a day has no finished-goods count although the kitchen has finished goods to count. */
+export function finishedCountMissing(entries: readonly KitchenEntry[], items: readonly Pick<KitchenItem, 'id' | 'item_kind' | 'is_active'>[], day: string): boolean {
+  const goods = new Set(items.filter((i) => i.is_active && i.item_kind === 'finished_good').map((i) => i.id));
+  if (goods.size === 0) return false;
+  return !entries.some((e) => e.type === 'count' && isPosted(e) && e.entry_date === day && e.item_id !== null && goods.has(e.item_id));
+}
+
 /** Task 321: the latest count of each item on a day, so a forgotten day is easy to spot and nobody counts it twice. */
 export function countedOnDay(entries: readonly KitchenEntry[], date: string): Map<string, number> {
   const out = new Map<string, { qty: number; at: string }>();

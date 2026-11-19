@@ -7,6 +7,7 @@ import {
   changesToday,
   stockOnDay,
   stockWorth,
+  finishedCountMissing,
   countedOnDay,
   entryBrief,
   statementLine,
@@ -629,5 +630,18 @@ describe('closing stock worth', () => {
   });
   it('values finished goods at rate plus packing and never below zero', () => {
     expect(stockWorth(items, moves, new Map(), 'finished_good')).toEqual({ opening: 0, closing: 200, unpriced: 0 });
+  });
+});
+
+// Task 325: Home warns the next morning when the finished goods were not counted.
+describe('missed finished-goods count', () => {
+  const goods = [{ id: 'g', item_kind: 'finished_good' as const, is_active: true }, { id: 'r', item_kind: 'raw_material' as const, is_active: true }];
+  const count = (item_id: string, entry_date: string, extra: Partial<KitchenEntry> = {}) => entry({ type: 'count', item_id, qty: 1, from_qty: 1, entry_date, ...extra });
+  it('warns only when no finished good was counted that day', () => {
+    expect(finishedCountMissing([], goods, '2026-11-18')).toBe(true);
+    expect(finishedCountMissing([count('r', '2026-11-18')], goods, '2026-11-18')).toBe(true);
+    expect(finishedCountMissing([count('g', '2026-11-18', { voided_at: '2026-11-18T10:00:00Z' })], goods, '2026-11-18')).toBe(true);
+    expect(finishedCountMissing([count('g', '2026-11-18')], goods, '2026-11-18')).toBe(false);
+    expect(finishedCountMissing([], goods.slice(1), '2026-11-18')).toBe(false);
   });
 });

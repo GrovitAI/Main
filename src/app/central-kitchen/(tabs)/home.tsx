@@ -12,7 +12,7 @@ import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData } from '@/lib/pos/use-kitchen-store';
 import { dayText } from '@/lib/pos/kitchen-access-utils';
 import { fetchKitchenMoney, type MoneySummary } from '@/lib/pos/kitchen-money-service';
-import { formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues, changesToday } from '@/lib/pos/kitchen-utils';
+import { finishedCountMissing, formatLongDate, formatMoney, localDateKey, monthKeyOf, monthTotals, newestFirst, sumDues, changesToday } from '@/lib/pos/kitchen-utils';
 import { ActionTile, Card, Divider, Empty, IconButton, KHeader, KScreen, LinkButton, Notice, Row, RowInset, Section, Skeleton, StatTile, useDesktopDensity } from '@/components/kitchen/ui';
 import { EntryList } from '@/components/kitchen/EntryList';
 
@@ -39,6 +39,14 @@ export default function KitchenHome() {
   const branchName = kitchenBranch().name;
   const changes = useMemo(() => changesToday(data.entries, today, (iso) => localDateKey(new Date(iso))), [data.entries, today]);
   const nothingSetUp = data.loaded && data.items.length === 0 && data.parties.length === 0;
+  // Task 325: the finished goods are counted every day; a day missed shows here the next morning.
+  const yesterday = useMemo(() => { const d = new Date(`${today}T12:00:00`); d.setDate(d.getDate() - 1); return localDateKey(d); }, [today]);
+  const countMissing = data.loaded && access.can('entries.count') && finishedCountMissing(data.entries, data.items, yesterday);
+  const mayCountYesterday = access.can('entries.backdate') && (access.isOwner || !access.isLocked(yesterday));
+  const countWarning = countMissing ? (
+    <Notice tone="buy" text={mayCountYesterday ? `No finished-goods count for ${dayText(yesterday)}.` : `No finished-goods count for ${dayText(yesterday)}. Ask a manager to enter it.`}
+      action={mayCountYesterday ? <LinkButton label="Count now" onPress={() => router.push({ pathname: '/central-kitchen/stock-entry', params: { mode: 'count', kind: 'finished_good', date: yesterday } } as never)} /> : undefined} />
+  ) : null;
   // Cash and bank come from the database (opening plus every entry since), so they refresh when Home
   // is shown and after each save changes the entries.
   const [money, setMoney] = useState<MoneySummary | null>(null);
@@ -219,6 +227,7 @@ export default function KitchenHome() {
       />
 
       {data.error ? <Notice text={data.error} action={<LinkButton label="Retry" onPress={() => void data.load()} />} /> : null}
+      {countWarning}
       {lockLine}
 
       {!data.loaded ? (

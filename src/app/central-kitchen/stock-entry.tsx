@@ -25,7 +25,7 @@ type Kind = KitchenItem['item_kind'];
  * together; an item left blank is not touched. Each still becomes its own entry in History.
  */
 export default function StockEntryScreen() {
-  const params = useLocalSearchParams<{ mode?: string; kind?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; kind?: string; date?: string }>();
   const mode: Mode = params.mode === 'made' ? 'made' : 'count';
   const [kind, setKind] = useState<Kind>(mode === 'made' || params.kind === 'finished_good' ? 'finished_good' : 'raw_material');
   const data = useKitchenData();
@@ -37,10 +37,11 @@ export default function StockEntryScreen() {
   const previous = tab === 'previous';
   // Task 306: a batch can be for an earlier day, for a login allowed to enter one. Task 321: so can a
   // count, as the stock by the end of that day, for a day the kitchen forgot to count.
-  const [date, setDate] = useState(localDateKey());
+  const mayBackdate = can('entries.backdate');
+  // Task 325: Home's warning opens the count on the day that was missed.
+  const [date, setDate] = useState(() => (mayBackdate && params.date && isValidDateKey(params.date) && params.date <= localDateKey() ? params.date : localDateKey()));
   const [lockReason, setLockReason] = useState('');
   const dateOk = useDateGuard(date, lockReason);
-  const mayBackdate = can('entries.backdate');
   const isToday = date === localDateKey();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
