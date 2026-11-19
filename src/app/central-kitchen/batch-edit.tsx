@@ -3,7 +3,7 @@ import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { useLeaveGuard, useTypedChanges } from '@/lib/pos/use-leave-guard';
 import { editKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { cleanTypedNumber, formatQty, localDateKey, stockMovedSince } from '@/lib/pos/kitchen-utils';
+import { cleanTypedNumber, formatQty, localDateKey } from '@/lib/pos/kitchen-utils';
 import type { KitchenEntryType } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { Field, KHeader, KScreen, Notice, PrimaryButton, SettingsGroup, TextField, useSavedThen } from '@/components/kitchen/ui';
@@ -15,9 +15,10 @@ import { buzz } from '@/lib/pos/kitchen-haptics';
 const EDITABLE: readonly KitchenEntryType[] = ['made', 'count'];
 
 /**
- * Task 304: corrects a batch: how much, which day and its note; task 306: or a stock count, as long
- * as the item's stock has not moved since. As with every edit, the earlier entry stays in History
- * as replaced, and a batch moves stock by the difference.
+ * Task 304: corrects a batch: how much, which day and its note; task 306: or a stock count. Task 321:
+ * a count can be corrected, or moved to another day, after stock has moved; the database works it
+ * out against that day's closing stock. As with every edit, the earlier entry stays in History as
+ * replaced, and a batch moves stock by the difference.
  */
 export default function BatchEditScreen() {
   const data = useKitchenData();
@@ -48,8 +49,7 @@ export default function BatchEditScreen() {
   const mayChange = !!editing && (access.isOwner || (access.canFix(editing) && !access.isLocked(editing.entry_date)));
   useLeaveGuard(changed && !done.saved, 'Your changes');
   const isCount = editing?.type === 'count';
-  const moved = !!editing && isCount && stockMovedSince(data.entries, editing);
-  const reason = moved ? 'Count again instead' : !qty.trim() || !Number.isFinite(amount) || amount < 0 || (!isCount && amount === 0) ? 'Enter the quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : !changed ? 'Nothing changed' : undefined;
+  const reason = !qty.trim() || !Number.isFinite(amount) || amount < 0 || (!isCount && amount === 0) ? 'Enter the quantity' : !isValidDateKey(date) || !dateOk ? 'Check the date' : !changed ? 'Nothing changed' : undefined;
 
   const save = async (): Promise<void> => {
     if (!editing?.item_id || reason || !mayChange || saving) return;
@@ -75,12 +75,11 @@ export default function BatchEditScreen() {
         <KHeader title={isCount ? 'Edit count' : 'Edit batch'} onBack={() => backToKitchen()} />
         {missing ? <Notice text="This cannot be edited here: it is deleted or older than three months." /> : null}
         {editing && !mayChange ? <Notice tone="neutral" text="Your login cannot change this. Ask the owner or a kitchen manager." /> : null}
-        {moved ? <Notice tone="neutral" text="Stock has moved since this count. Count it again instead." /> : null}
         {editing ? (
           <>
             <SettingsGroup>
               <WhoRow name={item?.name ?? 'Removed item'} sub={item ? `${formatQty(item.stock, item.unit)} in stock` : undefined} />
-              {isCount ? null : <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />}
+              <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} />
               <NoteRow value={note} onChange={setNote} />
             </SettingsGroup>
             <Field label={`${isCount ? 'Counted' : 'Quantity made'}${unit ? `, ${unit}` : ''}`}>

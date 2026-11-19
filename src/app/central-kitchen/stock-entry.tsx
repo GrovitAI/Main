@@ -6,7 +6,7 @@ import { backToKitchen } from '@/lib/pos/kitchen-nav';
 import { useLeaveGuard } from '@/lib/pos/use-leave-guard';
 import { postKitchenEntry } from '@/lib/pos/kitchen-service';
 import { useKitchenAccess, useKitchenData, useKitchenStore } from '@/lib/pos/use-kitchen-store';
-import { cleanTypedNumber, formatDayLabel, formatQty, localDateKey, madeOnDay, matchesSearch } from '@/lib/pos/kitchen-utils';
+import { cleanTypedNumber, countedOnDay, formatDayLabel, formatQty, localDateKey, madeOnDay, matchesSearch, stockOnDay } from '@/lib/pos/kitchen-utils';
 import { byCategoryThenName, itemCategoryName } from '@/lib/pos/kitchen-spend-utils';
 import type { KitchenItem } from '@/lib/pos/kitchen-types';
 import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
@@ -35,11 +35,13 @@ export default function StockEntryScreen() {
   // Tasks 304 and 306: what was already recorded, to check or correct it.
   const [tab, setTab] = useState<'new' | 'previous'>('new');
   const previous = tab === 'previous';
-  // Task 306: a batch can be for an earlier day, for a login allowed to enter one. A count is what is on the shelf now.
+  // Task 306: a batch can be for an earlier day, for a login allowed to enter one. Task 321: so can a
+  // count, as the stock by the end of that day, for a day the kitchen forgot to count.
   const [date, setDate] = useState(localDateKey());
   const [lockReason, setLockReason] = useState('');
   const dateOk = useDateGuard(date, lockReason);
-  const mayBackdate = mode === 'made' && can('entries.backdate');
+  const mayBackdate = can('entries.backdate');
+  const isToday = date === localDateKey();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const done = useSavedThen();
@@ -55,16 +57,20 @@ export default function StockEntryScreen() {
 
   useLeaveGuard(chosen.length > 0 && !done.saved, 'The figures you typed');
   const madeThatDay = useMemo(() => (mode === 'made' ? madeOnDay(data.entries, date) : new Map<string, number>()), [mode, data.entries, date]);
+  // Task 321: for an earlier day, what each item stood at by its end and any count already saved for it.
+  const countedThatDay = useMemo(() => (mode === 'count' ? countedOnDay(data.entries, date) : new Map<string, number>()), [mode, data.entries, date]);
+  const stockThen = useMemo(() => (mode === 'count' && !isToday ? stockOnDay(data.entries, data.items, date) : null), [mode, isToday, data.entries, data.items, date]);
   const dayName = formatDayLabel(date);
+  const dateBad = !isValidDateKey(date) || !dateOk;
 
   const save = async (): Promise<void> => {
-    if (chosen.length === 0 || saving || !allowed || (mode === 'made' && (!isValidDateKey(date) || !dateOk))) return;
+    if (chosen.length === 0 || saving || !allowed || dateBad) return;
     setSaving(true);
     setError(null);
     const failed: string[] = [];
     let firstError: string | null = null;
     for (const line of chosen) {
-      const res = await postKitchenEntry({ type: mode, item_id: line.item.id, qty: line.qty, ...(mode === 'made' ? { entry_date: date } : {}) }, mode === 'made' ? lockReason : null);
+      const res = await postKitchenEntry({ type: mode, item_id: line.item.id, qty: line.qty, entry_date: date }, lockReason);
       if (res.error) {
         failed.push(line.item.id);
         firstError = firstError ?? res.error;
@@ -88,10 +94,10 @@ export default function StockEntryScreen() {
   };
 
   const label = chosen.length === 0 ? 'Save' : `Save · ${chosen.length} ${chosen.length === 1 ? 'item' : 'items'}`;
-  const whyNot = chosen.length === 0 ? 'Enter a quantity' : mode === 'made' && (!isValidDateKey(date) || !dateOk) ? 'Check the date' : undefined;
+  const whyNot = chosen.length === 0 ? 'Enter a quantity' : dateBad ? 'Check the date' : undefined;
   const top = (
     <>
-      <KHeader title={mode === 'made' ? 'Create batches' : 'Count stock'} subtitle={previous || mode === 'made' ? undefined : 'What is on the shelf now'} onBack={() => backToKitchen()} />
+      <KHeader title={mode === 'made' ? 'Create batches' : 'Count stock'} subtitle={previous || mode === 'made' ? undefined : isToday ? 'What is on the shelf now' : `Stock at the end of ${dayName}`} onBack={() => backToKitchen()} />
       <View className="mb-3"><Segmented options={[{ value: 'new', label: 'New' }, { value: 'previous', label: 'Previous' }]} value={tab} onChange={setTab} /></View>
     </>
   );
@@ -107,7 +113,15 @@ export default function StockEntryScreen() {
         {error ? <View className="mt-3"><Notice text={error} /></View> : null}
         {rows.length === 0 ? <Empty title={query ? 'No item matches that' : 'No items yet'} /> : (
           <View className="mt-3 overflow-hidden rounded-[18px] border border-border-soft bg-surface-elevated">
-            {rows.map((it, i) => <QtyRow key={it.id} it={it} first={i === 0} text={typed[it.id] ?? ''} category={itemCategoryName(categories, it.category_id)} already={madeThatDay.get(it.id) ? `${dayName} +${formatQty(madeThatDay.get(it.id) ?? 0, it.unit).trim()}` : null} onChange={(t) => setTyped((all) => ({ ...all, [it.id]: t }))} />)}
+            {rows.map((it, i) => {
+              const counted = countedThatDay.get(it.id);
+              const already = mode === 'made'
+                ? (madeThatDay.get(it.id) ? `${dayName} +${formatQty(madeThatDay.get(it.id) ?? 0, it.unit).trim()}` : null)
+                : counted !== undefined ? `Counted ${formatQty(counted, it.unit).trim()}` : null;
+              const then = stockThen?.get(it.id);
+              const stock = then === undefined ? `${formatQty(it.stock, it.unit)} in stock` : `${formatQty(then, it.unit)} expected`;
+              return <QtyRow key={it.id} it={it} first={i === 0} text={typed[it.id] ?? ''} category={itemCategoryName(categories, it.category_id)} already={already} stock={stock} onChange={(t) => setTyped((all) => ({ ...all, [it.id]: t }))} />;
+            })}
           </View>
         )}
         <View style={{ height: 8 }} />
@@ -117,14 +131,14 @@ export default function StockEntryScreen() {
 }
 
 /** One item and its figure; a tap anywhere on the row puts the cursor in the box. */
-function QtyRow({ it, first, text, category, already, onChange }: { it: KitchenItem; first: boolean; text: string; category: string | null; already: string | null; onChange: (t: string) => void }) {
+function QtyRow({ it, first, text, category, already, stock, onChange }: { it: KitchenItem; first: boolean; text: string; category: string | null; already: string | null; stock: string; onChange: (t: string) => void }) {
   const input = useRef<NativeTextInput>(null);
   return (
     <Pressable onPress={() => input.current?.focus()} accessibilityLabel={it.name}
       className={`min-h-[60px] flex-row items-center gap-3 px-3.5 py-2 hover:bg-surface-tint ${first ? '' : 'border-t border-border-soft'}`}>
       <View className="min-w-0 flex-1">
         <Text className="text-[15px] font-bold text-text-primary" numberOfLines={1}>{it.name}</Text>
-        <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{already ? <Text className="text-xs font-bold text-primary">{already} · </Text> : null}{[`${formatQty(it.stock, it.unit)} in stock`, category].filter(Boolean).join(' · ')}</Text>
+        <Text className="text-xs font-semibold text-text-secondary" numberOfLines={1}>{already ? <Text className="text-xs font-bold text-primary">{already} · </Text> : null}{[stock, category].filter(Boolean).join(' · ')}</Text>
       </View>
       <View className="h-11 flex-row items-center rounded-xl border border-border bg-surface-elevated px-2.5" style={{ width: 112 }}>
         <TextInput ref={input} value={text} onChangeText={(t) => onChange(cleanTypedNumber(t, it.unit === 'pcs' ? 0 : 3))}

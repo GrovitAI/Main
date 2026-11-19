@@ -5,7 +5,8 @@ import {
   madeOnDay,
   batchDayTotals,
   changesToday,
-  stockMovedSince,
+  stockOnDay,
+  countedOnDay,
   entryBrief,
   statementLine,
   itemMoveDays,
@@ -584,12 +585,31 @@ describe('staff tools (task 306)', () => {
     expect(changesToday(list, '2026-11-05', dayOf)).toBe(2);
   });
 
-  it('notices stock that moved after a count', () => {
-    const count = entry({ id: 'c', type: 'count', item_id: 'a', qty: 4, from_qty: 2, created_at: '2026-11-05T08:00:00Z' });
-    const send = (at: string, item: string, voided: string | null = null): KitchenEntry => entry({ type: 'sent', created_at: at, voided_at: voided, lines: [{ id: at, item_id: item, qty: 1, price: 1, line_total: 1 }] });
-    expect(stockMovedSince([count, send('2026-11-05T07:00:00Z', 'a')], count)).toBe(false);
-    expect(stockMovedSince([count, send('2026-11-05T09:00:00Z', 'b')], count)).toBe(false);
-    expect(stockMovedSince([count, send('2026-11-05T09:00:00Z', 'a', '2026-11-05T09:30:00Z')], count)).toBe(false);
-    expect(stockMovedSince([count, send('2026-11-05T09:00:00Z', 'a')], count)).toBe(true);
+});
+
+// Task 321: a count for an earlier day is checked against that day's closing stock.
+describe('counting an earlier day', () => {
+  const line = (item_id: string, qty: number) => ({ id: `${item_id}-${qty}`, item_id, qty, price: 1, line_total: qty });
+  const list = [
+    entry({ type: 'made', entry_date: '2026-11-10', item_id: 'a', qty: 50 }),
+    entry({ type: 'sent', entry_date: '2026-11-12', lines: [line('a', 10)] }),
+    entry({ type: 'count', entry_date: '2026-11-13', item_id: 'a', qty: 35, from_qty: 40, created_at: '2026-11-14T03:00:00Z' }),
+    entry({ type: 'count', entry_date: '2026-11-13', item_id: 'a', qty: 36, from_qty: 35, created_at: '2026-11-14T04:00:00Z' }),
+    entry({ type: 'made', entry_date: '2026-11-15', item_id: 'a', qty: 20 }),
+    entry({ type: 'bought', entry_date: '2026-11-15', lines: [line('b', 4)] }),
+    entry({ type: 'made', entry_date: '2026-11-16', item_id: 'a', qty: 99, voided_at: '2026-11-16T10:00:00Z' }),
+  ];
+  const items = [{ id: 'a', stock: 56 }, { id: 'b', stock: 9 }];
+
+  it('takes away everything dated after the day, counts by their difference, deleted entries left out', () => {
+    expect(stockOnDay(list, items, '2026-11-15')).toEqual(new Map([['a', 56], ['b', 9]]));
+    expect(stockOnDay(list, items, '2026-11-14')).toEqual(new Map([['a', 36], ['b', 5]]));
+    expect(stockOnDay(list, items, '2026-11-12').get('a')).toBe(40);
+    expect(stockOnDay(list, items, '2026-11-11').get('a')).toBe(50);
+  });
+
+  it('shows the latest count of the day', () => {
+    expect(countedOnDay(list, '2026-11-13').get('a')).toBe(36);
+    expect(countedOnDay(list, '2026-11-12').size).toBe(0);
   });
 });
