@@ -2,7 +2,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { cancelKitchenInvoice, createKitchenInvoice, fetchKitchenInvoice, fetchKitchenInvoices, parseKitchenInvoice, receiveKitchenInvoicePayment } from '@/lib/pos/kitchen-invoice-service';
-import { invoiceNumber, kitchenInvoiceHtml } from '@/lib/pos/kitchen-invoice-utils';
+import { invoiceItems, invoiceNumber, kitchenInvoiceHtml } from '@/lib/pos/kitchen-invoice-utils';
 import type { InvoiceFilter, KitchenInvoice } from '@/lib/pos/kitchen-invoice-types';
 
 jest.mock('@/lib/pos/supabase', () => ({ supabase: { rpc: jest.fn() } }));
@@ -103,4 +103,20 @@ test('the register narrows by the ticked statuses only, and never for delivery s
   const calls = (supabase.rpc as jest.Mock).mock.calls.length;
   expect((await fetchKitchenInvoices({ ...register, statuses: [] })).error).toBe('Choose at least one status.');
   expect((supabase.rpc as jest.Mock).mock.calls.length).toBe(calls);
+});
+
+// Task 322: an invoice lists each item once with its total quantity; the deliveries are listed by date.
+test('items add up across deliveries at the same rate, a different rate stays its own line', () => {
+  const line = (id: string, item_name: string, qty: number, price_paise: number) => ({ id, item_name, unit: 'pcs', qty, price_paise, line_paise: qty * price_paise });
+  const deliveries = [
+    { id: 'd2', entry_date: '2026-10-02', amount_paise: 0, lines: [line('a', 'Fazea', 4, 5000), line('b', 'Cake', 1.5, 2000)] },
+    { id: 'd1', entry_date: '2026-10-01', amount_paise: 0, lines: [line('c', 'Fazea', 6, 5000), line('d', 'Fazea', 2, 5500)] },
+  ];
+  expect(invoiceItems(deliveries).map((i) => [i.item_name, i.qty, i.price_paise, i.line_paise, i.deliveries])).toEqual([
+    ['Cake', 1.5, 2000, 3000, 1], ['Fazea', 10, 5000, 50000, 2], ['Fazea', 2, 5500, 11000, 1],
+  ]);
+  const html = kitchenInvoiceHtml({ ...invoice, deliveries });
+  expect(html).toContain('<td>Fazea</td><td class="number">10 pcs</td>');
+  expect(html).toContain('Deliveries (2)');
+  expect(html.indexOf('1 Oct 2026</td>')).toBeLessThan(html.indexOf('2 Oct 2026</td><td class="number">'));
 });

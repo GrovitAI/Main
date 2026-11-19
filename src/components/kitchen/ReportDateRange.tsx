@@ -39,7 +39,8 @@ export function ReportDateRange({ value, onChange, label = 'Report dates', place
   const header = <View className="gap-2 px-1">
     <View className="flex-row items-center justify-between">
       <Text accessibilityRole="header" className="text-base font-bold text-text-primary">{label}</Text>
-      <Pressable accessibilityRole="button" onPress={() => preset(today.slice(0, 7))} className={control}><Text className="text-xs font-bold text-primary">This month</Text></Pressable>
+      {/* Task 323: the whole of the month on show, so last month is one arrow and one tap (a monthly invoice). */}
+      <Pressable accessibilityRole="button" accessibilityLabel={'Choose the whole of ' + kitchenMonthLabel(calendarMonth)} onPress={() => preset(calendarMonth)} className={control}><Text className="text-xs font-bold text-primary">Whole month</Text></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Close date picker" onPress={close} className={control}><X size={18} color={colors.textSecondary} /></Pressable>
     </View>
     <Text className="text-xs leading-4" style={{ color: held ? colors.primary : colors.textSecondary }} accessibilityLiveRegion="polite">{held ? 'Your new dates are kept. Apply them, or close with ✕.' : 'Choose start, then end. Both dates are included.'}</Text>
