@@ -1129,10 +1129,10 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     const printedRegular = unsentItems.length > 0;
     const printedCancel = itemsToCancel.length > 0;
     if (printedRegular) {
-      await printerService.printKot(nextKotNumber, itemsToSend);
+      await printerService.printKot(nextKotNumber, itemsToSend, false, activeOrder.table_label ?? null);
     }
     if (printedCancel) {
-      await printerService.printKot(cancelKotNumber, itemsToCancel, true);
+      await printerService.printKot(cancelKotNumber, itemsToCancel, true, activeOrder.table_label ?? null);
     }
 
     const nowIso = new Date().toISOString();
@@ -1339,7 +1339,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       discountAmount: totals.discountAmount,
       discountType,
       discountValue,
-      customer: { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null },
+      customer: { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null, table: activeOrder.table_label ?? null },
       paymentMethod: activeOrder.payment_method ?? null,
     });
   },
@@ -1417,7 +1417,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         discountAmount,
         discountType,
         discountValue,
-        { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null }
+        { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null, table: activeOrder.table_label ?? null }
       );
 
       set((state) => {
@@ -1512,7 +1512,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         quantity: item.qty,
       }));
 
-      await printerService.printKot(nextKotNumber, itemsToSend);
+      await printerService.printKot(nextKotNumber, itemsToSend, false, activeOrder.table_label ?? null);
       printedRegular = true;
     }
 
@@ -1526,7 +1526,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         return false;
       }
       cancelKotNumber = cancelNumberResult.data;
-      await printerService.printKot(cancelKotNumber, itemsToCancel, true);
+      await printerService.printKot(cancelKotNumber, itemsToCancel, true, activeOrder.table_label ?? null);
       printedCancel = true;
     }
 
@@ -1589,7 +1589,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
       discountAmount,
       discountType,
       discountValue,
-      { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null }
+      { name: activeOrder.customer_name ?? null, phone: activeOrder.customer_phone ?? null, table: activeOrder.table_label ?? null }
     );
 
     // Optimistically transition cart items to kot_sent: true
@@ -1866,7 +1866,7 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
         }
         const cancelKotNumber = cancelNumberResult.data;
 
-        await printerService.printKot(cancelKotNumber, itemsToCancel, true);
+        await printerService.printKot(cancelKotNumber, itemsToCancel, true, activeOrder.table_label ?? null);
 
         const cancelResult = await createKot(activeOrderId, cancelKotNumber, itemsToCancel);
         if (cancelResult.error) {

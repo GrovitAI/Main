@@ -38,6 +38,9 @@ export type OpenOrder = {
   /** Task 288: optional, printed on the bill. The phone is digits only, with an optional +. */
   customer_name?: string | null;
   customer_phone?: string | null;
+
+  /** Task 333: the table a QR order came from, printed on its kitchen tickets and bill. */
+  table_label?: string | null;
 };
 
 export type KotTicketItem = {

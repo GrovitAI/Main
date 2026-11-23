@@ -49,6 +49,9 @@ export const colors = {
   hoverTint: 'rgba(0, 102, 178, 0.09)',
 } as const;
 
+/** A QR code is always black on white: a scanner reads contrast, not brand colour. */
+export const qrInk = { dark: '#000000', light: '#ffffff' } as const;
+
 export const gradients = {
   /** Exact incumbent POS sidebar and selected-row treatments. */
   posSidebar: [colors.sidebarTop, colors.sidebarMiddle, colors.sidebarBottom] as const,

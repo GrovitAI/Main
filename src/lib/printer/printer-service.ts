@@ -26,7 +26,8 @@ export type ReceiptBranchInfo = {
 };
 
 /** Task 288: the optional customer printed under the bill details. */
-export type BillCustomer = { name: string | null; phone: string | null };
+/** Who the bill is for. `table` (task 333) is the table a QR order came from, printed under the bill number. */
+export type BillCustomer = { name: string | null; phone: string | null; table?: string | null };
 
 export type PrintableBillItem = {
   product_name?: string | null;
@@ -315,6 +316,8 @@ export function buildBillLines(input: BillLayoutInput): string[] {
     line(padLine(`Bill No: ${input.invoiceNumber || 'PENDING'}`, `${date} ${time}`, width)),
     ...(kot && tokenLine.length + kot.length + 2 <= width ? [line(padLine(tokenLine, kot, width))] : [line(tokenLine), ...(kot ? wrapText(kot, width).map(line) : [])]),
   ];
+  // Task 333: the table, for an order that came from a table's QR code.
+  if (customer?.table) details.push(line(`Table: ${customer.table}`));
   // Task 288: the customer, only when one was entered.
   const who = customer?.name ? `Customer: ${customer.name}` : '';
   const ph = customer?.phone ? `Ph: ${customer.phone}` : '';
@@ -622,7 +625,7 @@ export const printerService = {
   /**
    * Prints KOT ticket to all active kitchen printers.
    */
-  printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false): Promise<void> => {
+  printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false, table: string | null = null): Promise<void> => {
     try {
       const res = await fetchPrintersCached();
       // Kitchen printers, or the default billing printer when the branch has none.
@@ -653,6 +656,8 @@ export const printerService = {
             '\x1B!\x00', // Reset
             '\x1Ba\x00', // Left
             `KOT Number: #${kotNumber}\n`,
+            // Task 333: a table's order says which table to take it to.
+            ...(table ? ['\x1B!\x18', `Table: ${table}\n`, '\x1B!\x00'] : []),
             `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n`,
             divider,
             padLine('Qty & Item', '', width) + '\n',

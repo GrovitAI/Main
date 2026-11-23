@@ -547,7 +547,7 @@ export default function OrdersScreen() {
         discountAmount,
         discountType: discountAmount > 0 ? (order?.discount_type ?? 'fixed') : null,
         discountValue: order?.discount_value ?? discountAmount,
-        customer: { name: order?.customer_name ?? null, phone: order?.customer_phone ?? null },
+        customer: { name: order?.customer_name ?? null, phone: order?.customer_phone ?? null, table: order?.table_label ?? null },
         paymentMethod: bill.payment_method ?? null,
       });
       if (printResult.success) {

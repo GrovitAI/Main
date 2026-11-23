@@ -18,9 +18,9 @@ export const printerService = {
   /**
    * Queues a kitchen ticket on the production-grade kitchen ticket printer.
    */
-  printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false) => {
+  printKot: async (kotNumber: number, items: { name: string; quantity: number; notes?: string | null }[], isCancel: boolean = false, table: string | null = null) => {
     const snapshot = items.map(item => ({ ...item }));
-    return enqueuePrint(() => newPrinterService.printKot(kotNumber, snapshot, isCancel));
+    return enqueuePrint(() => newPrinterService.printKot(kotNumber, snapshot, isCancel, table));
   },
 
   /**
