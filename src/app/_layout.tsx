@@ -75,6 +75,9 @@ export default function RootLayout() {
 
     const currentGroup = segments[0] as string | undefined;
 
+    // A table's QR menu (task 331) is for anyone: signed in or not, it stays where it is.
+    if (currentGroup === 't') return;
+
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
@@ -100,6 +103,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(app)" />
                 <Stack.Screen name="central-kitchen" />
+                <Stack.Screen name="t" />
               </Stack>
             )}
             {/* Only on the staging copy of the database; a small tag drawn over the screens. */}

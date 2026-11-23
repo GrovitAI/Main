@@ -34,8 +34,9 @@ export default function DrawingEntryScreen() {
   const access = useKitchenAccess();
   const params = useLocalSearchParams<{ kind?: string; owner?: string }>();
   const phone = !useResponsive().isTablet;
-  const [kind, setKind] = useState<DrawingKind>(params.kind === 'in' || params.kind === 'back' ? params.kind : 'spend');
+  const [kind, setKind] = useState<DrawingKind>(params.kind === 'in' || params.kind === 'back' || params.kind === 'opening' ? params.kind : 'spend');
   const [owners, setOwners] = useState<DrawingOwner[] | null>(null);
+  const [me, setMe] = useState<string | null>(null);
   const [reasons, setReasons] = useState<string[]>([]);
   const [cash, setCash] = useState<{ cash: number; bank: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -57,18 +58,22 @@ export default function DrawingEntryScreen() {
     if (!access.isOwner) return;
     void Promise.all([fetchDrawings(kitchenToday().slice(0, 7)), fetchKitchenMoney()]).then(([d, m]) => {
       setLoadError(d.error);
-      if (d.data) { setOwners(d.data.owners); setReasons(d.data.categories); }
+      if (d.data) { setOwners(d.data.owners); setReasons(d.data.categories); setMe(d.data.me); }
       if (m.data) setCash({ cash: m.data.cash_paise, bank: m.data.bank_paise });
     });
   }, [access.isOwner]);
 
   const owner = owners?.find((o) => o.id === ownerId) ?? null;
   const amount = Math.round(parseAmount(amountText) * 100);
+  const brought = kind === 'opening';
+  // Spending and putting back come only from your own drawings; adding money or a brought-forward amount can be for any owner.
+  const ownOnly = kind === 'spend' || kind === 'back';
   const available = kind === 'in' ? (cash ? cash[account] : 0) : owner?.left_paise ?? 0;
   const why = !owner ? 'Choose the owner'
+    : ownOnly && owner.id !== me ? 'Only from your own drawings'
     : kind === 'spend' && !reason ? 'Choose what for'
     : amount <= 0 ? 'Enter the amount'
-    : amount > available ? (kind === 'in' ? `More than ${account === 'cash' ? 'cash in hand' : 'in the bank'}` : 'More than is left')
+    : !brought && amount > available ? (kind === 'in' ? `More than ${account === 'cash' ? 'cash in hand' : 'in the bank'}` : 'More than is left')
     : !isValidDateKey(date) ? 'Check the date' : undefined;
 
   const typed = useTypedChanges(JSON.stringify({ amountText: amountText.trim(), note: note.trim(), reason: reason ?? query.trim() }), null);
@@ -82,7 +87,7 @@ export default function DrawingEntryScreen() {
     setSaving(false);
     if (res.error) { setError(res.error); buzz('error'); return; }
     done.mark();
-    useKitchenStore.getState().setNotice(kind === 'spend' ? `${reason ?? 'Spent'} · ${rupees(amount)}` : kind === 'in' ? `${rupees(amount)} into ${owner.name}’s drawings` : `${rupees(amount)} put back`);
+    useKitchenStore.getState().setNotice(kind === 'spend' ? `${reason ?? 'Spent'} · ${rupees(amount)}` : brought ? `${rupees(amount)} brought forward for ${owner.name}` : kind === 'in' ? `${rupees(amount)} into ${owner.name}’s drawings` : `${rupees(amount)} put back`);
     done.finish(() => router.back());
   };
 
@@ -91,7 +96,7 @@ export default function DrawingEntryScreen() {
   }
 
   const saveButton = <PrimaryButton label={amount > 0 ? `Save · ${rupees(amount)}` : 'Save'} onPress={() => void save()} disabled={!!why} loading={saving} done={done.saved} reason={why} />;
-  const afterLine = owner && amount > 0 ? (
+  const afterLine = owner && amount > 0 && !brought ? (
     <Text className="mt-1.5 text-xs font-semibold text-text-secondary">
       {kind === 'in' ? `${rupees(Math.max(0, available - amount))} left ${account === 'cash' ? 'in cash' : 'in the bank'} after this` : `${rupees(Math.max(0, available - amount))} left in drawings after this`}
     </Text>
@@ -106,7 +111,7 @@ export default function DrawingEntryScreen() {
   const ownerPicker = (
     <Field label="Owner">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-        {(owners ?? []).map((o) => (
+        {(owners ?? []).filter((o) => !ownOnly || o.id === me).map((o) => (
           <Pressable key={o.id} onPress={() => setOwnerId(o.id)} accessibilityRole="button" accessibilityLabel={`${o.name}, ${rupees(o.left_paise)} left`}
             className="w-[76px] items-center gap-1 rounded-2xl py-1.5 hover:bg-surface-tint active:bg-surface-tint">
             <Avatar name={o.name} size={52} ring={false} />
@@ -126,8 +131,8 @@ export default function DrawingEntryScreen() {
         ) : null}
         {owner ? <WhoRow name={owner.name} sub={sub} onChange={() => setOwnerId(null)} /> : null}
         {phone ? <AmountRow amount={amount / 100} open={padOpen} onPress={() => setPadOpen((o) => !o)} /> : null}
-        {kind === 'spend' ? null : <SelectRow label={kind === 'in' ? 'From' : 'To'} value={account} options={accounts} onChange={setAccount} />}
-        <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} guard={false} />
+        {kind === 'spend' || brought ? null : <SelectRow label={kind === 'in' ? 'From' : 'To'} value={account} options={accounts} onChange={setAccount} />}
+        <WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} guard={false} label={brought ? 'As of' : 'When'} />
         <NoteRow value={note} onChange={setNote} placeholder="Anything to remember" />
       </SettingsGroup>
       {phone ? afterLine : null}
@@ -154,10 +159,12 @@ export default function DrawingEntryScreen() {
   return (
     <KeyboardAvoider>
       <KScreen footer={footer}>
-        <KHeader title={KINDS.find((k) => k.value === kind)?.label ?? 'Drawings'} subtitle="Drawings" onBack={() => router.back()} />
-        <View style={{ marginTop: 4, marginBottom: 6 }}>
-          <Segmented options={KINDS} value={kind} onChange={(k) => { setKind(k); setPadOpen(false); }} />
-        </View>
+        <KHeader title={brought ? 'Brought forward' : KINDS.find((k) => k.value === kind)?.label ?? 'Drawings'} subtitle="Drawings" onBack={() => router.back()} />
+        {brought ? null : (
+          <View style={{ marginTop: 4, marginBottom: 6 }}>
+            <Segmented options={KINDS} value={kind} onChange={(k) => { setKind(k); setPadOpen(false); if (k === 'spend' || k === 'back') setOwnerId((o) => (o === me ? o : null)); }} />
+          </View>
+        )}
         {loadError ? <Notice text={loadError} /> : null}
         {phone || !ready ? body : (
           <View className="flex-row" style={{ gap: 20 }}>

@@ -17,6 +17,7 @@ import { Avatar, Card, Empty, KHeader, KScreen, LinkButton, Notice, PrimaryButto
 const SHARE_COLORS = [chart.series3, chart.series2, colors.primary, semantic.warning] as const;
 const rupees = (paise: number) => formatMoney(paise / 100);
 const tabular = { fontVariant: ['tabular-nums' as const] };
+const addOwner = () => router.push({ pathname: '/staff', params: { add: 'owner' } } as never);
 const openEntry = (kind: DrawingKind, owner: string | null) => router.push({ pathname: '/central-kitchen/drawing-entry', params: owner ? { kind, owner } : { kind } } as never);
 
 /**
@@ -58,6 +59,8 @@ export default function DrawingsScreen() {
   const owner = owners.find((o) => o.id === shownId) ?? null;
   const rows = useMemo(() => (data?.rows ?? []).filter((r) => r.owner_id === shownId && (tab === 'spend' ? r.kind === 'spend' : r.kind !== 'spend')), [data, shownId, tab]);
   const monthName = kitchenMonthLabel(month).split(' ')[0] ?? '';
+  // Each owner spends from, and puts back, only their own drawings.
+  const mine = owner !== null && owner.id === data?.me;
 
   if (!access.isOwner) {
     return <KScreen><KHeader title="Drawings" onBack={() => router.back()} /><Card><Empty title="Only the owners can see drawings" /></Card></KScreen>;
@@ -96,7 +99,10 @@ export default function DrawingsScreen() {
         ))}
       </SettingsGroup>
       {owners.length === 0 && !loading ? <Card><Empty title="No owners on the team" /></Card> : null}
-      <View className="items-start"><LinkButton label="Add money from Cash or Bank" onPress={() => openEntry('in', null)} /></View>
+      <View className="flex-row flex-wrap items-center" style={{ columnGap: 14 }}>
+        <LinkButton label="Add money from Cash or Bank" onPress={() => openEntry('in', null)} />
+        <LinkButton label="Add an owner" onPress={addOwner} />
+      </View>
     </View>
   );
 
@@ -125,7 +131,8 @@ export default function DrawingsScreen() {
       )}
       <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: 14 }}>
         <LinkButton label="Add money" onPress={() => openEntry('in', owner.id)} />
-        {owner.left_paise > 0 ? <LinkButton label="Put back" onPress={() => openEntry('back', owner.id)} /> : null}
+        <LinkButton label="Brought forward" onPress={() => openEntry('opening', owner.id)} />
+        {mine && owner.left_paise > 0 ? <LinkButton label="Put back" onPress={() => openEntry('back', owner.id)} /> : null}
       </View>
     </View>
   ) : null;
@@ -140,7 +147,7 @@ export default function DrawingsScreen() {
     });
   }
 
-  const spendButton = owner && owner.left_paise > 0
+  const spendButton = owner && mine && owner.left_paise > 0
     ? <PrimaryButton label="Spend" icon={Minus} onPress={() => openEntry('spend', owner.id)} />
     : undefined;
 
@@ -183,9 +190,9 @@ export default function DrawingsScreen() {
 }
 
 function DrawingRowView({ row, onVoid }: { row: DrawingRow; onVoid: () => void }) {
-  const title = row.kind === 'spend' ? row.category ?? 'Spent' : row.kind === 'in' ? `From ${row.account === 'bank' ? 'the bank' : 'cash'}` : `Put back to ${row.account === 'bank' ? 'the bank' : 'cash'}`;
+  const title = row.kind === 'spend' ? row.category ?? 'Spent' : row.kind === 'opening' ? 'Brought forward' : row.kind === 'in' ? `From ${row.account === 'bank' ? 'the bank' : 'cash'}` : `Put back to ${row.account === 'bank' ? 'the bank' : 'cash'}`;
   const sub = [historyDateLabel(row.draw_date), row.note].filter(Boolean).join(' · ');
-  const out = row.kind !== 'in';
+  const out = row.kind === 'spend' || row.kind === 'back';
   return (
     <ValueRow label={title} sub={sub} value={`${out ? '−' : ''}${rupees(row.amount_paise)}`} action="none" onPress={onVoid} />
   );

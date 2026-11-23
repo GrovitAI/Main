@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChefHat, Info, Landmark, Printer as PrinterIcon, ReceiptText, ShieldCheck, type LucideIcon } from 'lucide-react-native';
+import { ChefHat, Info, Landmark, Printer as PrinterIcon, QrCode, ReceiptText, ShieldCheck, type LucideIcon } from 'lucide-react-native';
 import { Text } from '@/components/ui/Typography';
 import { brand, colors, semantic } from '@/lib/pos/brand';
 import { FINANCE_MODULE_ENABLED, KITCHEN_HOME } from '@/lib/pos/tab-config';
 import { fetchPrinters, savePrinter, deletePrinter, syncPrintNodePrinters, type Printer } from '@/lib/pos/printer-db-service';
 import { printerService, fetchPrintNodePrinters, type PrintNodePrinter } from '@/lib/printer/printer-service';
 import { ApprovalPoliciesScreen } from '@/components/settings/ApprovalPoliciesScreen';
+import { QrTablesSettings } from '@/components/settings/QrTablesSettings';
 import { FinanceAccountsCard } from '@/components/finance/FinanceAccountsCard';
 import { FinanceRulesCard } from '@/components/finance/FinanceRulesCard';
 import { useSessionStore } from '@/lib/pos/use-session-store';
@@ -18,7 +19,7 @@ import { confirmAction } from '@/lib/pos/dialogs';
 import { Avatar, Card, Empty, KHeader, LinkButton, Notice, Row, RowInset, Section, Segmented, TextField, Toggle } from '@/components/kitchen/ui';
 
 /** The parts of Settings; each opens as its own page (task 271, owner's pick: Settings A). */
-type Pane = 'home' | 'printers' | 'receipt' | 'approvals' | 'finance' | 'about';
+type Pane = 'home' | 'printers' | 'receipt' | 'tables' | 'approvals' | 'finance' | 'about';
 /** From this width the list stays on the left and the chosen page opens beside it. */
 const SPLIT_FROM = 900;
 
@@ -39,6 +40,8 @@ export default function SettingsScreen() {
   const split = width >= SPLIT_FROM;
   const { session, signOut } = useSessionStore();
   const isOwnerOrAdmin = session?.role === 'owner' || session?.role === 'admin';
+  // Table ordering (task 332) is set up by a manager or above.
+  const isManagerUp = isOwnerOrAdmin || session?.role === 'manager';
   // Finance rules apply to the whole business, so only the owner sets them.
   const isOwner = session?.role === 'owner';
   const [pane, setPane] = useState<Pane>(split ? 'printers' : 'home');
@@ -141,13 +144,14 @@ export default function SettingsScreen() {
       { key: 'receipt' as const, icon: ReceiptText, title: 'Receipt footer', subtitle: `“${receiptFooter || DEFAULT_RECEIPT_FOOTER}”`, show: true },
     ] },
     { title: 'Till', items: [
+      { key: 'tables' as const, icon: QrCode, title: 'Table ordering', subtitle: 'QR codes for the tables', show: isManagerUp },
       { key: 'approvals' as const, icon: ShieldCheck, title: 'Approvals', subtitle: 'Till actions that need the owner’s code', show: isOwnerOrAdmin },
       { key: 'finance' as const, icon: Landmark, title: 'Finance', subtitle: 'Accounts and rules', show: isOwner && FINANCE_MODULE_ENABLED },
     ] },
     { title: 'More', items: [
       { key: 'about' as const, icon: Info, title: 'About this device', subtitle: [version && `Version ${version}`, 'INR', 'ESC/POS'].filter(Boolean).join(' · '), show: true },
     ] },
-  ].map((g) => ({ ...g, items: g.items.filter((i) => i.show) })).filter((g) => g.items.length > 0), [printingLine, printers.length, online, receiptFooter, isOwnerOrAdmin, isOwner, version]);
+  ].map((g) => ({ ...g, items: g.items.filter((i) => i.show) })).filter((g) => g.items.length > 0), [printingLine, printers.length, online, receiptFooter, isOwnerOrAdmin, isManagerUp, isOwner, version]);
 
   const account = (
     <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -263,8 +267,9 @@ export default function SettingsScreen() {
     </Card>
   );
 
-  const titles: Record<Pane, string> = { home: 'Settings', printers: 'Printers', receipt: 'Receipt footer', approvals: 'Approvals', finance: 'Finance', about: 'About this device' };
+  const titles: Record<Pane, string> = { home: 'Settings', printers: 'Printers', receipt: 'Receipt footer', tables: 'Table ordering', approvals: 'Approvals', finance: 'Finance', about: 'About this device' };
   const pageBody = pane === 'printers' ? printersPage : pane === 'receipt' ? receiptPage : pane === 'about' ? aboutPage
+    : pane === 'tables' && isManagerUp ? <QrTablesSettings />
     : pane === 'finance' && FINANCE_MODULE_ENABLED ? <View><FinanceAccountsCard /><FinanceRulesCard /></View> : null;
   // The approvals page scrolls by itself.
   const page = pane === 'approvals' && isOwnerOrAdmin

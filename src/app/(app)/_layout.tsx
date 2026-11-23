@@ -10,6 +10,7 @@ import type { TabConfig } from '@/lib/pos/tab-config';
 import type { PosSession } from '@/lib/pos/session-context';
 
 import { colors } from '@/lib/pos/brand';
+import { QrOrdersBanner } from '@/components/qr/QrOrdersBanner';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { PhoneWebFrame } from '@/components/phone/PhoneWebFrame';
 import { TabScene } from '@/components/ui/TabScene';
@@ -495,6 +496,10 @@ export default function AppTabLayout() {
         {showHeader && (
           <GlobalHeader session={session} />
         )}
+        {/* Task 333: table orders customers have sent, waiting for the till. */}
+        {session && (session.role === 'owner' || session.role === 'admin' || session.role === 'manager' || session.role === 'cashier') ? (
+          <QrOrdersBanner active topInset={!showHeader} />
+        ) : null}
         <View style={{ flex: 1 }}>
           <Tabs
             initialRouteName={initialRouteName}

@@ -22,7 +22,16 @@ test('print calls return before the job finishes, and jobs keep their order', as
   expect(done).toEqual([]); // the save was not held up, and the bill waits for its KOT
   releaseKot(); await flush();
   expect(done).toEqual(['kot', 'bill']);
-  expect(devicePrinter.printKot).toHaveBeenCalledWith(7, [{ name: 'Mousse', quantity: 2 }], false);
+  expect(devicePrinter.printKot).toHaveBeenCalledWith(7, [{ name: 'Mousse', quantity: 2 }], false, null);
+});
+
+// Task 333: a table's order carries the table to its kitchen ticket.
+test('a kitchen ticket carries the table it is for', async () => {
+  (devicePrinter.printKot as jest.Mock).mockClear();
+  (devicePrinter.printKot as jest.Mock).mockResolvedValue(undefined);
+  await printerService.printKot(8, [{ name: 'Lassi', quantity: 1 }], false, '4');
+  await flush();
+  expect(devicePrinter.printKot).toHaveBeenCalledWith(8, [{ name: 'Lassi', quantity: 1 }], false, '4');
 });
 
 test('a failed job does not stop the queue', async () => {

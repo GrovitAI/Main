@@ -9,7 +9,7 @@ import type { ServiceResult } from '@/lib/pos/kitchen-types';
  * invoice is already loaded (the preview fetched fresh status). The logo is
  * inline; print() waits only for it to decode, so it is never missing.
  */
-async function printInPage(html: string): Promise<ServiceResult<boolean>> {
+export async function printInPage(html: string): Promise<ServiceResult<boolean>> {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
   frame.tabIndex = -1;

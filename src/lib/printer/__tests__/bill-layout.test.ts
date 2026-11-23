@@ -84,3 +84,20 @@ describe('reprinting a bill', () => {
     jest.useRealTimers();
   });
 });
+
+// Task 333: an order that came from a table's QR code says which table on its bill.
+describe('the table on a bill', () => {
+  it('prints under the bill number when the order has one, and nothing when it has not', () => {
+    const items = [{ product_name: 'Cheese bomb', qty: 1, price: 182 }];
+    const withTable = paper({ items, totalAmount: 182, customer: { name: null, phone: null, table: '4' } });
+    expect(withTable).toContain('Table: 4');
+    expect(paper({ items, totalAmount: 182, customer: { name: 'Asha', phone: null, table: null } }).join('\n')).not.toContain('Table:');
+    expect(paper({ items, totalAmount: 182 }).join('\n')).not.toContain('Table:');
+  });
+
+  it('comes before the customer line', () => {
+    const lines = paper({ items: [], totalAmount: 0, customer: { name: 'Asha', phone: null, table: 'Terrace 2' } });
+    expect(lines.indexOf('Table: Terrace 2')).toBeGreaterThan(0);
+    expect(lines.indexOf('Table: Terrace 2')).toBeLessThan(lines.indexOf('Customer: Asha'));
+  });
+});
