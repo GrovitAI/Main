@@ -1,6 +1,6 @@
 /**
  * Task 331: the customer's calls for a table's QR menu: the menu, sending an order, and where it
- * stands. Nobody is signed in, so these go to /api/public/* with no token; the table's code is the
+ * stands. Nobody is signed in, so these go to the one function /api/public/qr with no token; the table's code is the
  * only thing that says which table. Never throws; a failure comes back as a kind the page can word.
  */
 import { getApiBaseUrl } from '@/lib/pos/api-client';
@@ -24,7 +24,7 @@ function kindOf(status: number, body: unknown): QrFailure {
 
 async function call(path: string, init?: { method: 'POST'; body: unknown }): Promise<QrResult<unknown>> {
   try {
-    const res = await fetch(`${getApiBaseUrl()}/api/public/${path}`, init
+    const res = await fetch(`${getApiBaseUrl()}/api/public/qr${path}`, init
       ? { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(init.body) }
       : { method: 'GET', headers: { Accept: 'application/json' } });
     let body: unknown = null;
@@ -37,21 +37,21 @@ async function call(path: string, init?: { method: 'POST'; body: unknown }): Pro
 }
 
 export async function fetchQrMenu(code: string): Promise<QrResult<QrMenu>> {
-  const r = await call(`menu?code=${encodeURIComponent(code)}`);
+  const r = await call(`?kind=menu&code=${encodeURIComponent(code)}`);
   if (r.error) return r;
   const menu = parseQrMenu(r.data);
   return menu ? { data: menu, error: null } : { data: null, error: 'unavailable' };
 }
 
 export async function placeQrOrder(input: { code: string; key: string; items: { product_id: string; qty: number }[]; name: string; note: string }): Promise<QrResult<QrPlaced>> {
-  const r = await call('order', { method: 'POST', body: input });
+  const r = await call('', { method: 'POST', body: input });
   if (r.error) return r;
   if (!record(r.data) || typeof r.data.id !== 'string') return { data: null, error: 'unavailable' };
   return { data: { id: r.data.id, table: typeof r.data.table === 'string' ? r.data.table : '' }, error: null };
 }
 
 export async function fetchQrOrderStatus(code: string, id: string): Promise<QrResult<QrOrderStatus>> {
-  const r = await call(`order-status?code=${encodeURIComponent(code)}&id=${encodeURIComponent(id)}`);
+  const r = await call(`?kind=status&code=${encodeURIComponent(code)}&id=${encodeURIComponent(id)}`);
   if (r.error) return r;
   const status = parseQrStatus(r.data);
   return status ? { data: status, error: null } : { data: null, error: 'unavailable' };
