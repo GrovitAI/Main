@@ -10,7 +10,7 @@ import { supabase } from './supabase';
 
 export type ApiResult<T> = { data: T | null; error: string | null; status: number };
 
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.location) {
     // Expo does not serve Vercel functions. The staging launcher runs those
     // separately on loopback; production web requests remain same-origin.
