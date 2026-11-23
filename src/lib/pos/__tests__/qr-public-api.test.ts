@@ -1,4 +1,4 @@
-import { failureFor, handleMenu, handleOrder, handleStatus, readLines, type PublicDb } from '@/lib/server/qr-public';
+import { failureFor, handleMenu, handleOrder, handleQr, handleStatus, readLines, type PublicDb } from '@/lib/server/qr-public';
 import type { ApiRequest, ApiResponse } from '@/lib/server/api-auth';
 
 const CODE = '0123456789abcdef0123';
@@ -175,5 +175,17 @@ describe('GET /api/public/order-status', () => {
     const b = reply();
     await handleStatus(get({ code: CODE, id: ORDER }), b.res, other.db);
     expect(b.out.status).toBe(404);
+  });
+});
+
+describe('/api/public/qr', () => {
+  it('sends a POST to place an order, a status request to the status, and any other GET to the menu', async () => {
+    const answers = { qr_place_order: { data: { id: ORDER, status: 'pending', total: 1, table: 'T1' } }, qr_order_status: { data: { status: 'pending', reason: null } }, qr_public_menu: { data: { branch: 'K', table: 'T1', categories: [], items: [] } } };
+    const run = async (req: ApiRequest) => { const { db, calls } = database(answers); const { res, out } = reply(); await handleQr(req, res, db); return { out, fns: rpcCalls(calls).map((c) => c.fn) }; };
+    expect((await run(post({ code: CODE, key: 'verify-key-0001', items: [{ product_id: PRODUCT, qty: 1 }] }))).fns).toEqual(['qr_place_order']);
+    expect((await run(get({ kind: 'status', code: CODE, id: ORDER }))).fns).toEqual(['qr_order_status']);
+    expect((await run(get({ kind: 'menu', code: CODE }))).fns).toEqual(['qr_public_menu']);
+    expect((await run(get({ code: CODE }))).fns).toEqual(['qr_public_menu']);
+    expect((await run({ method: 'DELETE', headers: {} })).out.status).toBe(405);
   });
 });

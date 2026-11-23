@@ -1,6 +1,6 @@
 /**
  * Task 330: the public side of table ordering. A customer scans a table's QR code and the page calls
- * three endpoints (/api/public/menu, /order, /order-status). Nobody is signed in, so these run with
+ * one endpoint, /api/public/qr, which answers three requests (the menu, an order, an order's status). Nobody is signed in, so these run with
  * the server's service role against three functions that only that role may call. The code in the QR
  * is the only thing that names a table; the tenant, the branch and every price come from the
  * database, never from the request. Each call is also rate limited by address and by table.
@@ -140,4 +140,14 @@ export async function handleStatus(req: ApiRequest, res: ApiResponse, db: Public
   }
   if (!data) return sendJson(res, 404, { error: 'closed' });
   return sendJson(res, 200, { data });
+}
+
+/**
+ * /api/public/qr: a POST places an order; a GET with kind=status says where one stands; any other GET
+ * (kind=menu) returns the table's menu. One function, because each file under /api counts toward Vercel's limit.
+ */
+export async function handleQr(req: ApiRequest, res: ApiResponse, db: PublicDb | null): Promise<void> {
+  if (req.method === 'POST') return handleOrder(req, res, db);
+  if (req.method === 'GET' && query(req, 'kind') === 'status') return handleStatus(req, res, db);
+  return handleMenu(req, res, db);
 }
