@@ -11,13 +11,13 @@ import { describeAccessError } from '@/lib/pos/kitchen-utils';
 import type { ServiceResult } from '@/lib/pos/kitchen-types';
 import type { MoneyAccount } from '@/lib/pos/kitchen-money-service';
 
-export type DrawingKind = 'in' | 'spend' | 'back';
+export type DrawingKind = 'in' | 'spend' | 'back' | 'opening';
 export type DrawingOwner = { id: string; name: string; left_paise: number; in_paise: number; spent_paise: number };
 export type DrawingRow = {
   id: string; owner_id: string; kind: DrawingKind; account: MoneyAccount | null; amount_paise: number;
   category: string | null; note: string | null; draw_date: string; created_by: string; created_at: string;
 };
-export type DrawingsSummary = { owners: DrawingOwner[]; rows: DrawingRow[]; categories: string[] };
+export type DrawingsSummary = { owners: DrawingOwner[]; rows: DrawingRow[]; categories: string[]; /** The signed-in owner's id: only they spend from, or put back, their own drawings. */ me: string | null };
 export type DrawingInput = {
   owner_id: string; kind: DrawingKind; amount_paise: number; draw_date: string;
   account?: MoneyAccount | null; category?: string | null; note?: string | null; request_key: string;
@@ -39,6 +39,7 @@ function explain(error: unknown, write: boolean): string {
   if (access) return access;
   if (message.includes('KITCHEN_FORBIDDEN') || code === '42501') return 'Only the owners can use drawings.';
   if (message.includes('KITCHEN_DRAWINGS_SOURCE_SHORT')) return 'More than there is in that account.';
+  if (message.includes('KITCHEN_DRAWINGS_NOT_YOURS')) return 'Each owner spends from their own drawings.';
   if (message.includes('KITCHEN_DRAWINGS_SHORT')) return 'More than is left in these drawings.';
   if (message.includes('KITCHEN_DRAWINGS_OWNER')) return 'That owner is no longer on the team.';
   if (message.includes('KITCHEN_DRAWINGS_INVALID')) return 'Check the amount and the date.';
@@ -52,13 +53,13 @@ export function parseDrawings(v: unknown): DrawingsSummary {
   }));
   const rows = (Array.isArray(r.rows) ? r.rows : []).filter(record).map((d): DrawingRow => ({
     id: str(d.id), owner_id: str(d.owner_id),
-    kind: d.kind === 'in' || d.kind === 'back' ? d.kind : 'spend',
+    kind: d.kind === 'in' || d.kind === 'back' || d.kind === 'opening' ? d.kind : 'spend',
     account: d.account === 'cash' || d.account === 'bank' ? d.account : null,
     amount_paise: num(d.amount_paise), category: typeof d.category === 'string' ? d.category : null,
     note: typeof d.note === 'string' ? d.note : null, draw_date: str(d.draw_date), created_by: str(d.created_by), created_at: str(d.created_at),
   }));
   const categories = (Array.isArray(r.categories) ? r.categories : []).filter((c): c is string => typeof c === 'string');
-  return { owners, rows, categories };
+  return { owners, rows, categories, me: typeof r.me === 'string' ? r.me : null };
 }
 
 /** The owners and the month's rows; `month` is 'YYYY-MM'. */
@@ -80,7 +81,7 @@ export async function recordDrawing(input: DrawingInput): Promise<ServiceResult<
     const { p_tenant_id, p_branch_id } = scope();
     const { data, error } = await supabase.rpc('kitchen_drawings_record', { p: {
       tenant_id: p_tenant_id, branch_id: p_branch_id, owner_id: input.owner_id, kind: input.kind, amount_paise: input.amount_paise,
-      draw_date: input.draw_date, account: input.kind === 'spend' ? null : input.account ?? null,
+      draw_date: input.draw_date, account: input.kind === 'spend' || input.kind === 'opening' ? null : input.account ?? null,
       category: input.kind === 'spend' ? input.category?.trim() || null : null, note: input.note?.trim() || null, request_key: input.request_key,
     } });
     if (error || typeof data !== 'string') return { data: null, error: explain(error, true) };

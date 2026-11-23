@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import {
   fetchStaff,
@@ -130,12 +131,22 @@ export default function StaffScreen() {
     void load();
   }, [load]);
 
+  // Drawings sends an owner here to add another owner: the form opens with the Owner role picked.
+  const params = useLocalSearchParams<{ add?: string }>();
+  const addedFromLink = React.useRef(false);
+  useEffect(() => {
+    if (params.add !== 'owner' || addedFromLink.current || loading || !isOwner || branches.length === 0) return;
+    addedFromLink.current = true;
+    openNew('owner');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.add, loading, isOwner, branches.length]);
+
   // ── Form helpers ────────────────────────────────────────────────────────────
 
-  const openNew = () => {
+  const openNew = (role: UserRole = 'cashier') => {
     setMode('new');
     setEditingId(null);
-    setForm({ ...EMPTY_FORM, branch_id: displayedBranches[0]?.id ?? '', role: isOwner ? 'cashier' : 'cashier' });
+    setForm({ ...EMPTY_FORM, branch_id: displayedBranches[0]?.id ?? '', role });
     setFormError(null);
     setShowPassword(false);
     setShowForm(true);
@@ -259,7 +270,7 @@ export default function StaffScreen() {
             canManage && !showForm ? (
               <Pressable
                 style={styles.addBtnPhone}
-                onPress={openNew}
+                onPress={() => openNew()}
                 id="btn-add-staff"
                 accessibilityRole="button"
                 accessibilityLabel="Add staff"
@@ -280,7 +291,7 @@ export default function StaffScreen() {
             </View>
           </View>
           {canManage && !showForm && (
-            <Pressable style={styles.addBtn} onPress={openNew} id="btn-add-staff">
+            <Pressable style={styles.addBtn} onPress={() => openNew()} id="btn-add-staff">
               <Plus size={16} color="#fff" />
               <Text style={styles.addBtnText}>Add Staff</Text>
             </Pressable>

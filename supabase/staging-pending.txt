@@ -31,6 +31,5 @@
 # Task 301 (20261106100000_kitchen_invoice_all_items.sql) was applied to production by the owner on 2026-11-06 and checked: both functions no longer limit invoices to finished goods, and grants are unchanged. Nothing is pending.
 # Task 307 (20261106110000_kitchen_delete_count_keeps_moves.sql) was applied to production by the owner on 2026-11-06 and checked read-only. Nothing is pending.
 # Task 313 (20261116100000_kitchen_pending_dues.sql) was applied to production by the owner on 2026-11-17.
-20261117100000_kitchen_dated_counts.sql
-20261119100000_kitchen_stock_staff_preset.sql
-20261119110000_kitchen_salary.sql
+# Tasks 321, 326 and 327 (20261117100000, 20261119100000, 20261119110000) were applied to production by the owner on 2026-11-23 and merged (PRs #22, #23).
+20261123100000_kitchen_drawings_opening.sql
