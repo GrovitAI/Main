@@ -35,9 +35,10 @@ export function parseQrPending(v: unknown): QrPending {
   return { enabled: r.enabled === true, orders };
 }
 
-function scope(): { p_tenant_id: string; p_branch_id: string } {
+/** The tenant, and the branch: the signed-in one, or (for the owner setting up another outlet) the one named. The database checks the login may use it. */
+function scope(branchId?: string): { p_tenant_id: string; p_branch_id: string } {
   const { tenant_id, branch_id } = getTenantContext();
-  return { p_tenant_id: tenant_id, p_branch_id: branch_id };
+  return { p_tenant_id: tenant_id, p_branch_id: branchId ?? branch_id };
 }
 
 /** Said when this login may not work with table orders, or the database has no table ordering yet; asking again would not help. */
@@ -68,16 +69,16 @@ async function run<T>(write: boolean, call: () => PromiseLike<{ data: unknown; e
   }
 }
 
-export const fetchQrSettings = (): Promise<ServiceResult<QrSettings>> => run(false, () => supabase.rpc('qr_settings_get', scope()), parseQrSettings);
+export const fetchQrSettings = (branchId?: string): Promise<ServiceResult<QrSettings>> => run(false, () => supabase.rpc('qr_settings_get', scope(branchId)), parseQrSettings);
 
-export const setQrEnabled = (enabled: boolean): Promise<ServiceResult<boolean>> =>
-  run(true, () => supabase.rpc('qr_set_enabled', { ...scope(), p_enabled: enabled }), (d) => (d === true || d === false ? d : null));
+export const setQrEnabled = (enabled: boolean, branchId?: string): Promise<ServiceResult<boolean>> =>
+  run(true, () => supabase.rpc('qr_set_enabled', { ...scope(branchId), p_enabled: enabled }), (d) => (d === true || d === false ? d : null));
 
-export const addQrTables = (labels: string[]): Promise<ServiceResult<number>> =>
-  run(true, () => supabase.rpc('qr_add_tables', { ...scope(), p_labels: labels }), (d) => (typeof d === 'number' ? d : null));
+export const addQrTables = (labels: string[], branchId?: string): Promise<ServiceResult<number>> =>
+  run(true, () => supabase.rpc('qr_add_tables', { ...scope(branchId), p_labels: labels }), (d) => (typeof d === 'number' ? d : null));
 
-export const updateQrTable = (id: string, change: { label?: string; active?: boolean; newCode?: boolean }): Promise<ServiceResult<boolean>> =>
-  run(true, () => supabase.rpc('qr_update_table', { ...scope(), p_id: id, p_label: change.label ?? null, p_active: change.active ?? null, p_new_code: change.newCode ?? null }), (d) => (d === true ? true : null));
+export const updateQrTable = (id: string, change: { label?: string; active?: boolean; newCode?: boolean }, branchId?: string): Promise<ServiceResult<boolean>> =>
+  run(true, () => supabase.rpc('qr_update_table', { ...scope(branchId), p_id: id, p_label: change.label ?? null, p_active: change.active ?? null, p_new_code: change.newCode ?? null }), (d) => (d === true ? true : null));
 
 export const fetchQrPending = (): Promise<ServiceResult<QrPending>> => run(false, () => supabase.rpc('qr_pending', scope()), parseQrPending);
 

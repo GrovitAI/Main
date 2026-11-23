@@ -76,3 +76,23 @@ describe('calls', () => {
     expect((await acceptQrOrder('o1')).data).toBeNull();
   });
 });
+
+// Task 335: the owner sets up each outlet on its own.
+describe('another outlet', () => {
+  it('sends the named outlet instead of the signed-in one, and the signed-in one when none is named', async () => {
+    rpc.mockResolvedValue({ data: { enabled: false, tables: [] }, error: null });
+    await fetchQrSettings('other-branch');
+    expect(rpc).toHaveBeenLastCalledWith('qr_settings_get', { p_tenant_id: 'tenant', p_branch_id: 'other-branch' });
+    rpc.mockResolvedValue({ data: true, error: null });
+    await setQrEnabled(false, 'other-branch');
+    expect(rpc).toHaveBeenLastCalledWith('qr_set_enabled', { p_tenant_id: 'tenant', p_branch_id: 'other-branch', p_enabled: false });
+    rpc.mockResolvedValue({ data: 3, error: null });
+    await addQrTables(['1', '2', '3'], 'other-branch');
+    expect(rpc).toHaveBeenLastCalledWith('qr_add_tables', { p_tenant_id: 'tenant', p_branch_id: 'other-branch', p_labels: ['1', '2', '3'] });
+    rpc.mockResolvedValue({ data: true, error: null });
+    await updateQrTable('t1', { active: false }, 'other-branch');
+    expect(rpc).toHaveBeenLastCalledWith('qr_update_table', { p_tenant_id: 'tenant', p_branch_id: 'other-branch', p_id: 't1', p_label: null, p_active: false, p_new_code: null });
+    await updateQrTable('t1', { active: true });
+    expect(rpc).toHaveBeenLastCalledWith('qr_update_table', expect.objectContaining({ p_branch_id: 'branch' }));
+  });
+});
