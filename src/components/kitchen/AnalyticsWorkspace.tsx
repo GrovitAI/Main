@@ -5,13 +5,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/Typography';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CalendarCheck, ChevronLeft, ChevronRight, Download, Info, RefreshCw, Settings2, Package, ShoppingBasket, Receipt, MoreHorizontal, X } from 'lucide-react-native';
+import { CalendarCheck, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Info, RefreshCw, Settings2, Package, ShoppingBasket, Receipt, MoreHorizontal, X } from 'lucide-react-native';
 import { colors, semantic } from '@/lib/pos/brand';
 import { getTenantContext } from '@/lib/pos/tenant-context';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { kitchenBranch } from '@/lib/pos/kitchen-service';
 import { fetchKitchenReport, KITCHEN_REPORT_PAGE_SIZE } from '@/lib/pos/kitchen-analytics-service';
-import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
+import { kitchenMonthRange, kitchenRangeLabel, kitchenReportCsv, kitchenReportSheets, kitchenToday, shiftKitchenMonth } from '@/lib/pos/kitchen-analytics-utils';
+import { downloadWorkbook } from '@/lib/pos/xlsx-export';
 import type { KitchenDateRange } from '@/lib/pos/kitchen-analytics-utils';
 import type { KitchenReport, KitchenReportFilter, KitchenReportKind, KitchenReportRow } from '@/lib/pos/kitchen-analytics-types';
 import { formatMoney, formatQty } from '@/lib/pos/kitchen-utils';
@@ -194,7 +195,8 @@ export function AnalyticsWorkspace() {
     if (base) { setPartyId(base.partyId); setItemId(base.itemId); setCategory(base.category); }
     setDetail(false); setPage(0); drillBase.current = null;
   };
-  const exportCsv = async () => {
+  // Task 338: Excel as well as CSV, in the browser. The installed app keeps sharing the CSV text.
+  const exportReport = async (format: 'csv' | 'xlsx') => {
     if (loading || exporting || !report || report.total_rows === 0) return;
     const controller = new AbortController();
     exportController.current = controller;
@@ -203,12 +205,17 @@ export function AnalyticsWorkspace() {
       const result = await fetchKitchenReport(filter, controller.signal, true);
       if (controller.signal.aborted) return;
       if (!result.data || result.error) { setExportError(result.error ?? 'Unable to export this report.'); return; }
+      const name = 'kitchen-' + kind + '-' + dateRange.startDate + '-to-' + dateRange.endDate;
+      if (format === 'xlsx' && Platform.OS === 'web') {
+        await downloadWorkbook(name + '.xlsx', kitchenReportSheets(result.data, filter));
+        return;
+      }
       const csv = kitchenReportCsv(result.data, filter);
       if (Platform.OS === 'web') {
         // Use the same browser download mechanism as the main Analytics module.
         const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
         const link = document.createElement('a');
-        link.href = url; link.download = 'kitchen-' + kind + '-' + dateRange.startDate + '-to-' + dateRange.endDate + '.csv';
+        link.href = url; link.download = name + '.csv';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       } else await Share.share({ title: 'Kitchen ' + kind + ' ' + kitchenRangeLabel(dateRange), message: csv });
@@ -258,11 +265,22 @@ export function AnalyticsWorkspace() {
           <RefreshCw size={18} color={colors.primary} />
         </Pressable>
   </View>;
-  const exportButton = <Pressable accessibilityRole="button" accessibilityLabel="Export report CSV" disabled={loading || exporting || !report?.total_rows} onPress={() => void exportCsv()}
-    className={controls + ((loading || exporting || !report?.total_rows) ? ' opacity-40' : '')}>
-    {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <Download size={17} color={colors.primary} />}
-    <Text className="text-sm font-bold text-primary">{desktop ? 'Export CSV' : Platform.OS === 'web' ? 'CSV' : 'Share'}</Text>
-  </Pressable>;
+  const exportButton = (
+    <View className="flex-row items-center gap-1">
+      {Platform.OS === 'web' ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Export report Excel" disabled={loading || exporting || !report?.total_rows} onPress={() => void exportReport('xlsx')}
+          className={controls + ((loading || exporting || !report?.total_rows) ? ' opacity-40' : '')}>
+          {exporting ? <ActivityIndicator size="small" color={colors.primary} /> : <FileSpreadsheet size={17} color={colors.primary} />}
+          <Text className="text-sm font-bold text-primary">Export Excel</Text>
+        </Pressable>
+      ) : null}
+      <Pressable accessibilityRole="button" accessibilityLabel="Export report CSV" disabled={loading || exporting || !report?.total_rows} onPress={() => void exportReport('csv')}
+        className={controls + ((loading || exporting || !report?.total_rows) ? ' opacity-40' : '')}>
+        {exporting && Platform.OS !== 'web' ? <ActivityIndicator size="small" color={colors.primary} /> : <Download size={17} color={colors.primary} />}
+        <Text className="text-sm font-bold text-primary">{Platform.OS === 'web' ? 'CSV' : 'Share'}</Text>
+      </Pressable>
+    </View>
+  );
   const currentRange = kitchenMonthRange(today.slice(0, 7), today);
   const currentMonth = dateRange.startDate === currentRange.startDate && dateRange.endDate === currentRange.endDate;
   const period = <Text className="text-xs text-text-secondary">{currentMonth ? 'Up to ' + kitchenRangeLabel({ startDate: today, endDate: today }) : kitchenRangeLabel(dateRange)}</Text>;
@@ -278,7 +296,8 @@ export function AnalyticsWorkspace() {
   const reportActions = [
     { id: 'close', label: 'Month close', Icon: CalendarCheck, disabled: false, action: openMonthClose },
     ...(kind === 'sales' && mayInvoices ? [{ id: 'invoices', label: 'Branch invoices', Icon: Receipt, disabled: false, action: () => router.push({ pathname: '/central-kitchen/invoices', params: { start: dateRange.startDate, end: dateRange.endDate, ...(partyId ? { party: partyId } : {}) } } as never) }] : []),
-    ...(mayExport ? [{ id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportCsv() }] : []),
+    ...(mayExport && Platform.OS === 'web' ? [{ id: 'export-xlsx', label: exporting ? 'Exporting report…' : 'Export Excel', Icon: FileSpreadsheet, disabled: loading || exporting || !report?.total_rows, action: () => void exportReport('xlsx') }] : []),
+    ...(mayExport ? [{ id: 'export', label: exporting ? 'Exporting report…' : Platform.OS === 'web' ? 'Export CSV' : 'Share report', Icon: Download, disabled: loading || exporting || !report?.total_rows, action: () => void exportReport('csv') }] : []),
     { id: 'refresh', label: 'Refresh reports', Icon: RefreshCw, disabled: loading, action: () => setRefresh(value => value + 1) },
     { id: 'info', label: 'About these reports', Icon: Info, disabled: false, action: () => setNotesOpen(value => !value) },
   ];

@@ -1,4 +1,5 @@
 import type { KitchenReport, KitchenReportFilter } from '@/lib/pos/kitchen-analytics-types';
+import { MONEY_FORMAT, QTY_FORMAT, type SheetCell, type SheetSpec } from '@/lib/pos/xlsx-export';
 
 export function kitchenToday(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
@@ -81,4 +82,53 @@ export function kitchenReportCsv(report: KitchenReport, filter: KitchenReportFil
       filter.report === 'profit' ? money(report.summary.cost_paise) : null],
   ];
   return '\uFEFF' + rows.map(row => row.map(kitchenCsvCell).join(',')).join('\r\n');
+}
+
+const REPORT_TITLES: Record<KitchenReportFilter['report'], string> = {
+  sales: 'Item sales to branches',
+  purchases: 'Purchases by category',
+  cash: 'Cash received and paid',
+  bank: 'Bank and UPI received and paid',
+  profit: 'Profit by finished good',
+};
+
+/**
+ * Task 338: the same report as the CSV, for Excel. Two sheets: Report (a heading row, the rows, a total;
+ * amounts and quantities are numbers, so they add up and sort) and Summary (what the report is, its dates
+ * and the period's figures). Rows and totals come from the one filtered database snapshot, as in the CSV.
+ */
+export function kitchenReportSheets(report: KitchenReport, filter: KitchenReportFilter): SheetSpec[] {
+  const range = kitchenReportRange(filter);
+  const rupees = (paise: number): number => Math.round(paise) / 100;
+  const optional = (paise: number | null): number | null => (paise === null ? null : rupees(paise));
+  const heading = ['Entry ID', 'Date', 'Source', 'Branch / vendor', 'Category', 'Item', 'Quantity', 'Unit', 'Unit price INR', 'Value INR', 'Payment at entry', 'Mode', 'Money in INR', 'Money out INR', 'Cost INR'];
+  const rows: SheetCell[][] = [
+    heading,
+    ...report.rows.map((row): SheetCell[] => [row.entry_id, row.date, row.source, row.party, row.category, row.item, row.quantity, row.unit,
+      optional(row.price_paise), rupees(row.amount_paise), row.payment, row.mode, rupees(row.money_in_paise), rupees(row.money_out_paise), optional(row.cost_paise)]),
+    [null, null, 'TOTAL', null, null, null, null, null, null, rupees(report.filtered_paise), null, null, rupees(report.filtered_in_paise), rupees(report.filtered_out_paise),
+      filter.report === 'profit' ? rupees(report.summary.cost_paise) : null],
+  ];
+  const title = filter.report === 'purchases' && filter.includeExpenses ? 'All spending by category' : REPORT_TITLES[filter.report];
+  const s = report.summary;
+  const summary: SheetCell[][] = [
+    ['Central Kitchen', null],
+    ['Report', title],
+    ['Period', `${range.startDate} to ${range.endDate}`],
+    ['Currency', 'INR'],
+    [null, null],
+    ['Sales to branches', rupees(s.sales_paise)],
+    ['Purchases', rupees(s.purchases_paise)],
+    ['Other expenses', rupees(s.expenses_paise)],
+    ['Cash received', rupees(s.cash_in_paise)],
+    ['Cash paid', rupees(s.cash_out_paise)],
+    ...(filter.report === 'profit' ? [['Cost of goods sent', rupees(s.cost_paise)] as SheetCell[]] : []),
+    [null, null],
+    ['Rows in this export', report.rows.length],
+    ['Note', 'India calendar dates, inclusive. Goods supplied are kitchen sales; pay-later status is recorded at entry, not current debt.'],
+  ];
+  return [
+    { name: 'Report', rows, headerRow: 0, widths: [38, 12, 16, 24, 20, 28, 10, 8, 14, 14, 18, 10, 14, 14, 12], formats: { 6: QTY_FORMAT, 8: MONEY_FORMAT, 9: MONEY_FORMAT, 12: MONEY_FORMAT, 13: MONEY_FORMAT, 14: MONEY_FORMAT } },
+    { name: 'Summary', rows: summary, widths: [26, 70], formats: { 1: MONEY_FORMAT } },
+  ];
 }

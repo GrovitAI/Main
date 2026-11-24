@@ -49,6 +49,8 @@ import {
 } from '@/lib/analytics/analytics-service';
 import { canViewAllBranches } from '@/lib/pos/branch-access';
 import { fetchAnalyticsTransactions } from '@/lib/pos/analytics-export-service';
+import { analyticsSheets } from '@/lib/pos/analytics-excel-utils';
+import { downloadWorkbook } from '@/lib/pos/xlsx-export';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 
 /** Task 310: coming back to Analytics after this long loads the figures again. */
@@ -321,6 +323,39 @@ export default function AnalyticsScreen() {
       if (isMountedRef.current && requestId === latestRequestIdRef.current) {
         setExportNotice('Unable to export transactions. Please retry.');
       }
+    } finally {
+      exportPendingRef.current = false;
+      if (isMountedRef.current) setExporting(false);
+    }
+  };
+
+  // Task 338: the whole report as one Excel workbook (summary, days, hours, items, payments and every transaction).
+  const handleExportExcel = async (): Promise<void> => {
+    if (!canExportCsv || !loadedFilters || !dashboardData || loading || exportPendingRef.current) return;
+    exportPendingRef.current = true;
+    setExporting(true);
+    setExportNotice(null);
+    const requestId = latestRequestIdRef.current;
+    const filters = loadedFilters;
+    const dashboard = dashboardData;
+    try {
+      const result = await fetchAnalyticsTransactions(filters);
+      if (!isMountedRef.current || requestId !== latestRequestIdRef.current) return;
+      if (result.error || !result.data) {
+        setExportNotice(result.error ?? 'Unable to export the report. Please retry.');
+        return;
+      }
+      if (result.data.length === 0) {
+        setExportNotice('No transactions to export for this period.');
+        return;
+      }
+      const branchLabel = selectedBranchId ? accessibleBranches.find((b) => b.id === selectedBranchId)?.name ?? 'Selected branch' : canPickBranch ? 'All branches' : accessibleBranches[0]?.name ?? 'This branch';
+      await downloadWorkbook(`grovit_sales_report_${filters.startDate}_to_${filters.endDate}.xlsx`, analyticsSheets({
+        startDate: filters.startDate, endDate: filters.endDate, branchLabel,
+        hoursLabel: advancedTime ? `${startTime} to ${endTime}` : 'All hours', dashboard, transactions: result.data,
+      }));
+    } catch {
+      if (isMountedRef.current && requestId === latestRequestIdRef.current) setExportNotice('Unable to export the report. Please retry.');
     } finally {
       exportPendingRef.current = false;
       if (isMountedRef.current) setExporting(false);
@@ -1290,6 +1325,7 @@ export default function AnalyticsScreen() {
           exporting={exporting}
           exportNotice={exportNotice}
           onExportTransactions={() => void handleExportCSV()}
+          onExportExcel={() => void handleExportExcel()}
           onExportItems={handleExportItemWiseCSV}
           hours={{ enabled: advancedTime, start: startTime, end: endTime, onToggle: () => setAdvancedTime((v) => !v), onStart: setStartTime, onEnd: setEndTime }}
           franchise={{ enabled: isFranchiseMode, rate: royaltyRate, onToggle: toggleFranchiseMode, onDecrease: decreaseRoyaltyRate, onIncrease: increaseRoyaltyRate }}
@@ -1340,6 +1376,7 @@ export default function AnalyticsScreen() {
           exporting={exporting}
           exportNotice={exportNotice}
           onExportTransactions={() => void handleExportCSV()}
+          onExportExcel={() => void handleExportExcel()}
           onExportItems={handleExportItemWiseCSV}
           hours={{ enabled: advancedTime, start: startTime, end: endTime, onToggle: () => setAdvancedTime((v) => !v), onStart: setStartTime, onEnd: setEndTime }}
           franchise={{ enabled: isFranchiseMode, rate: royaltyRate, onToggle: toggleFranchiseMode, onDecrease: decreaseRoyaltyRate, onIncrease: increaseRoyaltyRate }}

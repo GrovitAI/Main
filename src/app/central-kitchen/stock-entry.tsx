@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, View, type TextInput as NativeTextInput } from 'react-native';
+import { Platform, Pressable, View, type TextInput as NativeTextInput } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Text, TextInput } from '@/components/ui/Typography';
 import { backToKitchen } from '@/lib/pos/kitchen-nav';
@@ -13,7 +13,10 @@ import { KeyboardAvoider } from '@/components/ui/KeyboardAvoider';
 import { EntryHistory } from '@/components/kitchen/EntryHistory';
 import { WhenRow } from '@/components/kitchen/EntryRows';
 import { isValidDateKey, useDateGuard } from '@/components/kitchen/forms';
-import { Empty, KHeader, KScreen, Notice, PrimaryButton, SearchBox, Segmented, SettingsGroup, useSavedThen } from '@/components/kitchen/ui';
+import { Empty, KHeader, KScreen, LinkButton, Notice, PrimaryButton, SearchBox, Segmented, SettingsGroup, useSavedThen } from '@/components/kitchen/ui';
+import { StockCountImportSheet } from '@/components/kitchen/StockCountImportSheet';
+import { downloadCountTemplate } from '@/lib/pos/stock-count-import';
+import type { CountItem, CountMatch } from '@/lib/pos/stock-count-import-utils';
 import { buzz } from '@/lib/pos/kitchen-haptics';
 
 type Mode = 'made' | 'count';
@@ -47,8 +50,24 @@ export default function StockEntryScreen() {
   const [error, setError] = useState<string | null>(null);
   const done = useSavedThen();
   const allowed = can(mode === 'made' ? 'entries.batch' : 'entries.count');
+  // Task 339: Count stock can be filled from an Excel file (in the browser). The figures land on this screen
+  // to be checked and saved as usual.
+  const canImport = mode === 'count' && Platform.OS === 'web';
+  const [importOpen, setImportOpen] = useState(false);
+  const [filled, setFilled] = useState<string | null>(null);
 
   const categories = useMemo(() => [...data.purchaseCategories, ...data.goodsCategories], [data.purchaseCategories, data.goodsCategories]);
+  const importItems = useMemo((): CountItem[] => data.items.filter((i) => i.is_active).map((i) => ({
+    id: i.id, name: i.name, unit: i.unit, item_kind: i.item_kind, stock: i.stock, category: itemCategoryName(categories, i.category_id),
+  })), [data.items, categories]);
+  const applyImport = (matched: readonly CountMatch[]): void => {
+    setTyped((all) => ({ ...all, ...Object.fromEntries(matched.map((m) => [m.itemId, m.text])) }));
+    const raw = matched.filter((m) => m.kind === 'raw_material').length;
+    const goods = matched.length - raw;
+    // Show the kind that has figures, so they are on the screen.
+    if (matched.length > 0 && !matched.some((m) => m.kind === kind)) setKind(matched[0]?.kind ?? kind);
+    setFilled(`${matched.length} ${matched.length === 1 ? 'item' : 'items'} filled in from the file${raw > 0 && goods > 0 ? ` (${raw} raw ${raw === 1 ? 'material' : 'materials'}, ${goods} finished ${goods === 1 ? 'good' : 'goods'})` : ''}. Check them, then Save.`);
+  };
   const rows = useMemo(() => byCategoryThenName(
     data.items.filter((i) => i.is_active && i.item_kind === kind && matchesSearch(query, i.name, i.unit, itemCategoryName(categories, i.category_id) ?? '')), categories,
   ), [data.items, kind, query, categories]);
@@ -110,6 +129,8 @@ export default function StockEntryScreen() {
         {!allowed ? <Notice text="Your login cannot record this. Ask the owner or a kitchen manager." /> : null}
         {mode === 'count' ? <View className="mb-3"><Segmented options={[{ value: 'raw_material', label: 'Raw materials' }, { value: 'finished_good', label: 'Finished goods' }]} value={kind} onChange={setKind} /></View> : null}
         {mayBackdate ? <View className="mb-3"><SettingsGroup><WhenRow date={date} onChange={setDate} lockReason={lockReason} onLockReason={setLockReason} /></SettingsGroup></View> : null}
+        {canImport && allowed ? <View className="mb-3 flex-row items-center" style={{ columnGap: 16 }}><LinkButton label="Import from Excel" onPress={() => setImportOpen(true)} /><LinkButton label="Template" onPress={() => void downloadCountTemplate(importItems).catch(() => setError('The template could not be made.'))} /></View> : null}
+        {filled ? <View className="mb-3"><Notice tone="in" text={filled} /></View> : null}
         <SearchBox value={query} onChange={setQuery} placeholder="Search items" />
         {error ? <View className="mt-3"><Notice text={error} /></View> : null}
         {rows.length === 0 ? <Empty title={query ? 'No item matches that' : 'No items yet'} /> : (
@@ -127,6 +148,7 @@ export default function StockEntryScreen() {
         )}
         <View style={{ height: 8 }} />
       </KScreen>
+      {canImport ? <StockCountImportSheet visible={importOpen} onClose={() => setImportOpen(false)} items={importItems} dayLabel={isToday ? 'today' : dayName} onApply={applyImport} /> : null}
     </KeyboardAvoider>
   );
 }

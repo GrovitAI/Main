@@ -261,8 +261,9 @@ export function PhoneStatement(props: AnalyticsStatementProps) {
       ) : null}
       {props.canExport && k.totalOrders > 0 ? (
         <View className="mt-4 flex-row flex-wrap justify-center gap-x-6">
-          <TextLink label={props.exporting ? 'Preparing…' : 'Export transactions'} onPress={props.onExportTransactions} disabled={loading || props.exporting} />
-          <TextLink label="Export item sales" onPress={props.onExportItems} disabled={loading} />
+          <TextLink label={props.exporting ? 'Preparing…' : 'Export Excel'} onPress={props.onExportExcel} disabled={loading || props.exporting} />
+          <TextLink label="Transactions CSV" onPress={props.onExportTransactions} disabled={loading || props.exporting} />
+          <TextLink label="Item sales CSV" onPress={props.onExportItems} disabled={loading} />
         </View>
       ) : null}
     </View>

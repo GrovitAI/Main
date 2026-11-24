@@ -53,6 +53,8 @@ export type AnalyticsStatementProps = {
   exporting: boolean;
   exportNotice: string | null;
   onExportTransactions: () => void;
+  /** Task 338: the whole report as an Excel workbook. */
+  onExportExcel: () => void;
   onExportItems: () => void;
   hours: { enabled: boolean; start: string; end: string; onToggle: () => void; onStart: (v: string) => void; onEnd: (v: string) => void };
   franchise: { enabled: boolean; rate: number; onToggle: (on: boolean) => void; onDecrease: () => void; onIncrease: () => void };
@@ -362,7 +364,8 @@ export function AnalyticsStatement(props: AnalyticsStatementProps) {
           ) : null}
           {props.canExport && k && k.totalOrders > 0 ? <>
             <ToolButton label="Item sales" icon={Download} onPress={props.onExportItems} disabled={loading} />
-            <ToolButton label={props.exporting ? 'Preparing…' : 'Export transactions'} icon={Download} primary onPress={props.onExportTransactions} disabled={loading || props.exporting} />
+            <ToolButton label="Transactions CSV" icon={Download} onPress={props.onExportTransactions} disabled={loading || props.exporting} />
+            <ToolButton label={props.exporting ? 'Preparing…' : 'Export Excel'} icon={Download} primary onPress={props.onExportExcel} disabled={loading || props.exporting} />
           </> : null}
         </View>
       </View>
