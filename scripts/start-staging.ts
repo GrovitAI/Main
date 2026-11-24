@@ -64,9 +64,13 @@ async function main(): Promise<void> {
   await mkdir(join(root, '.expo'), { recursive: true });
   const apiRoot = await mkdtemp(join(root, '.expo', 'staging-api-'));
   await mkdir(join(apiRoot, 'api', 'staff'), { recursive: true });
+  await mkdir(join(apiRoot, 'api', 'public'), { recursive: true });
   await mkdir(join(apiRoot, 'src', 'lib', 'server'), { recursive: true });
   await cp(join(root, 'api', 'staff', 'create.ts'), join(apiRoot, 'api', 'staff', 'create.ts'));
   await cp(join(root, 'src', 'lib', 'server', 'api-auth.ts'), join(apiRoot, 'src', 'lib', 'server', 'api-auth.ts'));
+  // The table-ordering page (task 331) calls this one public function.
+  await cp(join(root, 'api', 'public', 'qr.ts'), join(apiRoot, 'api', 'public', 'qr.ts'));
+  await cp(join(root, 'src', 'lib', 'server', 'qr-public.ts'), join(apiRoot, 'src', 'lib', 'server', 'qr-public.ts'));
   await symlink(join(root, 'node_modules'), join(apiRoot, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
   await writeFile(join(apiRoot, 'package.json'), JSON.stringify({
     private: true,
