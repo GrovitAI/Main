@@ -19,10 +19,29 @@ export function usesDailyWorkNavigation(role: UserRole): boolean {
   return role === 'owner' || role === 'admin';
 }
 
+/**
+ * Task 337: a manager keeps the tab bar they have, but Menu is not one of its tabs: it sits under a
+ * More tab at the end of the bar. The Menu screen stays mounted, so it opens like any other.
+ */
+export function usesMoreForMenu(role: UserRole): boolean {
+  return role === 'manager';
+}
+
+/** Whether the role has a More tab at all: owners and admins (the daily-work layout) and managers (for Menu). */
+export function hasMoreTab(role: UserRole): boolean {
+  return usesDailyWorkNavigation(role) || usesMoreForMenu(role);
+}
+
+/** The tabs a manager sees in the bar: everything mounted except what lives under More. */
+export function getBarTabs(role: UserRole, isPhone: boolean): TabConfig[] {
+  const tabs = getDailyWorkTabs(role, isPhone);
+  return usesMoreForMenu(role) ? tabs.filter((tab) => tab.name !== 'menu') : tabs;
+}
+
 /** Keep every authorized screen mounted as a tab, even when it lives under More. */
 export function getDailyWorkTabs(role: UserRole, isPhone: boolean): TabConfig[] {
   const tabs = getTabsForRole(role, isPhone);
-  return usesDailyWorkNavigation(role) ? [...tabs, MORE_TAB] : tabs;
+  return hasMoreTab(role) ? [...tabs, MORE_TAB] : tabs;
 }
 
 function selectTabs(tabs: TabConfig[], names: string[]): TabConfig[] {
@@ -43,6 +62,10 @@ export function getDailyWorkGroups(role: UserRole, isPhone: boolean): Navigation
 }
 
 export function getMoreGroups(role: UserRole, isPhone: boolean): NavigationGroup[] {
+  if (usesMoreForMenu(role)) {
+    const menu = selectTabs(getTabsForRole(role, isPhone), ['menu']);
+    return menu.length > 0 ? [{ title: 'Business', tabs: menu }] : [];
+  }
   return getDailyWorkGroups(role, isPhone).filter((group) => group.title !== 'Daily work');
 }
 

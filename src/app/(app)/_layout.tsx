@@ -17,7 +17,7 @@ import { TabScene } from '@/components/ui/TabScene';
 import { DailyWorkNavigation } from '@/components/layout/DailyWorkNavigation';
 import { DesktopDailyWorkBar } from '@/components/layout/DesktopDailyWorkBar';
 import {
-  getDailyWorkTabs, getDailyWorkGroups, getDailyWorkPhoneTabs,
+  getBarTabs, getDailyWorkTabs, getDailyWorkGroups, getDailyWorkPhoneTabs,
   getDailyWorkDesktopTabs, getDesktopNavigationSelection,
   getPhoneNavigationSelection, usesDailyWorkNavigation,
 } from '@/lib/pos/daily-work-navigation';
@@ -386,6 +386,8 @@ export default function AppTabLayout() {
   const lastTab = useRef<number | null>(null);
 
   const roleTabs = session ? getDailyWorkTabs(session.role, isPhone) : [];
+  // What the plain tab bar shows: a manager's Menu is mounted but lives under More (task 337).
+  const barTabs = session ? getBarTabs(session.role, isPhone) : [];
   const dailyWorkNavigation = session ? usesDailyWorkNavigation(session.role) : false;
   const dailyWorkDesktop = dailyWorkNavigation && isTablet && Platform.OS === 'web';
   const dailyWorkSidebar = dailyWorkNavigation && isTablet && Platform.OS !== 'web';
@@ -433,7 +435,7 @@ export default function AppTabLayout() {
         ? (dailyWorkDesktop ? getDailyWorkDesktopTabs(session.role) : dailyWorkSidebar
           ? getDailyWorkGroups(session.role, false).flatMap(group => group.tabs)
           : getDailyWorkPhoneTabs(session.role))
-        : APP_TAB_ROUTE_NAMES.flatMap(name => roleTabs.filter(tab => tab.name === name));
+        : APP_TAB_ROUTE_NAMES.flatMap(name => barTabs.filter(tab => tab.name === name));
       const activeTabNames = visibleTabs.map(tab => tab.name);
 
       if (activeTabNames.length <= 1) return;
@@ -479,7 +481,7 @@ export default function AppTabLayout() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown, true);
     };
-  }, [roleTabs, dailyWorkNavigation, dailyWorkDesktop, dailyWorkSidebar, session]);
+  }, [roleTabs, barTabs, dailyWorkNavigation, dailyWorkDesktop, dailyWorkSidebar, session]);
 
   const userRole = session?.role || 'cashier';
   const initialRouteName = getInitialRouteNameForRole(userRole, isPhone);
@@ -507,7 +509,7 @@ export default function AppTabLayout() {
               ? <DesktopDailyWorkBar {...props} role={userRole} hidden={tabBarHidden} />
               : dailyWorkNavigation
               ? <DailyWorkNavigation {...props} role={userRole} sidebar={dailyWorkSidebar} hidden={tabBarHidden} />
-              : <CustomTabBar {...props} roleTabs={roleTabs} tabBarHidden={tabBarHidden} />}
+              : <CustomTabBar {...props} roleTabs={barTabs} tabBarHidden={tabBarHidden} />}
             screenOptions={{
               // Task 250: a tab out of view stops redrawing until it is shown again.
               freezeOnBlur: true,
