@@ -87,7 +87,12 @@ export const MenuCard = memo(function MenuCard({ product, selected, quick, onOpe
       accessibilityState={selected ? { selected: true } : undefined}
       aria-selected={selected ? true : undefined}
       style={({ pressed }: PressableStateCallbackType): StyleProp<ViewStyle> => ({
-        flex: 1,
+        // Every cell in a row shares the width equally: a card's own content never widens it,
+        // so a half-filled last row keeps the size of the full rows above it.
+        flexGrow: 1,
+        flexShrink: 1,
+        flexBasis: 0,
+        minWidth: 0,
         height: CARD_HEIGHT,
         borderRadius: 18,
         // The selected card's border is thicker; the padding gives the width back so nothing moves.

@@ -21,6 +21,7 @@ const PANEL_WIDTH = 340;
 const GAP = 12;
 /** A card is never narrower than this on a laptop, so names keep two short lines. */
 const MIN_CARD = 190;
+const CARD_SIDE = 15;
 const TOAST_MS = 2200;
 
 /** What the editor is open on: an item, or a new one. */
@@ -191,7 +192,11 @@ export function MenuBoard() {
   const renderCell = useCallback(({ item }: { item: MenuProduct | null }) => (
     item ? (
       <MenuCard product={item} selected={item.id === selectedId} quick={!isPhone} onOpen={openCard} onHold={isPhone ? holdCard : undefined} onToggle={toggle} onSavePrice={savePrice} />
-    ) : <View style={{ flex: 1 }} />
+    ) : (
+      // Same 15px of border and padding each side as a card: flex shares out only what is left after
+      // that, so a filler without it would leave the last row's cards wider than the rows above.
+      <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, paddingHorizontal: CARD_SIDE }} />
+    )
   ), [selectedId, isPhone, openCard, holdCard, toggle, savePrice]);
 
   const empty = loading ? (
