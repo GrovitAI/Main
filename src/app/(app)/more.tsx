@@ -7,7 +7,7 @@ import { colors } from '@/lib/pos/brand';
 import { useSessionStore } from '@/lib/pos/use-session-store';
 import { getDefaultHrefForSession } from '@/lib/pos/tab-config';
 import {
-  flattenNavigationGroups, getMoreGroups, usesDailyWorkNavigation, type NavigationRow,
+  flattenNavigationGroups, getMoreGroups, hasMoreTab, type NavigationRow,
 } from '@/lib/pos/daily-work-navigation';
 
 export default function MoreScreen() {
@@ -16,7 +16,7 @@ export default function MoreScreen() {
   const isPhone = width < 768;
   const insets = useSafeAreaInsets();
   if (!session) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator color={colors.primary} /></View>;
-  if (!usesDailyWorkNavigation(session.role)) return <Redirect href={getDefaultHrefForSession(session, isPhone) as Href} />;
+  if (!hasMoreTab(session.role)) return <Redirect href={getDefaultHrefForSession(session, isPhone) as Href} />;
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: isPhone ? insets.top : 0 }}>

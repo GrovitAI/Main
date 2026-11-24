@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 import type { UserRole } from '@/lib/pos/session-context';
 import { getTabsForRole } from '@/lib/pos/tab-config';
 import {
-  getDailyWorkGroups, getDailyWorkPhoneTabs, getDailyWorkTabs, getMoreGroups,
+  getDailyWorkGroups, getDailyWorkPhoneTabs, getBarTabs, getDailyWorkTabs, getMoreGroups, hasMoreTab, usesMoreForMenu,
   getPhoneNavigationSelection, usesDailyWorkNavigation,
   getDailyWorkDesktopTabs, getDesktopNavigationSelection,
 } from '@/lib/pos/daily-work-navigation';
@@ -56,7 +56,7 @@ describe('Daily work navigation', () => {
     expect(getMoreGroups('admin', false).flatMap(group => group.tabs.map(tab => tab.name))).toEqual(['menu', 'staff', 'settings']);
   }));
 
-  it.each<UserRole>(['cashier', 'manager', 'kitchen', 'accountant'])('leaves %s navigation and access unchanged', (role) => onWeb(() => {
+  it.each<UserRole>(['cashier', 'kitchen', 'accountant'])('leaves %s navigation and access unchanged', (role) => onWeb(() => {
     expect(usesDailyWorkNavigation(role)).toBe(false);
     expect(getDailyWorkTabs(role, false)).toEqual(getTabsForRole(role, false));
     expect(getDailyWorkTabs(role, true)).toEqual(getTabsForRole(role, true));
@@ -64,6 +64,33 @@ describe('Daily work navigation', () => {
     expect(getDailyWorkPhoneTabs(role)).toEqual([]);
     expect(getDailyWorkDesktopTabs(role)).toEqual([]);
     expect(getMoreGroups(role, true)).toEqual([]);
+  }));
+
+  // Task 337: a manager keeps the tab bar, but Menu lives under More.
+  it('puts the manager Menu under More and keeps every other tab in the bar', () => {
+    onWeb(() => {
+      for (const phone of [false, true]) {
+        const configured = getTabsForRole('manager', phone).map((tab) => tab.name);
+        expect(usesDailyWorkNavigation('manager')).toBe(false);
+        expect(usesMoreForMenu('manager')).toBe(true);
+        expect(hasMoreTab('manager')).toBe(true);
+        const bar = getBarTabs('manager', phone).map((tab) => tab.name);
+        expect(bar).not.toContain('menu');
+        expect(bar[bar.length - 1]).toBe('more');
+        expect(bar.filter((name) => name !== 'more')).toEqual(configured.filter((name) => name !== 'menu'));
+        // Menu is still mounted, so it opens like any other screen.
+        expect(getDailyWorkTabs('manager', phone).map((tab) => tab.name)).toEqual([...configured, 'more']);
+        expect(getMoreGroups('manager', phone)).toEqual([{ title: 'Business', tabs: expect.arrayContaining([expect.objectContaining({ name: 'menu' })]) }]);
+        expect(getMoreGroups('manager', phone).flatMap((g) => g.tabs.map((tab) => tab.name))).toEqual(['menu']);
+      }
+    });
+  });
+
+  it('gives no one else a More tab for Menu', () => onWeb(() => {
+    (['cashier', 'kitchen', 'accountant'] as UserRole[]).forEach((role) => {
+      expect(usesMoreForMenu(role)).toBe(false);
+      expect(getBarTabs(role, false)).toEqual(getTabsForRole(role, false));
+    });
   }));
 
   it('highlights More while a secondary screen is open', () => {
