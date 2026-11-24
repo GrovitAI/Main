@@ -16,7 +16,8 @@ import { useSessionStore } from '@/lib/pos/use-session-store';
 import { storage, STORAGE_KEYS, DEFAULT_RECEIPT_FOOTER } from '@/lib/pos/storage';
 import { getErrorMessage } from '@/lib/pos/error-utils';
 import { confirmAction } from '@/lib/pos/dialogs';
-import { Avatar, Card, Empty, KHeader, LinkButton, Notice, Row, RowInset, Section, Segmented, TextField, Toggle } from '@/components/kitchen/ui';
+import { Avatar, Card, Empty, KHeader, LinkButton, Notice, Row, RowInset, SearchBox, Section, Segmented, TextField, Toggle } from '@/components/kitchen/ui';
+import { SETTINGS_ENTRIES, searchSettings, visibleEntries, type SettingsEntry } from '@/lib/pos/settings-search-utils';
 
 /** The parts of Settings; each opens as its own page (task 271, owner's pick: Settings A). */
 type Pane = 'home' | 'printers' | 'receipt' | 'tables' | 'approvals' | 'finance' | 'about';
@@ -45,6 +46,8 @@ export default function SettingsScreen() {
   // Finance rules apply to the whole business, so only the owner sets them.
   const isOwner = session?.role === 'owner';
   const [pane, setPane] = useState<Pane>(split ? 'printers' : 'home');
+  // Task 338: what was typed in the search at the top; while it is not empty the list shows the matches.
+  const [query, setQuery] = useState('');
   useEffect(() => { if (split && pane === 'home') setPane('printers'); }, [split, pane]);
 
   const [printers, setPrinters] = useState<Printer[]>([]);
@@ -185,6 +188,40 @@ export default function SettingsScreen() {
     </View>
   );
 
+  const titles: Record<Pane, string> = { home: 'Settings', printers: 'Printers', receipt: 'Receipt footer', tables: 'Table ordering', approvals: 'Approvals', finance: 'Finance', about: 'About this device' };
+  // Task 338: the settings that match, each opening the page that holds it.
+  const PANE_ICON: Record<SettingsEntry['pane'], LucideIcon> = { printers: PrinterIcon, receipt: ReceiptText, tables: QrCode, approvals: ShieldCheck, finance: Landmark, about: Info, kitchen: ChefHat };
+  const paneTitle = (id: SettingsEntry['pane']): string => (id === 'kitchen' ? 'Central Kitchen' : titles[id]);
+  const matches = useMemo(
+    () => searchSettings(visibleEntries(SETTINGS_ENTRIES, { manager: isManagerUp, admin: isOwnerOrAdmin, owner: isOwner, finance: FINANCE_MODULE_ENABLED }), query),
+    [query, isManagerUp, isOwnerOrAdmin, isOwner],
+  );
+  const openMatch = (entry: SettingsEntry): void => {
+    setQuery('');
+    if (entry.pane === 'kitchen') { router.push(KITCHEN_HOME as never); return; }
+    setSuccessMsg(null);
+    setFormError(null);
+    setPane(entry.pane);
+  };
+  const results = (
+    <View>
+      {matches.length === 0 ? (
+        <Card><Empty title="No setting matches that" /></Card>
+      ) : (
+        <Card padded={false} style={{ paddingHorizontal: 14, overflow: 'hidden' }}>
+          <RowInset.Provider value={14}>
+            {matches.map((m) => (
+              <Row key={m.id} icon={PANE_ICON[m.pane]} iconTone="primary" title={m.title} subtitle={m.pane === 'kitchen' || m.title === paneTitle(m.pane) ? m.detail : `${paneTitle(m.pane)} · ${m.detail}`}
+                selected={split && m.pane === pane} onPress={() => openMatch(m)} />
+            ))}
+          </RowInset.Provider>
+        </Card>
+      )}
+    </View>
+  );
+  const search = <SearchBox value={query} onChange={setQuery} placeholder="Search settings" />;
+  const shown = query.trim() ? results : list;
+
   const feedback = (
     <>
       {formError ? <Notice text={formError} /> : null}
@@ -267,7 +304,6 @@ export default function SettingsScreen() {
     </Card>
   );
 
-  const titles: Record<Pane, string> = { home: 'Settings', printers: 'Printers', receipt: 'Receipt footer', tables: 'Table ordering', approvals: 'Approvals', finance: 'Finance', about: 'About this device' };
   const pageBody = pane === 'printers' ? printersPage : pane === 'receipt' ? receiptPage : pane === 'about' ? aboutPage
     : pane === 'tables' && isManagerUp ? <QrTablesSettings />
     : pane === 'finance' && FINANCE_MODULE_ENABLED ? <View><FinanceAccountsCard /><FinanceRulesCard /></View> : null;
@@ -282,7 +318,8 @@ export default function SettingsScreen() {
         {pane === 'home' ? (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}>
             <KHeader title="Settings" large />
-            {list}
+            {search}
+            <View style={{ marginTop: 12 }}>{shown}</View>
           </ScrollView>
         ) : (
           <View className="flex-1 px-4">
@@ -297,13 +334,19 @@ export default function SettingsScreen() {
   return (
     <View className="flex-1 bg-kitchen-canvas" style={{ paddingTop: insets.top }}>
       <View className="w-full flex-1 flex-row self-center px-6 pt-6" style={{ maxWidth: 1120, gap: 24 }}>
-        <ScrollView style={{ width: 340, flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 120 }}>
-          <Text accessibilityRole="header" className="mb-4 text-[28px] font-bold text-text-primary" style={{ letterSpacing: -0.5 }}>Settings</Text>
-          {list}
-        </ScrollView>
+        {/* Both columns open with a header row of the same height, so the first things below line up. */}
+        <View style={{ width: 340, flexShrink: 0 }}>
+          <View style={{ height: 48, justifyContent: 'center' }}>
+            <Text accessibilityRole="header" className="text-[26px] font-bold text-text-primary" style={{ letterSpacing: -0.4 }}>Settings</Text>
+          </View>
+          <View style={{ marginTop: 12 }}>{search}</View>
+          <ScrollView className="flex-1" style={{ marginTop: 12 }} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled">{shown}</ScrollView>
+        </View>
         <View className="min-w-0 flex-1">
-          <Text accessibilityRole="header" className="mb-3 mt-2 text-xl font-bold text-text-primary">{titles[pane]}</Text>
-          {page}
+          <View style={{ height: 48, justifyContent: 'center' }}>
+            <Text accessibilityRole="header" className="text-[26px] font-bold text-text-primary" style={{ letterSpacing: -0.4 }} numberOfLines={1}>{titles[pane]}</Text>
+          </View>
+          <View className="flex-1" style={{ marginTop: 12 }}>{page}</View>
         </View>
       </View>
     </View>
